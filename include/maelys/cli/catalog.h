@@ -64,6 +64,7 @@ typedef struct maelys_cli_option {
     int64_t signed_maximum;
     size_t hex_digits;              /* HEX */
     const char *default_text;       /* documented default, informative */
+    size_t hex_digits_alternative;  /* HEX: second accepted length, 0 = none */
 } maelys_cli_option_t;
 
 struct maelys_cli_context;
@@ -85,6 +86,8 @@ typedef struct maelys_cli_command {
     const char *delegate;             /* absolute path or helper name */
     const char *synopsis;             /* NULL derives it from the catalog */
     int hidden;                       /* omitted from help, kept in describe */
+    const char *protocol;             /* STREAM only: name of the protocol
+                                         owning stdio, e.g. "git-smart" */
 } maelys_cli_command_t;
 
 #define MAELYS_CLI_COUNT(array) (sizeof(array) / sizeof((array)[0]))
@@ -146,6 +149,11 @@ typedef struct maelys_cli_command {
 #define MAELYS_CLI_HEX(name_, value_, summary_, digits_) \
     .name = (name_), .kind = MAELYS_CLI_VALUE_HEX, .value_name = (value_), \
     .summary = (summary_), .hex_digits = (digits_)
+/* Hexadecimal accepting either of two lengths, e.g. SHA-1 or SHA-256 OIDs. */
+#define MAELYS_CLI_HEX_OR(name_, value_, summary_, digits_, alternative_) \
+    .name = (name_), .kind = MAELYS_CLI_VALUE_HEX, .value_name = (value_), \
+    .summary = (summary_), .hex_digits = (digits_), \
+    .hex_digits_alternative = (alternative_)
 
 /* The standard transactional switch, shared by every plan/apply command. */
 #define MAELYS_CLI_APPLY_OPTION \
@@ -178,6 +186,11 @@ typedef struct maelys_cli_command {
     .id = (id_), .pattern = (pattern_), .purpose = (purpose_), \
     .effect = MAELYS_CLI_EFFECT_STREAM, .output = MAELYS_CLI_OUTPUT_STREAM, \
     .handler = (handler_)
+/* A stream command whose stdio belongs to a named protocol. */
+#define MAELYS_CLI_PROTOCOL_STREAM(id_, pattern_, purpose_, handler_, protocol_) \
+    .id = (id_), .pattern = (pattern_), .purpose = (purpose_), \
+    .effect = MAELYS_CLI_EFFECT_STREAM, .output = MAELYS_CLI_OUTPUT_STREAM, \
+    .handler = (handler_), .protocol = (protocol_)
 #define MAELYS_CLI_EXTERNAL(id_, pattern_, purpose_, helper_) \
     .id = (id_), .pattern = (pattern_), .purpose = (purpose_), \
     .effect = MAELYS_CLI_EFFECT_EXECUTE, .output = MAELYS_CLI_OUTPUT_STREAM, \

@@ -120,6 +120,7 @@ Command macros and their effect/output:
 | `MAELYS_CLI_COMMIT_TRANSACTION(...)` | preview, commit with `--apply` | json-envelope |
 | `MAELYS_CLI_EXECUTE(...)` | execute | json-envelope |
 | `MAELYS_CLI_STREAM(...)` | stream | protocol-stream |
+| `MAELYS_CLI_PROTOCOL_STREAM(..., "git-smart")` | stream | protocol-stream, `protocol` named in `describe` |
 | `MAELYS_CLI_EXTERNAL(id, pattern, purpose, helper)` | execute | protocol-stream, arguments passed verbatim |
 
 Option macros: `MAELYS_CLI_FLAG(name, summary)`, `MAELYS_CLI_STRING(name,
@@ -127,7 +128,8 @@ VALUE, summary)`, `MAELYS_CLI_PATH(...)`, `MAELYS_CLI_UNSIGNED(name, VALUE,
 summary, minimum, maximum)`, `MAELYS_CLI_INTEGER(...)`,
 `MAELYS_CLI_SIZE(...)`, `MAELYS_CLI_DURATION(...)`,
 `MAELYS_CLI_CHOICE(name, summary, choices)`, `MAELYS_CLI_HEX(name, VALUE,
-summary, digits)`. A maximum of `0` means unbounded. Operand macros:
+summary, digits)`, `MAELYS_CLI_HEX_OR(name, VALUE, summary, digits,
+alternative)`. A maximum of `0` means unbounded. Operand macros:
 `MAELYS_CLI_OPERAND`, `MAELYS_CLI_OPERAND_OPTIONAL`,
 `MAELYS_CLI_OPERAND_REST` (absorbs everything, including after `--`).
 Extra command attributes: `.synopsis` (override), `.hidden`.

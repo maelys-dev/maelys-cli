@@ -19,6 +19,7 @@ static const maelys_cli_option_t make_options[] = {
     {MAELYS_CLI_DURATION("wait", "DURATION", "Wait.", 0u, 0u)},
     {MAELYS_CLI_INTEGER("offset", "N", "Offset.", -10, 10)},
     {MAELYS_CLI_STRING("tag", "TEXT", "Tag."), .repeatable = 1},
+    {MAELYS_CLI_HEX_OR("oid", "OID", "Object id.", 4u, 8u)},
     {MAELYS_CLI_FLAG("strict", "Strict."), .requires = "git"},
     {MAELYS_CLI_FLAG("lenient", "Lenient."), .conflicts_with = "strict"},
     MAELYS_CLI_APPLY_OPTION,
@@ -88,7 +89,7 @@ static const maelys_cli_command_t commands[] = {
     {MAELYS_CLI_TRANSACTION("thing.make", "thing make", "Make.", command_make),
      MAELYS_CLI_OPERANDS(make_operands), MAELYS_CLI_OPTIONS(make_options),
      MAELYS_CLI_SCHEMA("{\"type\":\"object\",\"required\":[\"mode\"]}")},
-    {MAELYS_CLI_STREAM("exec", "exec", "Exec.", command_exec),
+    {MAELYS_CLI_PROTOCOL_STREAM("exec", "exec", "Exec.", command_exec, "test-jsonl"),
      MAELYS_CLI_OPERANDS(rest_operands)},
     {MAELYS_CLI_RECORDS("records", "records", "Records.", command_records)},
     {MAELYS_CLI_READ("report", "report", "Report.", command_report)},
@@ -147,7 +148,7 @@ static int test_help_and_version(void) {
     CHECK(result.code == 0 && strstr(result.out, "--memory BYTES") && strstr(result.out, "preview by default"));
     release(&result);
     result = RUNV("help", "exec");
-    CHECK(result.code == 0 && strstr(result.out, "protocol-stream"));
+    CHECK(result.code == 0 && strstr(result.out, "protocol-stream owned by protocol test-jsonl"));
     release(&result);
     result = RUNV("help", "nope");
     CHECK(result.code == 1 && !result.out[0] && strstr(result.err, "[INVALID_COMMAND]"));
@@ -182,6 +183,10 @@ static int test_describe(void) {
     CHECK(strstr(result.out, "\"outputSchema\":{\"type\":\"object\",\"required\":[\"mode\"]}"));
     CHECK(strstr(result.out, "\"choices\":[\"low\",\"high\"]") && strstr(result.out, "\"default\":\"low\""));
     CHECK(strstr(result.out, "\"minimum\":-10,\"maximum\":10"));
+    CHECK(strstr(result.out, "\"digits\":4,\"alternativeDigits\":8"));
+    release(&result);
+    result = RUNV("describe", "exec", "--json", "--compact");
+    CHECK(result.code == 0 && strstr(result.out, "\"outputMode\":\"protocol-stream\",\"protocol\":\"test-jsonl\""));
     release(&result);
     result = RUNV("describe", "nope", "--json", "--compact");
     CHECK(result.code == 1 && !result.out[0]);
@@ -203,6 +208,9 @@ static int test_parsing_success(void) {
         "\"root\":\"/root\",\"git\":\"--literal\",\"tags\":2}}\n") == 0);
     CHECK(last_memory_present && last_memory == 2048u && last_wait == 1500u);
     CHECK(last_offset == -3 && last_level == 1u);
+    release(&result);
+    result = RUNV("thing", "make", "/root", "name", "--oid", "0123abcd", "--json", "--compact");
+    CHECK(result.code == 0 && !result.err[0]);
     release(&result);
     result = RUNV("thing", "make", "/root", "name", "--apply", "--strict", "--git", "/g");
     CHECK(result.code == 0 && strcmp(result.out, "made\n") == 0 && !last_memory_present);
@@ -245,6 +253,8 @@ static int test_parsing_failures(void) {
     CHECK(expect_failure(&result, "[VALIDATION_FAILED]", "duration with a unit"));
     result = RUNV("thing", "make", "/root", "name", "--offset", "11");
     CHECK(expect_failure(&result, "[VALIDATION_FAILED]", "between -10 and 10"));
+    result = RUNV("thing", "make", "/root", "name", "--oid", "abcde");
+    CHECK(expect_failure(&result, "[VALIDATION_FAILED]", "expects 4 or 8 lowercase"));
     result = RUNV("thing", "make", "/root", "name", "--level", "medium");
     CHECK(expect_failure(&result, "[VALIDATION_FAILED]", "one of: low, high"));
     result = RUNV("thing", "make", "/root", "name", "--apply=maybe");

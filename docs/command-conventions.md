@@ -47,7 +47,8 @@ Value kinds: `boolean` (flag, `--flag=false` accepted), `string`,
 `integer`, `unsigned`, `size` (K/M/G/T), `duration` (unit required: ms, s,
 m, h, d; delivered in milliseconds), `path`, `choice`, `hex`. Ranges,
 choices and digit counts are declared in the catalog and enforced by the
-parser before the handler runs.
+parser before the handler runs. A `hex` option may accept two lengths
+(`MAELYS_CLI_HEX_OR`, for SHA-1 or SHA-256 object identifiers).
 
 Errors are reported in this causal order:
 
@@ -137,7 +138,10 @@ Text rendering of a failure is `PROGRAM: [CODE] message` followed by
 
 `stream` commands and delegates are the only exceptions to the envelope.
 They refuse rendering options, keep diagnostics on stderr and never inject
-banners, progress or JSON into their stdout.
+banners, progress or JSON into their stdout. A stream command names the
+protocol that owns its stdio through `.protocol` (for example `git-smart`,
+`git-hook`, `maelys-git-agent/1`), exposed as `protocol` next to
+`outputMode: "protocol-stream"` in `describe`.
 
 ## Proof of implementation
 

@@ -20,5 +20,9 @@
   `MAELYS_CLI_STRING`, `MAELYS_CLI_SIZE`, ...) over designated initializers,
   and `maelys-cli-embed` to embed JSON Schema files and other texts as C
   symbols, so catalogs never carry hand-escaped JSON.
+- `MAELYS_CLI_PROTOCOL_STREAM` names the protocol owning a stream command's
+  stdio (`protocol` in `describe`); `MAELYS_CLI_HEX_OR` accepts two
+  hexadecimal lengths for object identifiers; the reference generator takes
+  the binaries to aggregate as arguments.
 - Reference product CLI `maelys-hello`, unit tests, end-to-end CLI tests,
   C++ header gate, sanitizer target and reference generator.

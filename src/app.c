@@ -20,15 +20,16 @@ static int builtin_version(maelys_cli_context_t *context);
 static int builtin_describe(maelys_cli_context_t *context);
 
 static const maelys_cli_operand_t help_operands[] = {
-    {"COMMAND_ID", "Stable command identifier whose help is shown.", 0, 0},
+    {MAELYS_CLI_OPERAND_OPTIONAL("COMMAND_ID",
+     "Stable command identifier whose help is shown.")},
 };
 static const maelys_cli_operand_t describe_operands[] = {
-    {"COMMAND_ID", "Stable command identifier returned by the catalog.", 0, 0},
+    {MAELYS_CLI_OPERAND_OPTIONAL("COMMAND_ID",
+     "Stable command identifier returned by the catalog.")},
 };
 static const maelys_cli_option_t describe_options[] = {
-    {"summary", MAELYS_CLI_VALUE_NONE, NULL,
-     "Return the compact command inventory without output schemas.",
-     0, 0, NULL, NULL, NULL, 0u, 0u, 0, 0, 0u, NULL},
+    {MAELYS_CLI_FLAG("summary",
+     "Return the compact command inventory without output schemas.")},
 };
 
 #define HELP_SCHEMA "{\"type\":\"object\",\"additionalProperties\":false," \
@@ -45,20 +46,17 @@ static const maelys_cli_option_t describe_options[] = {
     "\"required\":[\"schemaVersion\",\"kind\",\"program\",\"commands\"]}"
 
 static const maelys_cli_command_t builtins[] = {
-    {"help", "help", "Show the generated CLI guide or one command's help.",
-     MAELYS_CLI_EFFECT_READ, MAELYS_CLI_EFFECT_NONE, MAELYS_CLI_OUTPUT_ENVELOPE,
-     help_operands, MAELYS_CLI_COUNT(help_operands), NULL, 0u, HELP_SCHEMA,
-     builtin_help, NULL, "help [COMMAND_ID] | --help", 0},
-    {"version", "version", "Return product identity.",
-     MAELYS_CLI_EFFECT_READ, MAELYS_CLI_EFFECT_NONE, MAELYS_CLI_OUTPUT_ENVELOPE,
-     NULL, 0u, NULL, 0u, VERSION_SCHEMA, builtin_version, NULL,
-     "version | --version", 0},
-    {"describe", "describe",
+    {MAELYS_CLI_READ("help", "help",
+     "Show the generated CLI guide or one command's help.", builtin_help),
+     MAELYS_CLI_OPERANDS(help_operands), MAELYS_CLI_SCHEMA(HELP_SCHEMA),
+     .synopsis = "help [COMMAND_ID] | --help"},
+    {MAELYS_CLI_READ("version", "version", "Return product identity.",
+     builtin_version), MAELYS_CLI_SCHEMA(VERSION_SCHEMA),
+     .synopsis = "version | --version"},
+    {MAELYS_CLI_READ("describe", "describe",
      "Return the machine-readable catalog, summary or one descriptor.",
-     MAELYS_CLI_EFFECT_READ, MAELYS_CLI_EFFECT_NONE, MAELYS_CLI_OUTPUT_ENVELOPE,
-     describe_operands, MAELYS_CLI_COUNT(describe_operands), describe_options,
-     MAELYS_CLI_COUNT(describe_options), DESCRIBE_SCHEMA, builtin_describe,
-     NULL, NULL, 0},
+     builtin_describe), MAELYS_CLI_OPERANDS(describe_operands),
+     MAELYS_CLI_OPTIONS(describe_options), MAELYS_CLI_SCHEMA(DESCRIBE_SCHEMA)},
 };
 
 const maelys_cli_command_t *maelys_cli_builtin_commands(size_t *out_count) {
@@ -157,6 +155,13 @@ static int validate_command(
             "Catalog command '%s' has an invalid output mode.", id);
         return -1;
     }
+    if (command->protocol && (!*command->protocol ||
+        command->output != MAELYS_CLI_OUTPUT_STREAM)) {
+        maelys_cli_error_set(error, MAELYS_CLI_CODE_UNEXPECTED, hint,
+            "Catalog command '%s' names a protocol but is not a stream "
+            "command.", id);
+        return -1;
+    }
     if ((command->handler == NULL) == (command->delegate == NULL)) {
         maelys_cli_error_set(error, MAELYS_CLI_CODE_UNEXPECTED, hint,
             "Catalog command '%s' needs exactly one of handler or delegate.", id);
@@ -213,6 +218,10 @@ static int validate_command(
             (option->kind == MAELYS_CLI_VALUE_CHOICE &&
              (!option->choices || !option->choices[0])) ||
             (option->kind == MAELYS_CLI_VALUE_HEX && option->hex_digits == 0u) ||
+            (option->kind == MAELYS_CLI_VALUE_HEX &&
+             option->hex_digits_alternative == option->hex_digits) ||
+            (option->kind != MAELYS_CLI_VALUE_HEX &&
+             option->hex_digits_alternative != 0u) ||
             (option->maximum && option->minimum > option->maximum) ||
             option->signed_minimum > option->signed_maximum) {
             maelys_cli_error_set(error, MAELYS_CLI_CODE_UNEXPECTED, hint,
@@ -704,8 +713,11 @@ static int describe_option(
                 return -1;
         }
         if (option->kind == MAELYS_CLI_VALUE_HEX &&
-            maelys_cli_json_key_unsigned(writer, "digits",
-                (uint64_t)option->hex_digits) != 0)
+            (maelys_cli_json_key_unsigned(writer, "digits",
+                (uint64_t)option->hex_digits) != 0 ||
+             (option->hex_digits_alternative &&
+              maelys_cli_json_key_unsigned(writer, "alternativeDigits",
+                (uint64_t)option->hex_digits_alternative) != 0)))
             return -1;
         if (maelys_cli_json_end_object(writer) != 0) return -1;
     }
@@ -788,6 +800,8 @@ static int describe_command(
     }
     if (maelys_cli_json_key_string(writer, "outputMode",
             maelys_cli_output_mode_name(command->output)) != 0 ||
+        (command->protocol &&
+         maelys_cli_json_key_string(writer, "protocol", command->protocol) != 0) ||
         maelys_cli_json_key_boolean(writer, "external", command->delegate != NULL) != 0 ||
         maelys_cli_json_key_boolean(writer, "hidden", command->hidden) != 0 ||
         maelys_cli_json_key(writer, "input") != 0 ||
@@ -976,8 +990,10 @@ static void command_help_text(
             maelys_cli_effect_name(command->apply_effect));
     else
         (void)fprintf(stream, "%s\n", maelys_cli_effect_name(command->effect));
-    (void)fprintf(stream, "\nOUTPUT\n  %s%s\n",
+    (void)fprintf(stream, "\nOUTPUT\n  %s%s%s%s\n",
         maelys_cli_output_mode_name(command->output),
+        command->protocol ? " owned by protocol " : "",
+        command->protocol ? command->protocol : "",
         command->delegate ? " (arguments are passed to an external program)" : "");
     if (command->operand_count) {
         (void)fputs("\nOPERANDS\n", stream);

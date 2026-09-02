@@ -13,7 +13,7 @@ import pathlib
 import subprocess
 import sys
 
-PROGRAMS = ("maelys", "maelys-hello")
+DEFAULT_PROGRAMS = ("maelys", "maelys-hello")
 
 
 def catalog(binary: pathlib.Path) -> dict:
@@ -56,8 +56,11 @@ def markdown(programs: dict[str, dict]) -> str:
             effect = command["effect"]
             if isinstance(effect, dict):
                 effect = f"{effect['plan']} then {effect['apply']} with --apply"
+            output = command["outputMode"]
+            if command.get("protocol"):
+                output += f" ({command['protocol']})"
             cells = [command["id"], f"`{command['usage']}`", effect,
-                     command["outputMode"], command["purpose"]]
+                     output, command["purpose"]]
             lines.append("| " + " | ".join(str(cell).replace("|", "\\|") for cell in cells) + " |")
         lines.append("")
         lines.append("Global options:")
@@ -78,8 +81,10 @@ def main() -> int:
     parser.add_argument("--build", required=True, type=pathlib.Path)
     parser.add_argument("--markdown", required=True, type=pathlib.Path)
     parser.add_argument("--json", required=True, type=pathlib.Path)
+    parser.add_argument("programs", nargs="*", default=list(DEFAULT_PROGRAMS),
+                        help="binaries to describe (default: maelys maelys-hello)")
     arguments = parser.parse_args()
-    programs = {name: catalog(arguments.build / name) for name in PROGRAMS}
+    programs = {name: catalog(arguments.build / name) for name in arguments.programs}
     arguments.markdown.write_text(markdown(programs), encoding="utf-8")
     contract = {"contract": "agent-cli/v2", "programs": programs}
     arguments.json.write_text(json.dumps(contract, indent=2, sort_keys=True) + "\n",

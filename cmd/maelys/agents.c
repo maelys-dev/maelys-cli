@@ -21,19 +21,18 @@ enum client { CLIENT_ALL = 0, CLIENT_CLAUDE = 1, CLIENT_CODEX = 2 };
 static const char *const client_choices[] = {"all", "claude", "codex", NULL};
 
 const maelys_cli_operand_t maelys_agents_operands[1] = {
-    {"PROJECT_DIR", "Existing project directory that consumes libmaelys_cli.",
-     1, 0},
+    {MAELYS_CLI_OPERAND("PROJECT_DIR",
+     "Existing project directory that consumes libmaelys_cli.")},
 };
 const maelys_cli_option_t maelys_agents_install_options[2] = {
-    {"client", MAELYS_CLI_VALUE_CHOICE, NULL,
+    {MAELYS_CLI_CHOICE("client",
      "Agent clients to configure: all, claude (CLAUDE.md and skill) or codex "
-     "(AGENTS.md).", 0, 0, NULL, NULL, client_choices, 0u, 0u, 0, 0, 0u, "all"},
+     "(AGENTS.md).", client_choices), .default_text = "all"},
     MAELYS_CLI_APPLY_OPTION,
 };
 const maelys_cli_option_t maelys_agents_status_options[1] = {
-    {"client", MAELYS_CLI_VALUE_CHOICE, NULL,
-     "Agent clients to inspect: all, claude or codex.", 0, 0, NULL, NULL,
-     client_choices, 0u, 0u, 0, 0, 0u, "all"},
+    {MAELYS_CLI_CHOICE("client", "Agent clients to inspect: all, claude or codex.",
+     client_choices), .default_text = "all"},
 };
 
 const char maelys_agents_install_schema[] =

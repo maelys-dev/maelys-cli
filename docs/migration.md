@@ -35,12 +35,18 @@ absolute delegate chosen by the product before calling `maelys_cli_main()`.
 
 ## Maelys Git (`src/cli/catalog.c` and `src/cli/cli.c`)
 
-The descriptor types are the same concept with more kinds. `OID` and
-`SHA256` become `HEX` with `hex_digits` 40/64 (or a `STRING` validated in
-the handler for dual-length OIDs). `program` disappears: each binary
-declares its own `maelys_cli_app_t` with its subset of commands. `synopsis`
-may stay as an explicit override during the migration and then be dropped
-in favor of the derived form. `output_schema_json` keeps the same strings.
+The descriptor types are the same concept with more kinds. `OID` becomes
+`MAELYS_CLI_HEX_OR(name, "OID", summary, 40u, 64u)` and `SHA256` becomes
+`MAELYS_CLI_HEX(name, "SHA256", summary, 64u)`. The per-protocol output
+modes (`git-smart-protocol-stream`, `git-hook-stream`,
+`maelys-git-agent-jsonl-stream`, `maelys-git-events-jsonl-stream`) become
+`MAELYS_CLI_PROTOCOL_STREAM(..., "git-smart")` and so on: `describe` reports
+`outputMode: "protocol-stream"` plus `protocol`. `program` disappears: each
+binary declares its own `maelys_cli_app_t` with its subset of commands and
+`tools/generate_cli_reference.py BIN...` aggregates them. `synopsis` may
+stay as an explicit override during the migration and then be dropped in
+favor of the derived form. `output_schema_json` keeps the same strings, or
+moves to JSON Schema files embedded with `maelys-cli-embed`.
 
 `maelys_cli_emit_success(invocation, json_t *data, human, exit_code)`
 becomes `maelys_cli_succeed(context, json_dumps(data), human, exit_code)`:

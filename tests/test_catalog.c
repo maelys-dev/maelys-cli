@@ -10,26 +10,22 @@ static int dummy_handler(maelys_cli_context_t *context) {
 
 static const char *const modes[] = {"fast", "safe", NULL};
 static const maelys_cli_operand_t operands[] = {
-    {"ROOT", "Root directory.", 1, 0},
-    {"NAME", "Optional name.", 0, 0},
-    {"PATH", "Remaining paths.", 0, 1},
+    {MAELYS_CLI_OPERAND("ROOT", "Root directory.")},
+    {MAELYS_CLI_OPERAND_OPTIONAL("NAME", "Optional name.")},
+    {MAELYS_CLI_OPERAND_REST("PATH", "Remaining paths.")},
 };
 static const maelys_cli_option_t options[] = {
-    {"mode", MAELYS_CLI_VALUE_CHOICE, NULL, "Mode.", 0, 0, NULL, NULL, modes,
-     0u, 0u, 0, 0, 0u, "fast"},
-    {"size", MAELYS_CLI_VALUE_SIZE, "BYTES", "Size.", 1, 0, NULL, NULL, NULL,
-     1u, 0u, 0, 0, 0u, NULL},
-    {"tag", MAELYS_CLI_VALUE_STRING, "TEXT", "Tag.", 0, 1, "size", NULL, NULL,
-     0u, 0u, 0, 0, 0u, NULL},
+    {MAELYS_CLI_CHOICE("mode", "Mode.", modes), .default_text = "fast"},
+    {MAELYS_CLI_SIZE("size", "BYTES", "Size.", 1u, 0u), .required = 1},
+    {MAELYS_CLI_STRING("tag", "TEXT", "Tag."), .repeatable = 1, .requires = "size"},
     MAELYS_CLI_APPLY_OPTION,
 };
 
 static maelys_cli_command_t good_command(void) {
     maelys_cli_command_t command = {
-        "thing.make", "thing make", "Make a thing.", MAELYS_CLI_EFFECT_PREVIEW,
-        MAELYS_CLI_EFFECT_APPLY, MAELYS_CLI_OUTPUT_ENVELOPE,
-        MAELYS_CLI_OPERANDS(operands), MAELYS_CLI_OPTIONS(options),
-        "{\"type\":\"object\"}", dummy_handler, NULL, NULL, 0};
+        MAELYS_CLI_TRANSACTION("thing.make", "thing make", "Make a thing.",
+        dummy_handler), MAELYS_CLI_OPERANDS(operands), MAELYS_CLI_OPTIONS(options),
+        MAELYS_CLI_SCHEMA("{\"type\":\"object\"}")};
     return command;
 }
 
@@ -95,8 +91,7 @@ static int test_validation(void) {
     CHECK(validate(&command));
 
     static const maelys_cli_option_t bad_choice[] = {
-        {"mode", MAELYS_CLI_VALUE_CHOICE, NULL, "Mode.", 0, 0, NULL, NULL, NULL,
-         0u, 0u, 0, 0, 0u, NULL},
+        {MAELYS_CLI_CHOICE("mode", "Mode.", NULL)},
     };
     command = good_command();
     command.apply_effect = MAELYS_CLI_EFFECT_NONE;
@@ -106,29 +101,40 @@ static int test_validation(void) {
     CHECK(!validate(&command));
 
     static const maelys_cli_option_t transport_clash[] = {
-        {"format", MAELYS_CLI_VALUE_STRING, NULL, "Clash.", 0, 0, NULL, NULL,
-         NULL, 0u, 0u, 0, 0, 0u, NULL},
+        {MAELYS_CLI_STRING("format", NULL, "Clash.")},
     };
     command.options = transport_clash;
     CHECK(!validate(&command));
 
     static const maelys_cli_option_t dangling[] = {
-        {"one", MAELYS_CLI_VALUE_NONE, NULL, "One.", 0, 0, "two", NULL, NULL,
-         0u, 0u, 0, 0, 0u, NULL},
+        {MAELYS_CLI_FLAG("one", "One."), .requires = "two"},
     };
     command.options = dangling;
     CHECK(!validate(&command));
 
     static const maelys_cli_option_t inverted[] = {
-        {"n", MAELYS_CLI_VALUE_UNSIGNED, NULL, "N.", 0, 0, NULL, NULL, NULL,
-         10u, 5u, 0, 0, 0u, NULL},
+        {MAELYS_CLI_UNSIGNED("n", NULL, "N.", 10u, 5u)},
     };
     command.options = inverted;
     CHECK(!validate(&command));
 
+    command = good_command();
+    command.protocol = "git-smart"; /* protocol on a non-stream command */
+    CHECK(!validate(&command));
+
+    static const maelys_cli_option_t same_lengths[] = {
+        {MAELYS_CLI_HEX_OR("oid", "OID", "Oid.", 40u, 40u)},
+    };
+    command = good_command();
+    command.apply_effect = MAELYS_CLI_EFFECT_NONE;
+    command.effect = MAELYS_CLI_EFFECT_READ;
+    command.options = same_lengths;
+    command.option_count = 1u;
+    CHECK(!validate(&command));
+
     static const maelys_cli_operand_t bad_order[] = {
-        {"A", "Optional first.", 0, 0},
-        {"B", "Required after optional.", 1, 0},
+        {MAELYS_CLI_OPERAND_OPTIONAL("A", "Optional first.")},
+        {MAELYS_CLI_OPERAND("B", "Required after optional.")},
     };
     command = good_command();
     command.operands = bad_order;

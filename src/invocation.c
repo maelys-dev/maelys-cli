@@ -34,27 +34,17 @@ static const char *const format_choices[] = {"text", "json", "jsonl", NULL};
 static const char *const color_choices[] = {"auto", "always", "never", NULL};
 
 static const maelys_cli_option_t transport[] = {
-    {"format", MAELYS_CLI_VALUE_CHOICE, NULL,
+    {MAELYS_CLI_CHOICE("format",
      "Select text for humans, json for one envelope or jsonl for records.",
-     0, 0, NULL, NULL, format_choices, 0u, 0u, 0, 0, 0u, "text"},
-    {"json", MAELYS_CLI_VALUE_NONE, NULL,
-     "Exact alias of --format json.", 0, 0, NULL, NULL, NULL, 0u, 0u, 0, 0,
-     0u, NULL},
-    {"compact", MAELYS_CLI_VALUE_NONE, NULL,
-     "Render JSON on a single line.", 0, 0, NULL, NULL, NULL, 0u, 0u, 0, 0,
-     0u, NULL},
-    {"pretty", MAELYS_CLI_VALUE_NONE, NULL,
-     "--pretty=false selects compact JSON.", 0, 0, NULL, NULL, NULL, 0u, 0u,
-     0, 0, 0u, NULL},
-    {"non-interactive", MAELYS_CLI_VALUE_NONE, NULL,
-     "Never prompt; fail instead of asking a question.", 0, 0, NULL, NULL,
-     NULL, 0u, 0u, 0, 0, 0u, NULL},
-    {"color", MAELYS_CLI_VALUE_CHOICE, NULL,
-     "Control ANSI colors on terminals.", 0, 0, NULL, NULL, color_choices,
-     0u, 0u, 0, 0, 0u, "auto"},
-    {"help", MAELYS_CLI_VALUE_NONE, NULL,
-     "Show the help of the selected command.", 0, 0, NULL, NULL, NULL, 0u,
-     0u, 0, 0, 0u, NULL},
+     format_choices), .default_text = "text"},
+    {MAELYS_CLI_FLAG("json", "Exact alias of --format json.")},
+    {MAELYS_CLI_FLAG("compact", "Render JSON on a single line.")},
+    {MAELYS_CLI_FLAG("pretty", "--pretty=false selects compact JSON.")},
+    {MAELYS_CLI_FLAG("non-interactive",
+     "Never prompt; fail instead of asking a question.")},
+    {MAELYS_CLI_CHOICE("color", "Control ANSI colors on terminals.",
+     color_choices), .default_text = "auto"},
+    {MAELYS_CLI_FLAG("help", "Show the help of the selected command.")},
 };
 
 const maelys_cli_option_t *maelys_cli_transport_options(size_t *out_count) {
@@ -230,10 +220,18 @@ static int validate_value(
             }
             return 0;
         case MAELYS_CLI_VALUE_HEX:
-            if (maelys_cli_parse_hex(value, option->hex_digits) != 0) {
-                maelys_cli_error_set(error, MAELYS_CLI_CODE_VALIDATION_FAILED,
-                    hint, "Option --%s expects %zu lowercase hexadecimal "
-                    "digits.", option->name, option->hex_digits);
+            if (maelys_cli_parse_hex(value, option->hex_digits) != 0 &&
+                (option->hex_digits_alternative == 0u ||
+                 maelys_cli_parse_hex(value, option->hex_digits_alternative) != 0)) {
+                if (option->hex_digits_alternative)
+                    maelys_cli_error_set(error, MAELYS_CLI_CODE_VALIDATION_FAILED,
+                        hint, "Option --%s expects %zu or %zu lowercase "
+                        "hexadecimal digits.", option->name, option->hex_digits,
+                        option->hex_digits_alternative);
+                else
+                    maelys_cli_error_set(error, MAELYS_CLI_CODE_VALIDATION_FAILED,
+                        hint, "Option --%s expects %zu lowercase hexadecimal "
+                        "digits.", option->name, option->hex_digits);
                 return -1;
             }
             return 0;

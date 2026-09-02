@@ -14,7 +14,8 @@
 static int commands_list(maelys_cli_context_t *context);
 
 static const maelys_cli_operand_t passthrough_operands[] = {
-    {"ARGUMENTS", "Arguments passed verbatim to the external command.", 0, 1},
+    {MAELYS_CLI_OPERAND_REST("ARGUMENTS",
+     "Arguments passed verbatim to the external command.")},
 };
 
 #define COMMANDS_LIST_SCHEMA "{\"type\":\"object\",\"additionalProperties\":" \
@@ -29,21 +30,21 @@ static const maelys_cli_operand_t passthrough_operands[] = {
     "\"type\":\"boolean\"}}}}}}"
 
 static const maelys_cli_command_t builtin_commands[] = {
-    {"commands.list", "commands list",
+    {MAELYS_CLI_RECORDS("commands.list", "commands list",
      "List the external commands declared by installed manifests.",
-     MAELYS_CLI_EFFECT_READ, MAELYS_CLI_EFFECT_NONE, MAELYS_CLI_OUTPUT_RECORDS,
-     NULL, 0u, NULL, 0u, COMMANDS_LIST_SCHEMA, commands_list, NULL, NULL, 0},
-    {"agents.install", "agents install",
+     commands_list), MAELYS_CLI_SCHEMA(COMMANDS_LIST_SCHEMA)},
+    {MAELYS_CLI_TRANSACTION("agents.install", "agents install",
      "Install or refresh the maelys-cli agent instructions of a project.",
-     MAELYS_CLI_EFFECT_PREVIEW, MAELYS_CLI_EFFECT_APPLY,
-     MAELYS_CLI_OUTPUT_ENVELOPE, maelys_agents_operands, 1u,
-     maelys_agents_install_options, 2u, maelys_agents_install_schema,
-     maelys_agents_install, NULL, NULL, 0},
-    {"agents.status", "agents status",
+     maelys_agents_install),
+     .operands = maelys_agents_operands, .operand_count = 1u,
+     .options = maelys_agents_install_options, .option_count = 2u,
+     MAELYS_CLI_SCHEMA(maelys_agents_install_schema)},
+    {MAELYS_CLI_READ("agents.status", "agents status",
      "Report whether a project's maelys-cli agent instructions are current.",
-     MAELYS_CLI_EFFECT_READ, MAELYS_CLI_EFFECT_NONE, MAELYS_CLI_OUTPUT_ENVELOPE,
-     maelys_agents_operands, 1u, maelys_agents_status_options, 1u,
-     maelys_agents_status_schema, maelys_agents_status, NULL, NULL, 0},
+     maelys_agents_status),
+     .operands = maelys_agents_operands, .operand_count = 1u,
+     .options = maelys_agents_status_options, .option_count = 1u,
+     MAELYS_CLI_SCHEMA(maelys_agents_status_schema)},
 };
 
 typedef struct dispatcher_state {
