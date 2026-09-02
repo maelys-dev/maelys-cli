@@ -6,6 +6,31 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* ---- UTF-8 ------------------------------------------------------------- */
+
+/* Returns the byte length of the well-formed UTF-8 sequence starting at
+ * text (1..4), or 0 for an invalid or truncated sequence, an overlong
+ * encoding, a surrogate or a code point above U+10FFFF. */
+static size_t utf8_sequence(const unsigned char *text, size_t remaining) {
+    unsigned char lead = text[0];
+    if (lead < 0x80u) return 1u;
+    size_t length;
+    uint32_t minimum;
+    uint32_t code;
+    if ((lead & 0xE0u) == 0xC0u) { length = 2u; minimum = 0x80u; code = lead & 0x1Fu; }
+    else if ((lead & 0xF0u) == 0xE0u) { length = 3u; minimum = 0x800u; code = lead & 0x0Fu; }
+    else if ((lead & 0xF8u) == 0xF0u) { length = 4u; minimum = 0x10000u; code = lead & 0x07u; }
+    else return 0u;
+    if (remaining < length) return 0u;
+    for (size_t i = 1u; i < length; ++i) {
+        if ((text[i] & 0xC0u) != 0x80u) return 0u;
+        code = (code << 6) | (text[i] & 0x3Fu);
+    }
+    if (code < minimum || code > 0x10FFFFu || (code >= 0xD800u && code <= 0xDFFFu))
+        return 0u;
+    return length;
+}
+
 /* ---- writer ---------------------------------------------------------- */
 
 void maelys_cli_json_writer_init(maelys_cli_json_writer_t *writer) {
@@ -62,6 +87,18 @@ static int append_escaped(maelys_cli_json_writer_t *writer,
     if (append_char(writer, '"') != 0) return -1;
     for (size_t i = 0u; i < length; ++i) {
         unsigned char c = (unsigned char)value[i];
+        if (c >= 0x80u) {
+            size_t sequence = utf8_sequence((const unsigned char *)value + i,
+                length - i);
+            if (sequence == 0u) {
+                /* Invalid UTF-8 is a caller defect: JSON cannot carry it. */
+                writer->failed = 1;
+                return -1;
+            }
+            if (append(writer, value + i, sequence) != 0) return -1;
+            i += sequence - 1u;
+            continue;
+        }
         const char *replacement = NULL;
         switch (c) {
             case '"': replacement = "\\\""; break;
@@ -457,9 +494,14 @@ int maelys_cli_json_format(const char *text, int compact, char **out_text) {
         errno = EINVAL;
         return -1;
     }
+    size_t length = strlen(text);
+    if (maelys_cli_json_validate(text, length, NULL) != 0) {
+        errno = EINVAL;
+        return -1;
+    }
     maelys_cli_json_writer_t writer;
     maelys_cli_json_writer_init(&writer);
-    scanner_t scanner = {text, strlen(text), 0u, 0u, &writer, compact};
+    scanner_t scanner = {text, length, 0u, 0u, &writer, compact};
     if (scan_document(&scanner) != 0 || writer.failed) {
         maelys_cli_json_writer_clear(&writer);
         errno = EINVAL;
@@ -467,163 +509,5 @@ int maelys_cli_json_format(const char *text, int compact, char **out_text) {
     }
     *out_text = writer.data ? writer.data : strdup("");
     if (!*out_text) return -1;
-    return 0;
-}
-
-int maelys_cli_json_object_get(
-    const char *text, const char *key,
-    const char **out_value, size_t *out_length) {
-    if (!text || !key || !out_value || !out_length) return -1;
-    size_t length = strlen(text);
-    if (maelys_cli_json_validate(text, length, NULL) != 0) return -1;
-    scanner_t scanner = {text, length, 0u, 0u, NULL, 1};
-    skip_space(&scanner);
-    if (scanner.offset >= length || text[scanner.offset] != '{') return -1;
-    ++scanner.offset;
-    skip_space(&scanner);
-    if (scanner.offset < length && text[scanner.offset] == '}') return 0;
-    size_t key_length = strlen(key);
-    for (;;) {
-        skip_space(&scanner);
-        size_t key_start = scanner.offset;
-        if (scan_string(&scanner) != 0) return -1;
-        size_t key_end = scanner.offset;
-        /* Compare the undecoded token: catalog keys never need escapes. */
-        int matches = key_end - key_start == key_length + 2u &&
-            memcmp(text + key_start + 1u, key, key_length) == 0;
-        skip_space(&scanner);
-        ++scanner.offset; /* ':' */
-        skip_space(&scanner);
-        size_t value_start = scanner.offset;
-        if (scan_value(&scanner) != 0) return -1;
-        if (matches) {
-            *out_value = text + value_start;
-            *out_length = scanner.offset - value_start;
-            return 1;
-        }
-        skip_space(&scanner);
-        if (scanner.offset >= length) return -1;
-        char next = text[scanner.offset++];
-        if (next == '}') return 0;
-        if (next != ',') return -1;
-    }
-}
-
-static int hex_value(char c) {
-    if (c >= '0' && c <= '9') return c - '0';
-    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
-    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
-    return -1;
-}
-
-static size_t encode_utf8(uint32_t code_point, char out[4]) {
-    if (code_point < 0x80u) {
-        out[0] = (char)code_point;
-        return 1u;
-    }
-    if (code_point < 0x800u) {
-        out[0] = (char)(0xC0u | (code_point >> 6));
-        out[1] = (char)(0x80u | (code_point & 0x3Fu));
-        return 2u;
-    }
-    if (code_point < 0x10000u) {
-        out[0] = (char)(0xE0u | (code_point >> 12));
-        out[1] = (char)(0x80u | ((code_point >> 6) & 0x3Fu));
-        out[2] = (char)(0x80u | (code_point & 0x3Fu));
-        return 3u;
-    }
-    out[0] = (char)(0xF0u | (code_point >> 18));
-    out[1] = (char)(0x80u | ((code_point >> 12) & 0x3Fu));
-    out[2] = (char)(0x80u | ((code_point >> 6) & 0x3Fu));
-    out[3] = (char)(0x80u | (code_point & 0x3Fu));
-    return 4u;
-}
-
-static int read_unit(const char *token, size_t offset, uint32_t *out) {
-    uint32_t value = 0u;
-    for (size_t i = 0u; i < 4u; ++i) {
-        int digit = hex_value(token[offset + i]);
-        if (digit < 0) return -1;
-        value = (value << 4) | (uint32_t)digit;
-    }
-    *out = value;
-    return 0;
-}
-
-int maelys_cli_json_decode_string(
-    const char *token, size_t length, char **out_text) {
-    if (!token || !out_text || length < 2u || token[0] != '"' ||
-        token[length - 1u] != '"')
-        return -1;
-    char *result = malloc(length); /* decoded text is never longer */
-    if (!result) return -1;
-    size_t written = 0u;
-    size_t i = 1u;
-    size_t end = length - 1u;
-    while (i < end) {
-        char c = token[i];
-        if (c != '\\') {
-            if ((unsigned char)c < 0x20u) goto failure;
-            result[written++] = c;
-            ++i;
-            continue;
-        }
-        if (i + 1u >= end) goto failure;
-        char escape = token[i + 1u];
-        i += 2u;
-        switch (escape) {
-            case '"': result[written++] = '"'; break;
-            case '\\': result[written++] = '\\'; break;
-            case '/': result[written++] = '/'; break;
-            case 'b': result[written++] = '\b'; break;
-            case 'f': result[written++] = '\f'; break;
-            case 'n': result[written++] = '\n'; break;
-            case 'r': result[written++] = '\r'; break;
-            case 't': result[written++] = '\t'; break;
-            case 'u': {
-                uint32_t unit = 0u;
-                if (i + 4u > end || read_unit(token, i, &unit) != 0) goto failure;
-                i += 4u;
-                if (unit >= 0xD800u && unit <= 0xDBFFu) {
-                    uint32_t low = 0u;
-                    if (i + 6u > end || token[i] != '\\' || token[i + 1u] != 'u' ||
-                        read_unit(token, i + 2u, &low) != 0 ||
-                        low < 0xDC00u || low > 0xDFFFu)
-                        goto failure;
-                    i += 6u;
-                    unit = 0x10000u + ((unit - 0xD800u) << 10) + (low - 0xDC00u);
-                } else if (unit >= 0xDC00u && unit <= 0xDFFFu) {
-                    goto failure;
-                }
-                if (unit == 0u) goto failure;
-                char encoded[4];
-                size_t count = encode_utf8(unit, encoded);
-                memcpy(result + written, encoded, count);
-                written += count;
-                break;
-            }
-            default: goto failure;
-        }
-    }
-    result[written] = '\0';
-    *out_text = result;
-    return 0;
-failure:
-    free(result);
-    return -1;
-}
-
-int maelys_cli_json_decode_unsigned(
-    const char *token, size_t length, uint64_t *out_value) {
-    if (!token || !out_value || length == 0u || length > 20u) return -1;
-    uint64_t value = 0u;
-    for (size_t i = 0u; i < length; ++i) {
-        char c = token[i];
-        if (c < '0' || c > '9') return -1;
-        uint64_t digit = (uint64_t)(c - '0');
-        if (value > (UINT64_MAX - digit) / 10u) return -1;
-        value = value * 10u + digit;
-    }
-    *out_value = value;
     return 0;
 }

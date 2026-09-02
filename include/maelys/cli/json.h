@@ -9,9 +9,11 @@ extern "C" {
 #endif
 
 /*
- * Dependency-free JSON mechanics sufficient for CLI envelopes, catalog
- * descriptions and extension manifests. This is not a general document
- * model: the writer builds text incrementally and the reader scans text.
+ * JSON output mechanics for CLI envelopes, catalog descriptions and
+ * records: an order-preserving incremental writer, a syntax validator and
+ * a formatter, with no dependency. Reading structured documents that cross
+ * a trust boundary (extension manifests, configuration) is the job of
+ * maelys-json; see maelys/cli/extension.h.
  */
 
 #define MAELYS_CLI_JSON_MAX_DEPTH 64u
@@ -35,8 +37,9 @@ int maelys_cli_json_end_object(maelys_cli_json_writer_t *writer);
 int maelys_cli_json_begin_array(maelys_cli_json_writer_t *writer);
 int maelys_cli_json_end_array(maelys_cli_json_writer_t *writer);
 int maelys_cli_json_key(maelys_cli_json_writer_t *writer, const char *key);
-/* A NULL value is refused (the writer fails); write null explicitly with
- * maelys_cli_json_null() when the schema allows it. */
+/* A NULL value or invalid UTF-8 is refused (the writer fails); write null
+ * explicitly with maelys_cli_json_null() when the schema allows it, and
+ * transcode or escape non-UTF-8 names before serializing them. */
 int maelys_cli_json_string(maelys_cli_json_writer_t *writer, const char *value);
 int maelys_cli_json_stringn(
     maelys_cli_json_writer_t *writer, const char *value, size_t length);
@@ -63,8 +66,11 @@ int maelys_cli_json_key_raw(
  * failed or a container is still open. The writer is reset. */
 char *maelys_cli_json_finish(maelys_cli_json_writer_t *writer);
 
-/* Strict syntax validation of one complete JSON value. Returns 0 when valid
- * and -1 otherwise; out_offset receives the failing byte offset. */
+/* Syntax validation of one complete JSON value: RFC 8259 grammar, depth
+ * at most MAELYS_CLI_JSON_MAX_DEPTH, control characters and bad escapes
+ * refused. It does not check UTF-8 or duplicate keys: it guards output
+ * produced by this writer or by a serializer, not untrusted input. Returns
+ * 0 when valid and -1 otherwise; out_offset receives the failing byte. */
 int maelys_cli_json_validate(
     const char *text, size_t length, size_t *out_offset);
 
@@ -72,21 +78,10 @@ int maelys_cli_json_validate(
  * order is preserved. The result is owned by the caller. */
 int maelys_cli_json_format(const char *text, int compact, char **out_text);
 
-/* Locates a member of a top-level object. out_value points into text at the
- * start of the raw value and out_length covers it exactly. Returns 1 when
- * found, 0 when absent and -1 when text is not a valid object. */
-int maelys_cli_json_object_get(
-    const char *text, const char *key,
-    const char **out_value, size_t *out_length);
-
-/* Decodes a raw JSON string token (with quotes) into an owned C string.
- * Embedded NUL characters are refused. */
-int maelys_cli_json_decode_string(
-    const char *token, size_t length, char **out_text);
-
-/* Parses a raw JSON number token as an unsigned integer. */
-int maelys_cli_json_decode_unsigned(
-    const char *token, size_t length, uint64_t *out_value);
+/* Reading untrusted documents (manifests, configuration) is the job of
+ * maelys-json (<maelys/json.h>): bounded parsing, duplicate-key and UTF-8
+ * rejection, canonical bytes. libmaelys_cli_extension links it; the core
+ * does not. */
 
 #ifdef __cplusplus
 }

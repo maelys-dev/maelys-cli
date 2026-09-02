@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.5.0 - 2026-09-02
+
+Self-review of the framework and dependency boundary:
+
+- Manifest discovery moves to `libmaelys_cli_extension.a`, which reads
+  manifests through maelys-json (bounded parsing, duplicate keys and
+  invalid UTF-8 refused). The core `libmaelys_cli.a` stays dependency-free
+  and no longer exposes a document reader: `maelys_cli_json_object_get`,
+  `maelys_cli_json_decode_string` and `maelys_cli_json_decode_unsigned` are
+  removed. pkg-config `maelys-cli-extension` and CMake
+  `maelys::cli_extension` declare the dependency; archives never embed it.
+- The core writer refuses invalid UTF-8 so envelopes are always valid JSON.
+- `maelys_cli_process_run` closes inherited descriptors with
+  `close_range` on Linux and `closefrom` on the BSDs.
+- Completion: `help` and `describe` complete command identifiers,
+  unavailable commands are never offered, and the `maelys` dispatcher
+  forwards completion of an external command to that command's own
+  `__complete`.
+
 ## 0.4.2 - 2026-09-02
 
 - The installed agent guide lists every handler accessor;

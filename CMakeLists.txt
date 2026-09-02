@@ -13,10 +13,30 @@ set(CMAKE_C_EXTENSIONS OFF)
 option(MAELYS_CLI_BUILD_DISPATCHER "Build the maelys dispatcher" ON)
 option(MAELYS_CLI_BUILD_TESTS "Build the maelys-cli tests" OFF)
 
+# The core has no dependency. The extension archive (manifest discovery)
+# and the dispatcher read untrusted JSON through maelys-json: an installed
+# package, or a sibling source tree for in-tree consumers; without either
+# they are skipped and the core still builds and installs.
+set(MAELYS_JSON_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../maelys-json"
+    CACHE PATH "Path to the maelys-json source tree (fallback)")
+find_package(maelys-json 0.1 CONFIG QUIET)
+set(MAELYS_CLI_HAVE_JSON OFF)
+set(MAELYS_CLI_JSON_INSTALLED OFF)
+if(maelys-json_FOUND)
+    set(MAELYS_CLI_HAVE_JSON ON)
+    set(MAELYS_CLI_JSON_INSTALLED ON)
+elseif(EXISTS "${MAELYS_JSON_SOURCE_DIR}/CMakeLists.txt")
+    set(MAELYS_CLI_HAVE_JSON ON)
+    add_subdirectory("${MAELYS_JSON_SOURCE_DIR}"
+                     "${CMAKE_CURRENT_BINARY_DIR}/maelys-json" EXCLUDE_FROM_ALL)
+else()
+    message(STATUS "maelys-json not found: extension archive and dispatcher skipped")
+endif()
+
 add_library(maelys_cli STATIC
     src/version.c src/values.c src/environment.c src/files.c src/digest.c
     src/json.c src/terminal.c src/process.c src/catalog.c src/invocation.c
-    src/app.c src/extension.c)
+    src/app.c)
 add_library(maelys::cli ALIAS maelys_cli)
 set_target_properties(maelys_cli PROPERTIES EXPORT_NAME cli OUTPUT_NAME maelys_cli)
 target_include_directories(maelys_cli
@@ -28,9 +48,24 @@ target_compile_definitions(maelys_cli PRIVATE
     MAELYS_CLI_COMMANDS_DIR="${CMAKE_INSTALL_PREFIX}/share/maelys/commands")
 target_compile_options(maelys_cli PRIVATE -Wall -Wextra -Wpedantic)
 
+if(MAELYS_CLI_HAVE_JSON)
+    add_library(maelys_cli_extension STATIC src/extension.c)
+    add_library(maelys::cli_extension ALIAS maelys_cli_extension)
+    set_target_properties(maelys_cli_extension PROPERTIES
+        EXPORT_NAME cli_extension OUTPUT_NAME maelys_cli_extension)
+    target_include_directories(maelys_cli_extension
+        PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+               $<INSTALL_INTERFACE:include>
+        PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_compile_definitions(maelys_cli_extension PRIVATE
+        _POSIX_C_SOURCE=200809L _XOPEN_SOURCE=700 _DEFAULT_SOURCE _DARWIN_C_SOURCE)
+    target_compile_options(maelys_cli_extension PRIVATE -Wall -Wextra -Wpedantic)
+    target_link_libraries(maelys_cli_extension PUBLIC maelys_cli maelys::json)
+endif()
+
 set(MAELYS_CLI_EMBED ${CMAKE_CURRENT_SOURCE_DIR}/tools/maelys-cli-embed)
 
-if(MAELYS_CLI_BUILD_DISPATCHER)
+if(MAELYS_CLI_BUILD_DISPATCHER AND MAELYS_CLI_HAVE_JSON)
     set(agent_texts ${CMAKE_CURRENT_BINARY_DIR}/generated/agent_texts.c)
     add_custom_command(
         OUTPUT ${agent_texts}
@@ -41,7 +76,7 @@ if(MAELYS_CLI_BUILD_DISPATCHER)
                 share/agents/claude-skill.md ${MAELYS_CLI_EMBED} VERSION
         VERBATIM)
     add_executable(maelys cmd/maelys/main.c cmd/maelys/agents.c ${agent_texts})
-    target_link_libraries(maelys PRIVATE maelys_cli)
+    target_link_libraries(maelys PRIVATE maelys_cli_extension)
     target_compile_definitions(maelys PRIVATE
         _POSIX_C_SOURCE=200809L _XOPEN_SOURCE=700 _DEFAULT_SOURCE _DARWIN_C_SOURCE)
     target_compile_options(maelys PRIVATE -Wall -Wextra -Wpedantic)
@@ -49,9 +84,16 @@ endif()
 
 if(MAELYS_CLI_BUILD_TESTS)
     enable_testing()
-    foreach(name values json files digest process catalog app extension)
+    set(test_names values json files digest process catalog app)
+    if(MAELYS_CLI_HAVE_JSON)
+        list(APPEND test_names extension)
+    endif()
+    foreach(name ${test_names})
         add_executable(test_${name} tests/test_${name}.c)
         target_link_libraries(test_${name} PRIVATE maelys_cli)
+        if(name STREQUAL "extension")
+            target_link_libraries(test_${name} PRIVATE maelys_cli_extension)
+        endif()
         target_include_directories(test_${name} PRIVATE src)
         target_compile_definitions(test_${name} PRIVATE
             _POSIX_C_SOURCE=200809L _XOPEN_SOURCE=700 _DEFAULT_SOURCE _DARWIN_C_SOURCE)
@@ -63,6 +105,12 @@ include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 install(TARGETS maelys_cli EXPORT maelys-cli-targets
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
+if(MAELYS_CLI_JSON_INSTALLED)
+    install(TARGETS maelys_cli_extension EXPORT maelys-cli-targets
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
+elseif(MAELYS_CLI_HAVE_JSON)
+    message(STATUS "maelys-json taken from source: maelys::cli_extension is not installed")
+endif()
 install(DIRECTORY include/maelys DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 install(PROGRAMS tools/maelys-cli-embed DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(PROGRAMS tools/generate_cli_reference.py
@@ -73,7 +121,7 @@ install(FILES share/LICENSE DESTINATION ${CMAKE_INSTALL_DATADIR}/maelys-cli)
 install(DIRECTORY docs/ DESTINATION ${CMAKE_INSTALL_DATADIR}/maelys-cli/docs
     FILES_MATCHING PATTERN "*.md" PATTERN "*.json")
 install(FILES LICENSE LICENSING.md DESTINATION ${CMAKE_INSTALL_DATADIR}/maelys-cli/docs)
-if(MAELYS_CLI_BUILD_DISPATCHER)
+if(MAELYS_CLI_BUILD_DISPATCHER AND MAELYS_CLI_HAVE_JSON)
     install(TARGETS maelys RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
     install(DIRECTORY DESTINATION ${CMAKE_INSTALL_DATADIR}/maelys/commands)
 endif()

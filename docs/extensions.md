@@ -62,6 +62,16 @@ manifest is:
 A single invalid manifest blocks the whole dispatcher on purpose: a partial
 catalog would let an agent believe a command is absent.
 
+## Linking a dispatcher
+
+Manifest discovery is `libmaelys_cli_extension.a`, separate from the core so
+that plain product CLIs stay dependency-free. A dispatcher links, in this
+order, `libmaelys_cli_extension.a`, `libmaelys_cli.a` and one
+`libmaelys-json.a` (pkg-config `maelys-cli-extension` declares the
+`Requires`; CMake `maelys::cli_extension` links `maelys::json` publicly).
+Manifests are parsed with a 64 KiB, depth 8, 1024-token budget; duplicate
+members and invalid UTF-8 make a manifest invalid.
+
 ## Writing an extension
 
 An extension should itself be built on `libmaelys_cli` so that

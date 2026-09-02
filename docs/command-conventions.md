@@ -168,8 +168,11 @@ Text rendering of a failure is `PROGRAM: [CODE] message` followed by
 hidden `PROGRAM __complete -- WORDS...` command. Candidates are derived from
 the catalog at every keystroke: command words, options not yet given,
 `--option=choice`, choice values, digest algorithm prefixes and typed
-operands. Path and free-text values fall back to the shell's file
-completion. Stream commands never offer rendering options.
+operands, and command identifiers after `help` and `describe`. Path and
+free-text values fall back to the shell's file completion. Stream commands
+never offer rendering options; unavailable commands are never offered. A
+dispatcher forwards the completion of an external command to that
+command's own `__complete`.
 
 ## Protocol streams
 

@@ -59,26 +59,25 @@ Key order in envelopes is fixed: `schemaVersion`, `contract`, `command`,
 `ok`, `exitCode`, then `data` or `error`. `--compact` selects one line;
 otherwise two-space indentation.
 
-## Who writes JSON in the Maelys family
+## Who reads and writes JSON in the Maelys family
 
-Decision: `libmaelys_cli` is the canonical writer of CLI output (envelopes,
-`describe`, records) for every Maelys CLI. `maelys-json` is the canonical
-implementation for contract documents: parsing with limits, duplicate-key
-and UTF-8 rejection, and Maelys Canonical JSON v1 bytes for anything that is
-signed, hashed or compared byte for byte (receipts, manifests, policies).
-Products use both without overlap: handler data built with either writer is
-handed to the framework as text; documents that must be canonical are
-produced by `maelys-json`. When `maelys-json` reaches 0.1.0, the
-dispatcher's manifest parsing may adopt it as an optional backend; the
-envelope writer stays in the core so a CLI has no mandatory dependency.
+Decision: `libmaelys_cli` writes CLI output (envelopes, `describe`,
+records) with its own order-preserving writer and syntax-checks what
+handlers hand it; it reads nothing untrusted. `maelys-json` is the reader
+and the canonical writer of the family: bounded parsing, duplicate-key and
+UTF-8 rejection, canonical bytes for anything signed or hashed. The only
+place where the framework reads untrusted JSON, extension manifests, lives
+in `libmaelys_cli_extension.a`, which links maelys-json; a product that
+only builds a CLI links the core and no JSON library at all. Handler data
+built with any writer is handed to the framework as text.
 
 ## Why no JSON library in the core
 
-The framework needs three JSON operations: build small documents, validate
-and re-indent handler output, and read flat manifests. `src/json.c`
-implements exactly those in about 600 lines with strict syntax rules and a
-depth limit. Products keep the freedom to use Jansson or any other model for
-their own data; they hand the framework serialized text.
+The core needs two JSON operations: build small documents with a stable
+key order, and validate and re-indent handler output. `src/json.c`
+implements exactly those in about 400 lines. Anything beyond, in
+particular reading documents that cross a trust boundary, is not
+reimplemented: it is maelys-json, linked only where such reading happens.
 
 ## Why external processes instead of plugins
 

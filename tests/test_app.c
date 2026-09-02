@@ -485,6 +485,16 @@ static int test_typed_operands_and_completion(void) {
     result = RUNV("__complete", "--", "thing", "make", "--digest", "");
     CHECK(result.code == 0 && strcmp(result.out, "sha256:\nsha1:\n") == 0);
     release(&result);
+    result = RUNV("__complete", "--", "help", "th");
+    CHECK(result.code == 0 && strcmp(result.out, "thing.make\n") == 0);
+    release(&result);
+    result = RUNV("__complete", "--", "describe", "");
+    CHECK(result.code == 0 && strstr(result.out, "complete.candidates") == NULL &&
+        strstr(result.out, "cloud\n") != NULL);
+    release(&result);
+    result = RUNV("__complete", "--", "clo");
+    CHECK(result.code == 0 && result.out[0] == '\0'); /* unavailable: not offered */
+    release(&result);
     result = RUNV("__complete", "--", "typed", "z");
     CHECK(result.code == 0 && strcmp(result.out, "zsh\n") == 0);
     release(&result);

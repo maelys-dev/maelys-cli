@@ -6,8 +6,9 @@ reusable, dependency-free C11 library plus one dispatcher:
 
 ```text
 maelys-cli/
-├── libmaelys_cli.a   the framework: catalog, parser, renderer, mechanics
-└── maelys            the dispatcher: `maelys oci ...`, `maelys agents ...`
+├── libmaelys_cli.a             the framework: catalog, parser, renderer, mechanics (no dependency)
+├── libmaelys_cli_extension.a   manifest discovery for dispatchers (requires maelys-json)
+└── maelys                      the dispatcher: `maelys oci ...`, `maelys agents ...`
 ```
 
 Every Maelys CLI built on it has the same shape for humans and agents:
@@ -28,8 +29,10 @@ A mechanism enters `libmaelys_cli` only when:
 1. at least two Maelys CLIs need it (Warden, Git, Hermes, OCI, ...);
 2. it knows no product type: no policy, MIR, receipt, repository or
    editorial concept;
-3. it adds no external dependency: JSON is written and scanned by the
-   library itself, Jansson stays optional in products;
+3. the core adds no dependency: JSON output is written and syntax-checked
+   by the library itself, Jansson stays optional in products. Reading
+   untrusted JSON (extension manifests) is done by maelys-json in the
+   separate `libmaelys_cli_extension.a`, so only dispatchers pay for it;
 4. Linux and macOS expose the same observable behavior;
 5. it ships with focused positive and negative tests.
 
@@ -55,7 +58,7 @@ shared renderer ──────────► human text | json envelope | j
 | processes | `process.h` | absolute-path trusted executables, `run` and `replace` via `execve` without shell, helper resolution |
 | contract | `catalog.h`, `invocation.h` | command, operand and option descriptors; parser; error codes; exit codes |
 | runtime | `app.h` | `maelys_cli_main()`, built-in `help`, `version`, `describe`; rendering; delegation; handler accessors |
-| dispatcher | `extension.h` | discovery of external commands through verified manifests |
+| dispatcher | `extension.h` (`libmaelys_cli_extension.a`, links maelys-json) | discovery of external commands through verified manifests |
 
 Every public function is documented in [docs/api-reference.md](docs/api-reference.md).
 The complete conventions are in [docs/command-conventions.md](docs/command-conventions.md),
@@ -252,8 +255,17 @@ make install PREFIX=/opt/homebrew   # lib, headers, maelys, maelys-cli-embed, ma
 make generate-cli-reference
 ```
 
-Requirements: a C11 compiler, POSIX `make`, `sh`, `od` and `awk`; `python3`
-only for the reference generator; a C++17 compiler only for the header gate.
+Requirements: a C11 compiler, POSIX `make`, `sh`, `od` and `awk`; a
+`maelys-json` checkout beside this one (`MAELYS_JSON_DIR`, tag `v0.1.0`) or an
+installed copy (`MAELYS_JSON_CFLAGS`/`MAELYS_JSON_LIBS`) for the extension
+archive, the dispatcher and their tests; `python3` only for the reference
+generator; a C++17 compiler only for the header gate.
+
+Static archives never embed their dependencies: a product links
+`libmaelys_cli.a`, and a dispatcher adds `libmaelys_cli_extension.a` plus one
+`libmaelys-json.a`, resolved through pkg-config `Requires` or CMake targets.
+A library built on the framework (Egress, for example) must follow the same
+rule so that a consumer never links two copies of maelys-json.
 
 ## Roadmap
 

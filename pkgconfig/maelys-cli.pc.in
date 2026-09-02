@@ -8,7 +8,7 @@ reference=${prefix}/bin/maelys-cli-reference
 commandsdir=${prefix}/share/maelys/commands
 
 Name: maelys-cli
-Description: Shared Maelys command-line framework: catalog, parser, renderer, dispatcher
+Description: Shared Maelys command-line framework core: catalog, parser, renderer (no dependency)
 Version: @VERSION@
 Libs: -L${libdir} -lmaelys_cli
 Cflags: -I${includedir}

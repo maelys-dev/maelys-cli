@@ -15,22 +15,43 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          path: maelys-cli
+      - uses: actions/checkout@v4
+        with:
+          repository: maelys-dev/maelys-json
+          ref: v0.1.0
+          path: maelys-json
       - name: Build and check
+        working-directory: maelys-cli
         run: make check
       - name: Sanitizers
+        working-directory: maelys-cli
         run: make asan-ubsan
       - name: Static analysis
         if: runner.os == 'macOS'
+        working-directory: maelys-cli
         run: make analyze
       - name: Install check
+        working-directory: maelys-cli
         run: make install-check
       - name: Contract drift
+        working-directory: maelys-cli
         run: make contract-check
       - name: CMake package
+        working-directory: maelys-cli
         run: make cmake-check
   gcc:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          path: maelys-cli
+      - uses: actions/checkout@v4
+        with:
+          repository: maelys-dev/maelys-json
+          ref: v0.1.0
+          path: maelys-json
       - name: Build with GCC
+        working-directory: maelys-cli
         run: make check CC=gcc CXX=g++

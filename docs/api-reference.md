@@ -80,7 +80,7 @@ writer failed; `maelys_cli_json_finish()` then returns `NULL`.
 | `void maelys_cli_json_writer_init(maelys_cli_json_writer_t *w)` / `maelys_cli_json_writer_clear(w)` | Initialize / release and reset. |
 | `int maelys_cli_json_begin_object(w)` / `maelys_cli_json_end_object(w)` / `maelys_cli_json_begin_array(w)` / `maelys_cli_json_end_array(w)` | Containers, at most `MAELYS_CLI_JSON_MAX_DEPTH` (64) deep. Commas are inserted automatically. |
 | `int maelys_cli_json_key(w, const char *key)` | Only inside an object and never twice in a row. |
-| `int maelys_cli_json_string(w, const char *value)` / `maelys_cli_json_stringn(w, value, length)` | Escapes `"`, `\`, control characters (`\n`, `\t`, `\uXXXX`); bytes are otherwise passed through. `NULL` is refused and fails the writer; use `maelys_cli_json_null()` for an explicit null. A value inside an object must follow a key. |
+| `int maelys_cli_json_string(w, const char *value)` / `maelys_cli_json_stringn(w, value, length)` | Escapes `"`, `\`, control characters (`\n`, `\t`, `\uXXXX`); well-formed UTF-8 is passed through, invalid UTF-8 fails the writer. `NULL` is refused; use `maelys_cli_json_null()` for an explicit null. A value inside an object must follow a key. |
 | `int maelys_cli_json_integer(w, int64_t)` / `maelys_cli_json_unsigned(w, uint64_t)` / `maelys_cli_json_boolean(w, int)` / `maelys_cli_json_null(w)` | Scalars. |
 | `int maelys_cli_json_raw(w, const char *json)` | Inserts pre-serialized JSON after validating it; surrounding whitespace is trimmed. |
 | `int maelys_cli_json_key_string(w, key, value)` / `maelys_cli_json_key_integer` / `maelys_cli_json_key_unsigned` / `maelys_cli_json_key_boolean` / `maelys_cli_json_key_raw` | Key followed by value. |
@@ -90,11 +90,10 @@ Reader:
 
 | Function | Contract |
 | --- | --- |
-| `int maelys_cli_json_validate(const char *text, size_t length, size_t *out_offset)` | Strict RFC 8259 syntax of exactly one value, depth limit 64, control characters and bad escapes refused. `out_offset` receives the failing byte. UTF-8 and duplicate keys are not checked. |
+| `int maelys_cli_json_validate(const char *text, size_t length, size_t *out_offset)` | RFC 8259 grammar of exactly one value, depth limit 64, control characters and bad escapes refused. `out_offset` receives the failing byte. It guards output produced by the writer or a serializer; it checks neither UTF-8 nor duplicate keys, which is maelys-json's job for untrusted input. |
 | `int maelys_cli_json_format(const char *text, int compact, char **out)` | Re-serializes valid JSON compact or two-space indented, preserving key order. `EINVAL` on invalid input. |
-| `int maelys_cli_json_object_get(const char *text, const char *key, const char **out_value, size_t *out_length)` | Raw value of a top-level member: `1` found, `0` absent, `-1` when `text` is not a valid object. The first occurrence wins; keys are compared undecoded. |
-| `int maelys_cli_json_decode_string(const char *token, size_t length, char **out)` | Decodes a quoted token into UTF-8, including surrogate pairs; refuses the escaped NUL character (` `) and lone surrogates. |
-| `int maelys_cli_json_decode_unsigned(const char *token, size_t length, uint64_t *out)` | Decimal digits only, overflow refused. |
+
+Reading untrusted documents (manifests, configuration) is not part of this module: `libmaelys_cli_extension` uses maelys-json for that.
 
 ## `maelys/cli/terminal.h`
 
@@ -108,7 +107,7 @@ Reader:
 | Function | Contract |
 | --- | --- |
 | `int maelys_cli_process_check_executable(const char *path, const char **out_error)` | Absolute path (`EINVAL`), regular, owned by root or the caller, not group/world writable, owner-executable; see `maelys_cli_check_file`. |
-| `int maelys_cli_process_run(const char *path, char *const argv[], char *const envp[], maelys_cli_process_status_t *out_status)` | Checks the executable, `fork`, resets signals, closes every descriptor above 2 without `FD_CLOEXEC`, `execve` (`envp` `NULL` inherits `environ`), waits. An `exec` failure is reported to the parent as `-1` with the child's `errno`. Standard descriptors are inherited. |
+| `int maelys_cli_process_run(const char *path, char *const argv[], char *const envp[], maelys_cli_process_status_t *out_status)` | Checks the executable, `fork`, resets signals, closes every descriptor above 2 (`close_range` on Linux, `closefrom` on the BSDs, otherwise those without `FD_CLOEXEC` up to the limit), `execve` (`envp` `NULL` inherits `environ`), waits. An `exec` failure is reported to the parent as `-1` with the child's `errno`. Standard descriptors are inherited. |
 | `int maelys_cli_process_replace(const char *path, char *const argv[], char *const envp[])` | Same checks, flushes stdio, then `execve` in place; returns `-1` only on failure. |
 | `int maelys_cli_process_exit_code(const maelys_cli_process_status_t *status)` | Exit status, or `128 + signal`. |
 | `int maelys_cli_process_resolve(const char *name, const char *const *directories, size_t count, char *out_path, size_t out_size)` | Finds `name` (no `/`) as a trusted executable in absolute directories, in order; `ENOENT` when absent, `ENAMETOOLONG` when the buffer is too small. Never consults `PATH`. |
@@ -180,7 +179,12 @@ Replies (exactly one per handler; a second call is ignored and returns the given
 | `void maelys_cli_warn(ctx, const char *format, ...)` | `program: warning: ...` on stderr; never touches stdout. |
 | `int maelys_cli_confirm(ctx, const char *question, int *out_confirmed)` | Prompts on stderr and reads stdin when interactive; under `--non-interactive` or without a terminal it emits `VALIDATION_FAILED` and returns `-1`. |
 
-## `maelys/cli/extension.h`
+## `maelys/cli/extension.h` (libmaelys_cli_extension)
+
+Separate archive: `-lmaelys_cli_extension -lmaelys_cli -lmaelys-json`
+(pkg-config `maelys-cli-extension`, CMake `maelys::cli_extension`).
+Manifests are parsed by maelys-json (bounded to 64 KiB, depth 8, 1024
+tokens, duplicate keys and invalid UTF-8 refused).
 
 | Function | Contract |
 | --- | --- |

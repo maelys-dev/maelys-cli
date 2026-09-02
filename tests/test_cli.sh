@@ -161,6 +161,12 @@ check "dispatcher execs extension verbatim" '[ "$code" = 0 ] && printf "%s" "$ou
 run d-exit "$maelys" hello run /bin/sh -c 'exit 4'
 check "dispatcher propagates exit code" '[ "$code" = 4 ]'
 
+run d-complete "$maelys" __complete -- hello no
+check "dispatcher forwards completion to the extension" '[ "$code" = 0 ] && [ "$out" = "note" ]'
+run d-complete-top "$maelys" __complete -- hel
+check "dispatcher completes extension names" '[ "$out" = "help
+hello" ]'
+
 run d-unknown "$maelys" oci pull
 check "dispatcher refuses undeclared commands" '[ "$code" = 1 ] && printf "%s" "$err" | grep -q "\[INVALID_COMMAND\]"'
 

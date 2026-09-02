@@ -58,6 +58,24 @@ static int test_writer(void) {
     return 1;
 }
 
+static int test_writer_utf8(void) {
+    maelys_cli_json_writer_t writer;
+    maelys_cli_json_writer_init(&writer);
+    CHECK(maelys_cli_json_string(&writer, "caf\xc3\xa9 \xf0\x9f\x98\x80") == 0);
+    char *text = maelys_cli_json_finish(&writer);
+    CHECK(text && strcmp(text, "\"caf\xc3\xa9 \xf0\x9f\x98\x80\"") == 0);
+    free(text);
+    static const char *const bad[] = {
+        "\xc3", "\xc0\xaf", "\xed\xa0\x80", "\xf4\x90\x80\x80", "\x80", "a\xff",
+    };
+    for (size_t i = 0u; i < sizeof(bad) / sizeof(bad[0]); ++i) {
+        maelys_cli_json_writer_init(&writer);
+        CHECK(maelys_cli_json_string(&writer, bad[i]) != 0 && writer.failed);
+        maelys_cli_json_writer_clear(&writer);
+    }
+    return 1;
+}
+
 static int test_validate(void) {
     static const char *const valid[] = {
         "{}", "[]", "0", "-1.5e+3", "\"\\u00e9\\n\"", "true", " null ",
@@ -97,36 +115,11 @@ static int test_format(void) {
     return 1;
 }
 
-static int test_object_get_and_decode(void) {
-    const char *value = NULL;
-    size_t length = 0u;
-    const char *text = "{\"schema\":\"a/b\",\"n\":42,\"nested\":{\"schema\":\"x\"},"
-        "\"esc\":\"caf\\u00e9 \\ud83d\\ude00\\n\"}";
-    CHECK(maelys_cli_json_object_get(text, "schema", &value, &length) == 1);
-    CHECK(length == 5u && memcmp(value, "\"a/b\"", 5u) == 0);
-    CHECK(maelys_cli_json_object_get(text, "n", &value, &length) == 1);
-    uint64_t number = 0u;
-    CHECK(maelys_cli_json_decode_unsigned(value, length, &number) == 0 && number == 42u);
-    CHECK(maelys_cli_json_object_get(text, "missing", &value, &length) == 0);
-    CHECK(maelys_cli_json_object_get("[1]", "x", &value, &length) == -1);
-    CHECK(maelys_cli_json_object_get(text, "esc", &value, &length) == 1);
-    char *decoded = NULL;
-    CHECK(maelys_cli_json_decode_string(value, length, &decoded) == 0);
-    CHECK(strcmp(decoded, "caf\xc3\xa9 \xf0\x9f\x98\x80\n") == 0);
-    free(decoded);
-    CHECK(maelys_cli_json_decode_string("\"\\u0000\"", 8u, &decoded) != 0);
-    CHECK(maelys_cli_json_decode_string("\"\\udc00\"", 8u, &decoded) != 0);
-    CHECK(maelys_cli_json_decode_string("42", 2u, &decoded) != 0);
-    CHECK(maelys_cli_json_decode_unsigned("-1", 2u, &number) != 0);
-    CHECK(maelys_cli_json_decode_unsigned("18446744073709551616", 20u, &number) != 0);
-    return 1;
-}
-
 int main(void) {
     int failures = 0;
     RUN(test_writer);
     RUN(test_validate);
+    RUN(test_writer_utf8);
     RUN(test_format);
-    RUN(test_object_get_and_decode);
     return failures ? 1 : 0;
 }

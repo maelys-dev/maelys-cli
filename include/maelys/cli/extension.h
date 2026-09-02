@@ -10,8 +10,12 @@ extern "C" {
 #endif
 
 /*
- * External command discovery for the `maelys` dispatcher. Commands are
- * declared by installed manifests, never discovered through PATH:
+ * External command discovery for the `maelys` dispatcher and for products
+ * that dispatch external commands. Implemented in libmaelys_cli_extension,
+ * a separate archive that reads manifests through maelys-json (pkg-config
+ * `maelys-cli-extension`, CMake `maelys::cli_extension`); the core
+ * libmaelys_cli has no dependency. Commands are declared by installed
+ * manifests, never discovered through PATH:
  *
  * {
  *   "schema": "maelys.cli-extension/v1",

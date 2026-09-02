@@ -19,6 +19,9 @@
 #if defined(__APPLE__)
 #include <mach-o/dyld.h>
 #endif
+#if defined(__linux__)
+#include <sys/syscall.h>
+#endif
 
 extern char **environ;
 
@@ -36,6 +39,13 @@ int maelys_cli_process_check_executable(
 }
 
 static void close_inherited_descriptors(void) {
+#if defined(__linux__) && defined(SYS_close_range)
+    /* Linux 5.9+: one call, independent of the descriptor limit. */
+    if (syscall(SYS_close_range, 3u, ~0u, 0) == 0) return;
+#elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
+    closefrom(3);
+    return;
+#endif
     long maximum = sysconf(_SC_OPEN_MAX);
     if (maximum < 0 || maximum > 65536l) maximum = 65536l;
     for (int descriptor = 3; descriptor < (int)maximum; ++descriptor) {

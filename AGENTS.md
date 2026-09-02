@@ -9,8 +9,14 @@ public contract is stricter than in a product repository.
 - No product type enters `include/` or `src/`: no policy, MIR, receipt,
   repository, editorial or OCI concept. Product semantics live in product
   handlers.
-- No external dependency. JSON is handled by `src/json.c`; do not add
-  Jansson or any library to the core.
+- The core (`libmaelys_cli.a`) has no dependency: `src/json.c` writes and
+  syntax-checks CLI output, nothing more. Reading untrusted JSON is
+  maelys-json's job, confined to `libmaelys_cli_extension.a`; do not
+  reimplement UTF-8 validation, duplicate-key detection, limits or a
+  document model in the core, and do not link maelys-json into it.
+- Static archives never embed their dependencies; the build system
+  (pkg-config `Requires`, CMake `PUBLIC` links) resolves one copy per
+  executable.
 - Linux and macOS must expose the same observable behavior.
 - Every primitive ships with positive and adversarial tests in `tests/`.
 - Public headers compile as C11 and C++17 (`tests/header_cpp.cpp`).
@@ -112,6 +118,9 @@ skill `.claude/skills/maelys-cli-framework/SKILL.md` is its checklist form.
 
 - `--dry-run`/`--plan` are refused only on commands declaring `--apply`.
 - `maelys_cli_json_string(NULL)` fails the writer; `null` is explicit.
+  Invalid UTF-8 fails it too: products transcode or escape raw names.
+- The JSON validator rejects duplicate keys; a manifest with two
+  `executable` members is invalid, not "last wins".
 - Stream commands refuse rendering options; `MAELYS_CLI_FORMAT` in the
   environment is the way to shape their failure envelope.
 - `describe COMMAND_ID` omits `globalOptions`, `output` and `invariants`.

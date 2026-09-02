@@ -1,5 +1,9 @@
 @PACKAGE_INIT@
 
+# maelys::cli has no dependency. maelys::cli_extension (present when the
+# package was installed with maelys-json) links maelys::json publicly.
+include(CMakeFindDependencyMacro)
+find_package(maelys-json 0.1 CONFIG QUIET)
 include("${CMAKE_CURRENT_LIST_DIR}/maelys-cli-targets.cmake")
 
 # Tools installed next to the library, for custom commands in consumers:

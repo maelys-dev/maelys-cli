@@ -94,6 +94,16 @@ static int test_rejections(void) {
     CHECK(maelys_cli_extension_load(path, &extension, &error) != 0);
     CHECK(strcmp(error.code, "PROTOCOL_FAILED") == 0);
 
+    /* Duplicate members and invalid UTF-8 are refused by maelys-json. */
+    CHECK(write_text(path, "{\"schema\":\"maelys.cli-extension/v1\",\"command\":\"x\","
+        "\"command\":\"y\",\"executable\":\"/bin/sh\",\"cliApi\":1,\"version\":\"1\"}", 0644));
+    CHECK(maelys_cli_extension_load(path, &extension, &error) != 0);
+    CHECK(strcmp(error.code, "PROTOCOL_FAILED") == 0 && strstr(error.message, "not valid JSON"));
+    CHECK(write_text(path, "{\"schema\":\"maelys.cli-extension/v1\",\"command\":\"x\","
+        "\"executable\":\"/bin/sh\",\"cliApi\":1,\"version\":\"\xff\"}", 0644));
+    CHECK(maelys_cli_extension_load(path, &extension, &error) != 0);
+    CHECK(strcmp(error.code, "PROTOCOL_FAILED") == 0);
+
     CHECK(write_text(path, "[]", 0644));
     CHECK(maelys_cli_extension_load(path, &extension, &error) != 0);
 

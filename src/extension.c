@@ -1,9 +1,10 @@
 #include "maelys/cli/extension.h"
 #include "maelys/cli/digest.h"
 #include "maelys/cli/files.h"
-#include "maelys/cli/json.h"
 #include "maelys/cli/process.h"
 #include "maelys/cli/version.h"
+
+#include <maelys/json.h>
 
 #include <dirent.h>
 #include <errno.h>
@@ -39,18 +40,13 @@ static int valid_command_name(const char *name) {
 }
 
 static int copy_string_field(
-    const char *text, const char *key, int required, char *out,
-    size_t out_size, const char *manifest, maelys_cli_error_t *error) {
-    const char *value = NULL;
-    size_t length = 0u;
-    int found = maelys_cli_json_object_get(text, key, &value, &length);
-    if (found < 0) {
-        maelys_cli_error_set(error, MAELYS_CLI_CODE_PROTOCOL_FAILED,
-            "Repair or remove the manifest.",
-            "Manifest %s is not a JSON object.", manifest);
-        return -1;
-    }
-    if (found == 0) {
+    const maelys_json_document_t *document, maelys_json_value_t root,
+    const char *key, int required, char *out, size_t out_size,
+    const char *manifest, maelys_cli_error_t *error) {
+    maelys_json_view_t view;
+    maelys_json_result_t result = maelys_json_object_get_string(document, root,
+        key, &view);
+    if (result == MAELYS_JSON_ERR_NOT_FOUND) {
         if (!required) {
             out[0] = '\0';
             return 0;
@@ -60,23 +56,20 @@ static int copy_string_field(
             "Manifest %s lacks '%s'.", manifest, key);
         return -1;
     }
-    char *decoded = NULL;
-    if (maelys_cli_json_decode_string(value, length, &decoded) != 0) {
+    if (result != MAELYS_JSON_OK) {
         maelys_cli_error_set(error, MAELYS_CLI_CODE_PROTOCOL_FAILED,
             "Use a JSON string for this member.",
             "Manifest %s member '%s' is not a string.", manifest, key);
         return -1;
     }
-    size_t decoded_length = strlen(decoded);
-    if (decoded_length >= out_size) {
-        free(decoded);
+    if (view.size >= out_size || memchr(view.data, '\0', view.size)) {
         maelys_cli_error_set(error, MAELYS_CLI_CODE_PROTOCOL_FAILED,
             "Shorten the manifest member.",
-            "Manifest %s member '%s' is too long.", manifest, key);
+            "Manifest %s member '%s' is too long or contains NUL.", manifest, key);
         return -1;
     }
-    memcpy(out, decoded, decoded_length + 1u);
-    free(decoded);
+    memcpy(out, view.data, view.size);
+    out[view.size] = '\0';
     return 0;
 }
 
@@ -117,27 +110,32 @@ int maelys_cli_extension_load(
             manifest_path);
         return -1;
     }
-    char *text = malloc(size + 1u);
-    if (!text) {
-        free(bytes);
-        maelys_cli_error_from_errno(error, MAELYS_CLI_CODE_UNEXPECTED, ENOMEM,
-            manifest_path);
-        return -1;
-    }
-    memcpy(text, bytes, size);
-    text[size] = '\0';
+    const maelys_json_limits_t limits = {
+        MAELYS_CLI_EXTENSION_MAX_MANIFEST_BYTES, 8u, 1024u
+    };
+    maelys_json_document_t *document = NULL;
+    maelys_json_error_t parse_error;
+    maelys_json_result_t parsed = maelys_json_document_parse(bytes, size,
+        MAELYS_JSON_PROFILE_RFC8259, &limits, &document, &parse_error);
     free(bytes);
-    if (memchr(text, '\0', size) != NULL ||
-        maelys_cli_json_validate(text, size, NULL) != 0) {
-        free(text);
+    if (parsed != MAELYS_JSON_OK) {
+        char detail[160];
+        (void)maelys_json_error_format(&parse_error, detail, sizeof(detail));
         maelys_cli_error_set(error, MAELYS_CLI_CODE_PROTOCOL_FAILED,
             "Repair or remove the manifest.",
-            "Manifest %s is not valid JSON.", manifest_path);
+            "Manifest %s is not valid JSON: %s.", manifest_path, detail);
         return -1;
     }
-    char schema[64];
     int result = -1;
-    if (copy_string_field(text, "schema", 1, schema, sizeof(schema),
+    maelys_json_value_t root = maelys_json_document_root(document);
+    if (maelys_json_value_type(document, root) != MAELYS_JSON_TYPE_OBJECT) {
+        maelys_cli_error_set(error, MAELYS_CLI_CODE_PROTOCOL_FAILED,
+            "Repair or remove the manifest.",
+            "Manifest %s is not a JSON object.", manifest_path);
+        goto done;
+    }
+    char schema[64];
+    if (copy_string_field(document, root, "schema", 1, schema, sizeof(schema),
             manifest_path, error) != 0)
         goto done;
     if (strcmp(schema, MAELYS_CLI_EXTENSION_SCHEMA) != 0) {
@@ -146,15 +144,15 @@ int maelys_cli_extension_load(
             "Manifest %s declares unsupported schema %s.", manifest_path, schema);
         goto done;
     }
-    if (copy_string_field(text, "command", 1, out->command,
+    if (copy_string_field(document, root, "command", 1, out->command,
             sizeof(out->command), manifest_path, error) != 0 ||
-        copy_string_field(text, "executable", 1, out->executable,
+        copy_string_field(document, root, "executable", 1, out->executable,
             sizeof(out->executable), manifest_path, error) != 0 ||
-        copy_string_field(text, "version", 1, out->version,
+        copy_string_field(document, root, "version", 1, out->version,
             sizeof(out->version), manifest_path, error) != 0 ||
-        copy_string_field(text, "summary", 0, out->summary,
+        copy_string_field(document, root, "summary", 0, out->summary,
             sizeof(out->summary), manifest_path, error) != 0 ||
-        copy_string_field(text, "sha256", 0, out->sha256,
+        copy_string_field(document, root, "sha256", 0, out->sha256,
             sizeof(out->sha256), manifest_path, error) != 0)
         goto done;
     if (!valid_command_name(out->command)) {
@@ -164,11 +162,8 @@ int maelys_cli_extension_load(
             out->command);
         goto done;
     }
-    const char *api_value = NULL;
-    size_t api_length = 0u;
     uint64_t api = 0u;
-    if (maelys_cli_json_object_get(text, "cliApi", &api_value, &api_length) != 1 ||
-        maelys_cli_json_decode_unsigned(api_value, api_length, &api) != 0) {
+    if (maelys_json_object_get_u64(document, root, "cliApi", &api) != MAELYS_JSON_OK) {
         maelys_cli_error_set(error, MAELYS_CLI_CODE_PROTOCOL_FAILED,
             "Declare cliApi as an unsigned integer.",
             "Manifest %s lacks a valid 'cliApi'.", manifest_path);
@@ -206,7 +201,7 @@ int maelys_cli_extension_load(
     }
     result = 0;
 done:
-    free(text);
+    maelys_json_document_release(document);
     return result;
 }
 

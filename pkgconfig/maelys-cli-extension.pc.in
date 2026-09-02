@@ -1,0 +1,11 @@
+prefix=@PREFIX@
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+
+Name: maelys-cli-extension
+Description: External command discovery for Maelys dispatchers (manifests read through maelys-json)
+Version: @VERSION@
+Requires: maelys-cli = @VERSION@, maelys-json >= 0.1
+Libs: -L${libdir} -lmaelys_cli_extension
+Cflags: -I${includedir}

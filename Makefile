@@ -12,21 +12,34 @@ CFLAGS ?= -O2 -g
 CXXFLAGS ?= -O2 -g
 WARNINGS := -Wall -Wextra -Wpedantic -Werror -Wconversion -Wshadow \
 	-Wstrict-prototypes -Wmissing-prototypes -Wformat=2
-COMMON_CPPFLAGS := -Iinclude -Isrc -D_POSIX_C_SOURCE=200809L -D_XOPEN_SOURCE=700 \
-	-D_DEFAULT_SOURCE -D_DARWIN_C_SOURCE \
+COMMON_CPPFLAGS := -Iinclude -Isrc -D_POSIX_C_SOURCE=200809L \
+	-D_XOPEN_SOURCE=700 -D_DEFAULT_SOURCE -D_DARWIN_C_SOURCE \
 	-DMAELYS_CLI_COMMANDS_DIR='"$(PREFIX)/share/maelys/commands"'
 COMMON_CFLAGS := -std=c11 $(WARNINGS)
 COMMON_CXXFLAGS := -std=c++17 -Wall -Wextra -Wpedantic -Werror
 
 VERSION := $(shell sed -n '1p' VERSION)
+
+# maelys-json is the JSON reader of the framework: a sibling checkout built
+# on demand, or an installed copy (MAELYS_JSON_CFLAGS/MAELYS_JSON_LIBS from
+# pkg-config). Pin: tag v0.1.0.
+MAELYS_JSON_DIR ?= ../maelys-json
+MAELYS_JSON_LIB ?= $(MAELYS_JSON_DIR)/build/lib/libmaelys-json.a
+MAELYS_JSON_CFLAGS ?= -I$(MAELYS_JSON_DIR)/include
+MAELYS_JSON_LIBS ?= $(MAELYS_JSON_LIB)
 HEADERS := $(wildcard include/maelys/*.h include/maelys/cli/*.h src/*.h \
 	cmd/maelys/*.h tests/*.h)
 
 SOURCES := src/version.c src/values.c src/environment.c src/files.c \
 	src/digest.c src/json.c src/terminal.c src/process.c src/catalog.c \
-	src/invocation.c src/app.c src/extension.c
+	src/invocation.c src/app.c
 OBJECTS := $(patsubst %.c,$(BUILD)/%.o,$(SOURCES))
 LIB := $(BUILD)/lib/libmaelys_cli.a
+# Manifest discovery reads untrusted JSON through maelys-json; it lives in
+# its own archive so the core stays dependency-free.
+EXTENSION_SOURCES := src/extension.c
+EXTENSION_OBJECTS := $(patsubst %.c,$(BUILD)/%.o,$(EXTENSION_SOURCES))
+EXTENSION_LIB := $(BUILD)/lib/libmaelys_cli_extension.a
 
 EMBED := tools/maelys-cli-embed
 AGENT_TEXTS := share/agents/instructions-block.md share/agents/maelys-cli-guide.md \
@@ -47,18 +60,30 @@ TEST_NAMES := test_values test_json test_files test_digest test_process \
 TESTS := $(addprefix $(BUILD)/tests/,$(TEST_NAMES))
 HEADER_CPP := $(BUILD)/tests/header_cpp
 PC := $(BUILD)/pkgconfig/maelys-cli.pc
+EXTENSION_PC := $(BUILD)/pkgconfig/maelys-cli-extension.pc
 
 .PHONY: all check test header-check check-version cli-check api-doc-check agent-doc-check install \
 	install-check uninstall dist clean asan-ubsan analyze cmake-check \
 	generate-cli-reference contract-check agents-install
 
-all: $(LIB) $(DISPATCHER) $(EXAMPLE) $(PC)
+all: $(LIB) $(EXTENSION_LIB) $(DISPATCHER) $(EXAMPLE) $(PC) $(EXTENSION_PC)
 
 $(BUILD)/%.o: %.c $(HEADERS)
 	@mkdir -p $(@D)
 	$(CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) $(CFLAGS) $(COMMON_CFLAGS) -c $< -o $@
 
 $(LIB): $(OBJECTS)
+	@mkdir -p $(@D)
+	$(AR) rcs $@ $^
+
+$(MAELYS_JSON_DIR)/build/lib/libmaelys-json.a:
+	$(MAKE) -C $(MAELYS_JSON_DIR)
+
+$(BUILD)/src/extension.o: src/extension.c $(HEADERS) $(MAELYS_JSON_LIB)
+	@mkdir -p $(@D)
+	$(CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) $(MAELYS_JSON_CFLAGS) $(CFLAGS) $(COMMON_CFLAGS) -c $< -o $@
+
+$(EXTENSION_LIB): $(EXTENSION_OBJECTS)
 	@mkdir -p $(@D)
 	$(AR) rcs $@ $^
 
@@ -90,14 +115,19 @@ $(BUILD)/cmd/maelys/%.o: cmd/maelys/%.c $(HEADERS)
 	@mkdir -p $(@D)
 	$(CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) $(CFLAGS) $(COMMON_CFLAGS) -c $< -o $@
 
-$(DISPATCHER): $(DISPATCHER_OBJECTS) $(LIB)
+$(DISPATCHER): $(DISPATCHER_OBJECTS) $(EXTENSION_LIB) $(LIB) $(MAELYS_JSON_LIB)
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) $(COMMON_CFLAGS) $(DISPATCHER_OBJECTS) $(LIB) $(LDFLAGS) -o $@
+	$(CC) $(CFLAGS) $(COMMON_CFLAGS) $(DISPATCHER_OBJECTS) $(EXTENSION_LIB) $(LIB) $(MAELYS_JSON_LIBS) $(LDFLAGS) -o $@
 
+# The example is a plain product: core archive only, no maelys-json.
 $(EXAMPLE): examples/hello/main.c $(HELLO_GENERATED) $(LIB) $(HEADERS)
 	@mkdir -p $(@D)
 	$(CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) -I$(BUILD)/generated $(CFLAGS) $(COMMON_CFLAGS) \
 		$< $(BUILD)/generated/hello_schemas.c $(LIB) $(LDFLAGS) -o $@
+
+$(BUILD)/tests/test_extension: tests/test_extension.c $(EXTENSION_LIB) $(LIB) $(MAELYS_JSON_LIB) $(HEADERS)
+	@mkdir -p $(@D)
+	$(CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) $(CFLAGS) $(COMMON_CFLAGS) $< $(EXTENSION_LIB) $(LIB) $(MAELYS_JSON_LIBS) $(LDFLAGS) -o $@
 
 $(BUILD)/tests/test_%: tests/test_%.c $(LIB) $(HEADERS)
 	@mkdir -p $(@D)
@@ -108,7 +138,7 @@ $(HEADER_CPP): tests/header_cpp.cpp $(LIB)
 	$(CXX) $(CPPFLAGS) $(COMMON_CPPFLAGS) $(CXXFLAGS) $(COMMON_CXXFLAGS) $< -c -o $@.o
 	$(CXX) $@.o $(LIB) $(LDFLAGS) -o $@
 
-$(PC): pkgconfig/maelys-cli.pc.in VERSION
+$(BUILD)/pkgconfig/%.pc: pkgconfig/%.pc.in VERSION
 	@mkdir -p $(@D)
 	sed -e 's|@PREFIX@|$(PREFIX)|g' -e 's|@VERSION@|$(VERSION)|g' $< > $@
 
@@ -140,9 +170,9 @@ asan-ubsan:
 	$(MAKE) check BUILD=build/asan-ubsan CFLAGS='-O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer' LDFLAGS='-fsanitize=address,undefined'
 
 analyze: $(HELLO_GENERATED)
-	@for source in $(SOURCES) $(DISPATCHER_SOURCES) examples/hello/main.c; do \
+	@for source in $(SOURCES) $(EXTENSION_SOURCES) $(DISPATCHER_SOURCES) examples/hello/main.c; do \
 		$(CC) --analyze -Xanalyzer -analyzer-output=text \
-			$(CPPFLAGS) $(COMMON_CPPFLAGS) -I$(BUILD)/generated -std=c11 $$source || exit 1; \
+			$(CPPFLAGS) $(COMMON_CPPFLAGS) $(MAELYS_JSON_CFLAGS) -I$(BUILD)/generated -std=c11 $$source || exit 1; \
 	done
 
 generate-cli-reference: $(DISPATCHER) $(EXAMPLE)
@@ -162,7 +192,7 @@ contract-check: $(DISPATCHER) $(EXAMPLE)
 		{ echo "docs/cli-contract.json drifted; run make generate-cli-reference" >&2; exit 1; }
 	@echo "contract-check: ok"
 
-install: $(LIB) $(DISPATCHER) $(PC)
+install: $(LIB) $(EXTENSION_LIB) $(DISPATCHER) $(PC) $(EXTENSION_PC)
 	install -d $(DESTDIR)$(PREFIX)/lib $(DESTDIR)$(PREFIX)/bin \
 		$(DESTDIR)$(PREFIX)/include/maelys/cli \
 		$(DESTDIR)$(PREFIX)/lib/pkgconfig \
@@ -170,6 +200,8 @@ install: $(LIB) $(DISPATCHER) $(PC)
 		$(DESTDIR)$(PREFIX)/share/maelys-cli/docs \
 		$(DESTDIR)$(PREFIX)/share/maelys/commands
 	install -m 0644 $(LIB) $(DESTDIR)$(PREFIX)/lib/libmaelys_cli.a
+	install -m 0644 $(EXTENSION_LIB) $(DESTDIR)$(PREFIX)/lib/libmaelys_cli_extension.a
+	install -m 0644 $(EXTENSION_PC) $(DESTDIR)$(PREFIX)/lib/pkgconfig/maelys-cli-extension.pc
 	install -m 0755 $(DISPATCHER) $(DESTDIR)$(PREFIX)/bin/maelys
 	install -m 0755 $(EMBED) $(DESTDIR)$(PREFIX)/bin/maelys-cli-embed
 	install -m 0755 tools/generate_cli_reference.py $(DESTDIR)$(PREFIX)/bin/maelys-cli-reference
@@ -193,6 +225,8 @@ cmake-check:
 
 uninstall:
 	rm -f $(DESTDIR)$(PREFIX)/lib/libmaelys_cli.a \
+		$(DESTDIR)$(PREFIX)/lib/libmaelys_cli_extension.a \
+		$(DESTDIR)$(PREFIX)/lib/pkgconfig/maelys-cli-extension.pc \
 		$(DESTDIR)$(PREFIX)/bin/maelys \
 		$(DESTDIR)$(PREFIX)/bin/maelys-cli-embed \
 		$(DESTDIR)$(PREFIX)/bin/maelys-cli-reference \

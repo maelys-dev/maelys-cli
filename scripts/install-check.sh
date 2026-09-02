@@ -7,7 +7,9 @@ cleanup() {
 }
 trap cleanup EXIT HUP INT TERM
 
+make -C "${MAELYS_JSON_DIR:-../maelys-json}" install DESTDIR="$root" PREFIX=/usr >/dev/null
 make install DESTDIR="$root" PREFIX=/usr >/dev/null
+test -f "$root/usr/lib/libmaelys-json.a"
 test -f "$root/usr/lib/libmaelys_cli.a"
 test -x "$root/usr/bin/maelys"
 test -x "$root/usr/bin/maelys-cli-embed"
@@ -43,6 +45,8 @@ SMOKE
 
 ${CC:-cc} -std=c11 -Wall -Wextra -Wpedantic -Werror -I"$root/usr/include" \
     "$root/smoke.c" "$root/schemas.c" "$root/usr/lib/libmaelys_cli.a" -o "$root/smoke"
+test -f "$root/usr/lib/libmaelys_cli_extension.a"
+test -f "$root/usr/lib/pkgconfig/maelys-cli-extension.pc"
 test "$("$root/smoke" hello)" = "hello"
 "$root/smoke" hello --json --compact | grep -q '"command":"hello","ok":true'
 "$root/smoke" describe hello --json --compact | grep -q '"outputSchema":{"type":"object","required":\["ok"\]}'

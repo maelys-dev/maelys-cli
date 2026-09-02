@@ -106,7 +106,13 @@ Steps, in one Egress change:
 6. record the contract change in the Egress changelog as a breaking 0.x
    change and bump the minor.
 
-Pinning: Egress pins `maelys-cli` by tag (`v0.1.0`) through the same
+Static archive hygiene: `libmaelys_egress.a` must not absorb
+`libmaelys_cli.a` nor `libmaelys-json.a`; its pkg-config file declares
+`Requires: maelys-cli` (and `maelys-json` only if Egress reads untrusted
+JSON itself), so a product that reuses the Egress library and maelys-json
+links each archive once.
+
+Pinning: Egress pins `maelys-cli` by tag through the same
 pinned-checkout scheme it uses for `maelys-system`; the framework's CI
 (`.github/workflows/ci.yml`) runs the full check on Linux amd64/arm64 and
 macOS before a tag is published.
