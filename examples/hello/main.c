@@ -66,7 +66,7 @@ static const maelys_cli_option_t limits_options[] = {
      .default_text = "0"},
     {MAELYS_CLI_HEX("digest", "HEX", "Expected SHA-256 digest.", 64u)},
     {MAELYS_CLI_STRING("tag", "TEXT", "Free label; repeatable."), .repeatable = 1},
-    {MAELYS_CLI_FLAG("strict", "Refuse defaults."), .requires = "level"},
+    {MAELYS_CLI_FLAG("strict", "Refuse defaults."), .depends_on = "level"},
     {MAELYS_CLI_FLAG("lenient", "Accept defaults."), .conflicts_with = "strict"},
 };
 

@@ -406,10 +406,10 @@ int maelys_cli_parse(
     for (size_t i = 0u; i < out->option_count; ++i) {
         const maelys_cli_option_t *option = out->options[i].descriptor;
         if (out->options[i].transport || !out->options[i].boolean_value) continue;
-        if (option->requires && !option_enabled(out, option->requires)) {
+        if (option->depends_on && !option_enabled(out, option->depends_on)) {
             maelys_cli_error_set(error, MAELYS_CLI_CODE_VALIDATION_FAILED,
                 "Supply the dependent option and retry.",
-                "--%s requires --%s.", option->name, option->requires);
+                "--%s requires --%s.", option->name, option->depends_on);
             return -1;
         }
         if (option->conflicts_with && option_enabled(out, option->conflicts_with)) {

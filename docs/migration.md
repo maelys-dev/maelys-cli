@@ -60,6 +60,46 @@ The envelope, `describe` shape, error codes and exit codes are preserved, so
 The only visible additions are `external`, `hidden`, `passthrough`,
 `framework` and `cliApi` in `describe`, and richer `argument` metadata.
 
+## Egress (`cli/catalog.c` and `cli/maelys-egress.c`)
+
+Egress is the simplest consumer and the one whose migration is a contract
+change rather than a code change: its 0.11 CLI reimplemented the same model
+under the same `agent-cli/v2` name with a different vocabulary. The
+reference vocabulary is the one of Maelys Git and Hermes, which `maelys-cli`
+implements; Egress aligns on it in its next minor.
+
+| Egress 0.11 | `maelys-cli` | Note |
+| --- | --- | --- |
+| `describe` member `path` | `pattern` (array of words) | `id` is added: dotted, stable |
+| `usage` | `usage` and `input.synopsis` | identical strings, derived from the catalog |
+| `summary` | `purpose` | operands and options keep `summary` |
+| `effect`, `outputMode` | same names, same values | `protocol` added for stream commands |
+| no `input`, no `outputSchema` | `input.operands`, `input.options`, `input.constraints`, `outputSchema`, `exitCodes` | additive |
+| error codes in kebab case (`invalid-argument`) | `VALIDATION_FAILED`, `NOT_FOUND`, ... | the eleven stable codes of `command-conventions.md` |
+| exit `2` = invalid invocation | exit `1` = any failure, `2` = a validation report with violations | `2` never accompanies an error envelope |
+
+Steps, in one Egress change:
+
+1. rewrite `cli/catalog.c` with the `MAELYS_CLI_*` macros and move each
+   output schema to `schemas/*.json` embedded by `maelys-cli-embed`;
+2. replace the hand-written parser and renderer of `cli/maelys-egress.c`
+   with `maelys_cli_main()`; `serve` becomes
+   `MAELYS_CLI_PROTOCOL_STREAM(..., "egress-fd4")` or the relevant name;
+3. delete `tools/generate_cli_reference.py` and `tools/check_cli_contract.py`
+   in favor of the framework's generator (`generate_cli_reference.py
+   --build DIR maelys-egress`) and of `describe` itself;
+4. shorten `docs/command-conventions.md` and `docs/agent-cli.md` to Egress
+   specifics and link the framework documents installed under
+   `PREFIX/share/maelys-cli/docs/`;
+5. update the shell test and the skill for the new codes and exit semantics;
+6. record the contract change in the Egress changelog as a breaking 0.x
+   change and bump the minor.
+
+Pinning: Egress pins `maelys-cli` by tag (`v0.1.0`) through the same
+pinned-checkout scheme it uses for `maelys-system`; the framework's CI
+(`.github/workflows/ci.yml`) runs the full check on Linux amd64/arm64 and
+macOS before a tag is published.
+
 ## Hermes
 
 Hermes stays TypeScript; it already implements the same contract. Its

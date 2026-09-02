@@ -20,7 +20,7 @@ static const maelys_cli_option_t make_options[] = {
     {MAELYS_CLI_INTEGER("offset", "N", "Offset.", -10, 10)},
     {MAELYS_CLI_STRING("tag", "TEXT", "Tag."), .repeatable = 1},
     {MAELYS_CLI_HEX_OR("oid", "OID", "Object id.", 4u, 8u)},
-    {MAELYS_CLI_FLAG("strict", "Strict."), .requires = "git"},
+    {MAELYS_CLI_FLAG("strict", "Strict."), .depends_on = "git"},
     {MAELYS_CLI_FLAG("lenient", "Lenient."), .conflicts_with = "strict"},
     MAELYS_CLI_APPLY_OPTION,
 };

@@ -57,6 +57,19 @@ Key order in envelopes is fixed: `schemaVersion`, `contract`, `command`,
 `ok`, `exitCode`, then `data` or `error`. `--compact` selects one line;
 otherwise two-space indentation.
 
+## Who writes JSON in the Maelys family
+
+Decision: `libmaelys_cli` is the canonical writer of CLI output (envelopes,
+`describe`, records) for every Maelys CLI. `maelys-json` is the canonical
+implementation for contract documents: parsing with limits, duplicate-key
+and UTF-8 rejection, and Maelys Canonical JSON v1 bytes for anything that is
+signed, hashed or compared byte for byte (receipts, manifests, policies).
+Products use both without overlap: handler data built with either writer is
+handed to the framework as text; documents that must be canonical are
+produced by `maelys-json`. When `maelys-json` reaches 0.1.0, the
+dispatcher's manifest parsing may adopt it as an optional backend; the
+envelope writer stays in the core so a CLI has no mandatory dependency.
+
 ## Why no JSON library in the core
 
 The framework needs three JSON operations: build small documents, validate

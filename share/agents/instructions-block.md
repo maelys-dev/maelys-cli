@@ -33,7 +33,7 @@ one handler and one JSON Schema file. In the same change, update:
    (`MAELYS_CLI_READ`, `_RECORDS`, `_TRANSACTION`, `_EXECUTE`, `_STREAM`,
    `_EXTERNAL`; `MAELYS_CLI_OPERAND*`; `MAELYS_CLI_FLAG`, `_STRING`,
    `_PATH`, `_UNSIGNED`, `_INTEGER`, `_SIZE`, `_DURATION`, `_CHOICE`,
-   `_HEX`) plus `.required`, `.repeatable`, `.requires`,
+   `_HEX`) plus `.required`, `.repeatable`, `.depends_on`,
    `.conflicts_with`, `.default_text` as designated fields;
 2. the output schema: a JSON Schema file under the project's schema
    directory, embedded by `maelys-cli-embed` and referenced with

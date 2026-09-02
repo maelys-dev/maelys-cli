@@ -98,7 +98,7 @@ static const maelys_cli_option_t note_options[] = {
      .default_text = "1G"},
     {MAELYS_CLI_CHOICE("level", "Verbosity.", level_choices), .default_text = "low"},
     {MAELYS_CLI_STRING("tag", "TEXT", "Label; repeatable."), .repeatable = 1},
-    {MAELYS_CLI_FLAG("strict", "Refuse defaults."), .requires = "level"},
+    {MAELYS_CLI_FLAG("strict", "Refuse defaults."), .depends_on = "level"},
     MAELYS_CLI_APPLY_OPTION,
 };
 

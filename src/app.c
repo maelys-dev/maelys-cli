@@ -229,7 +229,7 @@ static int validate_command(
                 "declaration.", id, option->name);
             return -1;
         }
-        const char *references[2] = {option->requires, option->conflicts_with};
+        const char *references[2] = {option->depends_on, option->conflicts_with};
         for (size_t r = 0u; r < 2u; ++r) {
             if (!references[r]) continue;
             int found = 0;
@@ -621,10 +621,12 @@ void maelys_cli_warn(maelys_cli_context_t *context, const char *format, ...) {
     (void)fprintf(err, "%s%s: warning:%s ",
         maelys_cli_style(color, MAELYS_CLI_STYLE_WARNING), program,
         maelys_cli_style(color, MAELYS_CLI_STYLE_RESET));
-    va_list arguments;
-    va_start(arguments, format);
-    (void)vfprintf(err, format, arguments);
-    va_end(arguments);
+    if (format) {
+        va_list arguments;
+        va_start(arguments, format);
+        (void)vfprintf(err, format, arguments);
+        va_end(arguments);
+    }
     (void)fputc('\n', err);
     (void)fflush(err);
 }
@@ -727,9 +729,9 @@ static int describe_option(
     if (maelys_cli_json_key(writer, "requires") != 0 ||
         maelys_cli_json_begin_array(writer) != 0)
         return -1;
-    if (option->requires) {
+    if (option->depends_on) {
         char required[MAELYS_CLI_MAX_OPTION_NAME + 2u];
-        (void)snprintf(required, sizeof(required), "--%s", option->requires);
+        (void)snprintf(required, sizeof(required), "--%s", option->depends_on);
         if (maelys_cli_json_string(writer, required) != 0) return -1;
     }
     if (maelys_cli_json_end_array(writer) != 0 ||
@@ -751,7 +753,7 @@ static int describe_constraints(
     for (size_t i = 0u; i < command->option_count; ++i) {
         const maelys_cli_option_t *option = &command->options[i];
         const char *kinds[2] = {"requires", "at-most-one"};
-        const char *targets[2] = {option->requires, option->conflicts_with};
+        const char *targets[2] = {option->depends_on, option->conflicts_with};
         for (size_t k = 0u; k < 2u; ++k) {
             if (!targets[k]) continue;
             char first[MAELYS_CLI_MAX_OPTION_NAME + 2u];
@@ -970,7 +972,7 @@ static void option_help_line(
     if (option->default_text)
         (void)fprintf(stream, " Default: %s.", option->default_text);
     if (option->required) (void)fputs(" Required.", stream);
-    if (option->requires) (void)fprintf(stream, " Requires --%s.", option->requires);
+    if (option->depends_on) (void)fprintf(stream, " Requires --%s.", option->depends_on);
     if (option->conflicts_with)
         (void)fprintf(stream, " Conflicts with --%s.", option->conflicts_with);
     (void)fputc('\n', stream);

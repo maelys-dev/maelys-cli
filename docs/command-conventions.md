@@ -55,7 +55,7 @@ Errors are reported in this causal order:
 1. command resolution (`INVALID_COMMAND`);
 2. option spelling, support by the command, duplication;
 3. option value kind, range, choice;
-4. option dependencies (`requires`) and conflicts (`conflicts_with`);
+4. option dependencies (`depends_on`) and conflicts (`conflicts_with`);
 5. required options;
 6. operand arity;
 7. rendering constraints (stream commands, jsonl availability);
@@ -156,5 +156,5 @@ Any command change updates, in the same change:
 
 `maelys_cli_catalog_validate()` runs at every startup and in tests. It
 checks identifier and pattern validity and uniqueness, summaries, value
-declarations, `requires`/`conflicts_with` targets, schema JSON validity, the
+declarations, `depends_on`/`conflicts_with` targets, schema JSON validity, the
 presence of `--apply` on transactions and the handler-or-delegate rule.

@@ -24,5 +24,10 @@
   stdio (`protocol` in `describe`); `MAELYS_CLI_HEX_OR` accepts two
   hexadecimal lengths for object identifiers; the reference generator takes
   the binaries to aggregate as arguments.
+- CI workflow for Linux amd64/arm64 (clang and GCC) and macOS; Egress
+  migration path and the JSON writer decision documented. Verified with
+  GCC 14 on Linux (glibc feature macros, `/proc/self/exe`) and clang on
+  macOS; the option field is named `depends_on` because `requires` is a
+  C++20 keyword (the `describe` member stays `requires`).
 - Reference product CLI `maelys-hello`, unit tests, end-to-end CLI tests,
   C++ header gate, sanitizer target and reference generator.

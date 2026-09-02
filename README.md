@@ -146,7 +146,7 @@ Command macros: `MAELYS_CLI_READ`, `MAELYS_CLI_RECORDS`,
 `MAELYS_CLI_COMMIT_TRANSACTION`, `MAELYS_CLI_EXECUTE`, `MAELYS_CLI_STREAM`,
 `MAELYS_CLI_EXTERNAL`. Option macros: `MAELYS_CLI_FLAG`, `_STRING`, `_PATH`,
 `_UNSIGNED`, `_INTEGER`, `_SIZE`, `_DURATION`, `_CHOICE`, `_HEX`; attributes
-`.required`, `.repeatable`, `.requires`, `.conflicts_with`, `.default_text`
+`.required`, `.repeatable`, `.depends_on`, `.conflicts_with`, `.default_text`
 follow the macro. Operands: `MAELYS_CLI_OPERAND`, `_OPERAND_OPTIONAL`,
 `_OPERAND_REST`.
 
@@ -229,13 +229,15 @@ only for the reference generator; a C++17 compiler only for the header gate.
 
 1. Extract `maelys-warden-guest`.
 2. Ship `maelys-cli` (this repository) with the dispatcher and the shared
-   mechanics.
-3. Extract `maelys-oci` as an external command of `maelys`.
-4. Migrate Warden's `cli/common` to `libmaelys_cli` and its `run` command to
+   mechanics, tagged and verified by CI so consumers can pin it.
+3. Migrate Egress, the simplest consumer, aligning its CLI contract on the
+   Maelys Git vocabulary.
+4. Extract `maelys-oci` as an external command of `maelys`.
+5. Migrate Warden's `cli/common` to `libmaelys_cli` and its `run` command to
    the catalog; replace `maelys-warden image` by `maelys oci`.
-5. Migrate Maelys Git to the shared catalog, parser and renderer, keeping the
+6. Migrate Maelys Git to the shared catalog, parser and renderer, keeping the
    `agent-cli/v2` envelope unchanged.
-6. Migrate the other Maelys products. See [docs/migration.md](docs/migration.md).
+7. Migrate the other Maelys products. See [docs/migration.md](docs/migration.md).
 
 ## License
 

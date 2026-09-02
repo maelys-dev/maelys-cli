@@ -1,0 +1,36 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+
+jobs:
+  check:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm, macos-15]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and check
+        run: make check
+      - name: Sanitizers
+        run: make asan-ubsan
+      - name: Static analysis
+        if: runner.os == 'macOS'
+        run: make analyze
+      - name: Install check
+        run: make install-check
+      - name: Reference drift
+        run: |
+          make generate-cli-reference
+          git diff --exit-code -- docs/cli-reference.md docs/cli-contract.json
+  gcc:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build with GCC
+        run: make check CC=gcc CXX=g++

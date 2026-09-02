@@ -174,8 +174,9 @@ int maelys_cli_executable_directory(
     if (_NSGetExecutablePath(raw, &raw_size) == 0 && !realpath(raw, resolved))
         resolved[0] = '\0';
 #elif defined(__linux__)
-    ssize_t length = readlink("/proc/self/exe", resolved, sizeof(resolved) - 1u);
-    if (length > 0) resolved[length] = '\0';
+    ssize_t link_length = readlink("/proc/self/exe", resolved,
+        sizeof(resolved) - 1u);
+    if (link_length > 0) resolved[link_length] = '\0';
     else resolved[0] = '\0';
 #endif
     if (!resolved[0] && argv0 && strchr(argv0, '/') &&

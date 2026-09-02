@@ -185,9 +185,6 @@ int main(int argc, char **argv) {
     };
     if (build_catalog(&error) != 0) {
         release();
-        maelys_cli_app_t minimal = app;
-        minimal.commands = builtin_commands;
-        minimal.command_count = MAELYS_CLI_COUNT(builtin_commands);
         (void)fprintf(stderr, "maelys: [%s] %s\n", error.code, error.message);
         if (error.hint[0]) (void)fprintf(stderr, "Hint: %s\n", error.hint);
         return MAELYS_CLI_EXIT_FAILURE;

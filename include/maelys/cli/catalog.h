@@ -55,7 +55,7 @@ typedef struct maelys_cli_option {
     const char *summary;
     int required;
     int repeatable;
-    const char *requires;           /* option that must also be present */
+    const char *depends_on;           /* option that must also be present */
     const char *conflicts_with;     /* option that must be absent */
     const char *const *choices;     /* NULL-terminated, CHOICE only */
     uint64_t minimum;               /* UNSIGNED, SIZE, DURATION */

@@ -12,7 +12,8 @@ CFLAGS ?= -O2 -g
 CXXFLAGS ?= -O2 -g
 WARNINGS := -Wall -Wextra -Wpedantic -Werror -Wconversion -Wshadow \
 	-Wstrict-prototypes -Wmissing-prototypes -Wformat=2
-COMMON_CPPFLAGS := -Iinclude -Isrc -D_POSIX_C_SOURCE=200809L -D_DARWIN_C_SOURCE \
+COMMON_CPPFLAGS := -Iinclude -Isrc -D_POSIX_C_SOURCE=200809L -D_XOPEN_SOURCE=700 \
+	-D_DEFAULT_SOURCE -D_DARWIN_C_SOURCE \
 	-DMAELYS_CLI_COMMANDS_DIR='"$(PREFIX)/share/maelys/commands"'
 COMMON_CFLAGS := -std=c11 $(WARNINGS)
 COMMON_CXXFLAGS := -std=c++17 -Wall -Wextra -Wpedantic -Werror

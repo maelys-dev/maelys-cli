@@ -14,4 +14,7 @@ requires:
    `MAELYS_CLI_CONTRACT` and `MAELYS_CLI_SCHEMA_VERSION` together.
 5. Any change to the extension manifest bumps `MAELYS_CLI_API` and
    `MAELYS_CLI_EXTENSION_SCHEMA` together.
-6. The annotated `vX.Y.Z` tag names the exact validated commit.
+6. The GitHub Actions workflow (`.github/workflows/ci.yml`: Linux amd64 and
+   arm64 with clang and GCC, macOS) is green on the release commit.
+7. The annotated `vX.Y.Z` tag names the exact validated commit; consumers
+   pin that tag, never a branch.
