@@ -75,8 +75,15 @@ typedef struct maelys_cli_option {
     int64_t signed_minimum;         /* INTEGER; both zero means full range */
     int64_t signed_maximum;
     size_t hex_digits;              /* HEX */
-    const char *default_text;       /* documented default, informative */
+    const char *default_text;       /* default value, validated against the
+                                       kind at startup and returned by the
+                                       typed accessors when absent */
     size_t hex_digits_alternative;  /* HEX: second accepted length, 0 = none */
+    const char *const *depends_on_all; /* NULL-terminated: every listed
+                                          option must also be present */
+    const char *group;              /* all-or-none group: options sharing a
+                                       group name are given together or not
+                                       at all */
 } maelys_cli_option_t;
 
 struct maelys_cli_context;
@@ -100,7 +107,15 @@ typedef struct maelys_cli_command {
     int hidden;                       /* omitted from help, kept in describe */
     const char *protocol;             /* STREAM only: name of the protocol
                                          owning stdio, e.g. "git-smart" */
+    const char *unavailable;          /* reason when this build has neither
+                                         handler nor delegate; the command
+                                         stays described and fails with
+                                         UNSUPPORTED */
 } maelys_cli_command_t;
+
+/* Upper bound of a derived synopsis; the catalog validation names the
+ * command whose synopsis would exceed it. */
+#define MAELYS_CLI_MAX_SYNOPSIS 4096u
 
 #define MAELYS_CLI_COUNT(array) (sizeof(array) / sizeof((array)[0]))
 #define MAELYS_CLI_OPERANDS(array) \
@@ -234,9 +249,14 @@ size_t maelys_cli_digest_hex_digits(const char *algorithm);
 const char *maelys_cli_effect_name(maelys_cli_effect_t effect);
 const char *maelys_cli_output_mode_name(maelys_cli_output_mode_t mode);
 
-/* Derives "pattern OPERANDS [--option VALUE]" from the declaration. */
+/* Derives "pattern OPERANDS --required VALUE [--optional VALUE]" from the
+ * declaration; required options come first, then optional ones, each in
+ * declaration order. Returns -1 when out_size is too small. */
 int maelys_cli_command_synopsis(
     const maelys_cli_command_t *command, char *out, size_t out_size);
+
+/* Same, allocated; the caller frees. NULL on allocation failure. */
+char *maelys_cli_command_synopsis_alloc(const maelys_cli_command_t *command);
 
 #ifdef __cplusplus
 }

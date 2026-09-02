@@ -19,6 +19,11 @@ const maelys_cli_command_t *maelys_cli_app_find_command(
 
 size_t maelys_cli_pattern_words(const char *pattern);
 
+/* Validates text against an option's kind; fills the typed value. */
+int maelys_cli_option_validate_text(
+    const maelys_cli_option_t *option, const char *value,
+    maelys_cli_parsed_option_t *parsed, maelys_cli_error_t *error);
+
 /* Set by maelys_cli_main() so delegates can be resolved beside the binary. */
 extern const char *maelys_cli_argv0;
 

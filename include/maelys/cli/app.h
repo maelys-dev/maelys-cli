@@ -86,10 +86,15 @@ int maelys_cli_operand_integer(
     const maelys_cli_context_t *context, size_t index, int64_t *out);
 int maelys_cli_operand_choice(
     const maelys_cli_context_t *context, size_t index, size_t *out_index);
+/* Raw text of an explicitly given option, NULL when absent. */
 const char *maelys_cli_option(const maelys_cli_context_t *context, const char *name);
+/* Explicit value, else the declared default_text, else fallback. */
 const char *maelys_cli_option_or(
     const maelys_cli_context_t *context, const char *name, const char *fallback);
 int maelys_cli_flag(const maelys_cli_context_t *context, const char *name);
+/* Typed values: 1 when a value is delivered, from the invocation or from
+ * the option's validated default_text; 0 when neither exists. Test
+ * maelys_cli_option() != NULL to know whether the user gave it. */
 int maelys_cli_option_unsigned(
     const maelys_cli_context_t *context, const char *name, uint64_t *out);
 int maelys_cli_option_integer(
@@ -126,6 +131,18 @@ int maelys_cli_succeed(
 int maelys_cli_succeed_writer(
     maelys_cli_context_t *context, maelys_cli_json_writer_t *data,
     const char *human, int exit_code);
+
+/* Trusted variants: the JSON text comes from a serializer that already
+ * guarantees validity (a JSON library), so it is neither validated nor
+ * reformatted in compact and jsonl modes; it is written verbatim. Invalid
+ * text would corrupt the output, so use them only behind such a serializer.
+ * Indented mode still reformats. */
+int maelys_cli_succeed_trusted(
+    maelys_cli_context_t *context, const char *data_json, const char *human,
+    int exit_code);
+int maelys_cli_emit_record_trusted(
+    maelys_cli_context_t *context, const char *record_json,
+    const char *human_line);
 
 /* Emits one record for MAELYS_CLI_OUTPUT_RECORDS commands. In jsonl mode
  * the object is written immediately as one line; in json mode it is

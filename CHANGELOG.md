@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.4.0 - 2026-09-02
+
+Feedback from the Maelys Git migration:
+
+- Synopses are derived dynamically (`maelys_cli_command_synopsis_alloc`);
+  the catalog validation measures every synopsis against
+  `MAELYS_CLI_MAX_SYNOPSIS` (4096) and names the offending command. Required
+  options now precede optional ones in the derived synopsis.
+- Dependency groups: `.depends_on_all` (NULL-terminated list) and `.group`
+  (all-or-none), enforced by the parser and exposed in `describe`
+  (`requires` lists, `all-or-none` constraints, per-option `group`).
+- Typed defaults: `default_text` is validated against the option's kind at
+  startup and returned by `maelys_cli_option_unsigned/integer/choice` and
+  `maelys_cli_option_or` when the option is absent; handlers no longer
+  repeat defaults.
+- Unavailable commands: `.unavailable = "reason"` replaces a failing
+  handler; the command stays in `describe` (`available: false`,
+  `unavailableReason`) and fails with `UNSUPPORTED`.
+- `maelys_cli_succeed_trusted` and `maelys_cli_emit_record_trusted` write
+  serializer-guaranteed JSON verbatim in compact and jsonl modes.
+- CMake package: `add_subdirectory`, FetchContent or
+  `find_package(maelys-cli)` provide `maelys::cli`, `MAELYS_CLI_EMBED` and
+  `MAELYS_CLI_REFERENCE`; `make cmake-check` proves it.
+- `maelys-cli-reference` (the reference generator) is installed with
+  `maelys-cli-embed`.
+
 ## 0.3.0 - 2026-09-02
 
 Feedback from the Egress migration:

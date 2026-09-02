@@ -2,6 +2,7 @@
 
 #include <maelys/cli.h>
 
+#include <stdlib.h>
 #include <string.h>
 
 static int dummy_handler(maelys_cli_context_t *context) {
@@ -39,8 +40,11 @@ static int test_synopsis(void) {
     maelys_cli_command_t command = good_command();
     char synopsis[256];
     CHECK(maelys_cli_command_synopsis(&command, synopsis, sizeof(synopsis)) == 0);
-    CHECK(strcmp(synopsis, "thing make ROOT [NAME] [PATH...] [--mode fast|safe] "
-        "--size BYTES [--tag TEXT...] [--apply]") == 0);
+    CHECK(strcmp(synopsis, "thing make ROOT [NAME] [PATH...] --size BYTES "
+        "[--mode fast|safe] [--tag TEXT...] [--apply]") == 0);
+    char *allocated = maelys_cli_command_synopsis_alloc(&command);
+    CHECK(allocated && strcmp(allocated, synopsis) == 0);
+    free(allocated);
     CHECK(maelys_cli_command_synopsis(&command, synopsis, 10u) != 0);
     command.synopsis = "custom";
     CHECK(maelys_cli_command_synopsis(&command, synopsis, sizeof(synopsis)) == 0);
@@ -131,6 +135,54 @@ static int test_validation(void) {
     command.options = same_lengths;
     command.option_count = 1u;
     CHECK(!validate(&command));
+
+    static const maelys_cli_option_t bad_default[] = {
+        {MAELYS_CLI_UNSIGNED("n", NULL, "N.", 1u, 9u), .default_text = "10"},
+    };
+    command = good_command();
+    command.apply_effect = MAELYS_CLI_EFFECT_NONE;
+    command.effect = MAELYS_CLI_EFFECT_READ;
+    command.options = bad_default;
+    command.option_count = 1u;
+    CHECK(!validate(&command));
+
+    static const maelys_cli_option_t lonely_group[] = {
+        {MAELYS_CLI_FLAG("a", "A."), .group = "g"},
+    };
+    command.options = lonely_group;
+    CHECK(!validate(&command));
+
+    static const char *const unknown_all[] = {"nope", NULL};
+    static const maelys_cli_option_t dangling_all[] = {
+        {MAELYS_CLI_FLAG("a", "A."), .depends_on_all = unknown_all},
+    };
+    command.options = dangling_all;
+    CHECK(!validate(&command));
+
+    /* Unavailable commands: reason required, no handler nor delegate. */
+    command = good_command();
+    command.handler = NULL;
+    command.unavailable = "not in this build";
+    CHECK(validate(&command));
+    command.handler = dummy_handler;
+    CHECK(!validate(&command));
+    command.handler = NULL;
+    command.unavailable = "";
+    CHECK(!validate(&command));
+
+    /* Oversized synopsis is reported by validation, naming the command. */
+    static char long_name[MAELYS_CLI_MAX_SYNOPSIS + 8u];
+    memset(long_name, 'X', sizeof(long_name) - 1u);
+    long_name[sizeof(long_name) - 1u] = '\0';
+    static maelys_cli_operand_t huge[1];
+    huge[0] = (maelys_cli_operand_t){MAELYS_CLI_OPERAND(long_name, "Huge.")};
+    command = good_command();
+    command.operands = huge;
+    command.operand_count = 1u;
+    maelys_cli_app_t huge_app = {"prog", "Product", "1.0", NULL, &command, 1u, NULL, 0u, NULL, NULL};
+    maelys_cli_error_t huge_error;
+    CHECK(maelys_cli_catalog_validate(&huge_app, &huge_error) != 0);
+    CHECK(strstr(huge_error.message, "thing.make") && strstr(huge_error.message, "synopsis longer"));
 
     static const char *const unknown_algorithms[] = {"md5", NULL};
     static const maelys_cli_option_t bad_digest[] = {

@@ -11,6 +11,7 @@ make install DESTDIR="$root" PREFIX=/usr >/dev/null
 test -f "$root/usr/lib/libmaelys_cli.a"
 test -x "$root/usr/bin/maelys"
 test -x "$root/usr/bin/maelys-cli-embed"
+test -x "$root/usr/bin/maelys-cli-reference"
 test -f "$root/usr/include/maelys/cli.h"
 test -f "$root/usr/include/maelys/cli/app.h"
 test -f "$root/usr/lib/pkgconfig/maelys-cli.pc"

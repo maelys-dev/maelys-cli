@@ -190,11 +190,28 @@ static int validate_command(
             "command.", id);
         return -1;
     }
-    if ((command->handler == NULL) == (command->delegate == NULL)) {
+    if (command->unavailable) {
+        if (!*command->unavailable || command->handler || command->delegate) {
+            maelys_cli_error_set(error, MAELYS_CLI_CODE_UNEXPECTED, hint,
+                "Catalog command '%s' marked unavailable must name a reason "
+                "and have neither handler nor delegate.", id);
+            return -1;
+        }
+    } else if ((command->handler == NULL) == (command->delegate == NULL)) {
         maelys_cli_error_set(error, MAELYS_CLI_CODE_UNEXPECTED, hint,
-            "Catalog command '%s' needs exactly one of handler or delegate.", id);
+            "Catalog command '%s' needs exactly one of handler or delegate, "
+            "or an 'unavailable' reason.", id);
         return -1;
     }
+    char *synopsis = maelys_cli_command_synopsis_alloc(command);
+    if (!synopsis) {
+        maelys_cli_error_set(error, MAELYS_CLI_CODE_UNEXPECTED,
+            "Shorten operands, options or their placeholders.",
+            "Catalog command '%s' has a synopsis longer than %u bytes.", id,
+            MAELYS_CLI_MAX_SYNOPSIS);
+        return -1;
+    }
+    free(synopsis);
     if (command->delegate && command->option_count != 0u) {
         maelys_cli_error_set(error, MAELYS_CLI_CODE_UNEXPECTED, hint,
             "Delegate command '%s' cannot declare options; arguments are "
@@ -286,6 +303,44 @@ static int validate_command(
                 maelys_cli_error_set(error, MAELYS_CLI_CODE_UNEXPECTED, hint,
                     "Catalog command '%s' option --%s names unknown digest "
                     "algorithm '%s'.", id, option->name, option->choices[a]);
+                return -1;
+            }
+        }
+        if (option->default_text) {
+            maelys_cli_parsed_option_t probe;
+            maelys_cli_error_t detail;
+            memset(&probe, 0, sizeof(probe));
+            if (option->kind == MAELYS_CLI_VALUE_NONE ||
+                maelys_cli_option_validate_text(option, option->default_text,
+                    &probe, &detail) != 0) {
+                maelys_cli_error_set(error, MAELYS_CLI_CODE_UNEXPECTED, hint,
+                    "Catalog command '%s' option --%s has a default '%s' that "
+                    "its own kind refuses.", id, option->name, option->default_text);
+                return -1;
+            }
+        }
+        for (size_t d = 0u; option->depends_on_all && option->depends_on_all[d]; ++d) {
+            int found = 0;
+            for (size_t j = 0u; j < command->option_count; ++j)
+                if (j != i && !strcmp(command->options[j].name, option->depends_on_all[d]))
+                    found = 1;
+            if (!found) {
+                maelys_cli_error_set(error, MAELYS_CLI_CODE_UNEXPECTED, hint,
+                    "Catalog command '%s' option --%s references unknown "
+                    "option --%s.", id, option->name, option->depends_on_all[d]);
+                return -1;
+            }
+        }
+        if (option->group) {
+            size_t members = 0u;
+            for (size_t j = 0u; j < command->option_count; ++j)
+                if (command->options[j].group &&
+                    !strcmp(command->options[j].group, option->group))
+                    ++members;
+            if (!*option->group || members < 2u) {
+                maelys_cli_error_set(error, MAELYS_CLI_CODE_UNEXPECTED, hint,
+                    "Catalog command '%s' option --%s names group '%s' with "
+                    "fewer than two members.", id, option->name, option->group);
                 return -1;
             }
         }
@@ -393,10 +448,40 @@ const char *maelys_cli_option(const maelys_cli_context_t *context, const char *n
     return option ? option->value : NULL;
 }
 
+static const maelys_cli_option_t *declared_option(
+    const maelys_cli_context_t *context, const char *name) {
+    if (!context || !context->invocation || !context->invocation->command || !name)
+        return NULL;
+    const maelys_cli_command_t *command = context->invocation->command;
+    for (size_t i = 0u; i < command->option_count; ++i)
+        if (!strcmp(command->options[i].name, name)) return &command->options[i];
+    return NULL;
+}
+
+/* Typed value from the invocation, else from the validated default. */
+static int typed_option(
+    const maelys_cli_context_t *context, const char *name,
+    maelys_cli_parsed_option_t *out) {
+    const maelys_cli_parsed_option_t *given = context ?
+        maelys_cli_invocation_option(context->invocation, name) : NULL;
+    if (given) {
+        *out = *given;
+        return 1;
+    }
+    const maelys_cli_option_t *option = declared_option(context, name);
+    if (!option || !option->default_text) return 0;
+    maelys_cli_error_t ignored;
+    memset(out, 0, sizeof(*out));
+    return maelys_cli_option_validate_text(option, option->default_text, out,
+        &ignored) == 0;
+}
+
 const char *maelys_cli_option_or(
     const maelys_cli_context_t *context, const char *name, const char *fallback) {
     const char *value = maelys_cli_option(context, name);
-    return value ? value : fallback;
+    if (value) return value;
+    const maelys_cli_option_t *option = declared_option(context, name);
+    return option && option->default_text ? option->default_text : fallback;
 }
 
 int maelys_cli_flag(const maelys_cli_context_t *context, const char *name) {
@@ -407,28 +492,25 @@ int maelys_cli_flag(const maelys_cli_context_t *context, const char *name) {
 
 int maelys_cli_option_unsigned(
     const maelys_cli_context_t *context, const char *name, uint64_t *out) {
-    const maelys_cli_parsed_option_t *option = context ?
-        maelys_cli_invocation_option(context->invocation, name) : NULL;
-    if (!option || !out) return 0;
-    *out = option->unsigned_value;
+    maelys_cli_parsed_option_t value;
+    if (!out || !typed_option(context, name, &value)) return 0;
+    *out = value.unsigned_value;
     return 1;
 }
 
 int maelys_cli_option_integer(
     const maelys_cli_context_t *context, const char *name, int64_t *out) {
-    const maelys_cli_parsed_option_t *option = context ?
-        maelys_cli_invocation_option(context->invocation, name) : NULL;
-    if (!option || !out) return 0;
-    *out = option->signed_value;
+    maelys_cli_parsed_option_t value;
+    if (!out || !typed_option(context, name, &value)) return 0;
+    *out = value.signed_value;
     return 1;
 }
 
 int maelys_cli_option_choice(
     const maelys_cli_context_t *context, const char *name, size_t *out_index) {
-    const maelys_cli_parsed_option_t *option = context ?
-        maelys_cli_invocation_option(context->invocation, name) : NULL;
-    if (!option || !out_index) return 0;
-    *out_index = option->choice_index;
+    maelys_cli_parsed_option_t value;
+    if (!out_index || !typed_option(context, name, &value)) return 0;
+    *out_index = value.choice_index;
     return 1;
 }
 
@@ -474,6 +556,30 @@ static int write_json_document(
     return failed ? -1 : 0;
 }
 
+/* Appends pre-serialized JSON to a writer without validating it. */
+static int append_trusted(maelys_cli_json_writer_t *writer, const char *json) {
+    size_t length = strlen(json);
+    if (writer->failed) return -1;
+    if (length > SIZE_MAX - writer->size - 1u) return -1;
+    size_t needed = writer->size + length + 1u;
+    if (needed > writer->capacity) {
+        size_t capacity = writer->capacity ? writer->capacity : 256u;
+        while (capacity < needed) capacity *= 2u;
+        char *grown = realloc(writer->data, capacity);
+        if (!grown) {
+            writer->failed = 1;
+            return -1;
+        }
+        writer->data = grown;
+        writer->capacity = capacity;
+    }
+    memcpy(writer->data + writer->size, json, length);
+    writer->size += length;
+    writer->data[writer->size] = '\0';
+    writer->pending_key = 0;
+    return 0;
+}
+
 static int envelope_prefix(
     maelys_cli_json_writer_t *writer, const char *command, int ok,
     int exit_code) {
@@ -486,16 +592,16 @@ static int envelope_prefix(
         maelys_cli_json_key_integer(writer, "exitCode", exit_code) == 0 ? 0 : -1;
 }
 
-int maelys_cli_succeed(
+static int succeed_with(
     maelys_cli_context_t *context, const char *data_json, const char *human,
-    int exit_code) {
+    int exit_code, int trusted) {
     if (!context || !context->invocation || !context->invocation->command)
         return MAELYS_CLI_EXIT_FAILURE;
     if (context->replied) return exit_code;
     context->replied = 1;
     const char *data = data_json ? data_json : "{}";
     size_t offset = 0u;
-    if (maelys_cli_json_validate(data, strlen(data), &offset) != 0) {
+    if (!trusted && maelys_cli_json_validate(data, strlen(data), &offset) != 0) {
         maelys_cli_error_t error;
         context->replied = 0;
         maelys_cli_error_set(&error, MAELYS_CLI_CODE_UNEXPECTED,
@@ -526,10 +632,29 @@ int maelys_cli_succeed(
         /* Records were already streamed; the process status is the result. */
         return fflush(context->out) == 0 ? exit_code : MAELYS_CLI_EXIT_FAILURE;
     }
+    if (trusted && context->invocation->compact) {
+        /* Verbatim splice: prefix, data, suffix. No validation, no pass. */
+        maelys_cli_json_writer_t writer;
+        maelys_cli_json_writer_init(&writer);
+        if (envelope_prefix(&writer, command_id(context), 1, exit_code) != 0) {
+            maelys_cli_json_writer_clear(&writer);
+            return MAELYS_CLI_EXIT_FAILURE;
+        }
+        char *prefix = writer.data; /* open object without its closing brace */
+        int failed = fputs(prefix, context->out) == EOF ||
+            fputs(",\"data\":", context->out) == EOF ||
+            fputs(data, context->out) == EOF ||
+            fputs("}\n", context->out) == EOF;
+        maelys_cli_json_writer_clear(&writer);
+        if (failed || fflush(context->out) != 0) return MAELYS_CLI_EXIT_FAILURE;
+        return exit_code;
+    }
     maelys_cli_json_writer_t writer;
     maelys_cli_json_writer_init(&writer);
     if (envelope_prefix(&writer, command_id(context), 1, exit_code) != 0 ||
-        maelys_cli_json_key_raw(&writer, "data", data) != 0 ||
+        (trusted ? (maelys_cli_json_key(&writer, "data") == 0 &&
+                    append_trusted(&writer, data) == 0 ? 0 : -1) :
+                   maelys_cli_json_key_raw(&writer, "data", data)) != 0 ||
         maelys_cli_json_end_object(&writer) != 0) {
         maelys_cli_json_writer_clear(&writer);
         return MAELYS_CLI_EXIT_FAILURE;
@@ -540,6 +665,18 @@ int maelys_cli_succeed(
     free(envelope);
     if (failed || fflush(context->out) != 0) return MAELYS_CLI_EXIT_FAILURE;
     return exit_code;
+}
+
+int maelys_cli_succeed(
+    maelys_cli_context_t *context, const char *data_json, const char *human,
+    int exit_code) {
+    return succeed_with(context, data_json, human, exit_code, 0);
+}
+
+int maelys_cli_succeed_trusted(
+    maelys_cli_context_t *context, const char *data_json, const char *human,
+    int exit_code) {
+    return succeed_with(context, data_json, human, exit_code, 1);
 }
 
 int maelys_cli_succeed_writer(
@@ -556,22 +693,28 @@ int maelys_cli_succeed_writer(
     return result;
 }
 
-int maelys_cli_emit_record(
+static int emit_record_with(
     maelys_cli_context_t *context, const char *record_json,
-    const char *human_line) {
+    const char *human_line, int trusted) {
     if (!context || !context->invocation || !record_json) return -1;
     if (context->invocation->command->output != MAELYS_CLI_OUTPUT_RECORDS) {
         context->records_failed = 1;
         return -1;
     }
     size_t offset = 0u;
-    if (maelys_cli_json_validate(record_json, strlen(record_json), &offset) != 0) {
+    if (!trusted &&
+        maelys_cli_json_validate(record_json, strlen(record_json), &offset) != 0) {
         context->records_failed = 1;
         return -1;
     }
     context->record_count++;
     switch (context->invocation->format) {
         case MAELYS_CLI_FORMAT_JSONL: {
+            if (trusted) {
+                int failed = fputs(record_json, context->out) == EOF ||
+                    fputc('\n', context->out) == EOF;
+                return failed ? -1 : 0;
+            }
             char *compact = NULL;
             if (maelys_cli_json_format(record_json, 1, &compact) != 0) return -1;
             int failed = fputs(compact, context->out) == EOF ||
@@ -583,6 +726,17 @@ int maelys_cli_emit_record(
             if (context->record_count == 1u &&
                 maelys_cli_json_begin_array(&context->records) != 0)
                 return -1;
+            if (trusted) {
+                if (context->record_count > 1u &&
+                    append_trusted(&context->records, ",") != 0)
+                    return -1;
+                context->records.has_items[context->records.depth - 1u] = 1u;
+                if (append_trusted(&context->records, record_json) != 0) {
+                    context->records_failed = 1;
+                    return -1;
+                }
+                return 0;
+            }
             if (maelys_cli_json_raw(&context->records, record_json) != 0) {
                 context->records_failed = 1;
                 return -1;
@@ -599,6 +753,18 @@ int maelys_cli_emit_record(
             return write_json_document(context, context->out, record_json);
     }
     return -1;
+}
+
+int maelys_cli_emit_record(
+    maelys_cli_context_t *context, const char *record_json,
+    const char *human_line) {
+    return emit_record_with(context, record_json, human_line, 0);
+}
+
+int maelys_cli_emit_record_trusted(
+    maelys_cli_context_t *context, const char *record_json,
+    const char *human_line) {
+    return emit_record_with(context, record_json, human_line, 1);
 }
 
 int maelys_cli_finish_records(maelys_cli_context_t *context, int exit_code) {
@@ -844,6 +1010,11 @@ static int describe_option(
         (void)snprintf(required, sizeof(required), "--%s", option->depends_on);
         if (maelys_cli_json_string(writer, required) != 0) return -1;
     }
+    for (size_t d = 0u; option->depends_on_all && option->depends_on_all[d]; ++d) {
+        char required[MAELYS_CLI_MAX_OPTION_NAME + 2u];
+        (void)snprintf(required, sizeof(required), "--%s", option->depends_on_all[d]);
+        if (maelys_cli_json_string(writer, required) != 0) return -1;
+    }
     if (maelys_cli_json_end_array(writer) != 0 ||
         maelys_cli_json_key(writer, "conflictsWith") != 0 ||
         maelys_cli_json_begin_array(writer) != 0)
@@ -853,8 +1024,11 @@ static int describe_option(
         (void)snprintf(conflict, sizeof(conflict), "--%s", option->conflicts_with);
         if (maelys_cli_json_string(writer, conflict) != 0) return -1;
     }
-    return maelys_cli_json_end_array(writer) == 0 &&
-        maelys_cli_json_end_object(writer) == 0 ? 0 : -1;
+    if (maelys_cli_json_end_array(writer) != 0) return -1;
+    if (option->group &&
+        maelys_cli_json_key_string(writer, "group", option->group) != 0)
+        return -1;
+    return maelys_cli_json_end_object(writer) == 0 ? 0 : -1;
 }
 
 static int describe_constraints(
@@ -862,6 +1036,49 @@ static int describe_constraints(
     if (maelys_cli_json_begin_array(writer) != 0) return -1;
     for (size_t i = 0u; i < command->option_count; ++i) {
         const maelys_cli_option_t *option = &command->options[i];
+        for (size_t d = 0u; option->depends_on_all && option->depends_on_all[d]; ++d) {
+            char first[MAELYS_CLI_MAX_OPTION_NAME + 2u];
+            char second[MAELYS_CLI_MAX_OPTION_NAME + 2u];
+            (void)snprintf(first, sizeof(first), "--%s", option->name);
+            (void)snprintf(second, sizeof(second), "--%s", option->depends_on_all[d]);
+            if (maelys_cli_json_begin_object(writer) != 0 ||
+                maelys_cli_json_key_string(writer, "kind", "requires") != 0 ||
+                maelys_cli_json_key(writer, "options") != 0 ||
+                maelys_cli_json_begin_array(writer) != 0 ||
+                maelys_cli_json_string(writer, first) != 0 ||
+                maelys_cli_json_string(writer, second) != 0 ||
+                maelys_cli_json_end_array(writer) != 0 ||
+                maelys_cli_json_end_object(writer) != 0)
+                return -1;
+        }
+        /* One all-or-none constraint per group, emitted at its first member. */
+        if (option->group) {
+            int first_member = 1;
+            for (size_t j = 0u; j < i; ++j)
+                if (command->options[j].group &&
+                    !strcmp(command->options[j].group, option->group))
+                    first_member = 0;
+            if (first_member) {
+                if (maelys_cli_json_begin_object(writer) != 0 ||
+                    maelys_cli_json_key_string(writer, "kind", "all-or-none") != 0 ||
+                    maelys_cli_json_key_string(writer, "group", option->group) != 0 ||
+                    maelys_cli_json_key(writer, "options") != 0 ||
+                    maelys_cli_json_begin_array(writer) != 0)
+                    return -1;
+                for (size_t j = 0u; j < command->option_count; ++j) {
+                    if (!command->options[j].group ||
+                        strcmp(command->options[j].group, option->group))
+                        continue;
+                    char spelled[MAELYS_CLI_MAX_OPTION_NAME + 2u];
+                    (void)snprintf(spelled, sizeof(spelled), "--%s",
+                        command->options[j].name);
+                    if (maelys_cli_json_string(writer, spelled) != 0) return -1;
+                }
+                if (maelys_cli_json_end_array(writer) != 0 ||
+                    maelys_cli_json_end_object(writer) != 0)
+                    return -1;
+            }
+        }
         const char *kinds[2] = {"requires", "at-most-one"};
         const char *targets[2] = {option->depends_on, option->conflicts_with};
         for (size_t k = 0u; k < 2u; ++k) {
@@ -884,12 +1101,23 @@ static int describe_constraints(
     return maelys_cli_json_end_array(writer);
 }
 
+static int describe_command_body(
+    maelys_cli_json_writer_t *writer, const maelys_cli_command_t *command,
+    int summary, const char *synopsis);
+
 static int describe_command(
     maelys_cli_json_writer_t *writer, const maelys_cli_command_t *command,
     int summary) {
-    char synopsis[512];
-    if (maelys_cli_command_synopsis(command, synopsis, sizeof(synopsis)) != 0)
-        return -1;
+    char *synopsis = maelys_cli_command_synopsis_alloc(command);
+    if (!synopsis) return -1;
+    int result = describe_command_body(writer, command, summary, synopsis);
+    free(synopsis);
+    return result;
+}
+
+static int describe_command_body(
+    maelys_cli_json_writer_t *writer, const maelys_cli_command_t *command,
+    int summary, const char *synopsis) {
     if (maelys_cli_json_begin_object(writer) != 0 ||
         maelys_cli_json_key_string(writer, "id", command->id) != 0 ||
         maelys_cli_json_key(writer, "pattern") != 0 ||
@@ -916,6 +1144,10 @@ static int describe_command(
          maelys_cli_json_key_string(writer, "protocol", command->protocol) != 0) ||
         maelys_cli_json_key_boolean(writer, "external", command->delegate != NULL) != 0 ||
         maelys_cli_json_key_boolean(writer, "hidden", command->hidden) != 0 ||
+        maelys_cli_json_key_boolean(writer, "available", command->unavailable == NULL) != 0 ||
+        (command->unavailable &&
+         maelys_cli_json_key_string(writer, "unavailableReason",
+            command->unavailable) != 0) ||
         maelys_cli_json_key(writer, "input") != 0 ||
         maelys_cli_json_begin_object(writer) != 0 ||
         maelys_cli_json_key_string(writer, "synopsis", synopsis) != 0 ||
@@ -1393,11 +1625,14 @@ static void option_help_line(
 static void command_help_text(
     FILE *stream, const maelys_cli_app_t *app,
     const maelys_cli_command_t *command) {
-    char synopsis[512];
-    if (maelys_cli_command_synopsis(command, synopsis, sizeof(synopsis)) != 0)
-        (void)snprintf(synopsis, sizeof(synopsis), "%s", command->pattern);
-    (void)fprintf(stream, "USAGE\n  %s %s\n\n%s\n\nEFFECT\n  ",
-        app->program, synopsis, command->purpose);
+    char *synopsis = maelys_cli_command_synopsis_alloc(command);
+    (void)fprintf(stream, "USAGE\n  %s %s\n\n%s\n\n", app->program,
+        synopsis ? synopsis : command->pattern, command->purpose);
+    free(synopsis);
+    if (command->unavailable)
+        (void)fprintf(stream, "UNAVAILABLE IN THIS BUILD\n  %s\n\n",
+            command->unavailable);
+    (void)fputs("EFFECT\n  ", stream);
     if (command->apply_effect != MAELYS_CLI_EFFECT_NONE)
         (void)fprintf(stream, "%s by default; %s with --apply\n",
             maelys_cli_effect_name(command->effect),
@@ -1435,14 +1670,15 @@ static void catalog_help_text(FILE *stream, const maelys_cli_app_t *app) {
     for (size_t i = 0u; i < count; ++i) {
         const maelys_cli_command_t *command = maelys_cli_app_command_at(app, i);
         if (command->hidden) continue;
-        char synopsis[512];
-        if (maelys_cli_command_synopsis(command, synopsis, sizeof(synopsis)) != 0)
-            (void)snprintf(synopsis, sizeof(synopsis), "%s", command->pattern);
-        if (strlen(synopsis) > 60u)
-            (void)fprintf(stream, "  %s\n  %-60s %s\n", synopsis, "",
-                command->purpose);
+        char *synopsis = maelys_cli_command_synopsis_alloc(command);
+        const char *shown = synopsis ? synopsis : command->pattern;
+        const char *note = command->unavailable ? " (unavailable in this build)" : "";
+        if (strlen(shown) > 60u)
+            (void)fprintf(stream, "  %s\n  %-60s %s%s\n", shown, "",
+                command->purpose, note);
         else
-            (void)fprintf(stream, "  %-60s %s\n", synopsis, command->purpose);
+            (void)fprintf(stream, "  %-60s %s%s\n", shown, command->purpose, note);
+        free(synopsis);
     }
     (void)fputs("\nGLOBAL OPTIONS\n", stream);
     size_t transport_count = 0u;
@@ -1708,7 +1944,8 @@ int maelys_cli_run(
     } else if (!command->handler) {
         result = maelys_cli_fail(&context, MAELYS_CLI_CODE_UNSUPPORTED,
             "Use another command or install the component providing it.",
-            "'%s' is not available in this build.", command->id);
+            "'%s' is not available in this build: %s", command->id,
+            command->unavailable ? command->unavailable : "no implementation");
     } else {
         result = command->handler(&context);
         if (!context.replied && command->output != MAELYS_CLI_OUTPUT_STREAM) {

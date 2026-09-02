@@ -5,8 +5,8 @@ requires:
 
 1. `VERSION`, `MAELYS_CLI_VERSION` in `include/maelys/cli/version.h` and the
    changelog agree (`make check-version`).
-2. `make check`, `make asan-ubsan`, `make analyze` and `make install-check`
-   pass on macOS (Apple Silicon) and Linux (amd64/arm64).
+2. `make check`, `make asan-ubsan`, `make analyze`, `make install-check` and
+   `make cmake-check` pass on macOS (Apple Silicon) and Linux (amd64/arm64).
 3. `make contract-check` passes: `docs/cli-reference.md` and
    `docs/cli-contract.json` match what the binaries describe.
 4. Any change to the envelope, `describe` shape, error codes or exit codes is

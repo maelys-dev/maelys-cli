@@ -49,7 +49,7 @@ HEADER_CPP := $(BUILD)/tests/header_cpp
 PC := $(BUILD)/pkgconfig/maelys-cli.pc
 
 .PHONY: all check test header-check check-version cli-check api-doc-check install \
-	install-check uninstall dist clean asan-ubsan analyze \
+	install-check uninstall dist clean asan-ubsan analyze cmake-check \
 	generate-cli-reference contract-check agents-install
 
 all: $(LIB) $(DISPATCHER) $(EXAMPLE) $(PC)
@@ -169,6 +169,7 @@ install: $(LIB) $(DISPATCHER) $(PC)
 	install -m 0644 $(LIB) $(DESTDIR)$(PREFIX)/lib/libmaelys_cli.a
 	install -m 0755 $(DISPATCHER) $(DESTDIR)$(PREFIX)/bin/maelys
 	install -m 0755 $(EMBED) $(DESTDIR)$(PREFIX)/bin/maelys-cli-embed
+	install -m 0755 tools/generate_cli_reference.py $(DESTDIR)$(PREFIX)/bin/maelys-cli-reference
 	install -m 0644 include/maelys/cli.h $(DESTDIR)$(PREFIX)/include/maelys/cli.h
 	install -m 0644 include/maelys/cli/*.h $(DESTDIR)$(PREFIX)/include/maelys/cli/
 	install -m 0644 $(PC) $(DESTDIR)$(PREFIX)/lib/pkgconfig/maelys-cli.pc
@@ -182,10 +183,16 @@ install: $(LIB) $(DISPATCHER) $(PC)
 install-check: all
 	./scripts/install-check.sh
 
+# Builds and installs through CMake into a scratch prefix, then configures a
+# consumer with find_package(maelys-cli).
+cmake-check:
+	./scripts/cmake-check.sh
+
 uninstall:
 	rm -f $(DESTDIR)$(PREFIX)/lib/libmaelys_cli.a \
 		$(DESTDIR)$(PREFIX)/bin/maelys \
 		$(DESTDIR)$(PREFIX)/bin/maelys-cli-embed \
+		$(DESTDIR)$(PREFIX)/bin/maelys-cli-reference \
 		$(DESTDIR)$(PREFIX)/include/maelys/cli.h \
 		$(DESTDIR)$(PREFIX)/lib/pkgconfig/maelys-cli.pc
 	rm -rf $(DESTDIR)$(PREFIX)/include/maelys/cli \

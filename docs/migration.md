@@ -55,6 +55,14 @@ framework. `maelys_cli_emit_maelys_error()` becomes a product helper mapping
 `maelys_git_result_t` to `maelys_cli_fail()` codes; the table in
 `docs/command-conventions.md` is unchanged.
 
+Mirror and pull-request commands whose preconditions go together use
+`.group = "preconditions"` on the precondition options and
+`.depends_on_all` on `--apply`; hook limits declare their defaults once in
+`default_text`; the Cloud-less build declares `run` with `.unavailable`.
+The CMake build consumes the framework through `find_package(maelys-cli)`
+or FetchContent pinned to a tag, and installs `maelys-cli-reference`
+instead of copying the generator.
+
 The envelope, `describe` shape, error codes and exit codes are preserved, so
 `tools/generate_cli_reference.py` and the agent documentation keep working.
 The only visible additions are `external`, `hidden`, `passthrough`,

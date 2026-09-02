@@ -28,6 +28,18 @@ exposes `type`, `choices` and limits on the operand, and handlers read them
 through `maelys_cli_operand_choice()`, `maelys_cli_operand_unsigned()` and
 `maelys_cli_operand_integer()`.
 
+Option constraints: `depends_on` (one option), `depends_on_all` (every
+listed option), `conflicts_with`, and `group` (all-or-none: the options of
+a group are given together or not at all). `describe` exposes them as
+`requires`, `conflictsWith`, `group` and `input.constraints` entries of kind
+`requires`, `at-most-one` and `all-or-none`.
+
+`default_text` is the single source of an option's default: the catalog
+validation checks it against the option's kind, and the typed accessors
+return it when the option is absent. A command that a build cannot provide
+declares `.unavailable = "reason"` instead of a failing handler; it stays in
+`describe` with `available: false` and fails with `UNSUPPORTED`.
+
 A public option must be declared in the catalog before use. An unknown,
 duplicated (unless `repeatable`) or foreign option is refused. An option
 value remains a value even when it starts with `--`.

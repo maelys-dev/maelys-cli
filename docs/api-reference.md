@@ -126,7 +126,8 @@ and the agent guide.
 | `size_t maelys_cli_digest_hex_digits(const char *algorithm)` | 40 for `sha1`, 64 for `sha256`, 96 for `sha384`, 128 for `sha512`, 0 otherwise. Used by the `digest` kind (`ALGORITHM:HEX`). |
 | `const char *maelys_cli_effect_name(maelys_cli_effect_t)` | `none`, `read`, `preview`, `apply`, `commit`, `execute`, `stream`. |
 | `const char *maelys_cli_output_mode_name(maelys_cli_output_mode_t)` | `json-envelope`, `json-records`, `protocol-stream`. |
-| `int maelys_cli_command_synopsis(const maelys_cli_command_t *command, char *out, size_t size)` | Explicit `synopsis` when set, otherwise `pattern OPERAND [OPTIONAL] [REST...] [--option VALUE] --required VALUE [--repeatable TEXT...]`; choices without a `value_name` render as `a|b`. `-1` when truncated. |
+| `int maelys_cli_command_synopsis(const maelys_cli_command_t *command, char *out, size_t size)` | Explicit `synopsis` when set, otherwise `pattern OPERAND [OPTIONAL] [REST...] --required VALUE [--optional VALUE] [--repeatable TEXT...]` (required options first); choices without a `value_name` render as `a|b`. `-1` when truncated. |
+| `char *maelys_cli_command_synopsis_alloc(const maelys_cli_command_t *command)` | Same, allocated (caller frees); `NULL` on allocation failure or beyond `MAELYS_CLI_MAX_SYNOPSIS` (4096). The catalog validation reports the offending command. |
 
 ## `maelys/cli/invocation.h`
 
@@ -148,7 +149,7 @@ Entry points:
 | --- | --- |
 | `int maelys_cli_main(const maelys_cli_app_t *app, int argc, char **argv)` | Process entry point: records `argv[0]` for helper resolution and calls `maelys_cli_run` with stdout/stderr. |
 | `int maelys_cli_run(app, int argc, char **argv, FILE *out, FILE *err)` | `argv` excludes the program name. Validates the catalog, pre-scans rendering flags so that even a parse failure is rendered in the requested format, parses, runs help/delegate/handler and returns the exit code. A non-stream handler that never replies yields `UNEXPECTED`. `MAELYS_CLI_FORMAT=json\|text` supplies the default format when no rendering option is given; for stream commands it only shapes the stderr failure envelope. |
-| `int maelys_cli_catalog_validate(app, maelys_cli_error_t *error)` | Identifier `[a-z0-9._-]+`, pattern words, purpose, effect, `apply_effect` rules (`preview` + `--apply`), output mode, handler xor delegate, delegates without options, operand order (required before optional, one trailing variadic), option names unique and not transport names, choices/hex/ranges, `depends_on`/`conflicts_with` targets, schema JSON object, unique ids and patterns across built-ins and product commands. |
+| `int maelys_cli_catalog_validate(app, maelys_cli_error_t *error)` | Identifier `[a-z0-9._-]+`, pattern words, purpose, effect, `apply_effect` rules (`preview` + `--apply`), output mode, handler xor delegate unless `.unavailable` names a reason, delegates without options, operand order and types, option names unique and not transport names, choices/hex/ranges, `default_text` accepted by its own kind, `depends_on`/`depends_on_all`/`conflicts_with` targets, groups of at least two members, schema JSON object, synopsis within `MAELYS_CLI_MAX_SYNOPSIS`, unique ids and patterns across built-ins and product commands. |
 | `const maelys_cli_command_t *maelys_cli_builtin_commands(size_t *out_count)` | `help`, `version`, `describe`, `completion` and the hidden `__complete` (id `complete.candidates`). |
 
 Handler accessors (all read the validated invocation):
@@ -157,9 +158,9 @@ Handler accessors (all read the validated invocation):
 | --- | --- |
 | `const char *maelys_cli_operand(const maelys_cli_context_t *ctx, size_t index)` / `size_t maelys_cli_operand_count(ctx)` | Operands. |
 | `int maelys_cli_operand_unsigned(ctx, index, uint64_t *out)` / `maelys_cli_operand_integer(ctx, index, int64_t *out)` / `maelys_cli_operand_choice(ctx, index, size_t *out_index)` | Typed operand values (`MAELYS_CLI_OPERAND_CHOICE`, `MAELYS_CLI_OPERAND_KIND`); `1` when the operand exists and is typed. |
-| `const char *maelys_cli_option(ctx, const char *name)` / `maelys_cli_option_or(ctx, name, fallback)` | Raw value of the first occurrence, or `NULL` / fallback. |
+| `const char *maelys_cli_option(ctx, const char *name)` / `maelys_cli_option_or(ctx, name, fallback)` | Raw value of the first occurrence, or `NULL`; `_or` returns the declared `default_text` before `fallback`. |
 | `int maelys_cli_flag(ctx, name)` | `1` when a flag is enabled (`--flag`, `--flag=true`), else `0`. |
-| `int maelys_cli_option_unsigned(ctx, name, uint64_t *out)` / `maelys_cli_option_integer(ctx, name, int64_t *out)` / `maelys_cli_option_choice(ctx, name, size_t *out_index)` | `1` and the typed value when present, `0` otherwise. Unsigned covers `UNSIGNED`, `SIZE` and `DURATION` (milliseconds); the choice index of a `DIGEST` option is the index of its algorithm. |
+| `int maelys_cli_option_unsigned(ctx, name, uint64_t *out)` / `maelys_cli_option_integer(ctx, name, int64_t *out)` / `maelys_cli_option_choice(ctx, name, size_t *out_index)` | `1` and the typed value when the option was given or declares a `default_text` (validated at startup), `0` when neither. Unsigned covers `UNSIGNED`, `SIZE` and `DURATION` (milliseconds); the choice index of a `DIGEST` option is the index of its algorithm. `maelys_cli_option()` tells whether the user gave it. |
 | `size_t maelys_cli_option_count(ctx, name)` / `const char *maelys_cli_option_at(ctx, name, occurrence)` | Repeatable options. |
 | `int maelys_cli_json_mode(ctx)` / `maelys_cli_non_interactive(ctx)` | Rendering flags. |
 | `int maelys_cli_replied(ctx)` | `1` once success, records or failure has been emitted. A helper that may reply returns the exit code; the caller tests this before replying itself. |
@@ -171,6 +172,7 @@ Replies (exactly one per handler; a second call is ignored and returns the given
 | --- | --- |
 | `int maelys_cli_succeed(ctx, const char *data_json, const char *human, int exit_code)` | `data_json` must be a valid JSON object (`NULL` = `{}`), otherwise an `UNEXPECTED` failure is emitted. Text mode prints `human` (newline added) or the indented data when `human` is `NULL`. JSON mode prints the success envelope. Returns `exit_code` (typically `MAELYS_CLI_EXIT_OK` or `MAELYS_CLI_EXIT_VIOLATIONS`). |
 | `int maelys_cli_succeed_writer(ctx, maelys_cli_json_writer_t *data, human, exit_code)` | Same with a writer that is finished and released. |
+| `int maelys_cli_succeed_trusted(ctx, data_json, human, exit_code)` / `maelys_cli_emit_record_trusted(ctx, record_json, human_line)` | Like the untrusted forms but without validation; in `--compact` and `jsonl` modes the text is written verbatim, in indented mode it is reformatted once. Only for JSON produced by a serializer that guarantees validity; invalid text corrupts the output. |
 | `int maelys_cli_emit_record(ctx, const char *record_json, const char *human_line)` | `json-records` commands only. `jsonl`: one compact line immediately; `json`: collected into `data.records`; text: `human_line` or the indented record. `-1` on invalid JSON or I/O failure. |
 | `int maelys_cli_finish_records(ctx, int exit_code)` | Terminates a records command; in JSON mode `data` is `{"count": N, "records": [...]}`. |
 | `int maelys_cli_fail(ctx, const char *code, const char *hint, const char *format, ...)` | Failure envelope on stderr (JSON) or `program: [CODE] message` + `Hint:`; returns `MAELYS_CLI_EXIT_FAILURE`. |

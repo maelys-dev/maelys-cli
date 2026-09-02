@@ -217,6 +217,28 @@ preserved; generated files are replaced. `--client claude|codex` restricts the
 set. The same texts are installed under `PREFIX/share/maelys-cli/agents/`
 and `make agents-install PROJECT=DIR` runs the command from a source tree.
 
+## Consuming from CMake
+
+```cmake
+find_package(maelys-cli 0.4 REQUIRED)        # installed package
+target_link_libraries(my-cli PRIVATE maelys::cli)
+# ${MAELYS_CLI_EMBED} and ${MAELYS_CLI_REFERENCE} point at the installed tools.
+```
+
+or, pinned from source:
+
+```cmake
+include(FetchContent)
+FetchContent_Declare(maelys-cli
+    GIT_REPOSITORY https://github.com/maelys-dev/maelys-cli.git GIT_TAG v0.4.0)
+set(MAELYS_CLI_BUILD_DISPATCHER OFF)
+FetchContent_MakeAvailable(maelys-cli)
+target_link_libraries(my-cli PRIVATE maelys::cli)
+```
+
+`make cmake-check` builds, installs into a scratch prefix and configures a
+consumer through `find_package`.
+
 ## Building and testing
 
 ```sh
@@ -225,7 +247,8 @@ make check           # unit tests, end-to-end CLI tests, C++ header gate
 make asan-ubsan      # the same under AddressSanitizer and UBSan
 make install-check   # install into a scratch prefix and build a consumer
 make contract-check  # committed reference and contract match describe (part of check)
-make install PREFIX=/opt/homebrew   # lib, headers, maelys, maelys-cli-embed, agent texts
+make cmake-check     # CMake package: build, install, find_package consumer
+make install PREFIX=/opt/homebrew   # lib, headers, maelys, maelys-cli-embed, maelys-cli-reference, agent texts
 make generate-cli-reference
 ```
 

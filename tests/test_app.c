@@ -78,6 +78,41 @@ static int command_typed(maelys_cli_context_t *context) {
     return maelys_cli_succeed(context, "{}", "typed", MAELYS_CLI_EXIT_OK);
 }
 
+static const char *const mirror_all[] = {"source-oid", "target-oid", NULL};
+static const maelys_cli_option_t mirror_options[] = {
+    {MAELYS_CLI_HEX("source-oid", "OID", "Expected source.", 4u),
+     .group = "preconditions"},
+    {MAELYS_CLI_HEX("target-oid", "OID", "Expected target.", 4u),
+     .group = "preconditions"},
+    {MAELYS_CLI_UNSIGNED("retries", "N", "Retries.", 0u, 5u), .default_text = "2"},
+    {MAELYS_CLI_CHOICE("mode", "Mode.", levels), .default_text = "high"},
+    {MAELYS_CLI_FLAG("apply", "Apply."), .depends_on_all = mirror_all},
+};
+static uint64_t mirror_retries;
+static size_t mirror_mode;
+static int mirror_retries_delivered;
+
+static int command_mirror(maelys_cli_context_t *context) {
+    mirror_retries = 99u;
+    mirror_retries_delivered = maelys_cli_option_unsigned(context, "retries", &mirror_retries);
+    (void)maelys_cli_option_choice(context, "mode", &mirror_mode);
+    return maelys_cli_succeed(context, "{}", maelys_cli_option_or(context, "mode", "?"),
+        MAELYS_CLI_EXIT_OK);
+}
+
+static int command_trusted(maelys_cli_context_t *context) {
+    if (context->invocation->command->output == MAELYS_CLI_OUTPUT_RECORDS) {
+        (void)maelys_cli_emit_record_trusted(context, "{\"i\":0}", "zero");
+        (void)maelys_cli_emit_record_trusted(context, "{\"i\":1}", "one");
+        return maelys_cli_finish_records(context, MAELYS_CLI_EXIT_OK);
+    }
+    return maelys_cli_succeed_trusted(context, "{\"trusted\":true}", "trusted",
+        MAELYS_CLI_EXIT_OK);
+}
+static const maelys_cli_option_t trusted_options[] = {
+    {MAELYS_CLI_FLAG("records", "Emit records instead.")},
+};
+
 static const maelys_cli_operand_t rest_operands[] = {
     {MAELYS_CLI_OPERAND("COMMAND", "Command.")},
     {MAELYS_CLI_OPERAND_REST("ARG", "Args.")},
@@ -143,6 +178,15 @@ static const maelys_cli_command_t commands[] = {
     {MAELYS_CLI_READ("report", "report", "Report.", command_report)},
     {MAELYS_CLI_READ("typed", "typed", "Typed operands.", command_typed),
      MAELYS_CLI_OPERANDS(typed_operands)},
+    {MAELYS_CLI_TRANSACTION("mirror", "mirror", "Mirror.", command_mirror),
+     MAELYS_CLI_OPTIONS(mirror_options)},
+    {MAELYS_CLI_READ("trusted", "trusted", "Trusted output.", command_trusted),
+     MAELYS_CLI_OPTIONS(trusted_options), .hidden = 1},
+    {MAELYS_CLI_RECORDS("trusted-records", "trusted-records", "Trusted records.",
+     command_trusted), .hidden = 1},
+    {.id = "cloud", .pattern = "cloud", .purpose = "Cloud sync.",
+     .effect = MAELYS_CLI_EFFECT_EXECUTE, .output = MAELYS_CLI_OUTPUT_ENVELOPE,
+     .unavailable = "built without the Cloud agent"},
     {MAELYS_CLI_READ("delegating", "delegating", "Delegating.", command_delegating),
      MAELYS_CLI_OPTIONS(delegating_options), .hidden = 1},
     {MAELYS_CLI_READ("fail", "fail", "Fail.", command_fail), .hidden = 1},
@@ -457,6 +501,56 @@ static int test_typed_operands_and_completion(void) {
     return 1;
 }
 
+static int test_groups_defaults_unavailable(void) {
+    run_result_t result = RUNV("mirror");
+    CHECK(result.code == 0 && strcmp(result.out, "high\n") == 0);
+    CHECK(mirror_retries_delivered && mirror_retries == 2u && mirror_mode == 1u);
+    release(&result);
+    result = RUNV("mirror", "--retries", "4", "--mode", "low");
+    CHECK(result.code == 0 && mirror_retries == 4u && mirror_mode == 0u);
+    release(&result);
+    result = RUNV("mirror", "--source-oid", "abcd");
+    CHECK(expect_failure(&result, "[VALIDATION_FAILED]", "belongs to group 'preconditions' and requires --target-oid"));
+    result = RUNV("mirror", "--apply");
+    CHECK(expect_failure(&result, "[VALIDATION_FAILED]", "--apply requires --source-oid"));
+    result = RUNV("mirror", "--apply", "--source-oid", "abcd", "--target-oid", "ef01");
+    CHECK(result.code == 0);
+    release(&result);
+    result = RUNV("describe", "mirror", "--json", "--compact");
+    CHECK(result.code == 0);
+    CHECK(strstr(result.out, "\"kind\":\"all-or-none\",\"group\":\"preconditions\",\"options\":[\"--source-oid\",\"--target-oid\"]"));
+    CHECK(strstr(result.out, "\"long\":\"--apply\"") && strstr(result.out, "\"requires\":[\"--source-oid\",\"--target-oid\"]"));
+    CHECK(strstr(result.out, "\"group\":\"preconditions\"}"));
+    CHECK(strstr(result.out, "\"usage\":\"mirror [--source-oid OID] [--target-oid OID] [--retries N] [--mode low|high] [--apply]\""));
+    release(&result);
+    /* Required options come first in the derived synopsis. */
+    result = RUNV("describe", "thing.make", "--json", "--compact");
+    CHECK(strstr(result.out, "\"usage\":\"thing make ROOT NAME [--git FILE]"));
+    release(&result);
+    result = RUNV("cloud");
+    CHECK(result.code == 1 && strstr(result.err, "[UNSUPPORTED]") && strstr(result.err, "built without the Cloud agent"));
+    release(&result);
+    result = RUNV("describe", "cloud", "--json", "--compact");
+    CHECK(result.code == 0 && strstr(result.out, "\"available\":false,\"unavailableReason\":\"built without the Cloud agent\""));
+    release(&result);
+    result = RUNV("help");
+    CHECK(strstr(result.out, "Cloud sync. (unavailable in this build)"));
+    release(&result);
+    result = RUNV("trusted", "--json", "--compact");
+    CHECK(result.code == 0 && strstr(result.out, ",\"data\":{\"trusted\":true}}\n"));
+    release(&result);
+    result = RUNV("trusted", "--json");
+    CHECK(result.code == 0 && strstr(result.out, "\n  \"data\": {\n    \"trusted\": true"));
+    release(&result);
+    result = RUNV("trusted-records", "--format", "jsonl");
+    CHECK(result.code == 0 && strcmp(result.out, "{\"i\":0}\n{\"i\":1}\n") == 0);
+    release(&result);
+    result = RUNV("trusted-records", "--json", "--compact");
+    CHECK(result.code == 0 && strstr(result.out, "\"data\":{\"count\":2,\"records\":[{\"i\":0},{\"i\":1}]}"));
+    release(&result);
+    return 1;
+}
+
 static int test_environment_format(void) {
     CHECK(setenv("MAELYS_CLI_FORMAT", "json", 1) == 0);
     run_result_t result = RUNV("report");
@@ -510,6 +604,7 @@ int main(void) {
     RUN(test_parsing_failures);
     RUN(test_stream_records_and_codes);
     RUN(test_typed_operands_and_completion);
+    RUN(test_groups_defaults_unavailable);
     RUN(test_environment_format);
     RUN(test_invalid_catalog);
     return failures ? 1 : 0;

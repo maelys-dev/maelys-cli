@@ -1,0 +1,13 @@
+@PACKAGE_INIT@
+
+include("${CMAKE_CURRENT_LIST_DIR}/maelys-cli-targets.cmake")
+
+# Tools installed next to the library, for custom commands in consumers:
+#   ${MAELYS_CLI_EMBED}      embeds JSON Schemas and texts as C symbols
+#   ${MAELYS_CLI_REFERENCE}  generates the CLI reference from `describe`
+set_and_check(MAELYS_CLI_EMBED "@PACKAGE_CMAKE_INSTALL_BINDIR@/maelys-cli-embed")
+set_and_check(MAELYS_CLI_REFERENCE "@PACKAGE_CMAKE_INSTALL_BINDIR@/maelys-cli-reference")
+set(MAELYS_CLI_AGENTS_DIR "@PACKAGE_CMAKE_INSTALL_DATADIR@/maelys-cli/agents")
+set(MAELYS_CLI_TEMPLATES_DIR "@PACKAGE_CMAKE_INSTALL_DATADIR@/maelys-cli/templates")
+
+check_required_components(maelys-cli)

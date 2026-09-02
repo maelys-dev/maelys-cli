@@ -4,6 +4,7 @@ libdir=${exec_prefix}/lib
 includedir=${prefix}/include
 agentsdir=${prefix}/share/maelys-cli/agents
 embed=${prefix}/bin/maelys-cli-embed
+reference=${prefix}/bin/maelys-cli-reference
 commandsdir=${prefix}/share/maelys/commands
 
 Name: maelys-cli

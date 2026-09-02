@@ -5,6 +5,7 @@
       "cliApi": 1,
       "commands": [
         {
+          "available": true,
           "effect": "read",
           "exitCodes": {
             "0": "command completed",
@@ -55,6 +56,7 @@
           "usage": "help [COMMAND_ID] | --help"
         },
         {
+          "available": true,
           "effect": "read",
           "exitCodes": {
             "0": "command completed",
@@ -111,6 +113,7 @@
           "usage": "version | --version"
         },
         {
+          "available": true,
           "effect": "read",
           "exitCodes": {
             "0": "command completed",
@@ -162,6 +165,7 @@
           "usage": "describe [COMMAND_ID] [--summary]"
         },
         {
+          "available": true,
           "effect": "read",
           "exitCodes": {
             "0": "command completed",
@@ -219,6 +223,7 @@
           "usage": "completion SHELL"
         },
         {
+          "available": true,
           "effect": "read",
           "exitCodes": {
             "0": "command completed",
@@ -272,6 +277,7 @@
           "usage": "__complete [WORDS...]"
         },
         {
+          "available": true,
           "effect": "read",
           "exitCodes": {
             "0": "command completed",
@@ -350,6 +356,7 @@
           "usage": "commands list"
         },
         {
+          "available": true,
           "effect": {
             "apply": "apply",
             "plan": "preview"
@@ -483,6 +490,7 @@
           "usage": "agents install PROJECT_DIR [--client all|claude|codex] [--apply]"
         },
         {
+          "available": true,
           "effect": "read",
           "exitCodes": {
             "0": "command completed",
@@ -697,6 +705,7 @@
       "cliApi": 1,
       "commands": [
         {
+          "available": true,
           "effect": "read",
           "exitCodes": {
             "0": "command completed",
@@ -747,6 +756,7 @@
           "usage": "help [COMMAND_ID] | --help"
         },
         {
+          "available": true,
           "effect": "read",
           "exitCodes": {
             "0": "command completed",
@@ -803,6 +813,7 @@
           "usage": "version | --version"
         },
         {
+          "available": true,
           "effect": "read",
           "exitCodes": {
             "0": "command completed",
@@ -854,6 +865,7 @@
           "usage": "describe [COMMAND_ID] [--summary]"
         },
         {
+          "available": true,
           "effect": "read",
           "exitCodes": {
             "0": "command completed",
@@ -911,6 +923,7 @@
           "usage": "completion SHELL"
         },
         {
+          "available": true,
           "effect": "read",
           "exitCodes": {
             "0": "command completed",
@@ -964,6 +977,7 @@
           "usage": "__complete [WORDS...]"
         },
         {
+          "available": true,
           "effect": "read",
           "exitCodes": {
             "0": "command completed",
@@ -1036,6 +1050,7 @@
           "usage": "greet NAME [--shout] [--times N]"
         },
         {
+          "available": true,
           "effect": "read",
           "exitCodes": {
             "0": "command completed",
@@ -1220,6 +1235,7 @@
           "usage": "limits [--memory BYTES] [--wall-time DURATION] [--level low|high] [--offset N] [--digest HEX] [--tag TEXT...] [--strict] [--lenient]"
         },
         {
+          "available": true,
           "effect": {
             "apply": "apply",
             "plan": "preview"
@@ -1329,6 +1345,7 @@
           "usage": "note write FILE --content TEXT [--replace] [--apply]"
         },
         {
+          "available": true,
           "effect": "read",
           "exitCodes": {
             "0": "command completed",
@@ -1392,6 +1409,7 @@
           "usage": "list [--limit N]"
         },
         {
+          "available": true,
           "effect": "read",
           "exitCodes": {
             "0": "command completed",
@@ -1446,6 +1464,7 @@
           "usage": "check FILE"
         },
         {
+          "available": true,
           "effect": "read",
           "exitCodes": {
             "0": "command completed",
@@ -1503,6 +1522,7 @@
           "usage": "env show [--env NAME[=VALUE]...]"
         },
         {
+          "available": true,
           "effect": "stream",
           "exitCodes": {
             "0": "command completed",
@@ -1543,6 +1563,7 @@
           "usage": "run PROGRAM [ARG...] | run -- PROGRAM [ARG...]"
         },
         {
+          "available": true,
           "effect": "execute",
           "exitCodes": {
             "0": "command completed",

@@ -26,6 +26,8 @@ jobs:
         run: make install-check
       - name: Contract drift
         run: make contract-check
+      - name: CMake package
+        run: make cmake-check
   gcc:
     runs-on: ubuntu-24.04
     steps:

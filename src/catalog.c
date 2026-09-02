@@ -1,6 +1,7 @@
 #include "maelys/cli/catalog.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 const char *maelys_cli_value_kind_name(maelys_cli_value_kind_t kind) {
@@ -69,6 +70,45 @@ static void put(sink_t *sink, const char *text) {
     sink->used += length;
 }
 
+static void put_option(sink_t *sink, const maelys_cli_option_t *option) {
+    put(sink, " ");
+    if (!option->required) put(sink, "[");
+    put(sink, "--");
+    put(sink, option->name);
+    if (option->kind != MAELYS_CLI_VALUE_NONE) {
+        put(sink, " ");
+        if (option->kind == MAELYS_CLI_VALUE_DIGEST && !option->value_name) {
+            put(sink, "ALGORITHM:HEX");
+        } else if (option->kind == MAELYS_CLI_VALUE_CHOICE && option->choices &&
+            !option->value_name) {
+            for (size_t j = 0u; option->choices[j]; ++j) {
+                if (j) put(sink, "|");
+                put(sink, option->choices[j]);
+            }
+        } else {
+            put(sink, option->value_name ? option->value_name : "VALUE");
+        }
+    }
+    if (option->repeatable) put(sink, "...");
+    if (!option->required) put(sink, "]");
+}
+
+static void render_synopsis(const maelys_cli_command_t *command, sink_t *sink) {
+    put(sink, command->pattern ? command->pattern : "");
+    for (size_t i = 0u; i < command->operand_count; ++i) {
+        const maelys_cli_operand_t *operand = &command->operands[i];
+        put(sink, " ");
+        if (!operand->required) put(sink, "[");
+        put(sink, operand->name);
+        if (operand->variadic) put(sink, "...");
+        if (!operand->required) put(sink, "]");
+    }
+    for (size_t i = 0u; i < command->option_count; ++i)
+        if (command->options[i].required) put_option(sink, &command->options[i]);
+    for (size_t i = 0u; i < command->option_count; ++i)
+        if (!command->options[i].required) put_option(sink, &command->options[i]);
+}
+
 int maelys_cli_command_synopsis(
     const maelys_cli_command_t *command, char *out, size_t out_size) {
     if (!command || !out || out_size == 0u) return -1;
@@ -80,37 +120,22 @@ int maelys_cli_command_synopsis(
     }
     sink_t sink = {out, out_size, 0u, 0};
     out[0] = '\0';
-    put(&sink, command->pattern ? command->pattern : "");
-    for (size_t i = 0u; i < command->operand_count; ++i) {
-        const maelys_cli_operand_t *operand = &command->operands[i];
-        put(&sink, " ");
-        if (!operand->required) put(&sink, "[");
-        put(&sink, operand->name);
-        if (operand->variadic) put(&sink, "...");
-        if (!operand->required) put(&sink, "]");
-    }
-    for (size_t i = 0u; i < command->option_count; ++i) {
-        const maelys_cli_option_t *option = &command->options[i];
-        put(&sink, " ");
-        if (!option->required) put(&sink, "[");
-        put(&sink, "--");
-        put(&sink, option->name);
-        if (option->kind != MAELYS_CLI_VALUE_NONE) {
-            put(&sink, " ");
-            if (option->kind == MAELYS_CLI_VALUE_DIGEST && !option->value_name) {
-                put(&sink, "ALGORITHM:HEX");
-            } else if (option->kind == MAELYS_CLI_VALUE_CHOICE && option->choices &&
-                !option->value_name) {
-                for (size_t j = 0u; option->choices[j]; ++j) {
-                    if (j) put(&sink, "|");
-                    put(&sink, option->choices[j]);
-                }
-            } else {
-                put(&sink, option->value_name ? option->value_name : "VALUE");
-            }
-        }
-        if (option->repeatable) put(&sink, "...");
-        if (!option->required) put(&sink, "]");
-    }
+    render_synopsis(command, &sink);
     return sink.truncated ? -1 : 0;
+}
+
+char *maelys_cli_command_synopsis_alloc(const maelys_cli_command_t *command) {
+    if (!command) return NULL;
+    if (command->synopsis) return strdup(command->synopsis);
+    char *buffer = malloc(MAELYS_CLI_MAX_SYNOPSIS + 1u);
+    if (!buffer) return NULL;
+    sink_t sink = {buffer, MAELYS_CLI_MAX_SYNOPSIS + 1u, 0u, 0};
+    buffer[0] = '\0';
+    render_synopsis(command, &sink);
+    if (sink.truncated) {
+        free(buffer);
+        return NULL;
+    }
+    char *result = realloc(buffer, sink.used + 1u);
+    return result ? result : buffer;
 }
