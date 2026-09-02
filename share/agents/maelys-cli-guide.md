@@ -201,11 +201,11 @@ Handler accessors (`maelys/cli/app.h`):
 | Accessor | Returns |
 | --- | --- |
 | `maelys_cli_operand(ctx, i)`, `maelys_cli_operand_count(ctx)` | raw operands |
-| `maelys_cli_operand_choice/unsigned/integer(ctx, i, &out)` | typed operand values |
+| `maelys_cli_operand_choice(ctx, i, &out)`, `maelys_cli_operand_unsigned(...)`, `maelys_cli_operand_integer(...)` | typed operand values |
 | `maelys_cli_option(ctx, name)` | raw value if given, else `NULL` |
 | `maelys_cli_option_or(ctx, name, fallback)` | raw value, else `default_text`, else fallback |
 | `maelys_cli_flag(ctx, name)` | 1 when a flag is enabled |
-| `maelys_cli_option_unsigned/integer/choice(ctx, name, &out)` | typed value from the invocation or from `default_text` |
+| `maelys_cli_option_unsigned(ctx, name, &out)`, `maelys_cli_option_integer(...)`, `maelys_cli_option_choice(...)` | typed value from the invocation or from `default_text` |
 | `maelys_cli_option_count(ctx, name)`, `maelys_cli_option_at(ctx, name, i)` | repeatable options |
 | `maelys_cli_json_mode(ctx)`, `maelys_cli_non_interactive(ctx)` | rendering flags |
 | `maelys_cli_replied(ctx)` | 1 once a reply was emitted |
