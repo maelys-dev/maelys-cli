@@ -84,8 +84,10 @@ int maelys_cli_process_run(
         execve(path, argv, envp ? envp : environ);
         int saved = errno;
         unsigned char code = (unsigned char)(saved > 255 ? 255 : saved);
-        (void)write(error_pipe[1], &code, 1u);
-        _exit(127);
+        /* A failed report cannot be acted upon here; the parent then sees
+         * exit status 127 without a captured errno. */
+        ssize_t reported = write(error_pipe[1], &code, 1u);
+        _exit(reported == 1 ? 127 : 126);
     }
     (void)close(error_pipe[1]);
     unsigned char failure = 0u;
