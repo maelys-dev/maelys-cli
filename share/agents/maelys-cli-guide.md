@@ -196,6 +196,23 @@ static int command_note_write(maelys_cli_context_t *context) {
 }
 ```
 
+Handler accessors (`maelys/cli/app.h`):
+
+| Accessor | Returns |
+| --- | --- |
+| `maelys_cli_operand(ctx, i)`, `maelys_cli_operand_count(ctx)` | raw operands |
+| `maelys_cli_operand_choice/unsigned/integer(ctx, i, &out)` | typed operand values |
+| `maelys_cli_option(ctx, name)` | raw value if given, else `NULL` |
+| `maelys_cli_option_or(ctx, name, fallback)` | raw value, else `default_text`, else fallback |
+| `maelys_cli_flag(ctx, name)` | 1 when a flag is enabled |
+| `maelys_cli_option_unsigned/integer/choice(ctx, name, &out)` | typed value from the invocation or from `default_text` |
+| `maelys_cli_option_count(ctx, name)`, `maelys_cli_option_at(ctx, name, i)` | repeatable options |
+| `maelys_cli_json_mode(ctx)`, `maelys_cli_non_interactive(ctx)` | rendering flags |
+| `maelys_cli_replied(ctx)` | 1 once a reply was emitted |
+| `maelys_cli_resolve_helper(ctx, name, out, size)` | trusted helper path, delegate search order |
+| `maelys_cli_confirm(ctx, question, &yes)` | interactive prompt; fails under `--non-interactive` |
+| `maelys_cli_warn(ctx, fmt, ...)` | diagnostic on stderr |
+
 Handler rules:
 
 - read inputs only through the context accessors; the parser already

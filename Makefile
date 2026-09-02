@@ -48,7 +48,7 @@ TESTS := $(addprefix $(BUILD)/tests/,$(TEST_NAMES))
 HEADER_CPP := $(BUILD)/tests/header_cpp
 PC := $(BUILD)/pkgconfig/maelys-cli.pc
 
-.PHONY: all check test header-check check-version cli-check api-doc-check install \
+.PHONY: all check test header-check check-version cli-check api-doc-check agent-doc-check install \
 	install-check uninstall dist clean asan-ubsan analyze cmake-check \
 	generate-cli-reference contract-check agents-install
 
@@ -128,8 +128,11 @@ check-version:
 api-doc-check:
 	./scripts/api-doc-check.sh
 
+agent-doc-check:
+	./scripts/agent-doc-check.sh
+
 # contract-check needs python3; it is part of check wherever python3 exists.
-check: test cli-check header-check check-version api-doc-check
+check: test cli-check header-check check-version api-doc-check agent-doc-check
 	@if command -v python3 >/dev/null 2>&1; then $(MAKE) contract-check; \
 	else echo "contract-check: skipped (python3 not found)"; fi
 
