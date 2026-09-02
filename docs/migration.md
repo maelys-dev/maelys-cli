@@ -87,10 +87,13 @@ Steps, in one Egress change:
    `MAELYS_CLI_PROTOCOL_STREAM(..., "egress-fd4")` or the relevant name;
 3. delete `tools/generate_cli_reference.py` and `tools/check_cli_contract.py`
    in favor of the framework's generator (`generate_cli_reference.py
-   --build DIR maelys-egress`) and of `describe` itself;
-4. shorten `docs/command-conventions.md` and `docs/agent-cli.md` to Egress
-   specifics and link the framework documents installed under
-   `PREFIX/share/maelys-cli/docs/`;
+   --build DIR maelys-egress`) and a `contract-check` target modeled on the
+   framework's, which rejects stale generated documentation in CI;
+4. replace `docs/command-conventions.md` and `docs/agent-cli.md` with the
+   short product templates installed under
+   `PREFIX/share/maelys-cli/templates/`, keeping only Egress specifics
+   (the lifecycle stream of `serve`, `config validate` as the exit-2
+   report) and linking the framework documents;
 5. update the shell test and the skill for the new codes and exit semantics;
 6. record the contract change in the Egress changelog as a breaking 0.x
    change and bump the minor.

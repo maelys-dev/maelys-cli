@@ -29,5 +29,8 @@
   GCC 14 on Linux (glibc feature macros, `/proc/self/exe`) and clang on
   macOS; the option field is named `depends_on` because `requires` is a
   C++20 keyword (the `describe` member stays `requires`).
+- `make contract-check` rejects a stale generated reference (locally and in
+  CI); short product templates for `command-conventions.md` and
+  `agent-cli.md` installed under `share/maelys-cli/templates/`.
 - Reference product CLI `maelys-hello`, unit tests, end-to-end CLI tests,
   C++ header gate, sanitizer target and reference generator.

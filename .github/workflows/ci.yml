@@ -24,10 +24,8 @@ jobs:
         run: make analyze
       - name: Install check
         run: make install-check
-      - name: Reference drift
-        run: |
-          make generate-cli-reference
-          git diff --exit-code -- docs/cli-reference.md docs/cli-contract.json
+      - name: Contract drift
+        run: make contract-check
   gcc:
     runs-on: ubuntu-24.04
     steps:

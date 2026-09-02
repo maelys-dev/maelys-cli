@@ -50,7 +50,7 @@ PC := $(BUILD)/pkgconfig/maelys-cli.pc
 
 .PHONY: all check test header-check check-version cli-check api-doc-check install \
 	install-check uninstall dist clean asan-ubsan analyze \
-	generate-cli-reference agents-install
+	generate-cli-reference contract-check agents-install
 
 all: $(LIB) $(DISPATCHER) $(EXAMPLE) $(PC)
 
@@ -143,6 +143,19 @@ generate-cli-reference: $(DISPATCHER) $(EXAMPLE)
 	python3 tools/generate_cli_reference.py --build $(BUILD)/bin \
 		--markdown docs/cli-reference.md --json docs/cli-contract.json
 
+# Proves that the committed reference and contract match what the binaries
+# describe. Run before a release and in CI; needs python3.
+contract-check: $(DISPATCHER) $(EXAMPLE)
+	@mkdir -p $(BUILD)/contract
+	python3 tools/generate_cli_reference.py --build $(BUILD)/bin \
+		--markdown $(BUILD)/contract/cli-reference.md \
+		--json $(BUILD)/contract/cli-contract.json
+	cmp -s $(BUILD)/contract/cli-reference.md docs/cli-reference.md || \
+		{ echo "docs/cli-reference.md drifted; run make generate-cli-reference" >&2; exit 1; }
+	cmp -s $(BUILD)/contract/cli-contract.json docs/cli-contract.json || \
+		{ echo "docs/cli-contract.json drifted; run make generate-cli-reference" >&2; exit 1; }
+	@echo "contract-check: ok"
+
 install: $(LIB) $(DISPATCHER) $(PC)
 	install -d $(DESTDIR)$(PREFIX)/lib $(DESTDIR)$(PREFIX)/bin \
 		$(DESTDIR)$(PREFIX)/include/maelys/cli \
@@ -157,6 +170,8 @@ install: $(LIB) $(DISPATCHER) $(PC)
 	install -m 0644 include/maelys/cli/*.h $(DESTDIR)$(PREFIX)/include/maelys/cli/
 	install -m 0644 $(PC) $(DESTDIR)$(PREFIX)/lib/pkgconfig/maelys-cli.pc
 	install -m 0644 share/agents/*.md $(DESTDIR)$(PREFIX)/share/maelys-cli/agents/
+	install -d $(DESTDIR)$(PREFIX)/share/maelys-cli/templates
+	install -m 0644 share/templates/* $(DESTDIR)$(PREFIX)/share/maelys-cli/templates/
 	install -m 0644 docs/*.md $(DESTDIR)$(PREFIX)/share/maelys-cli/docs/
 
 install-check: all

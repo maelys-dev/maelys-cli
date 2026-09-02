@@ -206,7 +206,10 @@ maelys agents status /path/to/project            # exit 2 when outdated
 
 This manages a marked block in `AGENTS.md` (Codex) and `CLAUDE.md` (Claude
 Code), the complete guide `docs/maelys-cli-guide.md` and the Claude skill
-`.claude/skills/maelys-cli-command/SKILL.md`. Text outside the markers is
+`.claude/skills/maelys-cli-command/SKILL.md`. Short product templates for
+`docs/command-conventions.md` and `docs/agent-cli.md` are installed under
+`PREFIX/share/maelys-cli/templates/`: a product documents only its
+specifics and links the framework documents instead of copying them. Text outside the markers is
 preserved; generated files are replaced. `--client claude|codex` restricts the
 set. The same texts are installed under `PREFIX/share/maelys-cli/agents/`
 and `make agents-install PROJECT=DIR` runs the command from a source tree.
@@ -218,6 +221,7 @@ make                 # libmaelys_cli.a, maelys, maelys-hello, pkg-config file
 make check           # unit tests, end-to-end CLI tests, C++ header gate
 make asan-ubsan      # the same under AddressSanitizer and UBSan
 make install-check   # install into a scratch prefix and build a consumer
+make contract-check  # committed reference and contract match describe
 make install PREFIX=/opt/homebrew   # lib, headers, maelys, maelys-cli-embed, agent texts
 make generate-cli-reference
 ```

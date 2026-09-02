@@ -7,8 +7,8 @@ requires:
    changelog agree (`make check-version`).
 2. `make check`, `make asan-ubsan`, `make analyze` and `make install-check`
    pass on macOS (Apple Silicon) and Linux (amd64/arm64).
-3. `make generate-cli-reference` produces no diff in `docs/cli-reference.md`
-   and `docs/cli-contract.json`.
+3. `make contract-check` passes: `docs/cli-reference.md` and
+   `docs/cli-contract.json` match what the binaries describe.
 4. Any change to the envelope, `describe` shape, error codes or exit codes is
    documented in `docs/command-conventions.md` and, when incompatible, bumps
    `MAELYS_CLI_CONTRACT` and `MAELYS_CLI_SCHEMA_VERSION` together.

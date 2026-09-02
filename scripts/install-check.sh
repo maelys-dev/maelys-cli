@@ -16,6 +16,8 @@ test -f "$root/usr/include/maelys/cli/app.h"
 test -f "$root/usr/lib/pkgconfig/maelys-cli.pc"
 test -f "$root/usr/share/maelys-cli/agents/instructions-block.md"
 test -d "$root/usr/share/maelys/commands"
+test -f "$root/usr/share/maelys-cli/templates/command-conventions.md"
+test -f "$root/usr/share/maelys-cli/templates/agent-cli.md"
 
 printf '{"type":"object","required":["ok"]}\n' > "$root/hello.json"
 "$root/usr/bin/maelys-cli-embed" hello_schema="$root/hello.json" > "$root/schemas.c"
