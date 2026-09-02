@@ -45,6 +45,16 @@ exit status  0 completed, 1 failed, 2 validation report with violations
      `data` field that carries the verdict, for example `config validate`
      with `data.valid`. -->
 
+## Commands not provided by every build
+
+<!-- List commands declared with `.unavailable` in some builds (for example a
+     Cloud agent behind a build option), with the reason `describe` reports. -->
+
+## Shell completion
+
+`@PROGRAM@ completion bash|zsh|fish` prints the completion script generated
+from the catalog; packages install it in the shell's completion directory.
+
 ## Sources of truth
 
 - the catalog in the product sources defines commands, operands and options;

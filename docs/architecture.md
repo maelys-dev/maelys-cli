@@ -31,14 +31,16 @@ per verified manifest.
    argument is read. A product cannot ship a command that `describe`
    would misrepresent.
 2. A pre-scan of `argv` detects `--format`, `--json`, `--compact` and
-   `--color` so that even a parse failure is reported in the requested
-   format.
+   `--color`, after `MAELYS_CLI_FORMAT` from the environment, so that even
+   a parse failure is reported in the requested format; for stream commands
+   the environment default only shapes the stderr failure envelope.
 3. `maelys_cli_parse()` resolves the command by longest pattern match, then
    validates in causal order. Delegate commands stop after the pattern and
    collect every remaining argument verbatim.
-4. `help`, `version` and `describe` are built-in commands with the same
-   descriptor shape as product commands; `--help` after a command renders
-   that command's help.
+4. `help`, `version`, `describe`, `completion` and the hidden `__complete`
+   are built-in commands with the same descriptor shape as product
+   commands; `--help` after a command renders that command's help, and
+   `__complete` derives shell candidates from the catalog.
 5. The handler runs with a `maelys_cli_context_t`. It must reply exactly
    once; the runtime turns a silent handler into an `UNEXPECTED` failure.
 6. Delegates are resolved beside the executable, in `../libexec/PROGRAM`,

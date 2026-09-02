@@ -144,7 +144,21 @@ required operands (an optional typed operand is `MAELYS_CLI_OPERAND_OPTIONAL`
 followed by `.kind` and its limits) (read with `maelys_cli_operand_choice()`,
 `maelys_cli_operand_unsigned()`, `maelys_cli_operand_integer()`). Never
 validate an operand's shape in the handler when a kind expresses it.
-Extra command attributes: `.synopsis` (override), `.hidden`.
+Option attributes added after a macro: `.required`, `.repeatable`,
+`.depends_on` (one option), `.depends_on_all` (NULL-terminated list of
+options that must all be present), `.conflicts_with`, `.group` (all-or-none:
+the options sharing a group name are given together or not at all) and
+`.default_text` (validated against the kind at startup, returned by
+`maelys_cli_option_unsigned/integer/choice` and `maelys_cli_option_or` when
+the option is absent: never repeat a default in the handler). The derived
+synopsis lists required options before optional ones; the catalog validation
+refuses a synopsis longer than `MAELYS_CLI_MAX_SYNOPSIS` and names the
+command.
+
+Command attributes: `.synopsis` (override), `.hidden`, `.protocol` (stream
+commands) and `.unavailable = "reason"` for a command this build cannot
+provide: no handler, still described (`available: false`), fails with
+`UNSUPPORTED`.
 
 Value kinds: `NONE` (flag, accepts `--flag=false`), `STRING`, `INTEGER`,
 `UNSIGNED`, `SIZE` (K/M/G/T), `DURATION` (unit required: ms, s, m, h, d;
@@ -190,7 +204,10 @@ Handler rules:
   `maelys_cli_emit_record()` then `maelys_cli_finish_records()`, or
   `maelys_cli_fail()` / `maelys_cli_fail_errno()` / `maelys_cli_fail_error()`.
   A helper that may reply returns the exit code and the caller checks
-  `maelys_cli_replied(context)` before replying itself:
+  `maelys_cli_replied(context)` before replying itself. Behind a JSON
+  library that guarantees validity, `maelys_cli_succeed_trusted()` and
+  `maelys_cli_emit_record_trusted()` skip validation and write verbatim in
+  compact and jsonl modes:
 
   ```c
   int result = load_inputs(context, &inputs);   /* may call maelys_cli_fail */

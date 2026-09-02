@@ -23,10 +23,15 @@ normative; this skill is the executable checklist.
 ## Implement
 
 - Declare every operand and option in the catalog with the declaration
-  macros (`MAELYS_CLI_READ`/`_TRANSACTION`/..., `MAELYS_CLI_OPERAND*`,
-  `MAELYS_CLI_FLAG`/`_STRING`/`_SIZE`/...) and designated attributes;
-  derive nothing by hand. `help`, `describe`, parsing and tests consume
-  that entry.
+  macros (`MAELYS_CLI_READ`/`_TRANSACTION`/`_PROTOCOL_STREAM`/...,
+  `MAELYS_CLI_OPERAND*` including `_OPERAND_CHOICE`/`_OPERAND_KIND`,
+  `MAELYS_CLI_FLAG`/`_STRING`/`_ABSOLUTE_PATH`/`_SIZE`/`_DIGEST`/...) and
+  designated attributes (`.depends_on_all`, `.group`, `.default_text`,
+  `.unavailable`); derive nothing by hand. `help`, `describe`, completion,
+  parsing and tests consume that entry.
+- Use a typed kind instead of validating a path, digest or choice in the
+  handler; declare defaults once in `.default_text` and read them through
+  the typed accessors.
 - Put the output schema in a JSON Schema file embedded by
   `maelys-cli-embed` and referenced with `MAELYS_CLI_SCHEMA(symbol)`; never
   write a hand-escaped C string.
@@ -35,8 +40,10 @@ normative; this skill is the executable checklist.
   `maelys_cli_option_unsigned()`, `maelys_cli_option_integer()`,
   `maelys_cli_option_choice()`, `maelys_cli_option_at()` and
   `maelys_cli_flag()` only.
-- Reply exactly once with `maelys_cli_succeed*()`, records + 
+- Reply exactly once with `maelys_cli_succeed*()`, records +
   `maelys_cli_finish_records()`, or `maelys_cli_fail*()`; return its value.
+  After a helper that may reply, test `maelys_cli_replied(context)` before
+  replying. Use the `_trusted` emitters only behind a JSON library.
 - Validate in causal order; use the error code of the failed boundary; put
   the next safe action in the hint.
 - Keep stdout data-only. Diagnostics go to stderr via `maelys_cli_warn()`.
@@ -54,8 +61,9 @@ Add or update tests proving:
 3. `--dry-run` / `--plan` return `VALIDATION_FAILED` with the migration hint;
 4. missing, duplicated, conflicting, malformed and out-of-range inputs name
    their real cause;
-5. `describe COMMAND_ID` exposes the exact accepted inputs and the exact
-   output schema, and runtime parsing matches it;
+5. `describe COMMAND_ID` exposes the exact accepted inputs (typed operands,
+   constraints, defaults) and the exact output schema, and runtime parsing
+   and `__complete` candidates match it;
 6. stdout is empty on failure, stderr is empty on success, exit codes follow
    `0` / `1` / `2`.
 

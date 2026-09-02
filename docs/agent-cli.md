@@ -10,6 +10,14 @@ PROGRAM note write /tmp/a.txt --content hello --format json --compact --non-inte
 PROGRAM note write /tmp/a.txt --content hello --apply --format json --compact --non-interactive
 ```
 
+`describe COMMAND_ID` returns one minimal descriptor (no `globalOptions`,
+`output` or `invariants`; those come with `describe` and
+`describe --summary`). Read `input.operands[].type` and `choices`,
+`input.options[].argument`, `default`, `requires`, `group` and
+`input.constraints` (`requires`, `at-most-one`, `all-or-none`). A descriptor
+with `available: false` names a command this build cannot run; do not
+invoke it.
+
 Do not build a command from the `help` text. Use `data.commands[].input`,
 then read only the stdout envelope. On exit `1`, stdout is empty: parse the
 stderr envelope and follow `error.hint`. On exit `2`, the call itself
@@ -23,7 +31,9 @@ succeeded and `data` reports the violations.
 - add `--apply` only after reviewing the plan of the same invocation;
 - copy plan preconditions into dedicated options when they exist;
 - never replay a `PRECONDITION_FAILED` blindly; read the state again;
-- never pass rendering options to a `protocol-stream` command;
+- never pass rendering options to a `protocol-stream` command; set
+  `MAELYS_CLI_FORMAT=json` in its environment to get a JSON failure
+  envelope on stderr while its stdout stays with the protocol;
 - never mix stdout and stderr;
 - prefer `--compact` to save tokens; it does not change the schema.
 
@@ -38,6 +48,12 @@ PROGRAM list                    # one human line per record
 ```
 
 With `jsonl`, failure is still an envelope on stderr and the exit code.
+
+## Shell completion
+
+`PROGRAM completion bash|zsh|fish` prints a shim; the candidates come from
+`PROGRAM __complete -- WORDS...` (a hidden `json-records` command, also
+usable with `--format json` before the `--`).
 
 ## Dispatcher
 

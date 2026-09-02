@@ -13,7 +13,10 @@ Discover the executable contract instead of guessing flags from prose:
 @PROGRAM@ describe COMMAND_ID --format json --compact --non-interactive
 ```
 
-Every call in automation uses `--format json --non-interactive`. Success is
+Every call in automation uses `--format json --non-interactive` (or
+`MAELYS_CLI_FORMAT=json` in the environment, the only way to get a JSON
+failure envelope from a stream command). `@PROGRAM@ completion bash|zsh|fish`
+prints the shell completion. Success is
 one envelope on stdout; failure is one envelope on stderr with a stable
 `error.code` and an actionable `error.hint`. Exit `2` means the command
 completed and its report contains violations: read `data`.

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.1 - 2026-09-02
+
+- Documentation only: the installed agent instructions (`AGENTS.md` /
+  `CLAUDE.md` block, guide, Claude skill), the product templates and
+  `docs/agent-cli.md` now cover every feature added in 0.2 to 0.4 (typed
+  kinds and operands, dependency groups, typed defaults, unavailable
+  commands, `maelys_cli_replied`, helper resolution, trusted emitters,
+  completion, `MAELYS_CLI_FORMAT`, minimal `describe`). Run
+  `maelys agents install DIR --apply` again in consumer projects.
+
 ## 0.4.0 - 2026-09-02
 
 Feedback from the Maelys Git migration:
