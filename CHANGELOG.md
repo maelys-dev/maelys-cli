@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.2 - 2026-09-02
+
+- The installed agent guide lists every handler accessor;
+  `scripts/agent-doc-check.sh` (part of `make check`) keeps the guide in
+  step with the macros of `catalog.h` and the accessors of `app.h`.
+- Framework change procedure for agents working on this repository:
+  `AGENTS.md` and the `maelys-cli-framework` Claude skill.
+
 ## 0.4.1 - 2026-09-02
 
 - Documentation only: the installed agent instructions (`AGENTS.md` /
