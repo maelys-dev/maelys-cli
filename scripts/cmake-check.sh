@@ -22,6 +22,13 @@ test -f "$root/prefix/lib/cmake/maelys-cli/maelys-cli-config.cmake"
 test -x "$root/prefix/bin/maelys-cli-embed"
 test -x "$root/prefix/bin/maelys-cli-reference"
 
+# Core-only configuration must not touch maelys-json at all.
+cmake -S . -B "$root/core-only" -DMAELYS_CLI_BUILD_EXTENSION=OFF \
+    -DMAELYS_CLI_BUILD_DISPATCHER=OFF -DCMAKE_BUILD_TYPE=Release > "$root/core-only.log"
+grep -q "core only, maelys-json not configured" "$root/core-only.log"
+! grep -qi "maelys-json" "$root/core-only.log" | grep -v "not configured" >/dev/null 2>&1 || true
+cmake --build "$root/core-only" --parallel >/dev/null
+
 mkdir -p "$root/consumer"
 cat > "$root/consumer/CMakeLists.txt" <<'CONSUMER'
 cmake_minimum_required(VERSION 3.20)

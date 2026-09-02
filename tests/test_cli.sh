@@ -141,6 +141,15 @@ check "MAELYS_CLI_FORMAT shapes the failure envelope" '[ "$code" = 1 ] && printf
 run env-stream env MAELYS_CLI_FORMAT=json "$hello" run /bin/sh -c "echo plain"
 check "MAELYS_CLI_FORMAT leaves stream stdout untouched" '[ "$code" = 0 ] && [ "$out" = "plain" ]'
 
+if command -v python3 >/dev/null 2>&1; then
+    printf 'Contrat commun : `agent-cli/v2`.\n' >"$work/intro.md"
+    run reference python3 "$(dirname "$0")/../tools/generate_cli_reference.py" --build "$bin" \
+        --markdown "$work/ref.md" --json "$work/ref.json" --title "Référence CLI" \
+        --intro-file "$work/intro.md" --columns "Identifiant|Usage|Effet|Sortie|But" \
+        --global-label "Options globales :" maelys-hello
+    check "reference generator keeps the product wording" '[ "$code" = 0 ] && grep -q "^# Référence CLI" "$work/ref.md" && grep -q "Contrat commun" "$work/ref.md" && grep -q "| Identifiant | Usage | Effet | Sortie | But |" "$work/ref.md" && grep -q "^Options globales :" "$work/ref.md" && python3 -c "import json,sys; d=json.load(open(sys.argv[1]))[\"programs\"][\"maelys-hello\"]; sys.exit(0 if \"version\" not in d and \"framework\" not in d else 1)" "$work/ref.json"'
+fi
+
 # ---- dispatcher -------------------------------------------------------------
 commands="$work/commands"
 mkdir -p "$commands"

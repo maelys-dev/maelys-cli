@@ -11,7 +11,12 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
 
 option(MAELYS_CLI_BUILD_DISPATCHER "Build the maelys dispatcher" ON)
+option(MAELYS_CLI_BUILD_EXTENSION
+    "Build libmaelys_cli_extension (manifest discovery, needs maelys-json)" ON)
 option(MAELYS_CLI_BUILD_TESTS "Build the maelys-cli tests" OFF)
+if(MAELYS_CLI_BUILD_DISPATCHER AND NOT MAELYS_CLI_BUILD_EXTENSION)
+    message(FATAL_ERROR "the dispatcher requires MAELYS_CLI_BUILD_EXTENSION")
+endif()
 
 # The core has no dependency. The extension archive (manifest discovery)
 # and the dispatcher read untrusted JSON through maelys-json: an installed
@@ -19,10 +24,14 @@ option(MAELYS_CLI_BUILD_TESTS "Build the maelys-cli tests" OFF)
 # they are skipped and the core still builds and installs.
 set(MAELYS_JSON_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../maelys-json"
     CACHE PATH "Path to the maelys-json source tree (fallback)")
-find_package(maelys-json 0.1 CONFIG QUIET)
 set(MAELYS_CLI_HAVE_JSON OFF)
 set(MAELYS_CLI_JSON_INSTALLED OFF)
-if(maelys-json_FOUND)
+if(MAELYS_CLI_BUILD_EXTENSION)
+    find_package(maelys-json 0.1 CONFIG QUIET)
+endif()
+if(NOT MAELYS_CLI_BUILD_EXTENSION)
+    message(STATUS "maelys-cli: core only, maelys-json not configured")
+elseif(maelys-json_FOUND)
     set(MAELYS_CLI_HAVE_JSON ON)
     set(MAELYS_CLI_JSON_INSTALLED ON)
 elseif(EXISTS "${MAELYS_JSON_SOURCE_DIR}/CMakeLists.txt")

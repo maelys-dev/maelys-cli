@@ -79,7 +79,10 @@ static int command_typed(maelys_cli_context_t *context) {
 }
 
 static const char *const mirror_all[] = {"source-oid", "target-oid", NULL};
+#define TEST_MAX_RETRIES 7
 static const maelys_cli_option_t mirror_options[] = {
+    {MAELYS_CLI_UNSIGNED("attempts", "N", "Attempts.", 0u, 10u),
+     MAELYS_CLI_DEFAULT_OF(TEST_MAX_RETRIES)},
     {MAELYS_CLI_HEX("source-oid", "OID", "Expected source.", 4u),
      .group = "preconditions"},
     {MAELYS_CLI_HEX("target-oid", "OID", "Expected target.", 4u),
@@ -519,6 +522,11 @@ static int test_groups_defaults_unavailable(void) {
     result = RUNV("mirror", "--retries", "4", "--mode", "low");
     CHECK(result.code == 0 && mirror_retries == 4u && mirror_mode == 0u);
     release(&result);
+    /* A default declared from a library constant is delivered and described. */
+    result = RUNV("describe", "mirror", "--json", "--compact");
+    CHECK(result.code == 0 && strstr(result.out, "\"long\":\"--attempts\"") &&
+        strstr(result.out, "\"default\":\"7\""));
+    release(&result);
     result = RUNV("mirror", "--source-oid", "abcd");
     CHECK(expect_failure(&result, "[VALIDATION_FAILED]", "belongs to group 'preconditions' and requires --target-oid"));
     result = RUNV("mirror", "--apply");
@@ -531,7 +539,7 @@ static int test_groups_defaults_unavailable(void) {
     CHECK(strstr(result.out, "\"kind\":\"all-or-none\",\"group\":\"preconditions\",\"options\":[\"--source-oid\",\"--target-oid\"]"));
     CHECK(strstr(result.out, "\"long\":\"--apply\"") && strstr(result.out, "\"requires\":[\"--source-oid\",\"--target-oid\"]"));
     CHECK(strstr(result.out, "\"group\":\"preconditions\"}"));
-    CHECK(strstr(result.out, "\"usage\":\"mirror [--source-oid OID] [--target-oid OID] [--retries N] [--mode low|high] [--apply]\""));
+    CHECK(strstr(result.out, "\"usage\":\"mirror [--attempts N] [--source-oid OID] [--target-oid OID] [--retries N] [--mode low|high] [--apply]\""));
     release(&result);
     /* Required options come first in the derived synopsis. */
     result = RUNV("describe", "thing.make", "--json", "--compact");

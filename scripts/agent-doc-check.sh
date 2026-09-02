@@ -6,7 +6,7 @@ set -eu
 guide=share/agents/maelys-cli-guide.md
 missing=0
 for macro in $(grep -oE '^#define MAELYS_CLI_[A-Z0-9_]+\(' include/maelys/cli/catalog.h | \
-        sed 's/^#define //; s/($//' | grep -vE '^MAELYS_CLI_(COUNT|OPERANDS|OPTIONS)$' | sort -u); do
+        sed 's/^#define //; s/($//' | grep -vE '^MAELYS_CLI_(COUNT|OPERANDS|OPTIONS|STRINGIFY_?)$' | sort -u); do
     if ! grep -q "$macro" "$guide"; then
         printf 'agent guide lacks macro %s\n' "$macro" >&2
         missing=$((missing + 1))

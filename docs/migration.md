@@ -55,6 +55,11 @@ framework. `maelys_cli_emit_maelys_error()` becomes a product helper mapping
 `maelys_git_result_t` to `maelys_cli_fail()` codes; the table in
 `docs/command-conventions.md` is unchanged.
 
+Hook limits that exist as library constants are declared once with
+`MAELYS_CLI_DEFAULT_OF(MAELYS_GIT_HOOK_...)`; the French reference is
+generated with `maelys-cli-reference --title --intro-file --columns
+--global-label`.
+
 Mirror and pull-request commands whose preconditions go together use
 `.group = "preconditions"` on the precondition options and
 `.depends_on_all` on `--apply`; hook limits declare their defaults once in

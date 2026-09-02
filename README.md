@@ -240,7 +240,18 @@ target_link_libraries(my-cli PRIVATE maelys::cli)
 ```
 
 `make cmake-check` builds, installs into a scratch prefix and configures a
-consumer through `find_package`.
+consumer through `find_package`. A consumer that only needs the core sets
+`-DMAELYS_CLI_BUILD_EXTENSION=OFF -DMAELYS_CLI_BUILD_DISPATCHER=OFF` and
+maelys-json is never looked for.
+
+The installed reference generator keeps the product's wording:
+
+```sh
+maelys-cli-reference --build build/bin --markdown docs/cli-reference.md \
+    --json docs/cli-contract.json --title "Référence CLI" \
+    --intro-file docs/cli-intro.md --columns "Identifiant|Usage|Effet|Sortie|But" \
+    --global-label "Options globales :" my-program
+```
 
 ## Building and testing
 

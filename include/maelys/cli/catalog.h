@@ -242,6 +242,15 @@ typedef struct maelys_cli_command {
  * JSON Schema file. */
 #define MAELYS_CLI_SCHEMA(symbol_) .output_schema_json = (symbol_)
 
+/* Declares default_text from a numeric constant of the product library,
+ * so the default has a single source: {MAELYS_CLI_UNSIGNED(...),
+ * MAELYS_CLI_DEFAULT_OF(MY_LIB_MAX_APPROVALS)}. The constant must expand
+ * to a plain literal accepted by the option's kind (validated at startup). */
+#define MAELYS_CLI_STRINGIFY_(value_) #value_
+#define MAELYS_CLI_STRINGIFY(value_) MAELYS_CLI_STRINGIFY_(value_)
+#define MAELYS_CLI_DEFAULT_OF(constant_) \
+    .default_text = MAELYS_CLI_STRINGIFY(constant_)
+
 const char *maelys_cli_value_kind_name(maelys_cli_value_kind_t kind);
 
 /* Hexadecimal digit count of a digest algorithm name, 0 when unknown. */

@@ -1,7 +1,17 @@
 # Changelog
 
-## Unreleased
+## 0.5.2 - 2026-09-03
 
+Feedback from the Maelys Git 0.5 integration:
+
+- `maelys-cli-reference` takes `--title`, `--intro`/`--intro-file`,
+  `--columns` and `--global-label`, so a product keeps the language and
+  header of its generated reference.
+- CMake looks for maelys-json only when `MAELYS_CLI_BUILD_EXTENSION` is on;
+  a core-only consumer (`-DMAELYS_CLI_BUILD_EXTENSION=OFF`) never configures
+  the sibling project.
+- `MAELYS_CLI_DEFAULT_OF(constant)` declares `default_text` from a numeric
+  constant of the product library, giving a default a single source.
 - `docs/topics.tsv` and `scripts/doc-topics-check.sh` (part of
   `make check`): a topic coverage contract listing, per document, the
   keywords it must mention, so documentation cannot lag behind a feature.

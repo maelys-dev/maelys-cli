@@ -150,7 +150,9 @@ options that must all be present), `.conflicts_with`, `.group` (all-or-none:
 the options sharing a group name are given together or not at all) and
 `.default_text` (validated against the kind at startup, returned by
 `maelys_cli_option_unsigned/integer/choice` and `maelys_cli_option_or` when
-the option is absent: never repeat a default in the handler). The derived
+the option is absent: never repeat a default in the handler; when the
+product library owns the constant, write `MAELYS_CLI_DEFAULT_OF(MY_LIMIT)`
+so the catalog and the library share one definition). The derived
 synopsis lists required options before optional ones; the catalog validation
 refuses a synopsis longer than `MAELYS_CLI_MAX_SYNOPSIS` and names the
 command.

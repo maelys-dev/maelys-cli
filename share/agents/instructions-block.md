@@ -46,7 +46,8 @@ one handler and one JSON Schema file. In the same change, update:
    `_DURATION`, `_CHOICE`, `_HEX`, `_HEX_OR`, `_DIGEST`) plus `.required`,
    `.repeatable`, `.depends_on`, `.depends_on_all`, `.conflicts_with`,
    `.group` (all-or-none) and `.default_text` (validated at startup, returned
-   by the typed accessors: never repeat a default in the handler); a command
+   by the typed accessors: never repeat a default in the handler;
+   `MAELYS_CLI_DEFAULT_OF(LIB_CONSTANT)` when the library owns the value); a command
    this build cannot provide declares `.unavailable = "reason"`;
 2. the output schema: a JSON Schema file under the project's schema
    directory, embedded by `maelys-cli-embed` and referenced with
