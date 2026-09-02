@@ -129,15 +129,19 @@ summary, minimum, maximum)`, `MAELYS_CLI_INTEGER(...)`,
 `MAELYS_CLI_SIZE(...)`, `MAELYS_CLI_DURATION(...)`,
 `MAELYS_CLI_CHOICE(name, summary, choices)`, `MAELYS_CLI_HEX(name, VALUE,
 summary, digits)`, `MAELYS_CLI_HEX_OR(name, VALUE, summary, digits,
-alternative)`. A maximum of `0` means unbounded. Operand macros:
+alternative)`, `MAELYS_CLI_ABSOLUTE_PATH(name, VALUE, summary)`,
+`MAELYS_CLI_DIGEST(name, VALUE, summary, algorithms)` (`sha256:HEX`;
+algorithms among `sha1`, `sha256`, `sha384`, `sha512`). A maximum of `0` means unbounded. Operand macros:
 `MAELYS_CLI_OPERAND`, `MAELYS_CLI_OPERAND_OPTIONAL`,
 `MAELYS_CLI_OPERAND_REST` (absorbs everything, including after `--`).
 Extra command attributes: `.synopsis` (override), `.hidden`.
 
 Value kinds: `NONE` (flag, accepts `--flag=false`), `STRING`, `INTEGER`,
 `UNSIGNED`, `SIZE` (K/M/G/T), `DURATION` (unit required: ms, s, m, h, d;
-delivered in milliseconds), `PATH`, `CHOICE`, `HEX`. A transaction must
-declare `MAELYS_CLI_APPLY_OPTION`.
+delivered in milliseconds), `PATH` (non-empty), `ABSOLUTE_PATH`, `CHOICE`,
+`HEX`, `DIGEST`. Prefer `ABSOLUTE_PATH` and `DIGEST` over re-validating a
+`STRING` in the handler. A transaction must declare
+`MAELYS_CLI_APPLY_OPTION`.
 
 ### Implement the handler
 
@@ -174,7 +178,16 @@ Handler rules:
   validated kinds, ranges, choices, duplicates, dependencies and arity;
 - reply exactly once: `maelys_cli_succeed()` / `maelys_cli_succeed_writer()`,
   `maelys_cli_emit_record()` then `maelys_cli_finish_records()`, or
-  `maelys_cli_fail()` / `maelys_cli_fail_errno()` / `maelys_cli_fail_error()`;
+  `maelys_cli_fail()` / `maelys_cli_fail_errno()` / `maelys_cli_fail_error()`.
+  A helper that may reply returns the exit code and the caller checks
+  `maelys_cli_replied(context)` before replying itself:
+
+  ```c
+  int result = load_inputs(context, &inputs);   /* may call maelys_cli_fail */
+  if (maelys_cli_replied(context)) return result;
+  ```
+- locate optional helper programs with `maelys_cli_resolve_helper()`
+  (same search order as delegates); `context->executable` is `argv[0]`;
 - return the value of that call; a `STREAM` handler returns the process exit
   code directly and writes nothing else to stdout;
 - validate in causal order: option presence, file type and permissions

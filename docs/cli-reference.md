@@ -4,7 +4,7 @@
 Common contract: `agent-cli/v2`. For the machine-readable detail run
 `PROGRAM describe COMMAND_ID --format json`.
 
-## `maelys` (Maelys CLI 0.1.0)
+## `maelys` (Maelys CLI 0.2.0)
 
 | Identifier | Usage | Effect | Output | Purpose |
 | --- | --- | --- | --- | --- |

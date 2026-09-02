@@ -32,10 +32,13 @@ typedef struct maelys_cli_parsed_option {
     size_t choice_index;        /* CHOICE */
 } maelys_cli_parsed_option_t;
 
+#define MAELYS_CLI_MAX_ERROR_MESSAGE 4096u
+#define MAELYS_CLI_MAX_ERROR_HINT 1024u
+
 typedef struct maelys_cli_error {
     char code[32];
-    char message[1024];
-    char hint[512];
+    char message[MAELYS_CLI_MAX_ERROR_MESSAGE];
+    char hint[MAELYS_CLI_MAX_ERROR_HINT];
 } maelys_cli_error_t;
 
 /* Stable error codes shared by every Maelys CLI. */

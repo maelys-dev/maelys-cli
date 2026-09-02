@@ -2,12 +2,17 @@
 
 #include <maelys/cli.h>
 
+#include <errno.h>
 #include <stdlib.h>
 #include <string.h>
 
 /* ---- fixture catalog ------------------------------------------------------- */
 
 static const char *const levels[] = {"low", "high", NULL};
+static const char *const digest_algorithms[] = {"sha256", "sha1", NULL};
+static size_t last_digest_algorithm;
+static int helper_lookup_result;
+static int helper_lookup_errno;
 static const maelys_cli_operand_t make_operands[] = {
     {MAELYS_CLI_OPERAND("ROOT", "Root.")},
     {MAELYS_CLI_OPERAND("NAME", "Name.")},
@@ -20,6 +25,8 @@ static const maelys_cli_option_t make_options[] = {
     {MAELYS_CLI_INTEGER("offset", "N", "Offset.", -10, 10)},
     {MAELYS_CLI_STRING("tag", "TEXT", "Tag."), .repeatable = 1},
     {MAELYS_CLI_HEX_OR("oid", "OID", "Object id.", 4u, 8u)},
+    {MAELYS_CLI_ABSOLUTE_PATH("store", "DIR", "Store directory.")},
+    {MAELYS_CLI_DIGEST("digest", NULL, "Pinned digest.", digest_algorithms)},
     {MAELYS_CLI_FLAG("strict", "Strict."), .depends_on = "git"},
     {MAELYS_CLI_FLAG("lenient", "Lenient."), .conflicts_with = "strict"},
     MAELYS_CLI_APPLY_OPTION,
@@ -36,6 +43,12 @@ static int command_make(maelys_cli_context_t *context) {
     (void)maelys_cli_option_unsigned(context, "wait", &last_wait);
     (void)maelys_cli_option_integer(context, "offset", &last_offset);
     (void)maelys_cli_option_choice(context, "level", &last_level);
+    last_digest_algorithm = 99u;
+    (void)maelys_cli_option_choice(context, "digest", &last_digest_algorithm);
+    char helper[1024];
+    helper_lookup_result = maelys_cli_resolve_helper(context,
+        "maelys-test-absent-helper", helper, sizeof(helper));
+    helper_lookup_errno = errno;
     maelys_cli_json_writer_t data;
     maelys_cli_json_writer_init(&data);
     (void)maelys_cli_json_begin_object(&data);
@@ -76,6 +89,24 @@ static int command_fail(maelys_cli_context_t *context) {
     return maelys_cli_fail(context, MAELYS_CLI_CODE_NOT_FOUND, "Create it.", "Missing %s.", "thing");
 }
 
+static int helper_may_fail(maelys_cli_context_t *context, int fail) {
+    if (fail) return maelys_cli_fail(context, MAELYS_CLI_CODE_NOT_FOUND,
+        "Create it.", "Helper failed.");
+    return MAELYS_CLI_EXIT_OK;
+}
+
+static int command_delegating(maelys_cli_context_t *context) {
+    int fail = maelys_cli_flag(context, "fail");
+    int result = helper_may_fail(context, fail);
+    if (maelys_cli_replied(context)) return result;
+    return maelys_cli_succeed(context, "{\"helper\":true}", "helper ok",
+        MAELYS_CLI_EXIT_OK);
+}
+
+static const maelys_cli_option_t delegating_options[] = {
+    {MAELYS_CLI_FLAG("fail", "Make the helper fail.")},
+};
+
 static int command_silent(maelys_cli_context_t *context) {
     (void)context;
     return 0;
@@ -93,6 +124,8 @@ static const maelys_cli_command_t commands[] = {
      MAELYS_CLI_OPERANDS(rest_operands)},
     {MAELYS_CLI_RECORDS("records", "records", "Records.", command_records)},
     {MAELYS_CLI_READ("report", "report", "Report.", command_report)},
+    {MAELYS_CLI_READ("delegating", "delegating", "Delegating.", command_delegating),
+     MAELYS_CLI_OPTIONS(delegating_options), .hidden = 1},
     {MAELYS_CLI_READ("fail", "fail", "Fail.", command_fail), .hidden = 1},
     {MAELYS_CLI_READ("silent", "silent", "Silent.", command_silent), .hidden = 1},
     {MAELYS_CLI_READ("badjson", "badjson", "Bad JSON.", command_bad_json),
@@ -184,6 +217,9 @@ static int test_describe(void) {
     CHECK(strstr(result.out, "\"choices\":[\"low\",\"high\"]") && strstr(result.out, "\"default\":\"low\""));
     CHECK(strstr(result.out, "\"minimum\":-10,\"maximum\":10"));
     CHECK(strstr(result.out, "\"digits\":4,\"alternativeDigits\":8"));
+    CHECK(strstr(result.out, "\"type\":\"absolute-path\""));
+    CHECK(strstr(result.out, "\"type\":\"digest\",\"algorithms\":[\"sha256\",\"sha1\"]"));
+    CHECK(strstr(result.out, "[--digest ALGORITHM:HEX]"));
     release(&result);
     result = RUNV("describe", "exec", "--json", "--compact");
     CHECK(result.code == 0 && strstr(result.out, "\"outputMode\":\"protocol-stream\",\"protocol\":\"test-jsonl\""));
@@ -211,6 +247,11 @@ static int test_parsing_success(void) {
     release(&result);
     result = RUNV("thing", "make", "/root", "name", "--oid", "0123abcd", "--json", "--compact");
     CHECK(result.code == 0 && !result.err[0]);
+    release(&result);
+    result = RUNV("thing", "make", "/root", "name", "--store", "/var/store",
+        "--digest", "sha1:0123456789abcdef0123456789abcdef01234567");
+    CHECK(result.code == 0 && last_digest_algorithm == 1u);
+    CHECK(helper_lookup_result == -1 && helper_lookup_errno == ENOENT);
     release(&result);
     result = RUNV("thing", "make", "/root", "name", "--apply", "--strict", "--git", "/g");
     CHECK(result.code == 0 && strcmp(result.out, "made\n") == 0 && !last_memory_present);
@@ -255,6 +296,12 @@ static int test_parsing_failures(void) {
     CHECK(expect_failure(&result, "[VALIDATION_FAILED]", "between -10 and 10"));
     result = RUNV("thing", "make", "/root", "name", "--oid", "abcde");
     CHECK(expect_failure(&result, "[VALIDATION_FAILED]", "expects 4 or 8 lowercase"));
+    result = RUNV("thing", "make", "/root", "name", "--store", "relative/dir");
+    CHECK(expect_failure(&result, "[VALIDATION_FAILED]", "expects an absolute path"));
+    result = RUNV("thing", "make", "/root", "name", "--digest", "md5:abcd");
+    CHECK(expect_failure(&result, "[VALIDATION_FAILED]", "sha256:64, sha1:40"));
+    result = RUNV("thing", "make", "/root", "name", "--digest", "sha256:abcd");
+    CHECK(expect_failure(&result, "[VALIDATION_FAILED]", "ALGORITHM:HEX"));
     result = RUNV("thing", "make", "/root", "name", "--level", "medium");
     CHECK(expect_failure(&result, "[VALIDATION_FAILED]", "one of: low, high"));
     result = RUNV("thing", "make", "/root", "name", "--apply=maybe");
@@ -308,6 +355,12 @@ static int test_stream_records_and_codes(void) {
     release(&result);
     result = RUNV("fail");
     CHECK(result.code == 1 && strcmp(result.err, "prog: [NOT_FOUND] Missing thing.\nHint: Create it.\n") == 0);
+    release(&result);
+    result = RUNV("delegating");
+    CHECK(result.code == 0 && strcmp(result.out, "helper ok\n") == 0);
+    release(&result);
+    result = RUNV("delegating", "--fail");
+    CHECK(result.code == 1 && !result.out[0] && strstr(result.err, "Helper failed."));
     release(&result);
     result = RUNV("silent");
     CHECK(result.code == 1 && strstr(result.err, "[UNEXPECTED]") && strstr(result.err, "without reporting"));

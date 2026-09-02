@@ -485,7 +485,7 @@
         }
       ],
       "contract": "agent-cli/v2",
-      "framework": "0.1.0",
+      "framework": "0.2.0",
       "globalOptions": [
         {
           "argument": {
@@ -583,7 +583,7 @@
       "product": "Maelys CLI",
       "program": "maelys",
       "schemaVersion": 1,
-      "version": "0.1.0"
+      "version": "0.2.0"
     },
     "maelys-hello": {
       "cliApi": 1,
@@ -1360,7 +1360,7 @@
         }
       ],
       "contract": "agent-cli/v2",
-      "framework": "0.1.0",
+      "framework": "0.2.0",
       "globalOptions": [
         {
           "argument": {

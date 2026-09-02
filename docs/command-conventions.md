@@ -39,13 +39,18 @@ apply` (or `commit`) and exposes `{"plan":"preview","apply":"apply"}`.
 Without `--apply` it returns `mode: "plan"` and writes nothing. With
 `--apply` it re-validates its preconditions and returns `mode: "apply"`.
 `--dry-run` and `--plan` are refused with `VALIDATION_FAILED` and the
-migration hint.
+migration hint, only on commands that declare `--apply`; a product without
+transactions is not affected. The refusal is deliberate: accepting a
+`--dry-run` alias would let two spellings of the same intent coexist across
+products, which is exactly what the shared contract exists to prevent.
 
 ## Inputs
 
 Value kinds: `boolean` (flag, `--flag=false` accepted), `string`,
 `integer`, `unsigned`, `size` (K/M/G/T), `duration` (unit required: ms, s,
-m, h, d; delivered in milliseconds), `path`, `choice`, `hex`. Ranges,
+m, h, d; delivered in milliseconds), `path` (non-empty), `absolute-path`
+(starts with `/`), `choice`, `hex`, `digest` (`ALGORITHM:HEX` with the
+algorithm among the declared `algorithms` and the length implied by it). Ranges,
 choices and digit counts are declared in the catalog and enforced by the
 parser before the handler runs. A `hex` option may accept two lengths
 (`MAELYS_CLI_HEX_OR`, for SHA-1 or SHA-256 object identifiers).

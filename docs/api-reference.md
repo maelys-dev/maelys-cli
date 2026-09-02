@@ -122,7 +122,8 @@ and the agent guide.
 
 | Function | Contract |
 | --- | --- |
-| `const char *maelys_cli_value_kind_name(maelys_cli_value_kind_t)` | `boolean`, `string`, `integer`, `unsigned`, `size`, `duration`, `path`, `choice`, `hex`. |
+| `const char *maelys_cli_value_kind_name(maelys_cli_value_kind_t)` | `boolean`, `string`, `integer`, `unsigned`, `size`, `duration`, `path`, `choice`, `hex`, `absolute-path`, `digest`. |
+| `size_t maelys_cli_digest_hex_digits(const char *algorithm)` | 40 for `sha1`, 64 for `sha256`, 96 for `sha384`, 128 for `sha512`, 0 otherwise. Used by the `digest` kind (`ALGORITHM:HEX`). |
 | `const char *maelys_cli_effect_name(maelys_cli_effect_t)` | `none`, `read`, `preview`, `apply`, `commit`, `execute`, `stream`. |
 | `const char *maelys_cli_output_mode_name(maelys_cli_output_mode_t)` | `json-envelope`, `json-records`, `protocol-stream`. |
 | `int maelys_cli_command_synopsis(const maelys_cli_command_t *command, char *out, size_t size)` | Explicit `synopsis` when set, otherwise `pattern OPERAND [OPTIONAL] [REST...] [--option VALUE] --required VALUE [--repeatable TEXT...]`; choices without a `value_name` render as `a|b`. `-1` when truncated. |
@@ -131,7 +132,7 @@ and the agent guide.
 
 | Function | Contract |
 | --- | --- |
-| `void maelys_cli_error_set(maelys_cli_error_t *error, const char *code, const char *hint, const char *format, ...)` | Fills code (default `UNEXPECTED`), optional hint and a formatted message. |
+| `void maelys_cli_error_set(maelys_cli_error_t *error, const char *code, const char *hint, const char *format, ...)` | Fills code (default `UNEXPECTED`), optional hint and a formatted message; messages hold up to `MAELYS_CLI_MAX_ERROR_MESSAGE` (4096) bytes and hints `MAELYS_CLI_MAX_ERROR_HINT` (1024). |
 | `void maelys_cli_error_from_errno(maelys_cli_error_t *error, const char *code, int saved_errno, const char *what)` | Message `what: strerror(errno)` with a generic hint. |
 | `int maelys_cli_parse(const maelys_cli_app_t *app, int argc, char **argv, maelys_cli_invocation_t *out, maelys_cli_error_t *error)` | Resolves the command (built-ins first, longest pattern wins; `--help`/`-h` and `--version` map to `help` and `version`), then validates in causal order: option spelling and support, duplicates, value kind and range, `depends_on`/`conflicts_with`, required options, operand arity, stream rendering flags, `jsonl` availability. Delegate commands collect everything after the pattern as operands. `--` ends option parsing. `--help` after a command sets `help_requested` and skips the remaining validation. |
 | `const char *maelys_cli_invocation_operand(const maelys_cli_invocation_t *inv, size_t index)` | Operand or `NULL`. |
@@ -156,9 +157,11 @@ Handler accessors (all read the validated invocation):
 | `const char *maelys_cli_operand(const maelys_cli_context_t *ctx, size_t index)` / `size_t maelys_cli_operand_count(ctx)` | Operands. |
 | `const char *maelys_cli_option(ctx, const char *name)` / `maelys_cli_option_or(ctx, name, fallback)` | Raw value of the first occurrence, or `NULL` / fallback. |
 | `int maelys_cli_flag(ctx, name)` | `1` when a flag is enabled (`--flag`, `--flag=true`), else `0`. |
-| `int maelys_cli_option_unsigned(ctx, name, uint64_t *out)` / `maelys_cli_option_integer(ctx, name, int64_t *out)` / `maelys_cli_option_choice(ctx, name, size_t *out_index)` | `1` and the typed value when present, `0` otherwise. Unsigned covers `UNSIGNED`, `SIZE` and `DURATION` (milliseconds). |
+| `int maelys_cli_option_unsigned(ctx, name, uint64_t *out)` / `maelys_cli_option_integer(ctx, name, int64_t *out)` / `maelys_cli_option_choice(ctx, name, size_t *out_index)` | `1` and the typed value when present, `0` otherwise. Unsigned covers `UNSIGNED`, `SIZE` and `DURATION` (milliseconds); the choice index of a `DIGEST` option is the index of its algorithm. |
 | `size_t maelys_cli_option_count(ctx, name)` / `const char *maelys_cli_option_at(ctx, name, occurrence)` | Repeatable options. |
 | `int maelys_cli_json_mode(ctx)` / `maelys_cli_non_interactive(ctx)` | Rendering flags. |
+| `int maelys_cli_replied(ctx)` | `1` once success, records or failure has been emitted. A helper that may reply returns the exit code; the caller tests this before replying itself. |
+| `int maelys_cli_resolve_helper(ctx, const char *name, char *out_path, size_t out_size)` | Trusted helper lookup with the delegate order: beside the running executable (`ctx->executable`, then the recorded `argv[0]`), `../libexec/PROGRAM`, `../libexec`, then `helper_directories`. `ENOENT` when absent. |
 
 Replies (exactly one per handler; a second call is ignored and returns the given code):
 

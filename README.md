@@ -145,7 +145,8 @@ Command macros: `MAELYS_CLI_READ`, `MAELYS_CLI_RECORDS`,
 `MAELYS_CLI_TRANSACTION` (preview, then apply with `--apply`),
 `MAELYS_CLI_COMMIT_TRANSACTION`, `MAELYS_CLI_EXECUTE`, `MAELYS_CLI_STREAM`,
 `MAELYS_CLI_EXTERNAL`. Option macros: `MAELYS_CLI_FLAG`, `_STRING`, `_PATH`,
-`_UNSIGNED`, `_INTEGER`, `_SIZE`, `_DURATION`, `_CHOICE`, `_HEX`; attributes
+`_ABSOLUTE_PATH`, `_UNSIGNED`, `_INTEGER`, `_SIZE`, `_DURATION`, `_CHOICE`,
+`_HEX`, `_HEX_OR`, `_DIGEST` (`sha256:HEX`); attributes
 `.required`, `.repeatable`, `.depends_on`, `.conflicts_with`, `.default_text`
 follow the macro. Operands: `MAELYS_CLI_OPERAND`, `_OPERAND_OPTIONAL`,
 `_OPERAND_REST`.

@@ -14,8 +14,19 @@ const char *maelys_cli_value_kind_name(maelys_cli_value_kind_t kind) {
         case MAELYS_CLI_VALUE_PATH: return "path";
         case MAELYS_CLI_VALUE_CHOICE: return "choice";
         case MAELYS_CLI_VALUE_HEX: return "hex";
+        case MAELYS_CLI_VALUE_ABSOLUTE_PATH: return "absolute-path";
+        case MAELYS_CLI_VALUE_DIGEST: return "digest";
     }
     return "unknown";
+}
+
+size_t maelys_cli_digest_hex_digits(const char *algorithm) {
+    if (!algorithm) return 0u;
+    if (!strcmp(algorithm, "sha1")) return 40u;
+    if (!strcmp(algorithm, "sha256")) return 64u;
+    if (!strcmp(algorithm, "sha384")) return 96u;
+    if (!strcmp(algorithm, "sha512")) return 128u;
+    return 0u;
 }
 
 const char *maelys_cli_effect_name(maelys_cli_effect_t effect) {
@@ -86,7 +97,9 @@ int maelys_cli_command_synopsis(
         put(&sink, option->name);
         if (option->kind != MAELYS_CLI_VALUE_NONE) {
             put(&sink, " ");
-            if (option->kind == MAELYS_CLI_VALUE_CHOICE && option->choices &&
+            if (option->kind == MAELYS_CLI_VALUE_DIGEST && !option->value_name) {
+                put(&sink, "ALGORITHM:HEX");
+            } else if (option->kind == MAELYS_CLI_VALUE_CHOICE && option->choices &&
                 !option->value_name) {
                 for (size_t j = 0u; option->choices[j]; ++j) {
                     if (j) put(&sink, "|");

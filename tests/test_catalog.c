@@ -132,6 +132,19 @@ static int test_validation(void) {
     command.option_count = 1u;
     CHECK(!validate(&command));
 
+    static const char *const unknown_algorithms[] = {"md5", NULL};
+    static const maelys_cli_option_t bad_digest[] = {
+        {MAELYS_CLI_DIGEST("digest", NULL, "Digest.", unknown_algorithms)},
+    };
+    command = good_command();
+    command.apply_effect = MAELYS_CLI_EFFECT_NONE;
+    command.effect = MAELYS_CLI_EFFECT_READ;
+    command.options = bad_digest;
+    command.option_count = 1u;
+    CHECK(!validate(&command));
+    CHECK(maelys_cli_digest_hex_digits("sha512") == 128u);
+    CHECK(maelys_cli_digest_hex_digits("md5") == 0u);
+
     static const maelys_cli_operand_t bad_order[] = {
         {MAELYS_CLI_OPERAND_OPTIONAL("A", "Optional first.")},
         {MAELYS_CLI_OPERAND("B", "Required after optional.")},

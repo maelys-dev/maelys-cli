@@ -45,6 +45,7 @@ typedef struct maelys_cli_context {
     FILE *out;
     FILE *err;
     void *user_data;
+    const char *executable;  /* argv[0] as received by maelys_cli_main, or NULL */
     /* private */
     maelys_cli_json_writer_t records;
     size_t record_count;
@@ -88,6 +89,18 @@ const char *maelys_cli_option_at(
     const maelys_cli_context_t *context, const char *name, size_t occurrence);
 int maelys_cli_json_mode(const maelys_cli_context_t *context);
 int maelys_cli_non_interactive(const maelys_cli_context_t *context);
+
+/* 1 once a reply (success, records or failure) has been emitted. Helpers
+ * that may reply return the exit code; callers test this before replying
+ * themselves. */
+int maelys_cli_replied(const maelys_cli_context_t *context);
+
+/* Finds a trusted helper executable by name using the delegate search order:
+ * beside the running executable, ../libexec/PROGRAM, ../libexec, then the
+ * application's helper_directories. Returns -1 with errno ENOENT. */
+int maelys_cli_resolve_helper(
+    const maelys_cli_context_t *context, const char *name, char *out_path,
+    size_t out_size);
 
 /* Emits success data. data_json is a JSON object (validated) or NULL for
  * {}. human is printed in text mode; NULL prints the indented data instead.

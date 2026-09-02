@@ -22,7 +22,9 @@ typedef enum maelys_cli_value_kind {
     MAELYS_CLI_VALUE_DURATION, /* ms/s/m/h/d suffix required; milliseconds */
     MAELYS_CLI_VALUE_PATH,     /* non-empty filesystem path */
     MAELYS_CLI_VALUE_CHOICE,   /* one of `choices` */
-    MAELYS_CLI_VALUE_HEX       /* lowercase hex of `hex_digits` digits */
+    MAELYS_CLI_VALUE_HEX,      /* lowercase hex of `hex_digits` digits */
+    MAELYS_CLI_VALUE_ABSOLUTE_PATH, /* path starting with '/' */
+    MAELYS_CLI_VALUE_DIGEST    /* ALGORITHM:HEX, algorithm in `choices` */
 } maelys_cli_value_kind_t;
 
 typedef enum maelys_cli_effect {
@@ -149,7 +151,16 @@ typedef struct maelys_cli_command {
 #define MAELYS_CLI_HEX(name_, value_, summary_, digits_) \
     .name = (name_), .kind = MAELYS_CLI_VALUE_HEX, .value_name = (value_), \
     .summary = (summary_), .hex_digits = (digits_)
-/* Hexadecimal accepting either of two lengths, e.g. SHA-1 or SHA-256 OIDs. */
+#define MAELYS_CLI_ABSOLUTE_PATH(name_, value_, summary_) \
+    .name = (name_), .kind = MAELYS_CLI_VALUE_ABSOLUTE_PATH, \
+    .value_name = (value_), .summary = (summary_)
+/* Prefixed digest such as sha256:HEX. algorithms_ is a NULL-terminated list
+ * of accepted names among sha1, sha256, sha384 and sha512; the hexadecimal
+ * length is implied by the algorithm. */
+#define MAELYS_CLI_DIGEST(name_, value_, summary_, algorithms_) \
+    .name = (name_), .kind = MAELYS_CLI_VALUE_DIGEST, .value_name = (value_), \
+    .summary = (summary_), .choices = (algorithms_)
+/* Hexadecimal accepting either of two lengths (any two, e.g. 40 and 64). */
 #define MAELYS_CLI_HEX_OR(name_, value_, summary_, digits_, alternative_) \
     .name = (name_), .kind = MAELYS_CLI_VALUE_HEX, .value_name = (value_), \
     .summary = (summary_), .hex_digits = (digits_), \
@@ -201,6 +212,9 @@ typedef struct maelys_cli_command {
 #define MAELYS_CLI_SCHEMA(symbol_) .output_schema_json = (symbol_)
 
 const char *maelys_cli_value_kind_name(maelys_cli_value_kind_t kind);
+
+/* Hexadecimal digit count of a digest algorithm name, 0 when unknown. */
+size_t maelys_cli_digest_hex_digits(const char *algorithm);
 const char *maelys_cli_effect_name(maelys_cli_effect_t effect);
 const char *maelys_cli_output_mode_name(maelys_cli_output_mode_t mode);
 

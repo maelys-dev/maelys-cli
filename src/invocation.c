@@ -143,6 +143,47 @@ static int validate_value(
     switch (option->kind) {
         case MAELYS_CLI_VALUE_NONE:
             return 0;
+        case MAELYS_CLI_VALUE_ABSOLUTE_PATH:
+            if (value[0] != '/') {
+                maelys_cli_error_set(error, MAELYS_CLI_CODE_VALIDATION_FAILED,
+                    hint, "Option --%s expects an absolute path.", option->name);
+                return -1;
+            }
+            return 0;
+        case MAELYS_CLI_VALUE_DIGEST: {
+            const char *colon = strchr(value, ':');
+            size_t algorithm_length = colon ? (size_t)(colon - value) : 0u;
+            size_t index = 0u;
+            size_t digits = 0u;
+            for (; option->choices && option->choices[index]; ++index) {
+                if (strlen(option->choices[index]) == algorithm_length &&
+                    memcmp(option->choices[index], value, algorithm_length) == 0) {
+                    digits = maelys_cli_digest_hex_digits(option->choices[index]);
+                    break;
+                }
+            }
+            if (!colon || digits == 0u ||
+                maelys_cli_parse_hex(colon + 1, digits) != 0) {
+                char allowed[256];
+                size_t used = 0u;
+                allowed[0] = '\0';
+                for (size_t i = 0u; option->choices && option->choices[i]; ++i) {
+                    int written = snprintf(allowed + used,
+                        sizeof(allowed) - used, "%s%s:%zu", i ? ", " : "",
+                        option->choices[i],
+                        maelys_cli_digest_hex_digits(option->choices[i]));
+                    if (written < 0 || (size_t)written >= sizeof(allowed) - used)
+                        break;
+                    used += (size_t)written;
+                }
+                maelys_cli_error_set(error, MAELYS_CLI_CODE_VALIDATION_FAILED,
+                    hint, "Option --%s expects ALGORITHM:HEX with lowercase "
+                    "hexadecimal digits (%s).", option->name, allowed);
+                return -1;
+            }
+            parsed->choice_index = index;
+            return 0;
+        }
         case MAELYS_CLI_VALUE_STRING:
         case MAELYS_CLI_VALUE_PATH:
             if (!*value) {

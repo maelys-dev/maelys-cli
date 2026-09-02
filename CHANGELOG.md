@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.2.0 - 2026-09-02
+
+Feedback from the first migrations (Maelys Git, Warden, Egress):
+
+- New value kinds `absolute-path` (`MAELYS_CLI_ABSOLUTE_PATH`) and `digest`
+  (`MAELYS_CLI_DIGEST`, `ALGORITHM:HEX` with the length implied by the
+  algorithm), so handlers no longer re-validate strings.
+- `maelys_cli_replied()` exposes the reply state for helpers that may reply;
+  the guide documents the pattern.
+- `maelys_cli_resolve_helper()` and `context->executable` expose the
+  delegate search order and `argv[0]` to handlers.
+- Error messages grow to 4096 bytes and hints to 1024
+  (`MAELYS_CLI_MAX_ERROR_MESSAGE`, `MAELYS_CLI_MAX_ERROR_HINT`).
+- Documented that `--dry-run`/`--plan` are refused only on commands that
+  declare `--apply`.
+
 ## 0.1.0 - 2026-09-02
 
 - Licensing: framework code under MPL-2.0; agent texts and product

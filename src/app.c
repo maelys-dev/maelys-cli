@@ -214,7 +214,9 @@ static int validate_command(
                 return -1;
             }
         }
-        if (option->kind > MAELYS_CLI_VALUE_HEX ||
+        if (option->kind > MAELYS_CLI_VALUE_DIGEST ||
+            (option->kind == MAELYS_CLI_VALUE_DIGEST &&
+             (!option->choices || !option->choices[0])) ||
             (option->kind == MAELYS_CLI_VALUE_CHOICE &&
              (!option->choices || !option->choices[0])) ||
             (option->kind == MAELYS_CLI_VALUE_HEX && option->hex_digits == 0u) ||
@@ -228,6 +230,15 @@ static int validate_command(
                 "Catalog command '%s' option --%s has an invalid value "
                 "declaration.", id, option->name);
             return -1;
+        }
+        for (size_t a = 0u; option->kind == MAELYS_CLI_VALUE_DIGEST &&
+             option->choices[a]; ++a) {
+            if (maelys_cli_digest_hex_digits(option->choices[a]) == 0u) {
+                maelys_cli_error_set(error, MAELYS_CLI_CODE_UNEXPECTED, hint,
+                    "Catalog command '%s' option --%s names unknown digest "
+                    "algorithm '%s'.", id, option->name, option->choices[a]);
+                return -1;
+            }
         }
         const char *references[2] = {option->depends_on, option->conflicts_with};
         for (size_t r = 0u; r < 2u; ++r) {
@@ -364,6 +375,10 @@ int maelys_cli_json_mode(const maelys_cli_context_t *context) {
 
 int maelys_cli_non_interactive(const maelys_cli_context_t *context) {
     return context && context->invocation && context->invocation->non_interactive;
+}
+
+int maelys_cli_replied(const maelys_cli_context_t *context) {
+    return context ? context->replied : 0;
 }
 
 /* ---- rendering --------------------------------------------------------- */
@@ -689,6 +704,15 @@ static int describe_option(
             maelys_cli_json_key_string(writer, "type",
                 maelys_cli_value_kind_name(option->kind)) != 0)
             return -1;
+        if (option->kind == MAELYS_CLI_VALUE_DIGEST && option->choices) {
+            if (maelys_cli_json_key(writer, "algorithms") != 0 ||
+                maelys_cli_json_begin_array(writer) != 0)
+                return -1;
+            for (size_t i = 0u; option->choices[i]; ++i)
+                if (maelys_cli_json_string(writer, option->choices[i]) != 0)
+                    return -1;
+            if (maelys_cli_json_end_array(writer) != 0) return -1;
+        }
         if (option->kind == MAELYS_CLI_VALUE_CHOICE && option->choices) {
             if (maelys_cli_json_key(writer, "choices") != 0 ||
                 maelys_cli_json_begin_array(writer) != 0)
@@ -1137,6 +1161,36 @@ static int builtin_version(maelys_cli_context_t *context) {
 
 /* ---- delegation ------------------------------------------------------------ */
 
+int maelys_cli_resolve_helper(
+    const maelys_cli_context_t *context, const char *name, char *out_path,
+    size_t out_size) {
+    if (!context || !context->app || !name || !out_path) {
+        errno = EINVAL;
+        return -1;
+    }
+    char executable_directory[PATH_MAX];
+    char libexec_program[PATH_MAX];
+    char libexec[PATH_MAX];
+    const char *directories[3 + 16];
+    size_t count = 0u;
+    const char *argv0 = context->executable ? context->executable : maelys_cli_argv0;
+    if (maelys_cli_executable_directory(argv0, executable_directory,
+            sizeof(executable_directory)) == 0) {
+        directories[count++] = executable_directory;
+        int written = snprintf(libexec_program, sizeof(libexec_program),
+            "%s/../libexec/%s", executable_directory, context->app->program);
+        if (written > 0 && (size_t)written < sizeof(libexec_program))
+            directories[count++] = libexec_program;
+        written = snprintf(libexec, sizeof(libexec), "%s/../libexec",
+            executable_directory);
+        if (written > 0 && (size_t)written < sizeof(libexec))
+            directories[count++] = libexec;
+    }
+    for (size_t i = 0u; i < context->app->helper_directory_count && count < 19u; ++i)
+        directories[count++] = context->app->helper_directories[i];
+    return maelys_cli_process_resolve(name, directories, count, out_path, out_size);
+}
+
 static int resolve_delegate(
     maelys_cli_context_t *context, const maelys_cli_command_t *command,
     char *out_path, size_t out_size) {
@@ -1154,27 +1208,7 @@ static int resolve_delegate(
         memcpy(out_path, delegate, strlen(delegate) + 1u);
         return 0;
     }
-    char executable_directory[PATH_MAX];
-    char libexec_program[PATH_MAX];
-    char libexec[PATH_MAX];
-    const char *directories[3 + 16];
-    size_t count = 0u;
-    if (maelys_cli_executable_directory(maelys_cli_argv0, executable_directory,
-            sizeof(executable_directory)) == 0) {
-        directories[count++] = executable_directory;
-        int written = snprintf(libexec_program, sizeof(libexec_program),
-            "%s/../libexec/%s", executable_directory, context->app->program);
-        if (written > 0 && (size_t)written < sizeof(libexec_program))
-            directories[count++] = libexec_program;
-        written = snprintf(libexec, sizeof(libexec), "%s/../libexec",
-            executable_directory);
-        if (written > 0 && (size_t)written < sizeof(libexec))
-            directories[count++] = libexec;
-    }
-    for (size_t i = 0u; i < context->app->helper_directory_count && count < 19u; ++i)
-        directories[count++] = context->app->helper_directories[i];
-    if (maelys_cli_process_resolve(delegate, directories, count, out_path,
-            out_size) != 0) {
+    if (maelys_cli_resolve_helper(context, delegate, out_path, out_size) != 0) {
         (void)maelys_cli_fail(context, MAELYS_CLI_CODE_NOT_FOUND,
             "Install the optional component that provides this command.",
             "External command '%s' for '%s' is not installed.", delegate,
@@ -1247,6 +1281,7 @@ int maelys_cli_run(
     context.out = out ? out : stdout;
     context.err = err ? err : stderr;
     context.user_data = app ? app->user_data : NULL;
+    context.executable = maelys_cli_argv0;
     maelys_cli_json_writer_init(&context.records);
     if (maelys_cli_catalog_validate(app, &error) != 0) {
         maelys_cli_terminal_detect(&context.terminal, MAELYS_CLI_COLOR_AUTO);

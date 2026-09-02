@@ -1,9 +1,9 @@
 #ifndef MAELYS_CLI_VERSION_H
 #define MAELYS_CLI_VERSION_H
 
-#define MAELYS_CLI_VERSION "0.1.0"
+#define MAELYS_CLI_VERSION "0.2.0"
 #define MAELYS_CLI_VERSION_MAJOR 0
-#define MAELYS_CLI_VERSION_MINOR 1
+#define MAELYS_CLI_VERSION_MINOR 2
 #define MAELYS_CLI_VERSION_PATCH 0
 
 /* Link-level ABI generation of libmaelys_cli. */
