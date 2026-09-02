@@ -4,13 +4,15 @@
 Common contract: `agent-cli/v2`. For the machine-readable detail run
 `PROGRAM describe COMMAND_ID --format json`.
 
-## `maelys` (Maelys CLI 0.2.0)
+## `maelys` (Maelys CLI)
 
 | Identifier | Usage | Effect | Output | Purpose |
 | --- | --- | --- | --- | --- |
 | help | `help [COMMAND_ID] \| --help` | read | json-envelope | Show the generated CLI guide or one command's help. |
 | version | `version \| --version` | read | json-envelope | Return product identity. |
 | describe | `describe [COMMAND_ID] [--summary]` | read | json-envelope | Return the machine-readable catalog, summary or one descriptor. |
+| completion | `completion SHELL` | read | json-envelope | Print the shell completion script generated from the catalog. |
+| complete.candidates | `__complete [WORDS...]` | read | json-records | Return completion candidates for a partial command line. |
 | commands.list | `commands list` | read | json-records | List the external commands declared by installed manifests. |
 | agents.install | `agents install PROJECT_DIR [--client all\|claude\|codex] [--apply]` | preview then apply with --apply | json-envelope | Install or refresh the maelys-cli agent instructions of a project. |
 | agents.status | `agents status PROJECT_DIR [--client all\|claude\|codex]` | read | json-envelope | Report whether a project's maelys-cli agent instructions are current. |
@@ -25,13 +27,15 @@ Global options:
 - `--color auto|always|never`: Control ANSI colors on terminals.
 - `--help`: Show the help of the selected command.
 
-## `maelys-hello` (Maelys Hello 0.1.0)
+## `maelys-hello` (Maelys Hello)
 
 | Identifier | Usage | Effect | Output | Purpose |
 | --- | --- | --- | --- | --- |
 | help | `help [COMMAND_ID] \| --help` | read | json-envelope | Show the generated CLI guide or one command's help. |
 | version | `version \| --version` | read | json-envelope | Return product identity. |
 | describe | `describe [COMMAND_ID] [--summary]` | read | json-envelope | Return the machine-readable catalog, summary or one descriptor. |
+| completion | `completion SHELL` | read | json-envelope | Print the shell completion script generated from the catalog. |
+| complete.candidates | `__complete [WORDS...]` | read | json-records | Return completion candidates for a partial command line. |
 | greet | `greet NAME [--shout] [--times N]` | read | json-envelope | Greet someone. |
 | limits | `limits [--memory BYTES] [--wall-time DURATION] [--level low\|high] [--offset N] [--digest HEX] [--tag TEXT...] [--strict] [--lenient]` | read | json-envelope | Echo typed option values. |
 | note.write | `note write FILE --content TEXT [--replace] [--apply]` | preview then apply with --apply | json-envelope | Store a note in a file. |

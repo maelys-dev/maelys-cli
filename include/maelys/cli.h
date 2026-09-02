@@ -5,6 +5,10 @@
  * Umbrella header for libmaelys_cli, the shared Maelys command-line
  * framework. Every module is usable on its own; include the module header
  * directly when a program only needs one layer.
+ *
+ * Namespace: every identifier starting with maelys_cli_ or MAELYS_CLI_ is
+ * reserved for the framework. A product names its own catalog, handlers and
+ * helpers with its own prefix (maelys_git_cli_, maelys_egress_cli_, ...).
  */
 
 #include "maelys/cli/version.h"

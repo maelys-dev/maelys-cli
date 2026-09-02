@@ -173,7 +173,8 @@ static int test_names(void) {
     CHECK(strcmp(maelys_cli_output_mode_name(MAELYS_CLI_OUTPUT_STREAM), "protocol-stream") == 0);
     size_t count = 0u;
     const maelys_cli_command_t *builtins = maelys_cli_builtin_commands(&count);
-    CHECK(count == 3u && strcmp(builtins[0].id, "help") == 0);
+    CHECK(count == 5u && strcmp(builtins[0].id, "help") == 0);
+    CHECK(strcmp(builtins[3].id, "completion") == 0 && strcmp(builtins[4].id, "complete.candidates") == 0 && builtins[4].hidden);
     CHECK(strcmp(builtins[1].id, "version") == 0 && strcmp(builtins[2].id, "describe") == 0);
     return 1;
 }

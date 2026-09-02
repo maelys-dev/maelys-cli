@@ -61,6 +61,23 @@ static int command_make(maelys_cli_context_t *context) {
     return maelys_cli_succeed_writer(context, &data, "made", MAELYS_CLI_EXIT_OK);
 }
 
+static const char *const shells[] = {"bash", "zsh", NULL};
+static const maelys_cli_operand_t typed_operands[] = {
+    {MAELYS_CLI_OPERAND_CHOICE("SHELL", "Shell.", shells)},
+    {MAELYS_CLI_OPERAND_OPTIONAL("COUNT", "Count."),
+     .kind = MAELYS_CLI_VALUE_UNSIGNED, .minimum = 1u, .maximum = 9u},
+};
+static size_t last_shell;
+static uint64_t last_count;
+static int last_count_present;
+
+static int command_typed(maelys_cli_context_t *context) {
+    last_shell = 99u;
+    (void)maelys_cli_operand_choice(context, 0u, &last_shell);
+    last_count_present = maelys_cli_operand_unsigned(context, 1u, &last_count);
+    return maelys_cli_succeed(context, "{}", "typed", MAELYS_CLI_EXIT_OK);
+}
+
 static const maelys_cli_operand_t rest_operands[] = {
     {MAELYS_CLI_OPERAND("COMMAND", "Command.")},
     {MAELYS_CLI_OPERAND_REST("ARG", "Args.")},
@@ -124,6 +141,8 @@ static const maelys_cli_command_t commands[] = {
      MAELYS_CLI_OPERANDS(rest_operands)},
     {MAELYS_CLI_RECORDS("records", "records", "Records.", command_records)},
     {MAELYS_CLI_READ("report", "report", "Report.", command_report)},
+    {MAELYS_CLI_READ("typed", "typed", "Typed operands.", command_typed),
+     MAELYS_CLI_OPERANDS(typed_operands)},
     {MAELYS_CLI_READ("delegating", "delegating", "Delegating.", command_delegating),
      MAELYS_CLI_OPTIONS(delegating_options), .hidden = 1},
     {MAELYS_CLI_READ("fail", "fail", "Fail.", command_fail), .hidden = 1},
@@ -374,6 +393,94 @@ static int test_stream_records_and_codes(void) {
     return 1;
 }
 
+static int test_typed_operands_and_completion(void) {
+    run_result_t result = RUNV("typed", "zsh", "7");
+    CHECK(result.code == 0 && last_shell == 1u && last_count_present && last_count == 7u);
+    release(&result);
+    result = RUNV("typed", "bash");
+    CHECK(result.code == 0 && last_shell == 0u && !last_count_present);
+    release(&result);
+    result = RUNV("typed", "fish");
+    CHECK(expect_failure(&result, "[VALIDATION_FAILED]", "Operand SHELL expects one of: bash, zsh"));
+    result = RUNV("typed", "bash", "10");
+    CHECK(expect_failure(&result, "[VALIDATION_FAILED]", "Operand COUNT expects an unsigned integer between 1 and 9"));
+    result = RUNV("describe", "typed", "--json", "--compact");
+    CHECK(result.code == 0 && strstr(result.out, "\"name\":\"SHELL\",\"required\":true,\"variadic\":false,\"summary\":\"Shell.\",\"type\":\"choice\",\"choices\":[\"bash\",\"zsh\"]"));
+    CHECK(strstr(result.out, "\"name\":\"COUNT\"") && strstr(result.out, "\"type\":\"unsigned\",\"minimum\":1,\"maximum\":9"));
+    CHECK(!strstr(result.out, "globalOptions") && !strstr(result.out, "invariants"));
+    release(&result);
+    result = RUNV("describe", "--json", "--compact");
+    CHECK(result.code == 0 && strstr(result.out, "globalOptions") && strstr(result.out, "invariants"));
+    release(&result);
+
+    result = RUNV("completion", "bash");
+    CHECK(result.code == 0 && strstr(result.out, "complete -o filenames -F _prog_complete prog"));
+    CHECK(strstr(result.out, "\"prog\" __complete --"));
+    release(&result);
+    result = RUNV("completion", "fish", "--json", "--compact");
+    CHECK(result.code == 0 && strstr(result.out, "\"shell\":\"fish\",\"script\":\"# fish completion"));
+    release(&result);
+    result = RUNV("completion", "powershell");
+    CHECK(expect_failure(&result, "[VALIDATION_FAILED]", "Operand SHELL expects one of: bash, zsh, fish"));
+
+    result = RUNV("__complete", "--", "t");
+    CHECK(result.code == 0 && strcmp(result.out, "thing\ntyped\n") == 0);
+    release(&result);
+    result = RUNV("__complete", "--", "thing", "");
+    CHECK(result.code == 0 && strcmp(result.out, "make\n") == 0);
+    release(&result);
+    result = RUNV("__complete", "--", "thing", "make", "/r", "n", "--le");
+    CHECK(result.code == 0 && strcmp(result.out, "--level\n--lenient\n") == 0);
+    release(&result);
+    result = RUNV("__complete", "--", "thing", "make", "--level", "");
+    CHECK(result.code == 0 && strcmp(result.out, "low\nhigh\n") == 0);
+    release(&result);
+    result = RUNV("__complete", "--", "thing", "make", "--level=h");
+    CHECK(result.code == 0 && strcmp(result.out, "--level=high\n") == 0);
+    release(&result);
+    result = RUNV("__complete", "--", "thing", "make", "--digest", "");
+    CHECK(result.code == 0 && strcmp(result.out, "sha256:\nsha1:\n") == 0);
+    release(&result);
+    result = RUNV("__complete", "--", "typed", "z");
+    CHECK(result.code == 0 && strcmp(result.out, "zsh\n") == 0);
+    release(&result);
+    result = RUNV("__complete", "--", "thing", "make", "--git", "");
+    CHECK(result.code == 0 && result.out[0] == '\0'); /* files: shell fallback */
+    release(&result);
+    result = RUNV("__complete", "--", "exec", "x", "--");
+    CHECK(result.code == 0 && !strstr(result.out, "--format")); /* stream: no rendering flags */
+    release(&result);
+    /* Rendering options come before "--"; everything after is a word. */
+    result = RUNV("__complete", "--format", "json", "--compact", "--", "thing", "make", "--");
+    CHECK(result.code == 0 && strstr(result.out, "\"records\":[{\"word\":\"--git\"}"));
+    release(&result);
+    return 1;
+}
+
+static int test_environment_format(void) {
+    CHECK(setenv("MAELYS_CLI_FORMAT", "json", 1) == 0);
+    run_result_t result = RUNV("report");
+    CHECK(result.code == 2 && strstr(result.out, "\"command\":\"report\",\"ok\":true") == NULL);
+    CHECK(strstr(result.out, "\"ok\": true") != NULL); /* pretty JSON by default */
+    release(&result);
+    result = RUNV("exec", "cmd", "--", "x");
+    CHECK(result.code == 7 && strcmp(result.out, "2\n") == 0); /* stream stdout untouched */
+    release(&result);
+    result = RUNV("thing", "make");
+    CHECK(result.code == 1 && strstr(result.err, "\"code\": \"VALIDATION_FAILED\""));
+    release(&result);
+    result = RUNV("report", "--format", "text");
+    CHECK(result.code == 2 && strcmp(result.out, "invalid\n") == 0);
+    release(&result);
+    CHECK(unsetenv("MAELYS_CLI_FORMAT") == 0);
+    maelys_cli_json_writer_t writer;
+    maelys_cli_json_writer_init(&writer);
+    CHECK(maelys_cli_json_begin_object(&writer) == 0);
+    CHECK(maelys_cli_json_key_string(&writer, "x", NULL) != 0);
+    CHECK(maelys_cli_json_finish(&writer) == NULL);
+    return 1;
+}
+
 static int test_invalid_catalog(void) {
     maelys_cli_command_t broken = commands[0];
     broken.id = "Broken Id";
@@ -402,6 +509,8 @@ int main(void) {
     RUN(test_parsing_success);
     RUN(test_parsing_failures);
     RUN(test_stream_records_and_codes);
+    RUN(test_typed_operands_and_completion);
+    RUN(test_environment_format);
     RUN(test_invalid_catalog);
     return failures ? 1 : 0;
 }

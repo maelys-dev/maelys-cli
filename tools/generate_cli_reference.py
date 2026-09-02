@@ -16,7 +16,10 @@ import sys
 DEFAULT_PROGRAMS = ("maelys", "maelys-hello")
 
 
-def catalog(binary: pathlib.Path) -> dict:
+VERSION_MEMBERS = ("version", "framework")
+
+
+def catalog(binary: pathlib.Path, include_versions: bool) -> dict:
     completed = subprocess.run(
         [str(binary), "describe", "--format", "json", "--compact", "--non-interactive"],
         check=True,
@@ -33,7 +36,13 @@ def catalog(binary: pathlib.Path) -> dict:
     for command in envelope["data"]["commands"]:
         if command["usage"] != command["input"]["synopsis"]:
             raise RuntimeError(f"{binary.name}:{command['id']} has synopsis drift")
-    return envelope["data"]
+    data = envelope["data"]
+    if not include_versions:
+        # Release-neutral by default: the committed contract must not change
+        # on every version bump, so contract-check can run in `make check`.
+        for member in VERSION_MEMBERS:
+            data.pop(member, None)
+    return data
 
 
 def markdown(programs: dict[str, dict]) -> str:
@@ -46,8 +55,10 @@ def markdown(programs: dict[str, dict]) -> str:
         "",
     ]
     for name, data in programs.items():
+        title = f"## `{name}` ({data['product']}"
+        title += f" {data['version']})" if "version" in data else ")"
         lines.extend((
-            f"## `{name}` ({data['product']} {data['version']})",
+            title,
             "",
             "| Identifier | Usage | Effect | Output | Purpose |",
             "| --- | --- | --- | --- | --- |",
@@ -81,10 +92,13 @@ def main() -> int:
     parser.add_argument("--build", required=True, type=pathlib.Path)
     parser.add_argument("--markdown", required=True, type=pathlib.Path)
     parser.add_argument("--json", required=True, type=pathlib.Path)
+    parser.add_argument("--include-versions", action="store_true",
+                        help="keep product and framework versions in the output")
     parser.add_argument("programs", nargs="*", default=list(DEFAULT_PROGRAMS),
                         help="binaries to describe (default: maelys maelys-hello)")
     arguments = parser.parse_args()
-    programs = {name: catalog(arguments.build / name) for name in arguments.programs}
+    programs = {name: catalog(arguments.build / name, arguments.include_versions)
+                for name in arguments.programs}
     arguments.markdown.write_text(markdown(programs), encoding="utf-8")
     contract = {"contract": "agent-cli/v2", "programs": programs}
     arguments.json.write_text(json.dumps(contract, indent=2, sort_keys=True) + "\n",

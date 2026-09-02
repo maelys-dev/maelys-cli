@@ -35,6 +35,8 @@ int maelys_cli_json_end_object(maelys_cli_json_writer_t *writer);
 int maelys_cli_json_begin_array(maelys_cli_json_writer_t *writer);
 int maelys_cli_json_end_array(maelys_cli_json_writer_t *writer);
 int maelys_cli_json_key(maelys_cli_json_writer_t *writer, const char *key);
+/* A NULL value is refused (the writer fails); write null explicitly with
+ * maelys_cli_json_null() when the schema allows it. */
 int maelys_cli_json_string(maelys_cli_json_writer_t *writer, const char *value);
 int maelys_cli_json_stringn(
     maelys_cli_json_writer_t *writer, const char *value, size_t length);

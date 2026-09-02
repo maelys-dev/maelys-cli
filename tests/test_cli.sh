@@ -129,6 +129,18 @@ rm -f "$helper"
 run delegate-missing "$hello" image inspect
 check "missing delegate reported" '[ "$code" = 1 ] && printf "%s" "$err" | grep -q "\[NOT_FOUND\]"'
 
+run completion "$hello" completion bash
+check "bash completion shim" '[ "$code" = 0 ] && printf "%s" "$out" | grep -q "complete -o filenames -F _maelys_hello_complete maelys-hello"'
+run complete-words "$hello" __complete -- note ""
+check "completion of command words" '[ "$out" = "write" ]'
+run complete-option "$hello" __complete -- limits --level ""
+check "completion of choices" '[ "$out" = "low
+high" ]'
+run env-format env MAELYS_CLI_FORMAT=json "$hello" greet x --times 99
+check "MAELYS_CLI_FORMAT shapes the failure envelope" '[ "$code" = 1 ] && printf "%s" "$err" | grep -q "\"code\": \"VALIDATION_FAILED\""'
+run env-stream env MAELYS_CLI_FORMAT=json "$hello" run /bin/sh -c "echo plain"
+check "MAELYS_CLI_FORMAT leaves stream stdout untouched" '[ "$code" = 0 ] && [ "$out" = "plain" ]'
+
 # ---- dispatcher -------------------------------------------------------------
 commands="$work/commands"
 mkdir -p "$commands"

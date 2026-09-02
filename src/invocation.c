@@ -136,6 +136,22 @@ static uint64_t unsigned_maximum(const maelys_cli_option_t *option) {
     return option->maximum ? option->maximum : UINT64_MAX;
 }
 
+/* Operands reuse the option validator through a synthetic descriptor. */
+static maelys_cli_option_t operand_as_option(const maelys_cli_operand_t *operand) {
+    maelys_cli_option_t option;
+    memset(&option, 0, sizeof(option));
+    option.name = operand->name;
+    option.kind = operand->kind;
+    option.choices = operand->choices;
+    option.minimum = operand->minimum;
+    option.maximum = operand->maximum;
+    option.signed_minimum = operand->signed_minimum;
+    option.signed_maximum = operand->signed_maximum;
+    option.hex_digits = operand->hex_digits;
+    option.hex_digits_alternative = operand->hex_digits_alternative;
+    return option;
+}
+
 static int validate_value(
     const maelys_cli_option_t *option, const char *value,
     maelys_cli_parsed_option_t *parsed, maelys_cli_error_t *error) {
@@ -483,6 +499,30 @@ int maelys_cli_parse(
             "Operands do not match '%s'. Use '%s'.", out->command->id, synopsis);
         return -1;
     }
+    for (size_t i = 0u; i < out->operand_count; ++i) {
+        size_t slot = i < out->command->operand_count ? i :
+            out->command->operand_count - 1u;
+        const maelys_cli_operand_t *operand = &out->command->operands[slot];
+        maelys_cli_parsed_option_t *parsed = &out->operand_values[i];
+        memset(parsed, 0, sizeof(*parsed));
+        parsed->name = operand->name;
+        parsed->value = out->operands[i];
+        if (operand->kind == MAELYS_CLI_VALUE_NONE) continue;
+        maelys_cli_option_t spec = operand_as_option(operand);
+        maelys_cli_error_t detail;
+        if (!*out->operands[i] ||
+            validate_value(&spec, out->operands[i], parsed, &detail) != 0) {
+            const char *reason = strstr(detail.message, " expects ");
+            maelys_cli_error_set(error, MAELYS_CLI_CODE_VALIDATION_FAILED,
+                "Correct the stated operand and retry.",
+                "Operand %s%s", operand->name,
+                *out->operands[i] && reason ? reason :
+                " must not be empty.");
+            return -1;
+        }
+        parsed->descriptor = NULL;
+        parsed->boolean_value = 1;
+    }
     if (out->command->output == MAELYS_CLI_OUTPUT_STREAM && out->rendering_requested) {
         maelys_cli_error_set(error, MAELYS_CLI_CODE_VALIDATION_FAILED,
             "Remove rendering flags; stdout is reserved for the declared "
@@ -507,6 +547,19 @@ const char *maelys_cli_invocation_operand(
     const maelys_cli_invocation_t *invocation, size_t index) {
     return invocation && index < invocation->operand_count ?
         invocation->operands[index] : NULL;
+}
+
+const maelys_cli_parsed_option_t *maelys_cli_invocation_operand_value(
+    const maelys_cli_invocation_t *invocation, size_t index) {
+    if (!invocation || index >= invocation->operand_count ||
+        !invocation->command)
+        return NULL;
+    size_t slot = index < invocation->command->operand_count ? index :
+        invocation->command->operand_count - 1u;
+    if (invocation->command->operand_count == 0u ||
+        invocation->command->operands[slot].kind == MAELYS_CLI_VALUE_NONE)
+        return NULL;
+    return &invocation->operand_values[index];
 }
 
 const maelys_cli_parsed_option_t *maelys_cli_invocation_option(

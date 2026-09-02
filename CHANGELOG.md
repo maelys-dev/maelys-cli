@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.3.0 - 2026-09-02
+
+Feedback from the Egress migration:
+
+- Shell completion generated from the catalog: `PROGRAM completion
+  bash|zsh|fish` prints a shim that calls the hidden `__complete` command,
+  which returns candidates for command words, options, `--option=value`
+  choices, digest algorithm prefixes and typed operands.
+- Typed operands: `maelys_cli_operand_t` carries a kind, choices and
+  limits (`MAELYS_CLI_OPERAND_CHOICE`, `MAELYS_CLI_OPERAND_KIND`), validated
+  by the parser, exposed in `describe` and readable through
+  `maelys_cli_operand_choice()`, `maelys_cli_operand_unsigned()` and
+  `maelys_cli_operand_integer()`.
+- `describe COMMAND_ID` is minimal: `globalOptions`, `output` and
+  `invariants` are only part of the inventory forms.
+- `MAELYS_CLI_FORMAT=json|text` selects the default rendering; for
+  protocol-stream commands it only shapes the failure envelope on stderr.
+- `maelys_cli_json_string()` refuses `NULL` instead of writing `null`.
+- The reference generator omits product and framework versions unless
+  `--include-versions`, so `contract-check` is now part of `make check`.
+- The public headers state that the `maelys_cli_` / `MAELYS_CLI_` namespace
+  is reserved for the framework.
+
 ## 0.2.0 - 2026-09-02
 
 Feedback from the first migrations (Maelys Git, Warden, Egress):

@@ -48,6 +48,16 @@ typedef struct maelys_cli_operand {
     const char *summary;
     int required;
     int variadic;        /* absorbs all remaining operands, including -- */
+    /* Optional typing, validated like an option value. NONE means any
+     * non-empty text. A variadic operand applies its type to every value. */
+    maelys_cli_value_kind_t kind;
+    const char *const *choices;     /* CHOICE and DIGEST */
+    uint64_t minimum;               /* UNSIGNED, SIZE, DURATION */
+    uint64_t maximum;               /* 0 means UINT64_MAX */
+    int64_t signed_minimum;         /* INTEGER */
+    int64_t signed_maximum;
+    size_t hex_digits;              /* HEX */
+    size_t hex_digits_alternative;
 } maelys_cli_operand_t;
 
 typedef struct maelys_cli_option {
@@ -121,6 +131,12 @@ typedef struct maelys_cli_command {
     .name = (name_), .summary = (summary_), .required = 0, .variadic = 0
 #define MAELYS_CLI_OPERAND_REST(name_, summary_) \
     .name = (name_), .summary = (summary_), .required = 0, .variadic = 1
+/* Typed operands: add .required/.variadic and kind-specific limits after. */
+#define MAELYS_CLI_OPERAND_CHOICE(name_, summary_, choices_) \
+    .name = (name_), .summary = (summary_), .required = 1, \
+    .kind = MAELYS_CLI_VALUE_CHOICE, .choices = (choices_)
+#define MAELYS_CLI_OPERAND_KIND(name_, summary_, kind_) \
+    .name = (name_), .summary = (summary_), .required = 1, .kind = (kind_)
 
 /* Options: name, value placeholder, summary, then kind-specific limits.
  * A maximum of 0 means unbounded. */

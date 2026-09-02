@@ -63,6 +63,9 @@ typedef struct maelys_cli_invocation {
     const maelys_cli_command_t *command;
     const char *operands[MAELYS_CLI_MAX_OPERANDS];
     size_t operand_count;
+    /* Typed values of operands whose descriptor declares a kind; indexes
+     * follow `operands`. descriptor is NULL for untyped operands. */
+    maelys_cli_parsed_option_t operand_values[MAELYS_CLI_MAX_OPERANDS];
     maelys_cli_parsed_option_t options[MAELYS_CLI_MAX_OPTIONS];
     size_t option_count;
     maelys_cli_format_t format;
@@ -98,6 +101,8 @@ int maelys_cli_parse(
     maelys_cli_invocation_t *out, maelys_cli_error_t *error);
 
 const char *maelys_cli_invocation_operand(
+    const maelys_cli_invocation_t *invocation, size_t index);
+const maelys_cli_parsed_option_t *maelys_cli_invocation_operand_value(
     const maelys_cli_invocation_t *invocation, size_t index);
 const maelys_cli_parsed_option_t *maelys_cli_invocation_option(
     const maelys_cli_invocation_t *invocation, const char *name);

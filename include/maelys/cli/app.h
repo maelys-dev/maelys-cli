@@ -18,8 +18,14 @@ extern "C" {
 /*
  * A product CLI declares one application: identity, catalog and helper
  * locations. maelys_cli_main() then owns argv parsing, help, version,
- * describe, rendering, delegation and exit codes. Handlers receive a context
- * and must report through maelys_cli_succeed() or maelys_cli_fail().
+ * describe, completion, rendering, delegation and exit codes. Handlers
+ * receive a context and must report through maelys_cli_succeed() or
+ * maelys_cli_fail().
+ *
+ * Environment: MAELYS_CLI_FORMAT=text|json selects the default rendering
+ * when no --format/--json option is given. For protocol-stream commands it
+ * only affects the failure envelope written to stderr, since their stdout
+ * belongs to the protocol.
  */
 
 typedef struct maelys_cli_app {
@@ -73,6 +79,13 @@ const maelys_cli_command_t *maelys_cli_builtin_commands(size_t *out_count);
 /* Convenience accessors for handlers. */
 const char *maelys_cli_operand(const maelys_cli_context_t *context, size_t index);
 size_t maelys_cli_operand_count(const maelys_cli_context_t *context);
+/* Typed operand values, 1 when the operand exists and is typed. */
+int maelys_cli_operand_unsigned(
+    const maelys_cli_context_t *context, size_t index, uint64_t *out);
+int maelys_cli_operand_integer(
+    const maelys_cli_context_t *context, size_t index, int64_t *out);
+int maelys_cli_operand_choice(
+    const maelys_cli_context_t *context, size_t index, size_t *out_index);
 const char *maelys_cli_option(const maelys_cli_context_t *context, const char *name);
 const char *maelys_cli_option_or(
     const maelys_cli_context_t *context, const char *name, const char *fallback);

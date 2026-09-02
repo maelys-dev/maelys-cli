@@ -128,7 +128,10 @@ check-version:
 api-doc-check:
 	./scripts/api-doc-check.sh
 
+# contract-check needs python3; it is part of check wherever python3 exists.
 check: test cli-check header-check check-version api-doc-check
+	@if command -v python3 >/dev/null 2>&1; then $(MAKE) contract-check; \
+	else echo "contract-check: skipped (python3 not found)"; fi
 
 asan-ubsan:
 	$(MAKE) check BUILD=build/asan-ubsan CFLAGS='-O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer' LDFLAGS='-fsanitize=address,undefined'

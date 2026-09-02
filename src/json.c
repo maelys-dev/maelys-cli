@@ -172,8 +172,12 @@ int maelys_cli_json_stringn(
 }
 
 int maelys_cli_json_string(maelys_cli_json_writer_t *writer, const char *value) {
-    return value ? maelys_cli_json_stringn(writer, value, strlen(value)) :
-        maelys_cli_json_null(writer);
+    if (!value) {
+        /* A missing string is a caller defect, never a silent null. */
+        if (writer) writer->failed = 1;
+        return -1;
+    }
+    return maelys_cli_json_stringn(writer, value, strlen(value));
 }
 
 int maelys_cli_json_integer(maelys_cli_json_writer_t *writer, int64_t value) {

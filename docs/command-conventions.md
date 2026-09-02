@@ -19,6 +19,15 @@ Each descriptor exposes a stable `id`, its `pattern`, `usage` (identical to
 `input` (`operands`, typed `options`, `constraints`, `passthrough`),
 `outputSchema` and `exitCodes`.
 
+`describe COMMAND_ID` returns one minimal descriptor; `globalOptions`,
+`output` and `invariants` belong to the inventory forms only.
+
+Operands may be typed like option values (`MAELYS_CLI_OPERAND_CHOICE`,
+`MAELYS_CLI_OPERAND_KIND` plus limits); the parser validates them, `describe`
+exposes `type`, `choices` and limits on the operand, and handlers read them
+through `maelys_cli_operand_choice()`, `maelys_cli_operand_unsigned()` and
+`maelys_cli_operand_integer()`.
+
 A public option must be declared in the catalog before use. An unknown,
 duplicated (unless `repeatable`) or foreign option is refused. An option
 value remains a value even when it starts with `--`.
@@ -80,7 +89,9 @@ An existing write target is never replaced implicitly.
 
 `--json` is the exact alias of `--format json`. `--compact` and
 `--pretty=false` select a single line. `--format jsonl` is accepted only by
-`json-records` commands. `--non-interactive` guarantees that no question is
+`json-records` commands. `MAELYS_CLI_FORMAT=json` in the environment selects
+JSON when no rendering option is given, which is how an agent obtains a JSON
+failure envelope from a `stream` command whose stdout it cannot touch. `--non-interactive` guarantees that no question is
 asked; `maelys_cli_confirm()` fails with `VALIDATION_FAILED` instead.
 
 Success (stdout only):
@@ -138,6 +149,15 @@ Stable error codes:
 Text rendering of a failure is `PROGRAM: [CODE] message` followed by
 `Hint: ...` when present, colored on a terminal unless `--color never`,
 `NO_COLOR` or `TERM=dumb` applies.
+
+## Shell completion
+
+`PROGRAM completion bash|zsh|fish` prints a shim that delegates to the
+hidden `PROGRAM __complete -- WORDS...` command. Candidates are derived from
+the catalog at every keystroke: command words, options not yet given,
+`--option=choice`, choice values, digest algorithm prefixes and typed
+operands. Path and free-text values fall back to the shell's file
+completion. Stream commands never offer rendering options.
 
 ## Protocol streams
 

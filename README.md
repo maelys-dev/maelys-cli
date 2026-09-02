@@ -152,9 +152,11 @@ follow the macro. Operands: `MAELYS_CLI_OPERAND`, `_OPERAND_OPTIONAL`,
 `_OPERAND_REST`.
 
 `maelys_cli_main()` validates the catalog, parses `argv`, provides `help`,
-`--help`, `version`, `--version`, `describe`, the global options `--format`,
-`--json`, `--compact`, `--pretty=false`, `--non-interactive` and `--color`,
-renders the envelope and runs or delegates the command. The complete example
+`--help`, `version`, `--version`, `describe`, `completion bash|zsh|fish`
+(generated from the catalog), the global options `--format`, `--json`,
+`--compact`, `--pretty=false`, `--non-interactive` and `--color`, the
+`MAELYS_CLI_FORMAT` environment default, renders the envelope and runs or
+delegates the command. The complete example
 is [examples/hello/main.c](examples/hello/main.c) (`maelys-hello`) with its
 schemas in [examples/hello/schemas/](examples/hello/schemas/); it also drives
 the end-to-end tests.
@@ -222,7 +224,7 @@ make                 # libmaelys_cli.a, maelys, maelys-hello, pkg-config file
 make check           # unit tests, end-to-end CLI tests, C++ header gate
 make asan-ubsan      # the same under AddressSanitizer and UBSan
 make install-check   # install into a scratch prefix and build a consumer
-make contract-check  # committed reference and contract match describe
+make contract-check  # committed reference and contract match describe (part of check)
 make install PREFIX=/opt/homebrew   # lib, headers, maelys, maelys-cli-embed, agent texts
 make generate-cli-reference
 ```

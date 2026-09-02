@@ -66,6 +66,10 @@ Output modes:
 
 Global options accepted by every non-stream command: `--format`, `--json`,
 `--compact`, `--pretty=false`, `--non-interactive`, `--color`, `--help`.
+`MAELYS_CLI_FORMAT=json` in the environment gives the same default without
+options and is the only way to get a JSON failure envelope from a stream
+command. `PROGRAM completion bash|zsh|fish` prints the shell completion
+generated from the catalog; nothing to write per product.
 
 ## 2. Adding a command
 
@@ -133,7 +137,13 @@ alternative)`, `MAELYS_CLI_ABSOLUTE_PATH(name, VALUE, summary)`,
 `MAELYS_CLI_DIGEST(name, VALUE, summary, algorithms)` (`sha256:HEX`;
 algorithms among `sha1`, `sha256`, `sha384`, `sha512`). A maximum of `0` means unbounded. Operand macros:
 `MAELYS_CLI_OPERAND`, `MAELYS_CLI_OPERAND_OPTIONAL`,
-`MAELYS_CLI_OPERAND_REST` (absorbs everything, including after `--`).
+`MAELYS_CLI_OPERAND_REST` (absorbs everything, including after `--`),
+`MAELYS_CLI_OPERAND_CHOICE(name, summary, choices)` and
+`MAELYS_CLI_OPERAND_KIND(name, summary, MAELYS_CLI_VALUE_...)` for typed
+required operands (an optional typed operand is `MAELYS_CLI_OPERAND_OPTIONAL`
+followed by `.kind` and its limits) (read with `maelys_cli_operand_choice()`,
+`maelys_cli_operand_unsigned()`, `maelys_cli_operand_integer()`). Never
+validate an operand's shape in the handler when a kind expresses it.
 Extra command attributes: `.synopsis` (override), `.hidden`.
 
 Value kinds: `NONE` (flag, accepts `--flag=false`), `STRING`, `INTEGER`,

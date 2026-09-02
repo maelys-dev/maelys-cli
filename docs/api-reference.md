@@ -80,7 +80,7 @@ writer failed; `maelys_cli_json_finish()` then returns `NULL`.
 | `void maelys_cli_json_writer_init(maelys_cli_json_writer_t *w)` / `maelys_cli_json_writer_clear(w)` | Initialize / release and reset. |
 | `int maelys_cli_json_begin_object(w)` / `maelys_cli_json_end_object(w)` / `maelys_cli_json_begin_array(w)` / `maelys_cli_json_end_array(w)` | Containers, at most `MAELYS_CLI_JSON_MAX_DEPTH` (64) deep. Commas are inserted automatically. |
 | `int maelys_cli_json_key(w, const char *key)` | Only inside an object and never twice in a row. |
-| `int maelys_cli_json_string(w, const char *value)` / `maelys_cli_json_stringn(w, value, length)` | Escapes `"`, `\`, control characters (`\n`, `\t`, `\uXXXX`); bytes are otherwise passed through. `NULL` writes `null`. A value inside an object must follow a key. |
+| `int maelys_cli_json_string(w, const char *value)` / `maelys_cli_json_stringn(w, value, length)` | Escapes `"`, `\`, control characters (`\n`, `\t`, `\uXXXX`); bytes are otherwise passed through. `NULL` is refused and fails the writer; use `maelys_cli_json_null()` for an explicit null. A value inside an object must follow a key. |
 | `int maelys_cli_json_integer(w, int64_t)` / `maelys_cli_json_unsigned(w, uint64_t)` / `maelys_cli_json_boolean(w, int)` / `maelys_cli_json_null(w)` | Scalars. |
 | `int maelys_cli_json_raw(w, const char *json)` | Inserts pre-serialized JSON after validating it; surrounding whitespace is trimmed. |
 | `int maelys_cli_json_key_string(w, key, value)` / `maelys_cli_json_key_integer` / `maelys_cli_json_key_unsigned` / `maelys_cli_json_key_boolean` / `maelys_cli_json_key_raw` | Key followed by value. |
@@ -136,6 +136,7 @@ and the agent guide.
 | `void maelys_cli_error_from_errno(maelys_cli_error_t *error, const char *code, int saved_errno, const char *what)` | Message `what: strerror(errno)` with a generic hint. |
 | `int maelys_cli_parse(const maelys_cli_app_t *app, int argc, char **argv, maelys_cli_invocation_t *out, maelys_cli_error_t *error)` | Resolves the command (built-ins first, longest pattern wins; `--help`/`-h` and `--version` map to `help` and `version`), then validates in causal order: option spelling and support, duplicates, value kind and range, `depends_on`/`conflicts_with`, required options, operand arity, stream rendering flags, `jsonl` availability. Delegate commands collect everything after the pattern as operands. `--` ends option parsing. `--help` after a command sets `help_requested` and skips the remaining validation. |
 | `const char *maelys_cli_invocation_operand(const maelys_cli_invocation_t *inv, size_t index)` | Operand or `NULL`. |
+| `const maelys_cli_parsed_option_t *maelys_cli_invocation_operand_value(inv, size_t index)` | Typed value of an operand whose descriptor declares a kind, `NULL` for untyped operands. |
 | `const maelys_cli_parsed_option_t *maelys_cli_invocation_option(inv, const char *name)` / `maelys_cli_invocation_option_at(inv, name, occurrence)` | Parsed option (raw text plus typed value) or `NULL`. |
 | `size_t maelys_cli_invocation_option_count(inv, name)` | Occurrences of a repeatable option. |
 
@@ -146,15 +147,16 @@ Entry points:
 | Function | Contract |
 | --- | --- |
 | `int maelys_cli_main(const maelys_cli_app_t *app, int argc, char **argv)` | Process entry point: records `argv[0]` for helper resolution and calls `maelys_cli_run` with stdout/stderr. |
-| `int maelys_cli_run(app, int argc, char **argv, FILE *out, FILE *err)` | `argv` excludes the program name. Validates the catalog, pre-scans rendering flags so that even a parse failure is rendered in the requested format, parses, runs help/delegate/handler and returns the exit code. A non-stream handler that never replies yields `UNEXPECTED`. |
+| `int maelys_cli_run(app, int argc, char **argv, FILE *out, FILE *err)` | `argv` excludes the program name. Validates the catalog, pre-scans rendering flags so that even a parse failure is rendered in the requested format, parses, runs help/delegate/handler and returns the exit code. A non-stream handler that never replies yields `UNEXPECTED`. `MAELYS_CLI_FORMAT=json\|text` supplies the default format when no rendering option is given; for stream commands it only shapes the stderr failure envelope. |
 | `int maelys_cli_catalog_validate(app, maelys_cli_error_t *error)` | Identifier `[a-z0-9._-]+`, pattern words, purpose, effect, `apply_effect` rules (`preview` + `--apply`), output mode, handler xor delegate, delegates without options, operand order (required before optional, one trailing variadic), option names unique and not transport names, choices/hex/ranges, `depends_on`/`conflicts_with` targets, schema JSON object, unique ids and patterns across built-ins and product commands. |
-| `const maelys_cli_command_t *maelys_cli_builtin_commands(size_t *out_count)` | `help`, `version`, `describe`. |
+| `const maelys_cli_command_t *maelys_cli_builtin_commands(size_t *out_count)` | `help`, `version`, `describe`, `completion` and the hidden `__complete` (id `complete.candidates`). |
 
 Handler accessors (all read the validated invocation):
 
 | Function | Contract |
 | --- | --- |
 | `const char *maelys_cli_operand(const maelys_cli_context_t *ctx, size_t index)` / `size_t maelys_cli_operand_count(ctx)` | Operands. |
+| `int maelys_cli_operand_unsigned(ctx, index, uint64_t *out)` / `maelys_cli_operand_integer(ctx, index, int64_t *out)` / `maelys_cli_operand_choice(ctx, index, size_t *out_index)` | Typed operand values (`MAELYS_CLI_OPERAND_CHOICE`, `MAELYS_CLI_OPERAND_KIND`); `1` when the operand exists and is typed. |
 | `const char *maelys_cli_option(ctx, const char *name)` / `maelys_cli_option_or(ctx, name, fallback)` | Raw value of the first occurrence, or `NULL` / fallback. |
 | `int maelys_cli_flag(ctx, name)` | `1` when a flag is enabled (`--flag`, `--flag=true`), else `0`. |
 | `int maelys_cli_option_unsigned(ctx, name, uint64_t *out)` / `maelys_cli_option_integer(ctx, name, int64_t *out)` / `maelys_cli_option_choice(ctx, name, size_t *out_index)` | `1` and the typed value when present, `0` otherwise. Unsigned covers `UNSIGNED`, `SIZE` and `DURATION` (milliseconds); the choice index of a `DIGEST` option is the index of its algorithm. |
