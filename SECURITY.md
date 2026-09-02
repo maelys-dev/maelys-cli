@@ -24,7 +24,11 @@ starts external programs on behalf of a product CLI. Its security claims are:
 - the `maelys` dispatcher accepts external commands only from manifests in
   fixed directories that satisfy the same ownership and mode rules, with an
   optional SHA-256 pin of the executable, and refuses duplicates and
-  unsupported `cliApi` values;
+  unsupported `cliApi` values; manifests are parsed by maelys-json under a
+  64 KiB, depth 8, 1024-token budget, with duplicate members and invalid
+  UTF-8 rejected;
+- JSON written by the framework is always well-formed: the writer refuses
+  invalid UTF-8 rather than emitting it;
 - `MAELYS_COMMANDS_PATH` overrides the manifest directories for development
   and tests; the same file checks apply, but a process that controls the
   environment of `maelys` can direct it to its own manifests. Do not rely on

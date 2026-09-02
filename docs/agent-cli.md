@@ -53,7 +53,10 @@ With `jsonl`, failure is still an envelope on stderr and the exit code.
 
 `PROGRAM completion bash|zsh|fish` prints a shim; the candidates come from
 `PROGRAM __complete -- WORDS...` (a hidden `json-records` command, also
-usable with `--format json` before the `--`).
+usable with `--format json` before the `--`). Command identifiers are
+completed after `help` and `describe`; commands reported `available: false`
+are never offered; the `maelys` dispatcher forwards the completion of an
+external command to that command's own `__complete`.
 
 ## Dispatcher
 

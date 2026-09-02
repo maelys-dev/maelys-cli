@@ -51,6 +51,10 @@ normative; this skill is the executable checklist.
   paths through `maelys/cli/process.h`, never a shell.
 - Keep product types out of the shared framework; propose generic mechanics
   upstream in `maelys-cli` instead of copying `main()` fragments.
+- Link `libmaelys_cli.a` alone for a product CLI; add
+  `libmaelys_cli_extension.a` and maelys-json only for a dispatcher, and
+  never merge a dependency archive into the product's own `.a`. Read
+  untrusted JSON with maelys-json, not with an ad hoc parser.
 
 ## Verify
 

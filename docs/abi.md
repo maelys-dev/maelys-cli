@@ -16,7 +16,12 @@
   form the machine contract; incompatible changes bump
   `MAELYS_CLI_CONTRACT` and `MAELYS_CLI_SCHEMA_VERSION` together;
 - the extension manifest and `MAELYS_CLI_API` change together;
-- headers compile as C11 and C++17.
+- headers compile as C11 and C++17;
+- two archives: `libmaelys_cli.a` (core, no dependency) and
+  `libmaelys_cli_extension.a` (manifest discovery, links maelys-json 0.1,
+  ABI 1). A consumer links each archive once and never embeds them in its
+  own archive; pkg-config `Requires` and CMake `PUBLIC` links carry the
+  graph.
 
 Promotion to a cross-project shared object requires at least two migrated
 consumers (Warden and Maelys Git), a stable `describe` reference for both,

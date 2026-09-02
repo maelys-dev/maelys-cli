@@ -63,6 +63,14 @@ one handler and one JSON Schema file. In the same change, update:
    exact contract;
 5. the generated CLI reference when the project keeps one.
 
+Linking: a product CLI links `libmaelys_cli.a` only (no dependency). A
+dispatcher that runs external commands from manifests adds
+`libmaelys_cli_extension.a` and one `libmaelys-json.a` (pkg-config
+`maelys-cli-extension`, CMake `maelys::cli_extension`); never embed a
+dependency archive into your own `.a`. Reading untrusted JSON is
+maelys-json's job, not the framework's; the framework only writes JSON
+and refuses invalid UTF-8 in what it writes.
+
 Rules that must not be broken: no second usage string outside the catalog; no
 hand-written argv parsing in `main()`; no product type inside the shared
 framework; validation errors in causal order (command, options, values,

@@ -55,6 +55,13 @@ exit status  0 completed, 1 failed, 2 validation report with violations
 `@PROGRAM@ completion bash|zsh|fish` prints the completion script generated
 from the catalog; packages install it in the shell's completion directory.
 
+## Dependencies
+
+<!-- State what this product links: `libmaelys_cli.a` alone, or also
+     `libmaelys_cli_extension.a` + maelys-json when it dispatches external
+     commands, plus its own libraries. A library shipped by this product must
+     not embed those archives; its pkg-config `Requires` names them. -->
+
 ## Sources of truth
 
 - the catalog in the product sources defines commands, operands and options;

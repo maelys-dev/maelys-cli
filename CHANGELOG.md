@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.1 - 2026-09-02
+
+- Documentation only: the installed agent texts, the product templates,
+  `docs/agent-cli.md`, `docs/abi.md` and `SECURITY.md` describe the 0.5.0
+  dependency boundary (dependency-free core, `libmaelys_cli_extension.a`
+  on maelys-json, one archive copy per executable), the writer's UTF-8
+  strictness and the completion changes.
+
 ## 0.5.0 - 2026-09-02
 
 Self-review of the framework and dependency boundary:
