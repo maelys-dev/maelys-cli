@@ -99,9 +99,12 @@ skill `.claude/skills/maelys-cli-framework/SKILL.md` is its checklist form.
    `share/agents/` (enforced by `scripts/agent-doc-check.sh` for macros
    and accessors), `docs/command-conventions.md`, `docs/agent-cli.md`,
    `docs/architecture.md`, `share/templates/` and `README.md` where the
-   feature is user-visible. After patching a document programmatically,
-   grep for the feature name in every agent-facing file: a replacement
-   whose anchor no longer exists fails silently.
+   feature is user-visible. Then add the feature's keyword to every
+   document that must explain it in `docs/topics.tsv`: `make check` runs
+   `scripts/doc-topics-check.sh` (`doc-topics-check`) and fails while a
+   listed document does not mention a listed keyword. A programmatic doc
+   patch whose anchor no longer exists fails silently; the topic check is
+   what catches it.
 8. Release bookkeeping: `CHANGELOG.md` entry under a new version, `VERSION`
    and `include/maelys/cli/version.h` bumped together (minor for an
    additive API, patch for documentation or fixes), then

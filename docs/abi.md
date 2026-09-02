@@ -6,9 +6,11 @@
 - source compatibility is preserved within a minor series; a patch release
   never changes a public signature or the meaning of a field;
 - `maelys_cli_command_t`, `maelys_cli_option_t`, `maelys_cli_operand_t`
-  and `maelys_cli_app_t` are positional aggregates initialized by product
-  catalogs. New members are appended at the end and zero is always the
-  neutral value, so existing positional initializers keep their meaning;
+  and `maelys_cli_app_t` are initialized by product catalogs through
+  designated initializers and the `MAELYS_CLI_*` macros. New members are
+  appended at the end and zero is always the neutral value, so existing
+  initializers keep their meaning; macro argument lists never change, new
+  attributes are designated fields;
 - `maelys_cli_invocation_t`, `maelys_cli_context_t` and
   `maelys_cli_json_writer_t` are allocated by callers but their members
   marked private may change; use the accessor functions;

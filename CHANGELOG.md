@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- `docs/topics.tsv` and `scripts/doc-topics-check.sh` (part of
+  `make check`): a topic coverage contract listing, per document, the
+  keywords it must mention, so documentation cannot lag behind a feature.
+
 ## 0.5.1 - 2026-09-02
 
 - Documentation only: the installed agent texts, the product templates,

@@ -42,8 +42,9 @@ Read `AGENTS.md` (constitution, contracts, procedure) before editing.
    (`scripts/api-doc-check.sh`); `share/agents/maelys-cli-guide.md` for
    every macro and accessor (`scripts/agent-doc-check.sh`); the block,
    skill, templates, `docs/command-conventions.md`, `docs/agent-cli.md`
-   and `README.md` where user-visible. After a programmatic doc patch,
-   grep the feature name in every agent-facing file.
+   and `README.md` where user-visible. Add the feature's keyword per
+   document in `docs/topics.tsv` (`scripts/doc-topics-check.sh`), which
+   turns "did I document it everywhere" into a failing check.
 4. `CHANGELOG.md`, `VERSION`, `include/maelys/cli/version.h`, then
    `make generate-cli-reference`.
 5. `make check`, `make asan-ubsan`, `make analyze`, `make install-check`,
