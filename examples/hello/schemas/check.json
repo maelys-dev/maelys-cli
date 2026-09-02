@@ -1,0 +1,10 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["valid", "path", "diagnostics"],
+  "properties": {
+    "valid": {"type": "boolean"},
+    "path": {"type": "string"},
+    "diagnostics": {"type": "array", "items": {"type": "object"}}
+  }
+}

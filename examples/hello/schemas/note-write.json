@@ -1,0 +1,20 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["mode", "changed", "path", "bytes", "precondition"],
+  "properties": {
+    "mode": {"enum": ["plan", "apply"]},
+    "changed": {"type": "boolean"},
+    "path": {"type": "string"},
+    "bytes": {"type": "integer", "minimum": 0},
+    "precondition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["targetAbsent", "replace"],
+      "properties": {
+        "targetAbsent": {"type": "boolean"},
+        "replace": {"type": "boolean"}
+      }
+    }
+  }
+}

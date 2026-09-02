@@ -1,0 +1,13 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["memory", "wallTimeMs", "level", "offset", "tags"],
+  "properties": {
+    "memory": {"type": "integer"},
+    "wallTimeMs": {"type": "integer"},
+    "level": {"enum": ["low", "high"]},
+    "offset": {"type": "integer"},
+    "digest": {"type": "string"},
+    "tags": {"type": "array", "items": {"type": "string"}}
+  }
+}

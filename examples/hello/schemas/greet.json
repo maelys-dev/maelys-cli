@@ -1,0 +1,9 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["greeting", "times"],
+  "properties": {
+    "greeting": {"type": "string"},
+    "times": {"type": "integer", "minimum": 1}
+  }
+}

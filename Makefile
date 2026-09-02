@@ -1,0 +1,185 @@
+SHELL := /bin/sh
+
+CC ?= cc
+CXX ?= c++
+AR ?= ar
+PREFIX ?= /usr/local
+DESTDIR ?=
+BUILD ?= build/release
+
+CPPFLAGS ?=
+CFLAGS ?= -O2 -g
+CXXFLAGS ?= -O2 -g
+WARNINGS := -Wall -Wextra -Wpedantic -Werror -Wconversion -Wshadow \
+	-Wstrict-prototypes -Wmissing-prototypes -Wformat=2
+COMMON_CPPFLAGS := -Iinclude -Isrc -D_POSIX_C_SOURCE=200809L -D_DARWIN_C_SOURCE \
+	-DMAELYS_CLI_COMMANDS_DIR='"$(PREFIX)/share/maelys/commands"'
+COMMON_CFLAGS := -std=c11 $(WARNINGS)
+COMMON_CXXFLAGS := -std=c++17 -Wall -Wextra -Wpedantic -Werror
+
+VERSION := $(shell sed -n '1p' VERSION)
+HEADERS := $(wildcard include/maelys/*.h include/maelys/cli/*.h src/*.h \
+	cmd/maelys/*.h tests/*.h)
+
+SOURCES := src/version.c src/values.c src/environment.c src/files.c \
+	src/digest.c src/json.c src/terminal.c src/process.c src/catalog.c \
+	src/invocation.c src/app.c src/extension.c
+OBJECTS := $(patsubst %.c,$(BUILD)/%.o,$(SOURCES))
+LIB := $(BUILD)/lib/libmaelys_cli.a
+
+EMBED := tools/maelys-cli-embed
+AGENT_TEXTS := share/agents/instructions-block.md share/agents/maelys-cli-guide.md \
+	share/agents/claude-skill.md
+EMBEDDED := $(BUILD)/generated/agent_texts.c
+HELLO_SCHEMAS := $(wildcard examples/hello/schemas/*.json)
+HELLO_SCHEMA_SYMBOLS := $(foreach schema,$(HELLO_SCHEMAS),\
+	hello_$(subst -,_,$(basename $(notdir $(schema))))_schema=$(schema))
+HELLO_GENERATED := $(BUILD)/generated/hello_schemas.c $(BUILD)/generated/hello_schemas.h
+DISPATCHER_SOURCES := cmd/maelys/main.c cmd/maelys/agents.c
+DISPATCHER_OBJECTS := $(patsubst %.c,$(BUILD)/%.o,$(DISPATCHER_SOURCES)) \
+	$(BUILD)/generated/agent_texts.o
+DISPATCHER := $(BUILD)/bin/maelys
+EXAMPLE := $(BUILD)/bin/maelys-hello
+
+TEST_NAMES := test_values test_json test_files test_digest test_process \
+	test_catalog test_app test_extension
+TESTS := $(addprefix $(BUILD)/tests/,$(TEST_NAMES))
+HEADER_CPP := $(BUILD)/tests/header_cpp
+PC := $(BUILD)/pkgconfig/maelys-cli.pc
+
+.PHONY: all check test header-check check-version cli-check api-doc-check install \
+	install-check uninstall dist clean asan-ubsan analyze \
+	generate-cli-reference agents-install
+
+all: $(LIB) $(DISPATCHER) $(EXAMPLE) $(PC)
+
+$(BUILD)/%.o: %.c $(HEADERS)
+	@mkdir -p $(@D)
+	$(CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) $(CFLAGS) $(COMMON_CFLAGS) -c $< -o $@
+
+$(LIB): $(OBJECTS)
+	@mkdir -p $(@D)
+	$(AR) rcs $@ $^
+
+$(EMBEDDED): $(AGENT_TEXTS) $(EMBED) VERSION
+	@mkdir -p $(@D)
+	{ printf 'const char maelys_agents_version[] = "%s";\n' "$(VERSION)"; \
+	  $(EMBED) --define VERSION=$(VERSION) \
+	    maelys_agents_instructions_block=share/agents/instructions-block.md \
+	    maelys_agents_guide=share/agents/maelys-cli-guide.md \
+	    maelys_agents_claude_skill=share/agents/claude-skill.md; } > $@.tmp
+	mv $@.tmp $@
+
+# JSON Schemas of the example are ordinary files embedded at build time.
+$(BUILD)/generated/hello_schemas.c: $(HELLO_SCHEMAS) $(EMBED)
+	@mkdir -p $(@D)
+	$(EMBED) $(HELLO_SCHEMA_SYMBOLS) > $@.tmp
+	mv $@.tmp $@
+
+$(BUILD)/generated/hello_schemas.h: $(HELLO_SCHEMAS) $(EMBED)
+	@mkdir -p $(@D)
+	$(EMBED) --header $(HELLO_SCHEMA_SYMBOLS) > $@.tmp
+	mv $@.tmp $@
+
+$(BUILD)/generated/agent_texts.o: $(EMBEDDED)
+	@mkdir -p $(@D)
+	$(CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) $(CFLAGS) $(COMMON_CFLAGS) -c $< -o $@
+
+$(BUILD)/cmd/maelys/%.o: cmd/maelys/%.c $(HEADERS)
+	@mkdir -p $(@D)
+	$(CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) $(CFLAGS) $(COMMON_CFLAGS) -c $< -o $@
+
+$(DISPATCHER): $(DISPATCHER_OBJECTS) $(LIB)
+	@mkdir -p $(@D)
+	$(CC) $(CFLAGS) $(COMMON_CFLAGS) $(DISPATCHER_OBJECTS) $(LIB) $(LDFLAGS) -o $@
+
+$(EXAMPLE): examples/hello/main.c $(HELLO_GENERATED) $(LIB) $(HEADERS)
+	@mkdir -p $(@D)
+	$(CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) -I$(BUILD)/generated $(CFLAGS) $(COMMON_CFLAGS) \
+		$< $(BUILD)/generated/hello_schemas.c $(LIB) $(LDFLAGS) -o $@
+
+$(BUILD)/tests/test_%: tests/test_%.c $(LIB) $(HEADERS)
+	@mkdir -p $(@D)
+	$(CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) $(CFLAGS) $(COMMON_CFLAGS) $< $(LIB) $(LDFLAGS) -o $@
+
+$(HEADER_CPP): tests/header_cpp.cpp $(LIB)
+	@mkdir -p $(@D)
+	$(CXX) $(CPPFLAGS) $(COMMON_CPPFLAGS) $(CXXFLAGS) $(COMMON_CXXFLAGS) $< -c -o $@.o
+	$(CXX) $@.o $(LIB) $(LDFLAGS) -o $@
+
+$(PC): pkgconfig/maelys-cli.pc.in VERSION
+	@mkdir -p $(@D)
+	sed -e 's|@PREFIX@|$(PREFIX)|g' -e 's|@VERSION@|$(VERSION)|g' $< > $@
+
+test: $(TESTS)
+	@for test in $(TESTS); do echo "== $$test"; $$test || exit 1; done
+
+cli-check: $(DISPATCHER) $(EXAMPLE)
+	./tests/test_cli.sh $(BUILD)/bin
+
+header-check: $(HEADER_CPP)
+	$(HEADER_CPP)
+
+check-version:
+	@test "$(VERSION)" = "$$(sed -n 's/^#define MAELYS_CLI_VERSION "\([^"]*\)"/\1/p' include/maelys/cli/version.h)"
+	@grep -q "^## $(VERSION)" CHANGELOG.md
+
+api-doc-check:
+	./scripts/api-doc-check.sh
+
+check: test cli-check header-check check-version api-doc-check
+
+asan-ubsan:
+	$(MAKE) check BUILD=build/asan-ubsan CFLAGS='-O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer' LDFLAGS='-fsanitize=address,undefined'
+
+analyze: $(HELLO_GENERATED)
+	@for source in $(SOURCES) $(DISPATCHER_SOURCES) examples/hello/main.c; do \
+		$(CC) --analyze -Xanalyzer -analyzer-output=text \
+			$(CPPFLAGS) $(COMMON_CPPFLAGS) -I$(BUILD)/generated -std=c11 $$source || exit 1; \
+	done
+
+generate-cli-reference: $(DISPATCHER) $(EXAMPLE)
+	python3 tools/generate_cli_reference.py --build $(BUILD)/bin \
+		--markdown docs/cli-reference.md --json docs/cli-contract.json
+
+install: $(LIB) $(DISPATCHER) $(PC)
+	install -d $(DESTDIR)$(PREFIX)/lib $(DESTDIR)$(PREFIX)/bin \
+		$(DESTDIR)$(PREFIX)/include/maelys/cli \
+		$(DESTDIR)$(PREFIX)/lib/pkgconfig \
+		$(DESTDIR)$(PREFIX)/share/maelys-cli/agents \
+		$(DESTDIR)$(PREFIX)/share/maelys-cli/docs \
+		$(DESTDIR)$(PREFIX)/share/maelys/commands
+	install -m 0644 $(LIB) $(DESTDIR)$(PREFIX)/lib/libmaelys_cli.a
+	install -m 0755 $(DISPATCHER) $(DESTDIR)$(PREFIX)/bin/maelys
+	install -m 0755 $(EMBED) $(DESTDIR)$(PREFIX)/bin/maelys-cli-embed
+	install -m 0644 include/maelys/cli.h $(DESTDIR)$(PREFIX)/include/maelys/cli.h
+	install -m 0644 include/maelys/cli/*.h $(DESTDIR)$(PREFIX)/include/maelys/cli/
+	install -m 0644 $(PC) $(DESTDIR)$(PREFIX)/lib/pkgconfig/maelys-cli.pc
+	install -m 0644 share/agents/*.md $(DESTDIR)$(PREFIX)/share/maelys-cli/agents/
+	install -m 0644 docs/*.md $(DESTDIR)$(PREFIX)/share/maelys-cli/docs/
+
+install-check: all
+	./scripts/install-check.sh
+
+uninstall:
+	rm -f $(DESTDIR)$(PREFIX)/lib/libmaelys_cli.a \
+		$(DESTDIR)$(PREFIX)/bin/maelys \
+		$(DESTDIR)$(PREFIX)/bin/maelys-cli-embed \
+		$(DESTDIR)$(PREFIX)/include/maelys/cli.h \
+		$(DESTDIR)$(PREFIX)/lib/pkgconfig/maelys-cli.pc
+	rm -rf $(DESTDIR)$(PREFIX)/include/maelys/cli \
+		$(DESTDIR)$(PREFIX)/share/maelys-cli
+
+# Install the agent instructions into a consumer project:
+#   make agents-install PROJECT=/path/to/project
+agents-install: $(DISPATCHER)
+	@test -n "$(PROJECT)" || { echo "usage: make agents-install PROJECT=DIR"; exit 64; }
+	$(DISPATCHER) agents install "$(PROJECT)" --apply
+
+dist: check
+	@mkdir -p dist
+	git archive --format=tar --prefix=maelys-cli-$(VERSION)/ HEAD | \
+		gzip -n > dist/maelys-cli-$(VERSION).tar.gz
+
+clean:
+	rm -rf build

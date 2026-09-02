@@ -1,0 +1,12 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["count", "records"],
+  "properties": {
+    "count": {"type": "integer"},
+    "records": {
+      "type": "array",
+      "items": {"type": "object", "required": ["index", "name"]}
+    }
+  }
+}

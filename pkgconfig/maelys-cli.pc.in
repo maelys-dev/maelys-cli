@@ -1,0 +1,13 @@
+prefix=@PREFIX@
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+agentsdir=${prefix}/share/maelys-cli/agents
+embed=${prefix}/bin/maelys-cli-embed
+commandsdir=${prefix}/share/maelys/commands
+
+Name: maelys-cli
+Description: Shared Maelys command-line framework: catalog, parser, renderer, dispatcher
+Version: @VERSION@
+Libs: -L${libdir} -lmaelys_cli
+Cflags: -I${includedir}

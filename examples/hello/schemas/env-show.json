@@ -1,0 +1,9 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["count", "entries"],
+  "properties": {
+    "count": {"type": "integer"},
+    "entries": {"type": "array", "items": {"type": "object"}}
+  }
+}

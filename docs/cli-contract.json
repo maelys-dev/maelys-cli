@@ -1,0 +1,1464 @@
+{
+  "contract": "agent-cli/v2",
+  "programs": {
+    "maelys": {
+      "cliApi": 1,
+      "commands": [
+        {
+          "effect": "read",
+          "exitCodes": {
+            "0": "command completed",
+            "1": "execution failed",
+            "2": "valid report with violations"
+          },
+          "external": false,
+          "hidden": false,
+          "id": "help",
+          "input": {
+            "constraints": [],
+            "operands": [
+              {
+                "name": "COMMAND_ID",
+                "required": false,
+                "summary": "Stable command identifier whose help is shown.",
+                "variadic": false
+              }
+            ],
+            "options": [],
+            "passthrough": false,
+            "synopsis": "help [COMMAND_ID] | --help"
+          },
+          "outputMode": "json-envelope",
+          "outputSchema": {
+            "additionalProperties": false,
+            "properties": {
+              "commands": {
+                "items": {
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "text": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "text",
+              "commands"
+            ],
+            "type": "object"
+          },
+          "pattern": [
+            "help"
+          ],
+          "purpose": "Show the generated CLI guide or one command's help.",
+          "usage": "help [COMMAND_ID] | --help"
+        },
+        {
+          "effect": "read",
+          "exitCodes": {
+            "0": "command completed",
+            "1": "execution failed",
+            "2": "valid report with violations"
+          },
+          "external": false,
+          "hidden": false,
+          "id": "version",
+          "input": {
+            "constraints": [],
+            "operands": [],
+            "options": [],
+            "passthrough": false,
+            "synopsis": "version | --version"
+          },
+          "outputMode": "json-envelope",
+          "outputSchema": {
+            "additionalProperties": false,
+            "properties": {
+              "cliApi": {
+                "type": "integer"
+              },
+              "contract": {
+                "const": "agent-cli/v2"
+              },
+              "framework": {
+                "type": "string"
+              },
+              "product": {
+                "type": "string"
+              },
+              "program": {
+                "type": "string"
+              },
+              "version": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "product",
+              "program",
+              "version",
+              "contract",
+              "cliApi",
+              "framework"
+            ],
+            "type": "object"
+          },
+          "pattern": [
+            "version"
+          ],
+          "purpose": "Return product identity.",
+          "usage": "version | --version"
+        },
+        {
+          "effect": "read",
+          "exitCodes": {
+            "0": "command completed",
+            "1": "execution failed",
+            "2": "valid report with violations"
+          },
+          "external": false,
+          "hidden": false,
+          "id": "describe",
+          "input": {
+            "constraints": [],
+            "operands": [
+              {
+                "name": "COMMAND_ID",
+                "required": false,
+                "summary": "Stable command identifier returned by the catalog.",
+                "variadic": false
+              }
+            ],
+            "options": [
+              {
+                "conflictsWith": [],
+                "long": "--summary",
+                "repeatable": false,
+                "required": false,
+                "requires": [],
+                "summary": "Return the compact command inventory without output schemas."
+              }
+            ],
+            "passthrough": false,
+            "synopsis": "describe [COMMAND_ID] [--summary]"
+          },
+          "outputMode": "json-envelope",
+          "outputSchema": {
+            "additionalProperties": true,
+            "description": "Command catalog, summary or single descriptor.",
+            "required": [
+              "schemaVersion",
+              "kind",
+              "program",
+              "commands"
+            ],
+            "type": "object"
+          },
+          "pattern": [
+            "describe"
+          ],
+          "purpose": "Return the machine-readable catalog, summary or one descriptor.",
+          "usage": "describe [COMMAND_ID] [--summary]"
+        },
+        {
+          "effect": "read",
+          "exitCodes": {
+            "0": "command completed",
+            "1": "execution failed",
+            "2": "valid report with violations"
+          },
+          "external": false,
+          "hidden": false,
+          "id": "commands.list",
+          "input": {
+            "constraints": [],
+            "operands": [],
+            "options": [],
+            "passthrough": false,
+            "synopsis": "commands list"
+          },
+          "outputMode": "json-records",
+          "outputSchema": {
+            "additionalProperties": false,
+            "properties": {
+              "count": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "records": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "cliApi": {
+                      "type": "integer"
+                    },
+                    "command": {
+                      "type": "string"
+                    },
+                    "digestVerified": {
+                      "type": "boolean"
+                    },
+                    "executable": {
+                      "type": "string"
+                    },
+                    "manifest": {
+                      "type": "string"
+                    },
+                    "summary": {
+                      "type": "string"
+                    },
+                    "version": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "command",
+                    "executable",
+                    "manifest",
+                    "version",
+                    "summary",
+                    "cliApi",
+                    "digestVerified"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "count",
+              "records"
+            ],
+            "type": "object"
+          },
+          "pattern": [
+            "commands",
+            "list"
+          ],
+          "purpose": "List the external commands declared by installed manifests.",
+          "usage": "commands list"
+        },
+        {
+          "effect": {
+            "apply": "apply",
+            "plan": "preview"
+          },
+          "exitCodes": {
+            "0": "command completed",
+            "1": "execution failed",
+            "2": "valid report with violations"
+          },
+          "external": false,
+          "hidden": false,
+          "id": "agents.install",
+          "input": {
+            "constraints": [],
+            "operands": [
+              {
+                "name": "PROJECT_DIR",
+                "required": true,
+                "summary": "Existing project directory that consumes libmaelys_cli.",
+                "variadic": false
+              }
+            ],
+            "options": [
+              {
+                "argument": {
+                  "choices": [
+                    "all",
+                    "claude",
+                    "codex"
+                  ],
+                  "name": "VALUE",
+                  "type": "choice"
+                },
+                "conflictsWith": [],
+                "default": "all",
+                "long": "--client",
+                "repeatable": false,
+                "required": false,
+                "requires": [],
+                "summary": "Agent clients to configure: all, claude (CLAUDE.md and skill) or codex (AGENTS.md)."
+              },
+              {
+                "conflictsWith": [],
+                "long": "--apply",
+                "repeatable": false,
+                "required": false,
+                "requires": [],
+                "summary": "Apply the reviewed transaction; omission returns a read-only plan."
+              }
+            ],
+            "passthrough": false,
+            "synopsis": "agents install PROJECT_DIR [--client all|claude|codex] [--apply]"
+          },
+          "outputMode": "json-envelope",
+          "outputSchema": {
+            "additionalProperties": false,
+            "properties": {
+              "changed": {
+                "type": "boolean"
+              },
+              "client": {
+                "enum": [
+                  "all",
+                  "claude",
+                  "codex"
+                ]
+              },
+              "files": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "action": {
+                      "enum": [
+                        "create",
+                        "update",
+                        "unchanged"
+                      ]
+                    },
+                    "bytes": {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "kind": {
+                      "enum": [
+                        "managed-block",
+                        "generated"
+                      ]
+                    },
+                    "path": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "path",
+                    "kind",
+                    "action",
+                    "bytes"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "frameworkVersion": {
+                "type": "string"
+              },
+              "mode": {
+                "enum": [
+                  "plan",
+                  "apply"
+                ]
+              },
+              "project": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "mode",
+              "changed",
+              "project",
+              "client",
+              "frameworkVersion",
+              "files"
+            ],
+            "type": "object"
+          },
+          "pattern": [
+            "agents",
+            "install"
+          ],
+          "purpose": "Install or refresh the maelys-cli agent instructions of a project.",
+          "usage": "agents install PROJECT_DIR [--client all|claude|codex] [--apply]"
+        },
+        {
+          "effect": "read",
+          "exitCodes": {
+            "0": "command completed",
+            "1": "execution failed",
+            "2": "valid report with violations"
+          },
+          "external": false,
+          "hidden": false,
+          "id": "agents.status",
+          "input": {
+            "constraints": [],
+            "operands": [
+              {
+                "name": "PROJECT_DIR",
+                "required": true,
+                "summary": "Existing project directory that consumes libmaelys_cli.",
+                "variadic": false
+              }
+            ],
+            "options": [
+              {
+                "argument": {
+                  "choices": [
+                    "all",
+                    "claude",
+                    "codex"
+                  ],
+                  "name": "VALUE",
+                  "type": "choice"
+                },
+                "conflictsWith": [],
+                "default": "all",
+                "long": "--client",
+                "repeatable": false,
+                "required": false,
+                "requires": [],
+                "summary": "Agent clients to inspect: all, claude or codex."
+              }
+            ],
+            "passthrough": false,
+            "synopsis": "agents status PROJECT_DIR [--client all|claude|codex]"
+          },
+          "outputMode": "json-envelope",
+          "outputSchema": {
+            "additionalProperties": false,
+            "properties": {
+              "client": {
+                "enum": [
+                  "all",
+                  "claude",
+                  "codex"
+                ]
+              },
+              "files": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "kind": {
+                      "enum": [
+                        "managed-block",
+                        "generated"
+                      ]
+                    },
+                    "path": {
+                      "type": "string"
+                    },
+                    "state": {
+                      "enum": [
+                        "current",
+                        "missing",
+                        "outdated",
+                        "unmanaged"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "path",
+                    "kind",
+                    "state"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "frameworkVersion": {
+                "type": "string"
+              },
+              "project": {
+                "type": "string"
+              },
+              "upToDate": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "project",
+              "client",
+              "frameworkVersion",
+              "upToDate",
+              "files"
+            ],
+            "type": "object"
+          },
+          "pattern": [
+            "agents",
+            "status"
+          ],
+          "purpose": "Report whether a project's maelys-cli agent instructions are current.",
+          "usage": "agents status PROJECT_DIR [--client all|claude|codex]"
+        }
+      ],
+      "contract": "agent-cli/v2",
+      "framework": "0.1.0",
+      "globalOptions": [
+        {
+          "argument": {
+            "choices": [
+              "text",
+              "json",
+              "jsonl"
+            ],
+            "name": "VALUE",
+            "type": "choice"
+          },
+          "conflictsWith": [],
+          "default": "text",
+          "long": "--format",
+          "repeatable": false,
+          "required": false,
+          "requires": [],
+          "summary": "Select text for humans, json for one envelope or jsonl for records."
+        },
+        {
+          "conflictsWith": [],
+          "long": "--json",
+          "repeatable": false,
+          "required": false,
+          "requires": [],
+          "summary": "Exact alias of --format json."
+        },
+        {
+          "conflictsWith": [],
+          "long": "--compact",
+          "repeatable": false,
+          "required": false,
+          "requires": [],
+          "summary": "Render JSON on a single line."
+        },
+        {
+          "conflictsWith": [],
+          "long": "--pretty",
+          "repeatable": false,
+          "required": false,
+          "requires": [],
+          "summary": "--pretty=false selects compact JSON."
+        },
+        {
+          "conflictsWith": [],
+          "long": "--non-interactive",
+          "repeatable": false,
+          "required": false,
+          "requires": [],
+          "summary": "Never prompt; fail instead of asking a question."
+        },
+        {
+          "argument": {
+            "choices": [
+              "auto",
+              "always",
+              "never"
+            ],
+            "name": "VALUE",
+            "type": "choice"
+          },
+          "conflictsWith": [],
+          "default": "auto",
+          "long": "--color",
+          "repeatable": false,
+          "required": false,
+          "requires": [],
+          "summary": "Control ANSI colors on terminals."
+        },
+        {
+          "conflictsWith": [],
+          "long": "--help",
+          "repeatable": false,
+          "required": false,
+          "requires": [],
+          "summary": "Show the help of the selected command."
+        }
+      ],
+      "invariants": [
+        "usage and agent discovery share one catalog",
+        "transactional commands plan by default and require --apply",
+        "stdout carries success data; stderr carries failures",
+        "--json and --format json are identical",
+        "unknown or duplicated options are refused",
+        "stream commands reject envelope rendering flags",
+        "external commands receive their arguments verbatim"
+      ],
+      "kind": "catalog",
+      "output": {
+        "contract": "agent-cli/v2",
+        "schemaVersion": 2,
+        "stderr": "diagnostics and failure envelopes",
+        "stdout": "success data only; protocol streams are explicit exceptions"
+      },
+      "product": "Maelys CLI",
+      "program": "maelys",
+      "schemaVersion": 1,
+      "version": "0.1.0"
+    },
+    "maelys-hello": {
+      "cliApi": 1,
+      "commands": [
+        {
+          "effect": "read",
+          "exitCodes": {
+            "0": "command completed",
+            "1": "execution failed",
+            "2": "valid report with violations"
+          },
+          "external": false,
+          "hidden": false,
+          "id": "help",
+          "input": {
+            "constraints": [],
+            "operands": [
+              {
+                "name": "COMMAND_ID",
+                "required": false,
+                "summary": "Stable command identifier whose help is shown.",
+                "variadic": false
+              }
+            ],
+            "options": [],
+            "passthrough": false,
+            "synopsis": "help [COMMAND_ID] | --help"
+          },
+          "outputMode": "json-envelope",
+          "outputSchema": {
+            "additionalProperties": false,
+            "properties": {
+              "commands": {
+                "items": {
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "text": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "text",
+              "commands"
+            ],
+            "type": "object"
+          },
+          "pattern": [
+            "help"
+          ],
+          "purpose": "Show the generated CLI guide or one command's help.",
+          "usage": "help [COMMAND_ID] | --help"
+        },
+        {
+          "effect": "read",
+          "exitCodes": {
+            "0": "command completed",
+            "1": "execution failed",
+            "2": "valid report with violations"
+          },
+          "external": false,
+          "hidden": false,
+          "id": "version",
+          "input": {
+            "constraints": [],
+            "operands": [],
+            "options": [],
+            "passthrough": false,
+            "synopsis": "version | --version"
+          },
+          "outputMode": "json-envelope",
+          "outputSchema": {
+            "additionalProperties": false,
+            "properties": {
+              "cliApi": {
+                "type": "integer"
+              },
+              "contract": {
+                "const": "agent-cli/v2"
+              },
+              "framework": {
+                "type": "string"
+              },
+              "product": {
+                "type": "string"
+              },
+              "program": {
+                "type": "string"
+              },
+              "version": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "product",
+              "program",
+              "version",
+              "contract",
+              "cliApi",
+              "framework"
+            ],
+            "type": "object"
+          },
+          "pattern": [
+            "version"
+          ],
+          "purpose": "Return product identity.",
+          "usage": "version | --version"
+        },
+        {
+          "effect": "read",
+          "exitCodes": {
+            "0": "command completed",
+            "1": "execution failed",
+            "2": "valid report with violations"
+          },
+          "external": false,
+          "hidden": false,
+          "id": "describe",
+          "input": {
+            "constraints": [],
+            "operands": [
+              {
+                "name": "COMMAND_ID",
+                "required": false,
+                "summary": "Stable command identifier returned by the catalog.",
+                "variadic": false
+              }
+            ],
+            "options": [
+              {
+                "conflictsWith": [],
+                "long": "--summary",
+                "repeatable": false,
+                "required": false,
+                "requires": [],
+                "summary": "Return the compact command inventory without output schemas."
+              }
+            ],
+            "passthrough": false,
+            "synopsis": "describe [COMMAND_ID] [--summary]"
+          },
+          "outputMode": "json-envelope",
+          "outputSchema": {
+            "additionalProperties": true,
+            "description": "Command catalog, summary or single descriptor.",
+            "required": [
+              "schemaVersion",
+              "kind",
+              "program",
+              "commands"
+            ],
+            "type": "object"
+          },
+          "pattern": [
+            "describe"
+          ],
+          "purpose": "Return the machine-readable catalog, summary or one descriptor.",
+          "usage": "describe [COMMAND_ID] [--summary]"
+        },
+        {
+          "effect": "read",
+          "exitCodes": {
+            "0": "command completed",
+            "1": "execution failed",
+            "2": "valid report with violations"
+          },
+          "external": false,
+          "hidden": false,
+          "id": "greet",
+          "input": {
+            "constraints": [],
+            "operands": [
+              {
+                "name": "NAME",
+                "required": true,
+                "summary": "Person or system to greet.",
+                "variadic": false
+              }
+            ],
+            "options": [
+              {
+                "conflictsWith": [],
+                "long": "--shout",
+                "repeatable": false,
+                "required": false,
+                "requires": [],
+                "summary": "Render the greeting in capitals."
+              },
+              {
+                "argument": {
+                  "maximum": 10,
+                  "minimum": 1,
+                  "name": "N",
+                  "type": "unsigned"
+                },
+                "conflictsWith": [],
+                "default": "1",
+                "long": "--times",
+                "repeatable": false,
+                "required": false,
+                "requires": [],
+                "summary": "Repeat the greeting."
+              }
+            ],
+            "passthrough": false,
+            "synopsis": "greet NAME [--shout] [--times N]"
+          },
+          "outputMode": "json-envelope",
+          "outputSchema": {
+            "additionalProperties": false,
+            "properties": {
+              "greeting": {
+                "type": "string"
+              },
+              "times": {
+                "minimum": 1,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "greeting",
+              "times"
+            ],
+            "type": "object"
+          },
+          "pattern": [
+            "greet"
+          ],
+          "purpose": "Greet someone.",
+          "usage": "greet NAME [--shout] [--times N]"
+        },
+        {
+          "effect": "read",
+          "exitCodes": {
+            "0": "command completed",
+            "1": "execution failed",
+            "2": "valid report with violations"
+          },
+          "external": false,
+          "hidden": false,
+          "id": "limits",
+          "input": {
+            "constraints": [
+              {
+                "kind": "requires",
+                "options": [
+                  "--strict",
+                  "--level"
+                ]
+              },
+              {
+                "kind": "at-most-one",
+                "options": [
+                  "--lenient",
+                  "--strict"
+                ]
+              }
+            ],
+            "operands": [],
+            "options": [
+              {
+                "argument": {
+                  "maximum": 18446744073709551615,
+                  "minimum": 1,
+                  "name": "BYTES",
+                  "type": "size"
+                },
+                "conflictsWith": [],
+                "default": "1G",
+                "long": "--memory",
+                "repeatable": false,
+                "required": false,
+                "requires": [],
+                "summary": "Memory ceiling; K/M/G accepted."
+              },
+              {
+                "argument": {
+                  "maximum": 18446744073709551615,
+                  "minimum": 0,
+                  "name": "DURATION",
+                  "type": "duration"
+                },
+                "conflictsWith": [],
+                "default": "10m",
+                "long": "--wall-time",
+                "repeatable": false,
+                "required": false,
+                "requires": [],
+                "summary": "Deadline with a unit such as 30s or 5m."
+              },
+              {
+                "argument": {
+                  "choices": [
+                    "low",
+                    "high"
+                  ],
+                  "name": "VALUE",
+                  "type": "choice"
+                },
+                "conflictsWith": [],
+                "default": "low",
+                "long": "--level",
+                "repeatable": false,
+                "required": false,
+                "requires": [],
+                "summary": "Verbosity level."
+              },
+              {
+                "argument": {
+                  "maximum": 100,
+                  "minimum": -100,
+                  "name": "N",
+                  "type": "integer"
+                },
+                "conflictsWith": [],
+                "default": "0",
+                "long": "--offset",
+                "repeatable": false,
+                "required": false,
+                "requires": [],
+                "summary": "Signed adjustment."
+              },
+              {
+                "argument": {
+                  "digits": 64,
+                  "name": "HEX",
+                  "type": "hex"
+                },
+                "conflictsWith": [],
+                "long": "--digest",
+                "repeatable": false,
+                "required": false,
+                "requires": [],
+                "summary": "Expected SHA-256 digest."
+              },
+              {
+                "argument": {
+                  "name": "TEXT",
+                  "type": "string"
+                },
+                "conflictsWith": [],
+                "long": "--tag",
+                "repeatable": true,
+                "required": false,
+                "requires": [],
+                "summary": "Free label; repeatable."
+              },
+              {
+                "conflictsWith": [],
+                "long": "--strict",
+                "repeatable": false,
+                "required": false,
+                "requires": [
+                  "--level"
+                ],
+                "summary": "Refuse defaults."
+              },
+              {
+                "conflictsWith": [
+                  "--strict"
+                ],
+                "long": "--lenient",
+                "repeatable": false,
+                "required": false,
+                "requires": [],
+                "summary": "Accept defaults."
+              }
+            ],
+            "passthrough": false,
+            "synopsis": "limits [--memory BYTES] [--wall-time DURATION] [--level low|high] [--offset N] [--digest HEX] [--tag TEXT...] [--strict] [--lenient]"
+          },
+          "outputMode": "json-envelope",
+          "outputSchema": {
+            "additionalProperties": false,
+            "properties": {
+              "digest": {
+                "type": "string"
+              },
+              "level": {
+                "enum": [
+                  "low",
+                  "high"
+                ]
+              },
+              "memory": {
+                "type": "integer"
+              },
+              "offset": {
+                "type": "integer"
+              },
+              "tags": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "wallTimeMs": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "memory",
+              "wallTimeMs",
+              "level",
+              "offset",
+              "tags"
+            ],
+            "type": "object"
+          },
+          "pattern": [
+            "limits"
+          ],
+          "purpose": "Echo typed option values.",
+          "usage": "limits [--memory BYTES] [--wall-time DURATION] [--level low|high] [--offset N] [--digest HEX] [--tag TEXT...] [--strict] [--lenient]"
+        },
+        {
+          "effect": {
+            "apply": "apply",
+            "plan": "preview"
+          },
+          "exitCodes": {
+            "0": "command completed",
+            "1": "execution failed",
+            "2": "valid report with violations"
+          },
+          "external": false,
+          "hidden": false,
+          "id": "note.write",
+          "input": {
+            "constraints": [],
+            "operands": [
+              {
+                "name": "FILE",
+                "required": true,
+                "summary": "Destination file; never overwritten without --replace.",
+                "variadic": false
+              }
+            ],
+            "options": [
+              {
+                "argument": {
+                  "name": "TEXT",
+                  "type": "string"
+                },
+                "conflictsWith": [],
+                "long": "--content",
+                "repeatable": false,
+                "required": true,
+                "requires": [],
+                "summary": "Text to store."
+              },
+              {
+                "conflictsWith": [],
+                "long": "--replace",
+                "repeatable": false,
+                "required": false,
+                "requires": [],
+                "summary": "Allow replacing an existing file atomically."
+              },
+              {
+                "conflictsWith": [],
+                "long": "--apply",
+                "repeatable": false,
+                "required": false,
+                "requires": [],
+                "summary": "Apply the reviewed transaction; omission returns a read-only plan."
+              }
+            ],
+            "passthrough": false,
+            "synopsis": "note write FILE --content TEXT [--replace] [--apply]"
+          },
+          "outputMode": "json-envelope",
+          "outputSchema": {
+            "additionalProperties": false,
+            "properties": {
+              "bytes": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "changed": {
+                "type": "boolean"
+              },
+              "mode": {
+                "enum": [
+                  "plan",
+                  "apply"
+                ]
+              },
+              "path": {
+                "type": "string"
+              },
+              "precondition": {
+                "additionalProperties": false,
+                "properties": {
+                  "replace": {
+                    "type": "boolean"
+                  },
+                  "targetAbsent": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "targetAbsent",
+                  "replace"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "mode",
+              "changed",
+              "path",
+              "bytes",
+              "precondition"
+            ],
+            "type": "object"
+          },
+          "pattern": [
+            "note",
+            "write"
+          ],
+          "purpose": "Store a note in a file.",
+          "usage": "note write FILE --content TEXT [--replace] [--apply]"
+        },
+        {
+          "effect": "read",
+          "exitCodes": {
+            "0": "command completed",
+            "1": "execution failed",
+            "2": "valid report with violations"
+          },
+          "external": false,
+          "hidden": false,
+          "id": "list",
+          "input": {
+            "constraints": [],
+            "operands": [],
+            "options": [
+              {
+                "argument": {
+                  "maximum": 1000,
+                  "minimum": 0,
+                  "name": "N",
+                  "type": "unsigned"
+                },
+                "conflictsWith": [],
+                "default": "5",
+                "long": "--limit",
+                "repeatable": false,
+                "required": false,
+                "requires": [],
+                "summary": "Maximum number of records."
+              }
+            ],
+            "passthrough": false,
+            "synopsis": "list [--limit N]"
+          },
+          "outputMode": "json-records",
+          "outputSchema": {
+            "additionalProperties": false,
+            "properties": {
+              "count": {
+                "type": "integer"
+              },
+              "records": {
+                "items": {
+                  "required": [
+                    "index",
+                    "name"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "count",
+              "records"
+            ],
+            "type": "object"
+          },
+          "pattern": [
+            "list"
+          ],
+          "purpose": "List sample records.",
+          "usage": "list [--limit N]"
+        },
+        {
+          "effect": "read",
+          "exitCodes": {
+            "0": "command completed",
+            "1": "execution failed",
+            "2": "valid report with violations"
+          },
+          "external": false,
+          "hidden": false,
+          "id": "check",
+          "input": {
+            "constraints": [],
+            "operands": [
+              {
+                "name": "FILE",
+                "required": true,
+                "summary": "File that must be private (no group or world permissions).",
+                "variadic": false
+              }
+            ],
+            "options": [],
+            "passthrough": false,
+            "synopsis": "check FILE"
+          },
+          "outputMode": "json-envelope",
+          "outputSchema": {
+            "additionalProperties": false,
+            "properties": {
+              "diagnostics": {
+                "items": {
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "path": {
+                "type": "string"
+              },
+              "valid": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "valid",
+              "path",
+              "diagnostics"
+            ],
+            "type": "object"
+          },
+          "pattern": [
+            "check"
+          ],
+          "purpose": "Validate that a file is private.",
+          "usage": "check FILE"
+        },
+        {
+          "effect": "read",
+          "exitCodes": {
+            "0": "command completed",
+            "1": "execution failed",
+            "2": "valid report with violations"
+          },
+          "external": false,
+          "hidden": false,
+          "id": "env.show",
+          "input": {
+            "constraints": [],
+            "operands": [],
+            "options": [
+              {
+                "argument": {
+                  "name": "NAME[=VALUE]",
+                  "type": "string"
+                },
+                "conflictsWith": [],
+                "long": "--env",
+                "repeatable": true,
+                "required": false,
+                "requires": [],
+                "summary": "Overlay entry; NAME alone imports the current environment."
+              }
+            ],
+            "passthrough": false,
+            "synopsis": "env show [--env NAME[=VALUE]...]"
+          },
+          "outputMode": "json-envelope",
+          "outputSchema": {
+            "additionalProperties": false,
+            "properties": {
+              "count": {
+                "type": "integer"
+              },
+              "entries": {
+                "items": {
+                  "type": "object"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "count",
+              "entries"
+            ],
+            "type": "object"
+          },
+          "pattern": [
+            "env",
+            "show"
+          ],
+          "purpose": "Show an environment overlay.",
+          "usage": "env show [--env NAME[=VALUE]...]"
+        },
+        {
+          "effect": "stream",
+          "exitCodes": {
+            "0": "command completed",
+            "1": "execution failed",
+            "2": "valid report with violations"
+          },
+          "external": false,
+          "hidden": false,
+          "id": "run",
+          "input": {
+            "constraints": [],
+            "operands": [
+              {
+                "name": "PROGRAM",
+                "required": true,
+                "summary": "Absolute path of the program to execute.",
+                "variadic": false
+              },
+              {
+                "name": "ARG",
+                "required": false,
+                "summary": "Arguments passed verbatim to the program.",
+                "variadic": true
+              }
+            ],
+            "options": [],
+            "passthrough": false,
+            "synopsis": "run PROGRAM [ARG...] | run -- PROGRAM [ARG...]"
+          },
+          "outputMode": "protocol-stream",
+          "outputSchema": {
+            "type": "object"
+          },
+          "pattern": [
+            "run"
+          ],
+          "purpose": "Execute a program and relay its stdio.",
+          "usage": "run PROGRAM [ARG...] | run -- PROGRAM [ARG...]"
+        },
+        {
+          "effect": "execute",
+          "exitCodes": {
+            "0": "command completed",
+            "1": "execution failed",
+            "2": "valid report with violations"
+          },
+          "external": true,
+          "hidden": false,
+          "id": "image",
+          "input": {
+            "constraints": [],
+            "operands": [
+              {
+                "name": "ARGUMENTS",
+                "required": false,
+                "summary": "Arguments passed verbatim to maelys-hello-image.",
+                "variadic": true
+              }
+            ],
+            "options": [],
+            "passthrough": true,
+            "synopsis": "image [ARGUMENTS...]"
+          },
+          "outputMode": "protocol-stream",
+          "outputSchema": {
+            "type": "object"
+          },
+          "pattern": [
+            "image"
+          ],
+          "purpose": "Delegate to the optional maelys-hello-image helper.",
+          "usage": "image [ARGUMENTS...]"
+        }
+      ],
+      "contract": "agent-cli/v2",
+      "framework": "0.1.0",
+      "globalOptions": [
+        {
+          "argument": {
+            "choices": [
+              "text",
+              "json",
+              "jsonl"
+            ],
+            "name": "VALUE",
+            "type": "choice"
+          },
+          "conflictsWith": [],
+          "default": "text",
+          "long": "--format",
+          "repeatable": false,
+          "required": false,
+          "requires": [],
+          "summary": "Select text for humans, json for one envelope or jsonl for records."
+        },
+        {
+          "conflictsWith": [],
+          "long": "--json",
+          "repeatable": false,
+          "required": false,
+          "requires": [],
+          "summary": "Exact alias of --format json."
+        },
+        {
+          "conflictsWith": [],
+          "long": "--compact",
+          "repeatable": false,
+          "required": false,
+          "requires": [],
+          "summary": "Render JSON on a single line."
+        },
+        {
+          "conflictsWith": [],
+          "long": "--pretty",
+          "repeatable": false,
+          "required": false,
+          "requires": [],
+          "summary": "--pretty=false selects compact JSON."
+        },
+        {
+          "conflictsWith": [],
+          "long": "--non-interactive",
+          "repeatable": false,
+          "required": false,
+          "requires": [],
+          "summary": "Never prompt; fail instead of asking a question."
+        },
+        {
+          "argument": {
+            "choices": [
+              "auto",
+              "always",
+              "never"
+            ],
+            "name": "VALUE",
+            "type": "choice"
+          },
+          "conflictsWith": [],
+          "default": "auto",
+          "long": "--color",
+          "repeatable": false,
+          "required": false,
+          "requires": [],
+          "summary": "Control ANSI colors on terminals."
+        },
+        {
+          "conflictsWith": [],
+          "long": "--help",
+          "repeatable": false,
+          "required": false,
+          "requires": [],
+          "summary": "Show the help of the selected command."
+        }
+      ],
+      "invariants": [
+        "usage and agent discovery share one catalog",
+        "transactional commands plan by default and require --apply",
+        "stdout carries success data; stderr carries failures",
+        "--json and --format json are identical",
+        "unknown or duplicated options are refused",
+        "stream commands reject envelope rendering flags",
+        "external commands receive their arguments verbatim"
+      ],
+      "kind": "catalog",
+      "output": {
+        "contract": "agent-cli/v2",
+        "schemaVersion": 2,
+        "stderr": "diagnostics and failure envelopes",
+        "stdout": "success data only; protocol streams are explicit exceptions"
+      },
+      "product": "Maelys Hello",
+      "program": "maelys-hello",
+      "schemaVersion": 1,
+      "version": "0.1.0"
+    }
+  }
+}
