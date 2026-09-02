@@ -245,4 +245,6 @@ only for the reference generator; a C++17 compiler only for the header gate.
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MPL-2.0 for the framework code (see [LICENSE](LICENSE)); CC0-1.0 for the
+agent texts and templates copied into consumer projects (see
+[share/LICENSE](share/LICENSE)). Details in [LICENSING.md](LICENSING.md).

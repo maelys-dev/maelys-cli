@@ -1,6 +1,7 @@
 # Using @PROGRAM@ from an agent
 
-<!-- Template installed by maelys-cli under share/maelys-cli/templates/.
+<!-- Template installed by maelys-cli under share/maelys-cli/templates/
+     (CC0-1.0, edit freely).
      Copy it to docs/agent-cli.md and replace the placeholders. The generic
      agent contract is in agent-cli.md of the maelys-cli distribution; keep
      only product specifics here. -->

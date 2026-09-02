@@ -2,6 +2,9 @@
 
 ## 0.1.0 - 2026-09-02
 
+- Licensing: framework code under MPL-2.0; agent texts and product
+  templates under CC0-1.0 so consumers can copy and edit them freely
+  (`LICENSING.md`).
 - Initial release of `libmaelys_cli`: product-neutral value parsing,
   environment overlays, bounded file I/O with atomic writes, SHA-256,
   dependency-free JSON writer/validator/formatter, terminal detection and

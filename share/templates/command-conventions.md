@@ -1,6 +1,7 @@
 # @PRODUCT@ command conventions
 
-<!-- Template installed by maelys-cli under share/maelys-cli/templates/.
+<!-- Template installed by maelys-cli under share/maelys-cli/templates/
+     (CC0-1.0, edit freely).
      Copy it to docs/command-conventions.md, replace @PRODUCT@ and @PROGRAM@,
      and keep only what is specific to this product. The framework rules are
      normative and live in the installed framework documentation; do not

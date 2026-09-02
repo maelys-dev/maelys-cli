@@ -15,6 +15,12 @@ public contract is stricter than in a product repository.
 - Every primitive ships with positive and adversarial tests in `tests/`.
 - Public headers compile as C11 and C++17 (`tests/header_cpp.cpp`).
 
+## Licensing boundary
+
+Code is MPL-2.0; `share/agents/` and `share/templates/` are CC0-1.0 because
+they are copied into consumer repositories. Never move code into `share/`
+or licensed text into the agent texts. See `LICENSING.md`.
+
 ## Contracts that must not drift
 
 - The success and failure envelopes, error codes and exit codes are the

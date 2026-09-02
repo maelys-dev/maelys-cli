@@ -172,6 +172,8 @@ install: $(LIB) $(DISPATCHER) $(PC)
 	install -m 0644 share/agents/*.md $(DESTDIR)$(PREFIX)/share/maelys-cli/agents/
 	install -d $(DESTDIR)$(PREFIX)/share/maelys-cli/templates
 	install -m 0644 share/templates/* $(DESTDIR)$(PREFIX)/share/maelys-cli/templates/
+	install -m 0644 share/LICENSE $(DESTDIR)$(PREFIX)/share/maelys-cli/LICENSE
+	install -m 0644 LICENSE LICENSING.md $(DESTDIR)$(PREFIX)/share/maelys-cli/docs/
 	install -m 0644 docs/*.md $(DESTDIR)$(PREFIX)/share/maelys-cli/docs/
 
 install-check: all
