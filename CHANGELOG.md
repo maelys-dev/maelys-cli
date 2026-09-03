@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- Release through the shared maelys-release workflows and publish two
+  Homebrew formulas: `maelys`, the command alone (`make install-dispatcher`),
+  and `libmaelys-cli`, the framework to build a product CLI (`make
+  install-sdk`); `make install` still installs both. Both formulas build
+  against the `libmaelys-json` formula. `scripts/package-release.sh TARGET`
+  stages the installed tree; `adapter/MAELYS_JSON_PIN` and
+  `scripts/checkout-json.sh` record and fetch the pinned maelys-json.
+
 ## 0.5.2 - 2026-09-03
 
 Feedback from the Maelys Git 0.5 integration:
