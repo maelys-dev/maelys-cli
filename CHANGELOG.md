@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Regenerate the release workflow with maelys-release 0.2.7 (the tap publish
+  job no longer trips on the previous formula of the shared tap).
+
 ## 0.5.5 - 2026-09-03
 
 - The `maelys` formula description no longer starts with the formula name
