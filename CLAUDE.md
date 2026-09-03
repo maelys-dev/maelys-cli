@@ -4,7 +4,7 @@ the `maelys-cli-framework` skill for any change to the public surface, and
 run `make check` before reporting a change as done.
 
 <!-- maelys-release:begin -->
-# Maelys release socle (maelys-release v0.2.3)
+# Maelys release socle (maelys-release v0.2.4)
 
 This repository publishes through the shared maelys-release workflows. The
 rules below hold for every release-related change; the complete conventions
