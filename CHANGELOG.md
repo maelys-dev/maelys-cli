@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.5 - 2026-09-03
+
+- The `maelys` formula description no longer starts with the formula name
+  (`brew style` refused it, so 0.5.4 published no formula) and the release
+  workflow is regenerated with maelys-release 0.2.6, which taps
+  `maelys-dev/tap` before building bottles so `libmaelys-cli` finds
+  `libmaelys-json`.
+
 ## 0.5.4 - 2026-09-03
 
 - Regenerate the release workflow with maelys-release 0.2.5. The `v0.5.3`

@@ -4,7 +4,7 @@
 # Rendered by maelys-release for one released tag. Installs the `maelys`
 # command only; the framework to build a product CLI is `libmaelys-cli`.
 class Maelys < Formula
-  desc "Maelys command that runs every installed Maelys tool under one name"
+  desc "Command that runs every installed Maelys tool under one name"
   homepage "https://github.com/maelys-dev/maelys-cli"
   url "@URL@"
   sha256 "@SHA256@"
