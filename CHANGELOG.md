@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.4 - 2026-09-03
+
+- Regenerate the release workflow with maelys-release 0.2.5. The `v0.5.3`
+  tag exists but produced no release: the publish job of the socle expected
+  deb and rpm packages that this repository does not ship.
+
 ## 0.5.3 - 2026-09-03
 
 - Release through the shared maelys-release workflows and publish two
