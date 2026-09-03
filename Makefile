@@ -195,28 +195,35 @@ contract-check: $(DISPATCHER) $(EXAMPLE)
 		{ echo "docs/cli-contract.json drifted; run make generate-cli-reference" >&2; exit 1; }
 	@echo "contract-check: ok"
 
-install: $(LIB) $(EXTENSION_LIB) $(DISPATCHER) $(PC) $(EXTENSION_PC)
+# The command alone (Homebrew formula `maelys`): the dispatcher and its
+# manifest directory. Its agent texts are embedded, nothing else is needed.
+install-dispatcher: $(DISPATCHER)
+	install -d $(DESTDIR)$(PREFIX)/bin $(DESTDIR)$(PREFIX)/share/maelys/commands
+	install -m 0755 $(DISPATCHER) $(DESTDIR)$(PREFIX)/bin/maelys
+
+# The kit to build a product CLI (Homebrew formula `libmaelys-cli`).
+install-sdk: $(LIB) $(EXTENSION_LIB) $(PC) $(EXTENSION_PC)
 	install -d $(DESTDIR)$(PREFIX)/lib $(DESTDIR)$(PREFIX)/bin \
 		$(DESTDIR)$(PREFIX)/include/maelys/cli \
 		$(DESTDIR)$(PREFIX)/lib/pkgconfig \
 		$(DESTDIR)$(PREFIX)/share/maelys-cli/agents \
 		$(DESTDIR)$(PREFIX)/share/maelys-cli/docs \
-		$(DESTDIR)$(PREFIX)/share/maelys/commands
+		$(DESTDIR)$(PREFIX)/share/maelys-cli/templates
 	install -m 0644 $(LIB) $(DESTDIR)$(PREFIX)/lib/libmaelys_cli.a
 	install -m 0644 $(EXTENSION_LIB) $(DESTDIR)$(PREFIX)/lib/libmaelys_cli_extension.a
 	install -m 0644 $(EXTENSION_PC) $(DESTDIR)$(PREFIX)/lib/pkgconfig/maelys-cli-extension.pc
-	install -m 0755 $(DISPATCHER) $(DESTDIR)$(PREFIX)/bin/maelys
 	install -m 0755 $(EMBED) $(DESTDIR)$(PREFIX)/bin/maelys-cli-embed
 	install -m 0755 tools/generate_cli_reference.py $(DESTDIR)$(PREFIX)/bin/maelys-cli-reference
 	install -m 0644 include/maelys/cli.h $(DESTDIR)$(PREFIX)/include/maelys/cli.h
 	install -m 0644 include/maelys/cli/*.h $(DESTDIR)$(PREFIX)/include/maelys/cli/
 	install -m 0644 $(PC) $(DESTDIR)$(PREFIX)/lib/pkgconfig/maelys-cli.pc
 	install -m 0644 share/agents/*.md $(DESTDIR)$(PREFIX)/share/maelys-cli/agents/
-	install -d $(DESTDIR)$(PREFIX)/share/maelys-cli/templates
 	install -m 0644 share/templates/* $(DESTDIR)$(PREFIX)/share/maelys-cli/templates/
 	install -m 0644 share/LICENSE $(DESTDIR)$(PREFIX)/share/maelys-cli/LICENSE
 	install -m 0644 LICENSE LICENSING.md $(DESTDIR)$(PREFIX)/share/maelys-cli/docs/
 	install -m 0644 docs/*.md $(DESTDIR)$(PREFIX)/share/maelys-cli/docs/
+
+install: install-dispatcher install-sdk
 
 install-check: all
 	./scripts/install-check.sh

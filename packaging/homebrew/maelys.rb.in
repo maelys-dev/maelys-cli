@@ -1,0 +1,28 @@
+# typed: strict
+# frozen_string_literal: true
+
+# Rendered by maelys-release for one released tag. Installs the `maelys`
+# command only; the framework to build a product CLI is `libmaelys-cli`.
+class Maelys < Formula
+  desc "Maelys command that runs every installed Maelys tool under one name"
+  homepage "https://github.com/maelys-dev/maelys-cli"
+  url "@URL@"
+  sha256 "@SHA256@"
+  license "MPL-2.0"
+
+  depends_on "libmaelys-json" => :build
+
+  def install
+    json = Formula["libmaelys-json"]
+    system "make", "install-dispatcher", "PREFIX=#{prefix}", "CC=#{ENV.cc}",
+           "MAELYS_JSON_CFLAGS=-I#{json.opt_include}",
+           "MAELYS_JSON_LIB=#{json.opt_lib}/libmaelys-json.a",
+           "MAELYS_JSON_LIBS=#{json.opt_lib}/libmaelys-json.a"
+  end
+
+  test do
+    assert_equal "maelys #{version}", shell_output("#{bin}/maelys version").strip
+    output = shell_output("#{bin}/maelys commands list --format json --compact --non-interactive")
+    assert_match '"contract":"agent-cli/v2"', output
+  end
+end
