@@ -2,6 +2,7 @@
 
 #include <maelys/cli.h>
 
+#include <errno.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -231,10 +232,64 @@ static int test_names(void) {
     return 1;
 }
 
+static const maelys_cli_command_t base_part[] = {
+    {MAELYS_CLI_READ("alpha", "alpha", "Alpha.", dummy_handler)},
+    {MAELYS_CLI_EXECUTE("pro.sign", "pro sign", "Sign.", NULL),
+     .unavailable = "provided by the pro build"},
+    {MAELYS_CLI_READ("omega", "omega", "Omega.", dummy_handler)},
+};
+static const maelys_cli_command_t pro_part[] = {
+    {MAELYS_CLI_EXECUTE("pro.sign", "pro sign", "Sign for real.", dummy_handler)},
+    {MAELYS_CLI_READ("pro.extra", "pro extra", "Extra.", dummy_handler)},
+};
+
+static int test_concat(void) {
+    maelys_cli_command_t *commands = NULL;
+    size_t count = 0u;
+    maelys_cli_catalog_part_t parts[] = {
+        MAELYS_CLI_CATALOG_PART(base_part),
+        {NULL, 0u},
+        MAELYS_CLI_CATALOG_PART(pro_part),
+    };
+    CHECK(maelys_cli_catalog_concat(parts, 3u, &commands, &count) == 0);
+    CHECK(count == 4u);
+    /* The override keeps the position of the base declaration. */
+    CHECK(strcmp(commands[1].id, "pro.sign") == 0 && commands[1].handler == dummy_handler);
+    CHECK(commands[1].unavailable == NULL && strcmp(commands[1].purpose, "Sign for real.") == 0);
+    CHECK(strcmp(commands[2].id, "omega") == 0 && strcmp(commands[3].id, "pro.extra") == 0);
+    maelys_cli_app_t app = {"prog", "Product", "1.0", NULL, commands, count, NULL, 0u, NULL, NULL};
+    maelys_cli_error_t error;
+    CHECK(maelys_cli_catalog_validate(&app, &error) == 0);
+    free(commands);
+    /* The base alone keeps the unavailable declaration and still validates. */
+    maelys_cli_catalog_part_t base_only[] = {MAELYS_CLI_CATALOG_PART(base_part)};
+    CHECK(maelys_cli_catalog_concat(base_only, 1u, &commands, &count) == 0 && count == 3u);
+    CHECK(commands[1].unavailable != NULL && commands[1].handler == NULL);
+    free(commands);
+    /* Empty composition and refused arguments. */
+    CHECK(maelys_cli_catalog_concat(NULL, 0u, &commands, &count) == 0 && count == 0u && commands != NULL);
+    free(commands);
+    /* A later part may not shadow a command the earlier part provides. */
+    static const maelys_cli_command_t shadowing[] = {
+        {MAELYS_CLI_READ("alpha", "alpha", "Alpha again.", dummy_handler)},
+    };
+    maelys_cli_catalog_part_t shadow_parts[] = {
+        MAELYS_CLI_CATALOG_PART(base_part), MAELYS_CLI_CATALOG_PART(shadowing),
+    };
+    commands = (maelys_cli_command_t *)1;
+    CHECK(maelys_cli_catalog_concat(shadow_parts, 2u, &commands, &count) != 0);
+    CHECK(errno == EEXIST && commands == NULL);
+    maelys_cli_catalog_part_t broken[] = {{NULL, 2u}};
+    CHECK(maelys_cli_catalog_concat(broken, 1u, &commands, &count) != 0 && errno == EINVAL);
+    CHECK(maelys_cli_catalog_concat(parts, 3u, NULL, &count) != 0 && errno == EINVAL);
+    return 1;
+}
+
 int main(void) {
     int failures = 0;
     RUN(test_synopsis);
     RUN(test_validation);
     RUN(test_names);
+    RUN(test_concat);
     return failures ? 1 : 0;
 }

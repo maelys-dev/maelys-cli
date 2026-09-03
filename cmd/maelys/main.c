@@ -134,18 +134,16 @@ static int build_catalog(maelys_cli_error_t *error) {
     if (maelys_cli_extension_discover(directories, directory_count,
             &state.extensions, error) != 0)
         return -1;
-    size_t builtin_count = MAELYS_CLI_COUNT(builtin_commands);
-    state.command_count = builtin_count + state.extensions.count;
-    state.commands = calloc(state.command_count, sizeof(*state.commands));
-    if (!state.commands) {
+    maelys_cli_command_t *external = calloc(
+        state.extensions.count ? state.extensions.count : 1u, sizeof(*external));
+    if (!external) {
         maelys_cli_error_set(error, MAELYS_CLI_CODE_UNEXPECTED, NULL,
             "Out of memory while building the catalog.");
         return -1;
     }
-    memcpy(state.commands, builtin_commands, sizeof(builtin_commands));
     for (size_t i = 0u; i < state.extensions.count; ++i) {
         const maelys_cli_extension_t *extension = &state.extensions.items[i];
-        maelys_cli_command_t *command = &state.commands[builtin_count + i];
+        maelys_cli_command_t *command = &external[i];
         command->id = extension->command;
         command->pattern = extension->command;
         command->purpose = extension->summary[0] ? extension->summary :
@@ -156,6 +154,18 @@ static int build_catalog(maelys_cli_error_t *error) {
         command->operands = passthrough_operands;
         command->operand_count = MAELYS_CLI_COUNT(passthrough_operands);
         command->delegate = extension->executable;
+    }
+    maelys_cli_catalog_part_t parts[] = {
+        MAELYS_CLI_CATALOG_PART(builtin_commands),
+        {external, state.extensions.count},
+    };
+    int composed = maelys_cli_catalog_concat(parts, MAELYS_CLI_COUNT(parts),
+        &state.commands, &state.command_count);
+    free(external);
+    if (composed != 0) {
+        maelys_cli_error_set(error, MAELYS_CLI_CODE_UNEXPECTED, NULL,
+            "Out of memory while building the catalog.");
+        return -1;
     }
     return 0;
 }

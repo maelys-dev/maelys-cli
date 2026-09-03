@@ -251,6 +251,29 @@ typedef struct maelys_cli_command {
 #define MAELYS_CLI_DEFAULT_OF(constant_) \
     .default_text = MAELYS_CLI_STRINGIFY(constant_)
 
+/* One contiguous slice of command descriptors, for catalog composition. */
+typedef struct maelys_cli_catalog_part {
+    const maelys_cli_command_t *commands;
+    size_t count;
+} maelys_cli_catalog_part_t;
+#define MAELYS_CLI_CATALOG_PART(array) {(array), MAELYS_CLI_COUNT(array)}
+
+/* Composes one catalog from several parts, in order, into an array owned
+ * by the caller (released with free()). A later part may declare an
+ * identifier that an earlier part declares `.unavailable`: it replaces
+ * that descriptor in place, so a build variant provides a command where
+ * the base catalog describes it as unavailable, at the same position in
+ * help and describe. Any other repeated identifier is refused with EEXIST:
+ * composition never shadows a provided command silently. Parts with a
+ * NULL array or a zero count are skipped. Every other inconsistency is
+ * still refused by maelys_cli_catalog_validate() at startup. Returns 0,
+ * or -1 with errno EINVAL (NULL output or a part whose array is NULL with
+ * a nonzero count), EEXIST, EOVERFLOW or ENOMEM. An empty composition
+ * yields a non-NULL array of size zero. */
+int maelys_cli_catalog_concat(
+    const maelys_cli_catalog_part_t *parts, size_t part_count,
+    maelys_cli_command_t **out_commands, size_t *out_count);
+
 const char *maelys_cli_value_kind_name(maelys_cli_value_kind_t kind);
 
 /* Hexadecimal digit count of a digest algorithm name, 0 when unknown. */

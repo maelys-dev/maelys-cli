@@ -1,6 +1,9 @@
 #include "maelys/cli/catalog.h"
 
+#include <errno.h>
+
 #include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -138,4 +141,57 @@ char *maelys_cli_command_synopsis_alloc(const maelys_cli_command_t *command) {
     }
     char *result = realloc(buffer, sink.used + 1u);
     return result ? result : buffer;
+}
+
+int maelys_cli_catalog_concat(
+    const maelys_cli_catalog_part_t *parts, size_t part_count,
+    maelys_cli_command_t **out_commands, size_t *out_count) {
+    if (!out_commands || !out_count || (part_count && !parts)) {
+        errno = EINVAL;
+        return -1;
+    }
+    *out_commands = NULL;
+    *out_count = 0u;
+    size_t total = 0u;
+    for (size_t i = 0u; i < part_count; ++i) {
+        if (parts[i].count && !parts[i].commands) {
+            errno = EINVAL;
+            return -1;
+        }
+        if (total > SIZE_MAX - parts[i].count) {
+            errno = EOVERFLOW;
+            return -1;
+        }
+        total += parts[i].count;
+    }
+    maelys_cli_command_t *commands = calloc(total ? total : 1u, sizeof(*commands));
+    if (!commands) {
+        errno = ENOMEM;
+        return -1;
+    }
+    size_t count = 0u;
+    for (size_t i = 0u; i < part_count; ++i) {
+        for (size_t j = 0u; j < parts[i].count; ++j) {
+            const maelys_cli_command_t *command = &parts[i].commands[j];
+            size_t slot = count;
+            for (size_t k = 0u; command->id && k < count; ++k) {
+                if (!commands[k].id || strcmp(commands[k].id, command->id) != 0)
+                    continue;
+                if (!commands[k].unavailable) {
+                    /* A provided command is never replaced by a later part. */
+                    free(commands);
+                    *out_commands = NULL;
+                    errno = EEXIST;
+                    return -1;
+                }
+                slot = k;
+                break;
+            }
+            commands[slot] = *command;
+            if (slot == count) ++count;
+        }
+    }
+    *out_commands = commands;
+    *out_count = count;
+    return 0;
 }

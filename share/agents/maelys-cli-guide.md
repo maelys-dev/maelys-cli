@@ -169,6 +169,38 @@ delivered in milliseconds), `PATH` (non-empty), `ABSOLUTE_PATH`, `CHOICE`,
 `STRING` in the handler. A transaction must declare
 `MAELYS_CLI_APPLY_OPTION`.
 
+
+### Compose the catalog from parts (build variants)
+
+A product that ships several build variants (a public build and an
+extended one, or a build lacking an optional component) keeps one base
+catalog and composes it at startup with `maelys_cli_catalog_concat()`:
+
+```c
+static const maelys_cli_command_t base[] = {
+    {MAELYS_CLI_READ("inspect", "inspect", "Inspect.", command_inspect)},
+    {MAELYS_CLI_EXECUTE("sign", "sign", "Sign an artifact.", NULL),
+     .unavailable = "provided by the extended build"},
+};
+maelys_cli_catalog_part_t parts[] = {
+    MAELYS_CLI_CATALOG_PART(base),
+    {extension_commands(), extension_count()},   /* empty in the base build */
+};
+maelys_cli_command_t *commands = NULL;
+size_t count = 0u;
+if (maelys_cli_catalog_concat(parts, MAELYS_CLI_COUNT(parts), &commands, &count) != 0)
+    return MAELYS_CLI_EXIT_FAILURE;
+app.commands = commands;
+app.command_count = count;
+```
+
+A later part may replace only a descriptor the earlier part declares
+`.unavailable`, in place: the base build describes `sign` as
+`available: false` with its reason, the extended build provides it at the
+same position in `help` and `describe`. Repeating an identifier that is
+already provided fails with `EEXIST`, so composition never hides a command. The composed array is validated
+like any catalog and freed by the product after `maelys_cli_main()`.
+
 ### Implement the handler
 
 ```c

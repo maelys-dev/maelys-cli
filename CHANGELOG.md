@@ -1,7 +1,18 @@
 # Changelog
 
-## Unreleased
+## 0.5.6 - 2026-09-03
 
+Feedback from the Maelys OCI open-core split (additive, hence a patch
+release: the CMake package is compatible within a minor and consumers
+request `0.5`):
+
+- `maelys_cli_catalog_concat()`, `maelys_cli_catalog_part_t` and
+  `MAELYS_CLI_CATALOG_PART`: a catalog composed from parts at startup.
+  A later part may provide a command that an earlier part declares
+  `.unavailable`, replacing it in place so the extended build offers it at
+  the same position in help and describe. Any other repeated identifier is
+  refused with `EEXIST`: composition never shadows a real command silently.
+  The `maelys` dispatcher composes its own catalog with it.
 - Regenerate the release workflow with maelys-release 0.2.8 (the tap publish
   job no longer trips on a duplicate formula class).
 

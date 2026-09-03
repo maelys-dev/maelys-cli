@@ -48,7 +48,9 @@ exit status  0 completed, 1 failed, 2 validation report with violations
 ## Commands not provided by every build
 
 <!-- List commands declared with `.unavailable` in some builds (for example a
-     Cloud agent behind a build option), with the reason `describe` reports. -->
+     Cloud agent behind a build option), with the reason `describe` reports.
+     A product with build variants composes its catalog with
+     `maelys_cli_catalog_concat()`; say which variant provides what. -->
 
 ## Shell completion
 

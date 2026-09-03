@@ -22,8 +22,10 @@
 ```
 
 `maelys` (the dispatcher) is itself a product CLI of the framework whose
-catalog is built at startup from built-in commands plus one delegate entry
-per verified manifest.
+catalog is composed at startup with `maelys_cli_catalog_concat()` from its
+built-in commands plus one delegate entry per verified manifest. Products
+with build variants use the same composition: a later part replaces a
+descriptor the base catalog declares `.unavailable`.
 
 ## Control flow of `maelys_cli_main()`
 

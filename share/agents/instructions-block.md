@@ -48,7 +48,11 @@ one handler and one JSON Schema file. In the same change, update:
    `.group` (all-or-none) and `.default_text` (validated at startup, returned
    by the typed accessors: never repeat a default in the handler;
    `MAELYS_CLI_DEFAULT_OF(LIB_CONSTANT)` when the library owns the value); a command
-   this build cannot provide declares `.unavailable = "reason"`;
+   this build cannot provide declares `.unavailable = "reason"`; a product
+   with build variants composes its catalog at startup with
+   `maelys_cli_catalog_concat()` (a later part may only replace an
+   `.unavailable` declaration of the same identifier; anything else is
+   `EEXIST`);
 2. the output schema: a JSON Schema file under the project's schema
    directory, embedded by `maelys-cli-embed` and referenced with
    `MAELYS_CLI_SCHEMA(symbol)`; never a hand-escaped C string;

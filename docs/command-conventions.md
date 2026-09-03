@@ -38,7 +38,12 @@ a group are given together or not at all). `describe` exposes them as
 validation checks it against the option's kind, and the typed accessors
 return it when the option is absent. A command that a build cannot provide
 declares `.unavailable = "reason"` instead of a failing handler; it stays in
-`describe` with `available: false` and fails with `UNSUPPORTED`.
+`describe` with `available: false` and fails with `UNSUPPORTED`. A product
+with build variants composes its catalog at startup with
+`maelys_cli_catalog_concat()`: a later part that declares the same
+identifier replaces the `.unavailable` descriptor in place, so the extended
+build provides the command where the base build describes it; shadowing a
+command that is already provided is refused (`EEXIST`).
 
 A public option must be declared in the catalog before use. An unknown,
 duplicated (unless `repeatable`) or foreign option is refused. An option

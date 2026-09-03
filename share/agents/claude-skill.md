@@ -74,3 +74,7 @@ Add or update tests proving:
 Run the project's check target (unit tests, CLI tests, sanitizers when
 available) and regenerate the committed CLI reference from `describe` before
 updating examples or releasing.
+
+Build variants compose one catalog with `maelys_cli_catalog_concat()`; a
+later part may only replace an `.unavailable` declaration of the same
+identifier (`EEXIST` otherwise).

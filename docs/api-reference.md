@@ -126,6 +126,7 @@ and the agent guide.
 | `const char *maelys_cli_effect_name(maelys_cli_effect_t)` | `none`, `read`, `preview`, `apply`, `commit`, `execute`, `stream`. |
 | `const char *maelys_cli_output_mode_name(maelys_cli_output_mode_t)` | `json-envelope`, `json-records`, `protocol-stream`. |
 | `int maelys_cli_command_synopsis(const maelys_cli_command_t *command, char *out, size_t size)` | Explicit `synopsis` when set, otherwise `pattern OPERAND [OPTIONAL] [REST...] --required VALUE [--optional VALUE] [--repeatable TEXT...]` (required options first); choices without a `value_name` render as `a|b`. `-1` when truncated. |
+| `int maelys_cli_catalog_concat(const maelys_cli_catalog_part_t *parts, size_t part_count, maelys_cli_command_t **out, size_t *out_count)` | Composes one catalog from parts (`maelys_cli_catalog_part_t`, `MAELYS_CLI_CATALOG_PART(array)`) into a caller-owned array. A later part may provide a command an earlier part declares `.unavailable`, replacing it in place (how a build variant provides a command at the position the base catalog describes it); any other repeated identifier is refused with `EEXIST`. Empty parts are skipped; `-1` with `EINVAL`, `EEXIST`, `EOVERFLOW` or `ENOMEM`. The result is validated like any catalog at startup. |
 | `char *maelys_cli_command_synopsis_alloc(const maelys_cli_command_t *command)` | Same, allocated (caller frees); `NULL` on allocation failure or beyond `MAELYS_CLI_MAX_SYNOPSIS` (4096). The catalog validation reports the offending command. |
 
 ## `maelys/cli/invocation.h`

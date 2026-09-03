@@ -154,6 +154,10 @@ Command macros: `MAELYS_CLI_READ`, `MAELYS_CLI_RECORDS`,
 follow the macro. Operands: `MAELYS_CLI_OPERAND`, `_OPERAND_OPTIONAL`,
 `_OPERAND_REST`.
 
+A product with several build variants composes its catalog at startup with
+`maelys_cli_catalog_concat()`: the base part declares a command
+`.unavailable`, the variant's part provides it at the same position.
+
 `maelys_cli_main()` validates the catalog, parses `argv`, provides `help`,
 `--help`, `version`, `--version`, `describe`, `completion bash|zsh|fish`
 (generated from the catalog), the global options `--format`, `--json`,
