@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.3 - 2026-09-03
 
 - Release through the shared maelys-release workflows and publish two
   Homebrew formulas: `maelys`, the command alone (`make install-dispatcher`),
