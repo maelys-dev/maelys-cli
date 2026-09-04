@@ -50,7 +50,7 @@ jobs:
           test -n "$sha"
           git clone -q https://github.com/maelys-dev/maelys-release.git "$RUNNER_TEMP/maelys-release"
           git -C "$RUNNER_TEMP/maelys-release" checkout -q "$sha"
-          "$RUNNER_TEMP/maelys-release/scripts/adopt.sh" . --product maelys-cli --check
+          "$RUNNER_TEMP/maelys-release/bin/maelys-release" check .
   gcc:
     runs-on: ubuntu-24.04
     steps:
