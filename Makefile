@@ -24,7 +24,11 @@ VERSION := $(shell sed -n '1p' VERSION)
 # on demand, or an installed copy (MAELYS_JSON_CFLAGS/MAELYS_JSON_LIBS from
 # pkg-config). Pin: tag v0.1.0.
 MAELYS_JSON_DIR ?= ../maelys-json
-MAELYS_JSON_LIB ?= $(MAELYS_JSON_DIR)/build/lib/libmaelys-json.a
+# Built inside this tree, per build variant (release, asan-ubsan, ...), with
+# the same CFLAGS/LDFLAGS: recursive make passes BUILD along, so the
+# dependency must not be looked up in the sibling's own build directory.
+MAELYS_JSON_BUILD := $(abspath $(BUILD))/maelys-json
+MAELYS_JSON_LIB ?= $(MAELYS_JSON_BUILD)/lib/libmaelys-json.a
 MAELYS_JSON_CFLAGS ?= -I$(MAELYS_JSON_DIR)/include
 MAELYS_JSON_LIBS ?= $(MAELYS_JSON_LIB)
 HEADERS := $(wildcard include/maelys/*.h include/maelys/cli/*.h src/*.h \
@@ -76,8 +80,8 @@ $(LIB): $(OBJECTS)
 	@mkdir -p $(@D)
 	$(AR) rcs $@ $^
 
-$(MAELYS_JSON_DIR)/build/lib/libmaelys-json.a:
-	$(MAKE) -C $(MAELYS_JSON_DIR)
+$(MAELYS_JSON_BUILD)/lib/libmaelys-json.a:
+	$(MAKE) -C $(MAELYS_JSON_DIR) BUILD=$(MAELYS_JSON_BUILD)
 
 $(BUILD)/src/extension.o: src/extension.c $(HEADERS) $(MAELYS_JSON_LIB)
 	@mkdir -p $(@D)
