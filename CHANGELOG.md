@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.5.8 - 2026-09-04
+
+- CI aligned on the socle: `ci.yml` calls maelys-release's reusable
+  `check-product.yml` at the version `release.yml` pins, so CI and release
+  share the same dependency checkouts, packages and checks; the product
+  keeps its packaging and GCC jobs.
+- Build: maelys-json is compiled inside this tree per build variant
+  (`build/<variant>/maelys-json`) with the same flags, instead of the
+  sibling's own build directory that a recursive `make` with `BUILD=`
+  could not find.
+
 ## 0.5.7 - 2026-09-04
 
 - `maelys-cli-reference --neutral-availability [IDS]` describes every
