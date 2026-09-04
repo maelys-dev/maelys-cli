@@ -68,7 +68,7 @@ EXTENSION_PC := $(BUILD)/pkgconfig/maelys-cli-extension.pc
 
 .PHONY: all check test header-check check-version cli-check api-doc-check agent-doc-check doc-topics-check install \
 	install-check uninstall dist clean asan-ubsan analyze cmake-check \
-	generate-cli-reference contract-check agents-install
+	generate-cli-reference contract-check conformance-check agents-install
 
 all: $(LIB) $(EXTENSION_LIB) $(DISPATCHER) $(EXAMPLE) $(PC) $(EXTENSION_PC)
 
@@ -170,7 +170,7 @@ doc-topics-check:
 
 # contract-check needs python3; it is part of check wherever python3 exists.
 check: test cli-check header-check check-version api-doc-check agent-doc-check doc-topics-check
-	@if command -v python3 >/dev/null 2>&1; then $(MAKE) contract-check; \
+	@if command -v python3 >/dev/null 2>&1; then $(MAKE) contract-check conformance-check; \
 	else echo "contract-check: skipped (python3 not found)"; fi
 
 asan-ubsan:
@@ -185,6 +185,19 @@ analyze: $(HELLO_GENERATED)
 generate-cli-reference: $(DISPATCHER) $(EXAMPLE)
 	python3 tools/generate_cli_reference.py --build $(BUILD)/bin \
 		--markdown docs/cli-reference.md --json docs/cli-contract.json
+
+# Proves that the programs conform to agent-cli/v2 as maelys-dev/agent-cli-spec
+# writes it, at the commit adapter/AGENT_CLI_SPEC_PIN names; the kit drives
+# each binary from the outside. The checkout comes from
+# scripts/checkout-dependency.sh agent-cli-spec, as every pinned dependency.
+AGENT_CLI_SPEC_DIR ?= ../agent-cli-spec
+conformance-check: $(DISPATCHER) $(EXAMPLE)
+	@test -x $(AGENT_CLI_SPEC_DIR)/conformance/run.py || \
+		{ echo "conformance-check: $(AGENT_CLI_SPEC_DIR) not found; run scripts/checkout-dependency.sh agent-cli-spec" >&2; exit 1; }
+	@test "$$(git -C $(AGENT_CLI_SPEC_DIR) rev-parse HEAD)" = "$$(sed -n 2p adapter/AGENT_CLI_SPEC_PIN)" || \
+		{ echo "conformance-check: $(AGENT_CLI_SPEC_DIR) is not at adapter/AGENT_CLI_SPEC_PIN" >&2; exit 1; }
+	MAELYS_COMMANDS_PATH=/nonexistent python3 $(AGENT_CLI_SPEC_DIR)/conformance/run.py $(BUILD)/bin/maelys-hello | tail -1
+	MAELYS_COMMANDS_PATH=/nonexistent python3 $(AGENT_CLI_SPEC_DIR)/conformance/run.py $(BUILD)/bin/maelys | tail -1
 
 # Proves that the committed reference and contract match what the binaries
 # describe. Run before a release and in CI; needs python3.

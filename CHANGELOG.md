@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- The contract `agent-cli/v2` is now specified once, in
+  maelys-dev/agent-cli-spec, pinned in `adapter/AGENT_CLI_SPEC_PIN`; its
+  conformance kit runs on `maelys-hello` and the `maelys` dispatcher in
+  `make check` (`conformance-check`), so the framework is held to the
+  written contract like every other implementation. `AGENTS.md` and the
+  `maelys-cli-framework` skill tell an agent that a contract change starts
+  in the specification, never here. `docs/command-conventions.md`
+  and `docs/agent-cli.md` point at the specification and keep what is
+  specific to `libmaelys_cli`.
+
 ## 0.5.8 - 2026-09-04
 
 - CI aligned on the socle: `ci.yml` calls maelys-release's reusable

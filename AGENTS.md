@@ -29,11 +29,23 @@ or licensed text into the agent texts. See `LICENSING.md`.
 
 ## Contracts that must not drift
 
+- `agent-cli/v2` is specified outside this repository, in
+  [maelys-dev/agent-cli-spec](https://github.com/maelys-dev/agent-cli-spec)
+  (`spec/agent-cli.md`, the schemas, the conformance kit), pinned in
+  `adapter/AGENT_CLI_SPEC_PIN`. This framework is one implementation of it,
+  next to Hermes and maelys-release, and is held to it by
+  `make conformance-check` (part of `make check`) on `maelys-hello` and the
+  `maelys` dispatcher. Never let the kit fail; never change the envelopes,
+  the `describe` shape, the error codes or the exit codes here first: a
+  contract change is a pull request on agent-cli-spec, a new tag there, then
+  a pin bump here, then the code. Where `docs/command-conventions.md` and
+  the specification differ, the specification wins and the document is
+  corrected.
 - The success and failure envelopes, error codes and exit codes are the
   `agent-cli/v2` contract shared with Maelys Git and Hermes. Changing them
   incompatibly requires bumping `MAELYS_CLI_CONTRACT` and
-  `MAELYS_CLI_SCHEMA_VERSION` together and updating
-  `docs/command-conventions.md`.
+  `MAELYS_CLI_SCHEMA_VERSION` together, after the specification moved to
+  `agent-cli/v3`.
 - The `describe` shape (`id`, `pattern`, `usage`, `purpose`, `effect`,
   `outputMode`, `input`, `outputSchema`, `exitCodes`, `globalOptions`) feeds
   reference generators and agents. Additive changes only within a contract
