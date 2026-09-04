@@ -1,67 +1,53 @@
 name: ci
 
+# The `check` job is the socle's reusable CI (maelys-release
+# check-product.yml at the version release.yml pins): pinned dependency
+# checkouts, packages of adapter/PACKAGES, `make check` on the three release
+# targets, sanitizers on Linux x86_64 and the socle drift check. The jobs
+# below it are this product's own.
+
 on:
   push:
     branches: [main]
     tags: ['v*']
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   check:
+    uses: maelys-dev/maelys-release/.github/workflows/check-product.yml@c32b614f4fc65c4f3dc9d99d6a45f2b97b2c773e # v0.5.0
+    with:
+      product: maelys-cli
+      dependency_checkout: |
+        sh scripts/checkout-dependency.sh maelys-json
+      check_command: make check
+      sanitizer_command: make asan-ubsan
+
+  packaging:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, ubuntu-24.04-arm, macos-15]
-    runs-on: ${{ matrix.os }}
+        runner: [ubuntu-24.04, ubuntu-24.04-arm, macos-15]
+    runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v4
-        with:
-          path: maelys-cli
-      - uses: actions/checkout@v4
-        with:
-          repository: maelys-dev/maelys-json
-          ref: v0.1.0
-          path: maelys-json
-      - name: Build and check
-        working-directory: maelys-cli
-        run: make check
-      - name: Sanitizers
-        working-directory: maelys-cli
-        run: make asan-ubsan
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Pinned dependency checkouts
+        run: sh scripts/checkout-dependency.sh maelys-json
+      - name: Install check
+        run: make install-check
+      - name: CMake package
+        run: make cmake-check
       - name: Static analysis
         if: runner.os == 'macOS'
-        working-directory: maelys-cli
         run: make analyze
-      - name: Install check
-        working-directory: maelys-cli
-        run: make install-check
-      - name: Contract drift
-        working-directory: maelys-cli
-        run: make contract-check
-      - name: CMake package
-        working-directory: maelys-cli
-        run: make cmake-check
-      - name: Release socle drift
-        if: matrix.os == 'ubuntu-24.04'
-        working-directory: maelys-cli
-        run: |
-          set -euo pipefail
-          sha="$(sed -n 's|.*maelys-release/.github/workflows/release.yml@\([0-9a-f]\{40\}\).*|\1|p' .github/workflows/release.yml)"
-          test -n "$sha"
-          git clone -q https://github.com/maelys-dev/maelys-release.git "$RUNNER_TEMP/maelys-release"
-          git -C "$RUNNER_TEMP/maelys-release" checkout -q "$sha"
-          "$RUNNER_TEMP/maelys-release/bin/maelys-release" check .
+
   gcc:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-        with:
-          path: maelys-cli
-      - uses: actions/checkout@v4
-        with:
-          repository: maelys-dev/maelys-json
-          ref: v0.1.0
-          path: maelys-json
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Pinned dependency checkouts
+        run: sh scripts/checkout-dependency.sh maelys-json
       - name: Build with GCC
-        working-directory: maelys-cli
         run: make check CC=gcc CXX=g++
