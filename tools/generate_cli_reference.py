@@ -19,6 +19,20 @@ DEFAULT_PROGRAMS = ("maelys", "maelys-hello")
 VERSION_MEMBERS = ("version", "framework")
 
 
+def neutralize(data: dict, identifiers: set[str] | None) -> None:
+    """Describe the commands as available whatever the host.
+
+    A catalog command declared `.unavailable` on some hosts (a Linux-only
+    command built on macOS) makes the described contract host-dependent,
+    and a committed contract must describe the complete product. With
+    `identifiers` None every command is neutralized; otherwise only those.
+    """
+    for command in data["commands"]:
+        if identifiers is None or command["id"] in identifiers:
+            command["available"] = True
+            command.pop("unavailableReason", None)
+
+
 def catalog(binary: pathlib.Path, include_versions: bool) -> dict:
     completed = subprocess.run(
         [str(binary), "describe", "--format", "json", "--compact", "--non-interactive"],
@@ -102,6 +116,9 @@ def main() -> int:
     parser.add_argument("--json", required=True, type=pathlib.Path)
     parser.add_argument("--include-versions", action="store_true",
                         help="keep product and framework versions in the output")
+    parser.add_argument("--neutral-availability", nargs="?", const="*", metavar="IDS",
+                        help="describe commands as available whatever the host "
+                             "(all of them, or the comma-separated identifiers)")
     parser.add_argument("--title", default=DEFAULT_TITLE,
                         help="page title (products keep their own language)")
     parser.add_argument("--intro", default=DEFAULT_INTRO,
@@ -117,6 +134,12 @@ def main() -> int:
     arguments = parser.parse_args()
     programs = {name: catalog(arguments.build / name, arguments.include_versions)
                 for name in arguments.programs}
+    if arguments.neutral_availability is not None:
+        identifiers = None
+        if arguments.neutral_availability != "*":
+            identifiers = set(arguments.neutral_availability.split(","))
+        for data in programs.values():
+            neutralize(data, identifiers)
     columns = tuple(arguments.columns.split("|"))
     if len(columns) != 5:
         parser.error("--columns needs exactly five headers")

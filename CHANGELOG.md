@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- `generate_cli_reference.py --neutral-availability [IDS]` describes every
+  command, or the identifiers given, as available whatever the host: a
+  command `.unavailable` on some hosts (maelys-oci's Linux-only
+  `unpack-rootfs`) made the committed contract host-dependent, and the
+  product had to normalize it with a script of its own.
+
 ## 0.5.6 - 2026-09-03
 
 Feedback from the Maelys OCI open-core split (additive, hence a patch

@@ -257,6 +257,12 @@ maelys-cli-reference --build build/bin --markdown docs/cli-reference.md \
     --global-label "Options globales :" my-program
 ```
 
+A command declared `.unavailable` on some hosts (a Linux-only command
+built on macOS) would make the described contract host-dependent;
+`--neutral-availability` describes every command as available, or only the
+comma-separated identifiers given (`--neutral-availability unpack-rootfs`),
+so one committed contract passes `contract-check` on every host.
+
 ## Building and testing
 
 ```sh
