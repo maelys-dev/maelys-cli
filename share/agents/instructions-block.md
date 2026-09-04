@@ -23,7 +23,8 @@ that must hold for every change.
   `protocol-stream`; its stdout belongs to the declared protocol. Set
   `MAELYS_CLI_FORMAT=json` in the environment to receive its failure
   envelope as JSON on stderr.
-- `describe COMMAND_ID` is minimal; `describe --summary` lists everything.
+- `describe COMMAND_ID` is minimal; `describe --summary` lists everything;
+  `describe --summary --prefix NAMESPACE` lists one namespace.
   A descriptor with `available: false` names a command this build cannot
   run (`unavailableReason`). Operands may carry `type` and `choices` like
   options; `input.constraints` includes `requires`, `at-most-one` and

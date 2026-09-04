@@ -146,7 +146,10 @@ followed by `.kind` and its limits) (read with `maelys_cli_operand_choice()`,
 validate an operand's shape in the handler when a kind expresses it.
 Option attributes added after a macro: `.required`, `.repeatable`,
 `.depends_on` (one option), `.depends_on_all` (NULL-terminated list of
-options that must all be present), `.conflicts_with`, `.group` (all-or-none:
+options that must all be present), `.conflicts_with` (an option, or an
+operand named by its UPPER_CASE placeholder), `.pattern` (a regular
+expression documented as `argument.pattern` for a string or path option;
+the handler enforces it), `.group` (all-or-none:
 the options sharing a group name are given together or not at all) and
 `.default_text` (validated against the kind at startup, returned by
 `maelys_cli_option_unsigned/integer/choice` and `maelys_cli_option_or` when

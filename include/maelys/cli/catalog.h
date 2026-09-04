@@ -84,6 +84,11 @@ typedef struct maelys_cli_option {
     const char *group;              /* all-or-none group: options sharing a
                                        group name are given together or not
                                        at all */
+    const char *pattern;            /* STRING/PATH: regular expression the
+                                       value must match, exposed as
+                                       argument.pattern in describe; the
+                                       handler enforces it (the framework
+                                       does not run a regex engine) */
 } maelys_cli_option_t;
 
 struct maelys_cli_context;

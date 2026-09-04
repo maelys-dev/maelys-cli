@@ -14,6 +14,7 @@ lists only what a CLI built on `libmaelys_cli` adds.
 
 ```sh
 PROGRAM describe --summary --format json --compact --non-interactive
+PROGRAM describe --summary --prefix repo --format json --compact --non-interactive   # one namespace
 PROGRAM describe note.write --format json --compact --non-interactive
 PROGRAM note write /tmp/a.txt --content hello --format json --compact --non-interactive
 # Review data.mode == "plan" and the preconditions.
@@ -26,6 +27,10 @@ command by `id`; never replay a `PRECONDITION_FAILED` blindly; prefer
 
 ## What libmaelys_cli adds on top of the specification
 
+- `describe --summary --prefix PREFIX` (spec 2.1) returns one command
+  namespace (`PREFIX` itself and `PREFIX.*`) with a `filter` member; an
+  agent checks that the `describe` descriptor declares `--prefix` before
+  using it.
 - `describe COMMAND_ID` is minimal: no `globalOptions`, `output` or
   `invariants`; those come with `describe` and `describe --summary`.
   Operands carry `type`, `choices` and limits like option arguments;

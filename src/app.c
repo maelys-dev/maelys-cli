@@ -43,6 +43,11 @@ static const maelys_cli_operand_t describe_operands[] = {
 static const maelys_cli_option_t describe_options[] = {
     {MAELYS_CLI_FLAG("summary",
      "Return the compact command inventory without output schemas.")},
+    {MAELYS_CLI_STRING("prefix", "PREFIX",
+     "Restrict the summary to one command namespace: the command named "
+     "PREFIX and every command whose identifier starts with PREFIX followed "
+     "by a dot."), .depends_on = "summary", .conflicts_with = "COMMAND_ID",
+     .pattern = "^[a-z](?:[a-z0-9.-]*[a-z0-9-])?$"},
 };
 
 #define HELP_SCHEMA "{\"type\":\"object\",\"additionalProperties\":false," \
@@ -306,6 +311,13 @@ static int validate_command(
                 return -1;
             }
         }
+        if (option->pattern && option->kind != MAELYS_CLI_VALUE_STRING &&
+            option->kind != MAELYS_CLI_VALUE_PATH) {
+            maelys_cli_error_set(error, MAELYS_CLI_CODE_UNEXPECTED, hint,
+                "Catalog command '%s' option --%s declares a pattern on a "
+                "kind that is not string or path.", id, option->name);
+            return -1;
+        }
         if (option->default_text) {
             maelys_cli_parsed_option_t probe;
             maelys_cli_error_t detail;
@@ -350,6 +362,10 @@ static int validate_command(
             int found = 0;
             for (size_t j = 0u; j < command->option_count; ++j)
                 if (j != i && !strcmp(command->options[j].name, references[r]))
+                    found = 1;
+            /* conflicts_with may also name an operand of the command. */
+            for (size_t j = 0u; r == 1u && j < command->operand_count; ++j)
+                if (!strcmp(command->operands[j].name, references[r]))
                     found = 1;
             if (!found) {
                 maelys_cli_error_set(error, MAELYS_CLI_CODE_UNEXPECTED, hint,
@@ -928,6 +944,15 @@ static int describe_pattern(
     return maelys_cli_json_end_array(writer);
 }
 
+/* An operand name is UPPER_CASE by convention; option names are lower-case.
+ * conflicts_with names an operand when its spelling is not an option name. */
+static int conflicts_with_operand(const maelys_cli_option_t *option) {
+    if (!option->conflicts_with) return 0;
+    for (const char *p = option->conflicts_with; *p; ++p)
+        if (*p >= 'A' && *p <= 'Z') return 1;
+    return 0;
+}
+
 /* Members shared by option arguments and typed operands. */
 static int describe_value_type(
     maelys_cli_json_writer_t *writer, const maelys_cli_option_t *option) {
@@ -969,6 +994,9 @@ static int describe_value_type(
                     option->signed_maximum) != 0)
                 return -1;
         }
+        if (option->pattern &&
+            maelys_cli_json_key_string(writer, "pattern", option->pattern) != 0)
+            return -1;
         if (option->kind == MAELYS_CLI_VALUE_HEX &&
             (maelys_cli_json_key_unsigned(writer, "digits",
                 (uint64_t)option->hex_digits) != 0 ||
@@ -1021,7 +1049,8 @@ static int describe_option(
         return -1;
     if (option->conflicts_with) {
         char conflict[MAELYS_CLI_MAX_OPTION_NAME + 2u];
-        (void)snprintf(conflict, sizeof(conflict), "--%s", option->conflicts_with);
+        (void)snprintf(conflict, sizeof(conflict), "%s%s",
+            conflicts_with_operand(option) ? "" : "--", option->conflicts_with);
         if (maelys_cli_json_string(writer, conflict) != 0) return -1;
     }
     if (maelys_cli_json_end_array(writer) != 0) return -1;
@@ -1086,7 +1115,8 @@ static int describe_constraints(
             char first[MAELYS_CLI_MAX_OPTION_NAME + 2u];
             char second[MAELYS_CLI_MAX_OPTION_NAME + 2u];
             (void)snprintf(first, sizeof(first), "--%s", option->name);
-            (void)snprintf(second, sizeof(second), "--%s", targets[k]);
+            (void)snprintf(second, sizeof(second), "%s%s",
+                k == 1u && conflicts_with_operand(option) ? "" : "--", targets[k]);
             if (maelys_cli_json_begin_object(writer) != 0 ||
                 maelys_cli_json_key_string(writer, "kind", kinds[k]) != 0 ||
                 maelys_cli_json_key(writer, "options") != 0 ||
@@ -1215,9 +1245,17 @@ static int describe_global_options(maelys_cli_json_writer_t *writer) {
     return maelys_cli_json_end_array(writer);
 }
 
+/* True when id is PREFIX itself or starts with "PREFIX." (namespace match,
+ * never an arbitrary string prefix). */
+static int in_namespace(const char *id, const char *prefix) {
+    size_t length = strlen(prefix);
+    return strncmp(id, prefix, length) == 0 &&
+        (id[length] == '\0' || id[length] == '.');
+}
+
 static int describe_data(
     maelys_cli_context_t *context, const char *query, int summary,
-    maelys_cli_json_writer_t *writer) {
+    const char *prefix, maelys_cli_json_writer_t *writer) {
     const maelys_cli_app_t *app = context->app;
     if (maelys_cli_json_begin_object(writer) != 0 ||
         maelys_cli_json_key_integer(writer, "schemaVersion", 1) != 0 ||
@@ -1228,8 +1266,17 @@ static int describe_data(
         maelys_cli_json_key_string(writer, "version", app->version) != 0 ||
         maelys_cli_json_key_string(writer, "contract", MAELYS_CLI_CONTRACT) != 0 ||
         maelys_cli_json_key_integer(writer, "cliApi", MAELYS_CLI_API) != 0 ||
-        maelys_cli_json_key_string(writer, "framework", MAELYS_CLI_VERSION) != 0 ||
-        maelys_cli_json_key(writer, "commands") != 0 ||
+        maelys_cli_json_key_string(writer, "framework", MAELYS_CLI_VERSION) != 0)
+        return -1;
+    if (prefix) {
+        if (maelys_cli_json_key(writer, "filter") != 0 ||
+            maelys_cli_json_begin_object(writer) != 0 ||
+            maelys_cli_json_key_string(writer, "kind", "command-prefix") != 0 ||
+            maelys_cli_json_key_string(writer, "value", prefix) != 0 ||
+            maelys_cli_json_end_object(writer) != 0)
+            return -1;
+    }
+    if (maelys_cli_json_key(writer, "commands") != 0 ||
         maelys_cli_json_begin_array(writer) != 0)
         return -1;
     size_t count = maelys_cli_app_command_count(app);
@@ -1237,14 +1284,15 @@ static int describe_data(
     for (size_t i = 0u; i < count; ++i) {
         const maelys_cli_command_t *command = maelys_cli_app_command_at(app, i);
         if (query && strcmp(query, command->id) != 0) continue;
+        if (prefix && !in_namespace(command->id, prefix)) continue;
         if (describe_command(writer, command, summary) != 0) return -1;
         ++matched;
     }
     if (maelys_cli_json_end_array(writer) != 0) return -1;
-    if (query && matched == 0u) return 1;
-    /* A single descriptor stays minimal: catalog-wide members are only
-     * emitted by the inventory forms. */
-    if (query) return maelys_cli_json_end_object(writer) == 0 ? 0 : -1;
+    if ((query || prefix) && matched == 0u) return 1;
+    /* A single descriptor and a filtered summary stay minimal: catalog-wide
+     * members are only emitted by the inventory forms. */
+    if (query || prefix) return maelys_cli_json_end_object(writer) == 0 ? 0 : -1;
     if (maelys_cli_json_key(writer, "globalOptions") != 0 ||
         describe_global_options(writer) != 0)
         return -1;
@@ -1281,14 +1329,37 @@ static int describe_data(
     return maelys_cli_json_end_object(writer) == 0 ? 0 : -1;
 }
 
+/* Command-identifier grammar without a trailing dot:
+ * ^[a-z](?:[a-z0-9.-]*[a-z0-9-])?$ */
+static int valid_prefix(const char *prefix) {
+    size_t length = strlen(prefix);
+    if (length == 0u || prefix[0] < 'a' || prefix[0] > 'z') return 0;
+    for (const char *p = prefix; *p; ++p)
+        if (!((*p >= 'a' && *p <= 'z') || (*p >= '0' && *p <= '9') ||
+              *p == '.' || *p == '-'))
+            return 0;
+    return prefix[length - 1u] != '.';
+}
+
 static int builtin_describe(maelys_cli_context_t *context) {
     const char *query = maelys_cli_operand(context, 0u);
+    const char *prefix = maelys_cli_option(context, "prefix");
     int summary = maelys_cli_flag(context, "summary");
+    if (prefix && !valid_prefix(prefix)) {
+        return maelys_cli_fail(context, MAELYS_CLI_CODE_VALIDATION_FAILED,
+            "Use a command identifier prefix such as repo or repo.mirror.",
+            "Invalid command prefix: %s.", prefix);
+    }
     maelys_cli_json_writer_t writer;
     maelys_cli_json_writer_init(&writer);
-    int result = describe_data(context, query, summary, &writer);
+    int result = describe_data(context, query, summary, prefix, &writer);
     if (result == 1) {
         maelys_cli_json_writer_clear(&writer);
+        if (prefix)
+            return maelys_cli_fail(context, MAELYS_CLI_CODE_INVALID_COMMAND,
+                "Run describe --summary --format json and select a returned "
+                "command namespace.",
+                "No command in namespace: %s.", prefix);
         return maelys_cli_fail(context, MAELYS_CLI_CODE_INVALID_COMMAND,
             "Run describe --summary --format json and select a returned "
             "command identifier.",

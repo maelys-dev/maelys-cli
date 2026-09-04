@@ -39,9 +39,15 @@ handlers read them through `maelys_cli_operand_choice()`,
 `maelys_cli_operand_unsigned()` and `maelys_cli_operand_integer()`.
 
 Option constraints: `depends_on` (one option), `depends_on_all` (every
-listed option), `conflicts_with`, and `group` (all-or-none). They are
-exposed as `requires`, `conflictsWith`, `group` and `input.constraints`
-entries of kind `requires`, `at-most-one` and `all-or-none`.
+listed option), `conflicts_with` (an option, or an operand named by its
+UPPER_CASE placeholder, as `--prefix` conflicts with `COMMAND_ID`), and
+`group` (all-or-none). They are exposed as `requires`, `conflictsWith`,
+`group` and `input.constraints` entries of kind `requires`, `at-most-one`
+and `all-or-none`.
+
+`.pattern` documents, as `argument.pattern`, the regular expression a
+string or path option must match; the framework exposes it and the handler
+enforces it (no regex engine runs in the parser).
 
 `default_text` is the single source of an option's default: the catalog
 validation checks it against the option's kind at startup, and the typed
