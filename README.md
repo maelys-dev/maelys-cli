@@ -61,8 +61,11 @@ shared renderer ──────────► human text | json envelope | j
 | dispatcher | `extension.h` (`libmaelys_cli_extension.a`, links maelys-json) | discovery of external commands through verified manifests |
 
 Every public function is documented in [docs/api-reference.md](docs/api-reference.md).
-The complete conventions are in [docs/command-conventions.md](docs/command-conventions.md),
-the agent-facing contract in [docs/agent-cli.md](docs/agent-cli.md), the
+The contract itself is `agent-cli/v2`, specified in
+[maelys-dev/agent-cli-spec](https://github.com/maelys-dev/agent-cli-spec) and
+enforced by its conformance kit in `make check`; how this framework
+implements it is in [docs/command-conventions.md](docs/command-conventions.md),
+what it adds for agents in [docs/agent-cli.md](docs/agent-cli.md), the
 external command model in [docs/extensions.md](docs/extensions.md) and the
 ABI policy in [docs/abi.md](docs/abi.md). The generated reference of the
 bundled programs is [docs/cli-reference.md](docs/cli-reference.md).

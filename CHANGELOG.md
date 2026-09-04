@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- `docs/command-conventions.md` and `docs/agent-cli.md` are reduced to what
+  `libmaelys_cli` adds to `agent-cli/v2` (catalog declarations, causal
+  parser order, rendering decisions, completion, proof of implementation);
+  the contract itself is read in maelys-dev/agent-cli-spec.
+- Release socle upgraded to maelys-release 0.6.1.
+
 - The contract `agent-cli/v2` is now specified once, in
   maelys-dev/agent-cli-spec, pinned in `adapter/AGENT_CLI_SPEC_PIN`; its
   conformance kit runs on `maelys-hello` and the `maelys` dispatcher in
