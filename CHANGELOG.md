@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.9 - 2026-09-04
 
 - `docs/command-conventions.md` and `docs/agent-cli.md` are reduced to what
   `libmaelys_cli` adds to `agent-cli/v2` (catalog declarations, causal
