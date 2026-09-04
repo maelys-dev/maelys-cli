@@ -28,6 +28,7 @@ jobs:
     with:
       product: maelys-cli
       dependency_checkout: |
+        sh scripts/checkout-dependency.sh agent-cli-spec
         sh scripts/checkout-dependency.sh maelys-json
 
   tap-libmaelys-cli:

@@ -1,5 +1,12 @@
 # Using Maelys CLIs from an agent
 
+> The contract `agent-cli/v2` is specified in
+> [maelys-dev/agent-cli-spec](https://github.com/maelys-dev/agent-cli-spec)
+> (`spec/agent-cli.md`, pinned in `adapter/AGENT_CLI_SPEC_PIN`); its conformance
+> kit runs on `maelys-hello` and `maelys` in `make check`. This document keeps
+> what is specific to `libmaelys_cli`: the macros, the accessors and the
+> proof of implementation. Where the two differ, the specification wins.
+
 ## Minimal sequence
 
 ```sh

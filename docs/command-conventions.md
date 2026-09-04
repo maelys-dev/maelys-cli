@@ -1,5 +1,12 @@
 # Maelys command conventions
 
+> The contract `agent-cli/v2` is specified in
+> [maelys-dev/agent-cli-spec](https://github.com/maelys-dev/agent-cli-spec)
+> (`spec/agent-cli.md`, pinned in `adapter/AGENT_CLI_SPEC_PIN`); its conformance
+> kit runs on `maelys-hello` and `maelys` in `make check`. This document keeps
+> what is specific to `libmaelys_cli`: the macros, the accessors and the
+> proof of implementation. Where the two differ, the specification wins.
+
 This document is normative for every command of a CLI built on
 `libmaelys_cli`. The catalog (`maelys_cli_command_t[]`) is the executable
 source of truth: the parser, `help`, `describe`, the tests and any generated
