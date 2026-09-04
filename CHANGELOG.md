@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.10 - 2026-09-04
 
 - agent-cli-spec pinned at v2.1.0: `describe --summary --prefix PREFIX`
   returns one command namespace with a `filter` member (`INVALID_COMMAND`
