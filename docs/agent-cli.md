@@ -1,11 +1,14 @@
 # Using Maelys CLIs from an agent
 
-> The contract `agent-cli/v2` is specified in
-> [maelys-dev/agent-cli-spec](https://github.com/maelys-dev/agent-cli-spec)
-> (`spec/agent-cli.md`, pinned in `adapter/AGENT_CLI_SPEC_PIN`); its conformance
-> kit runs on `maelys-hello` and `maelys` in `make check`. This document keeps
-> what is specific to `libmaelys_cli`: the macros, the accessors and the
-> proof of implementation. Where the two differ, the specification wins.
+The contract is `agent-cli/v2`, specified in
+[maelys-dev/agent-cli-spec](https://github.com/maelys-dev/agent-cli-spec):
+discovery through `describe --summary`, descriptors with typed `input` and
+`outputSchema`, one envelope on stdout for success and one on stderr for
+failure, exit codes `0` (completed), `1` (failed) and `2` (a completed
+validation report with violations), eleven stable error codes, plan by
+default and `--apply` for transactions, `--dry-run` refused, protocol
+streams reserving stdout. Read the specification for the rules; this page
+lists only what a CLI built on `libmaelys_cli` adds.
 
 ## Minimal sequence
 
@@ -17,58 +20,39 @@ PROGRAM note write /tmp/a.txt --content hello --format json --compact --non-inte
 PROGRAM note write /tmp/a.txt --content hello --apply --format json --compact --non-interactive
 ```
 
-`describe COMMAND_ID` returns one minimal descriptor (no `globalOptions`,
-`output` or `invariants`; those come with `describe` and
-`describe --summary`). Read `input.operands[].type` and `choices`,
-`input.options[].argument`, `default`, `requires`, `group` and
-`input.constraints` (`requires`, `at-most-one`, `all-or-none`). A descriptor
-with `available: false` names a command this build cannot run; do not
-invoke it.
+Verify `contract == "agent-cli/v2"` and `schemaVersion == 2`; identify a
+command by `id`; never replay a `PRECONDITION_FAILED` blindly; prefer
+`--compact` to save tokens.
 
-Do not build a command from the `help` text. Use `data.commands[].input`,
-then read only the stdout envelope. On exit `1`, stdout is empty: parse the
-stderr envelope and follow `error.hint`. On exit `2`, the call itself
-succeeded and `data` reports the violations.
+## What libmaelys_cli adds on top of the specification
 
-## Principles
-
-- identify a command by `id`, never by its human label;
-- verify `contract == "agent-cli/v2"` and `schemaVersion == 2`;
-- treat `data` as governed by the `outputSchema` of the installed descriptor;
-- add `--apply` only after reviewing the plan of the same invocation;
-- copy plan preconditions into dedicated options when they exist;
-- never replay a `PRECONDITION_FAILED` blindly; read the state again;
-- never pass rendering options to a `protocol-stream` command; set
-  `MAELYS_CLI_FORMAT=json` in its environment to get a JSON failure
-  envelope on stderr while its stdout stays with the protocol;
-- never mix stdout and stderr;
-- prefer `--compact` to save tokens; it does not change the schema.
-
-## Records
-
-A `json-records` command supports three renderings:
-
-```sh
-PROGRAM list --format json      # {"count": N, "records": [...]} in the envelope
-PROGRAM list --format jsonl     # one compact object per line, no envelope
-PROGRAM list                    # one human line per record
-```
-
-With `jsonl`, failure is still an envelope on stderr and the exit code.
-
-## Shell completion
-
-`PROGRAM completion bash|zsh|fish` prints a shim; the candidates come from
-`PROGRAM __complete -- WORDS...` (a hidden `json-records` command, also
-usable with `--format json` before the `--`). Command identifiers are
-completed after `help` and `describe`; commands reported `available: false`
-are never offered; the `maelys` dispatcher forwards the completion of an
-external command to that command's own `__complete`.
+- `describe COMMAND_ID` is minimal: no `globalOptions`, `output` or
+  `invariants`; those come with `describe` and `describe --summary`.
+  Operands carry `type`, `choices` and limits like option arguments;
+  `input.constraints` includes `all-or-none` groups; a descriptor with
+  `available: false` names a command this build cannot run, do not invoke
+  it.
+- `MAELYS_CLI_FORMAT=json` in the environment selects JSON without
+  options. It is the only way to obtain a JSON failure envelope from a
+  `protocol-stream` command, whose stdout stays with the protocol and which
+  refuses rendering options.
+- `json-records` commands render three ways: `--format json` (`{"count",
+  "records"}` in the envelope), `--format jsonl` (one compact object per
+  line, no envelope; failure is still an envelope on stderr) and text (one
+  human line per record).
+- `PROGRAM completion bash|zsh|fish` prints the shell completion generated
+  from the catalog; candidates come from the hidden
+  `PROGRAM __complete -- WORDS...` (a `json-records` command, usable with
+  `--format json` before the `--`). Command identifiers are completed after
+  `help` and `describe`; commands reported `available: false` are never
+  offered.
 
 ## Dispatcher
 
 `maelys COMMAND ...` starts the external program declared by a verified
-manifest. `maelys commands list --format json` returns the accepted
-commands; `maelys COMMAND describe --format json` returns that program's own
-catalog. `maelys agents install DIR --apply` installs these instructions in
-a project.
+manifest (`maelys.cli-extension/v1`), passing every argument verbatim.
+`maelys commands list --format json` returns the accepted commands;
+`maelys COMMAND describe --format json` returns that program's own catalog;
+`maelys __complete -- COMMAND ...` forwards to that program's own
+`__complete`. `maelys agents install DIR --apply` installs these
+instructions in a project.
