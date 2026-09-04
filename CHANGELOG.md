@@ -1,12 +1,16 @@
 # Changelog
 
-## Unreleased
+## 0.5.7 - 2026-09-04
 
-- `generate_cli_reference.py --neutral-availability [IDS]` describes every
+- `maelys-cli-reference --neutral-availability [IDS]` describes every
   command, or the identifiers given, as available whatever the host: a
   command `.unavailable` on some hosts (maelys-oci's Linux-only
   `unpack-rootfs`) made the committed contract host-dependent, and the
   product had to normalize it with a script of its own.
+- Release socle upgraded to maelys-release 0.5.0: the managed
+  `scripts/checkout-dependency.sh maelys-json` replaces the product's
+  `scripts/checkout-json.sh`, and the CI drift step calls
+  `maelys-release check`.
 
 ## 0.5.6 - 2026-09-03
 
