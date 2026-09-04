@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- agent-cli-spec pinned at v2.1.0: `describe --summary --prefix PREFIX`
+  returns one command namespace with a `filter` member (`INVALID_COMMAND`
+  when empty, `VALIDATION_FAILED` on a malformed prefix or a misuse), and an
+  option may now conflict with an operand (`.conflicts_with = "COMMAND_ID"`,
+  exposed in `conflictsWith` and `input.constraints`), and a string or path
+  option may document its regular expression (`.pattern`, exposed as
+  `argument.pattern`). Conformance: maelys-hello passes 110 checks and
+  maelys 90 with the v2.1.0 kit.
+
 ## 0.5.9 - 2026-09-04
 
 - `docs/command-conventions.md` and `docs/agent-cli.md` are reduced to what

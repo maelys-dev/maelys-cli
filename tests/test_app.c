@@ -230,6 +230,8 @@ static void release(run_result_t *result) {
     free(result->err);
 }
 
+static int expect_failure(run_result_t *result, const char *code, const char *fragment);
+
 #define ARGV(...) (char *[]){__VA_ARGS__}
 #define COUNT(...) ((int)(sizeof((char *[]){__VA_ARGS__}) / sizeof(char *)))
 #define RUNV(...) run(COUNT(__VA_ARGS__), ARGV(__VA_ARGS__))
@@ -276,6 +278,29 @@ static int test_describe(void) {
     release(&result);
     result = RUNV("describe", "--summary", "--json", "--compact");
     CHECK(result.code == 0 && strstr(result.out, "\"kind\":\"summary\"") && !strstr(result.out, "outputSchema"));
+    CHECK(!strstr(result.out, "\"filter\""));
+    release(&result);
+    /* Filtered discovery: the namespace of a prefix, hidden included. */
+    result = RUNV("describe", "--summary", "--prefix", "thing", "--json", "--compact");
+    CHECK(result.code == 0 && strstr(result.out, "\"filter\":{\"kind\":\"command-prefix\",\"value\":\"thing\"}"));
+    CHECK(strstr(result.out, "\"id\":\"thing.make\"") && !strstr(result.out, "\"id\":\"exec\""));
+    release(&result);
+    result = RUNV("describe", "--summary", "--prefix", "thing.make", "--json", "--compact");
+    CHECK(result.code == 0 && strstr(result.out, "\"id\":\"thing.make\""));
+    release(&result);
+    result = RUNV("describe", "--summary", "--prefix", "thin", "--json", "--compact");
+    CHECK(result.code == 1 && !result.out[0] && strstr(result.err, "\"code\":\"INVALID_COMMAND\""));
+    release(&result);
+    result = RUNV("describe", "--summary", "--prefix", "Thing.");
+    CHECK(expect_failure(&result, "[VALIDATION_FAILED]", "Invalid command prefix"));
+    result = RUNV("describe", "--prefix", "thing");
+    CHECK(expect_failure(&result, "[VALIDATION_FAILED]", "--prefix requires --summary"));
+    result = RUNV("describe", "thing.make", "--summary", "--prefix", "thing");
+    CHECK(expect_failure(&result, "[VALIDATION_FAILED]", "--prefix conflicts with operand COMMAND_ID"));
+    result = RUNV("describe", "describe", "--json", "--compact");
+    CHECK(result.code == 0 && strstr(result.out, "\"long\":\"--prefix\"") && strstr(result.out, "\"conflictsWith\":[\"COMMAND_ID\"]"));
+    CHECK(strstr(result.out, "\"kind\":\"at-most-one\",\"options\":[\"--prefix\",\"COMMAND_ID\"]"));
+    CHECK(strstr(result.out, "\"pattern\":\"^[a-z](?:[a-z0-9.-]*[a-z0-9-])?$\""));
     release(&result);
     result = RUNV("describe", "thing.make", "--json", "--compact");
     CHECK(result.code == 0 && strstr(result.out, "\"kind\":\"command\""));

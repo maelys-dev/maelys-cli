@@ -114,6 +114,29 @@ static int test_validation(void) {
     static const maelys_cli_option_t dangling[] = {
         {MAELYS_CLI_FLAG("one", "One."), .depends_on = "two"},
     };
+    static const maelys_cli_option_t pattern_on_flag[] = {
+        {MAELYS_CLI_FLAG("all", "All."), .pattern = "^a$"},
+    };
+    command = good_command();
+    command.apply_effect = MAELYS_CLI_EFFECT_NONE;
+    command.effect = MAELYS_CLI_EFFECT_READ;
+    command.options = pattern_on_flag;
+    command.option_count = 1u;
+    CHECK(!validate(&command));
+    static const maelys_cli_option_t operand_conflict[] = {
+        {MAELYS_CLI_FLAG("all", "All."), .conflicts_with = "ROOT"},
+    };
+    static const maelys_cli_option_t unknown_conflict[] = {
+        {MAELYS_CLI_FLAG("all", "All."), .conflicts_with = "NOPE"},
+    };
+    command = good_command();
+    command.apply_effect = MAELYS_CLI_EFFECT_NONE;
+    command.effect = MAELYS_CLI_EFFECT_READ;
+    command.options = operand_conflict;
+    command.option_count = 1u;
+    CHECK(validate(&command));
+    command.options = unknown_conflict;
+    CHECK(!validate(&command));
     command.options = dangling;
     CHECK(!validate(&command));
 

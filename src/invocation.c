@@ -492,6 +492,17 @@ int maelys_cli_parse(
                 "--%s conflicts with --%s.", option->name, option->conflicts_with);
             PARSE_FAIL();
         }
+        for (size_t j = 0u; option->conflicts_with && j < out->command->operand_count; ++j) {
+            if (strcmp(out->command->operands[j].name, option->conflicts_with) != 0)
+                continue;
+            if (out->operand_count > j) {
+                maelys_cli_error_set(error, MAELYS_CLI_CODE_VALIDATION_FAILED,
+                    "Remove either the option or the operand and retry.",
+                    "--%s conflicts with operand %s.", option->name,
+                    option->conflicts_with);
+                PARSE_FAIL();
+            }
+        }
         for (size_t d = 0u; option->depends_on_all && option->depends_on_all[d]; ++d) {
             if (!option_enabled(out, option->depends_on_all[d])) {
                 maelys_cli_error_set(error, MAELYS_CLI_CODE_VALIDATION_FAILED,
