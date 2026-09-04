@@ -9,9 +9,13 @@ Read `AGENTS.md` (constitution, contracts, procedure) before editing.
 
 ## Before code
 
-1. Name the change class: mechanic, catalog, runtime or contract. A
-   contract change must be additive within `agent-cli/v2`; otherwise bump
-   the contract constants and say so in `docs/command-conventions.md`.
+1. Name the change class: mechanic, catalog, runtime or contract. The
+   contract is `agent-cli/v2` as maelys-dev/agent-cli-spec writes it
+   (`adapter/AGENT_CLI_SPEC_PIN`); `make conformance-check` runs its kit on
+   `maelys-hello` and `maelys` and must stay green. A contract change goes
+   to the specification first (pull request, tag, pin bump here), and must
+   be additive within `agent-cli/v2`; otherwise the specification moves to
+   `agent-cli/v3` and the contract constants follow.
 2. Write down: the header declaration, the catalog validation rule, the
    parser rule and its causal position, the `describe` member, the
    completion effect, the accessor a handler will use.

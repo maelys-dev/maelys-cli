@@ -6,7 +6,9 @@
   maelys-dev/agent-cli-spec, pinned in `adapter/AGENT_CLI_SPEC_PIN`; its
   conformance kit runs on `maelys-hello` and the `maelys` dispatcher in
   `make check` (`conformance-check`), so the framework is held to the
-  written contract like every other implementation. `docs/command-conventions.md`
+  written contract like every other implementation. `AGENTS.md` and the
+  `maelys-cli-framework` skill tell an agent that a contract change starts
+  in the specification, never here. `docs/command-conventions.md`
   and `docs/agent-cli.md` point at the specification and keep what is
   specific to `libmaelys_cli`.
 
