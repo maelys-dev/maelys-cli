@@ -6,7 +6,8 @@ description: Release a Maelys product through the shared maelys-release socle, o
 # Releasing a Maelys product
 
 The product is `maelys-cli`; its release mechanics come from maelys-release
-v0.6.1 (`docs/conventions.md` there is normative).
+at the version `.github/workflows/release.yml` pins (`docs/conventions.md`
+there is normative).
 
 ## Cut a release
 
@@ -16,7 +17,8 @@ v0.6.1 (`docs/conventions.md` there is normative).
    that will be tagged.
 2. Merge through a pull request with green CI.
 3. Run `bin/maelys-release preflight .` from a maelys-release checkout at
-   v0.6.1; it exits 2 on anything the workflow would refuse (signing
+   (any version: it runs as the pinned one); it exits 2 on anything the
+   workflow would refuse (signing
    configuration, previous tag, existing `vX.Y.Z`, `release` environment
    not limited to tags `v*`).
 4. Tag the merge commit: `git tag -s vX.Y.Z -m "maelys-cli X.Y.Z"`, then
@@ -24,7 +26,10 @@ v0.6.1 (`docs/conventions.md` there is normative).
    registered on GitHub; the workflow refuses anything else.
 5. Watch the `release` workflow; the `publish` job runs in the `release`
    environment. Verify with `gh release view vX.Y.Z` and
-   `gh attestation verify <asset> --repo <owner>/<repo>`.
+   `gh attestation verify <asset> --repo <owner>/<repo> --signer-repo maelys-dev/maelys-release`
+   (the attestation is signed by the socle's reusable workflow, so `gh` must
+   be told that signer; without it verification fails with "verifying with
+   issuer sigstore.dev").
 
 ## Before the first tag, or after changing packaging
 

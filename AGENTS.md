@@ -168,7 +168,7 @@ entry, one handler replying exactly once, one output schema, focused tests,
 and no hand-written usage text.
 
 <!-- maelys-release:begin -->
-# Maelys release socle (maelys-release v0.6.1)
+# Maelys release socle (maelys-release)
 
 This repository publishes through the shared maelys-release workflows. The
 rules below hold for every release-related change; the complete conventions

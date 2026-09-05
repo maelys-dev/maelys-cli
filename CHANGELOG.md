@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.12 - 2026-09-05
 
 - `python/maelys_cli.py`: the framework for a product written in Python,
   one file, standard library only, Python 3.9 or later. The declaration

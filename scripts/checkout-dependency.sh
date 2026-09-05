@@ -1,5 +1,5 @@
 #!/bin/sh
-# Managed by maelys-release v0.6.1 (0.6.1). Regenerate with
+# Managed by maelys-release. Regenerate with
 # 'maelys-release adopt' of maelys-release; do not edit by hand.
 #
 # usage: scripts/checkout-dependency.sh NAME [DESTINATION]
