@@ -45,7 +45,9 @@ normative; this skill is the executable checklist.
   After a helper that may reply, test `maelys_cli_replied(context)` before
   replying. Use the `_trusted` emitters only behind a JSON library.
 - Validate in causal order; use the error code of the failed boundary; put
-  the next safe action in the hint.
+  the next safe action in the hint. Read configuration, manifests and
+  secrets with `maelys_cli_read_trusted_file()` (never check then open) and
+  report its errno with `maelys_cli_fail_file()`.
 - Keep stdout data-only. Diagnostics go to stderr via `maelys_cli_warn()`.
 - Name the write policy on every file write; start programs with absolute
   paths through `maelys/cli/process.h`, never a shell.

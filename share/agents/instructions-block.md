@@ -80,7 +80,10 @@ and refuses invalid UTF-8 in what it writes.
 Rules that must not be broken: no second usage string outside the catalog; no
 hand-written argv parsing in `main()`; no product type inside the shared
 framework; validation errors in causal order (command, options, values,
-dependencies, operands, files, syntax, schema, state); explicit
+dependencies, operands, files, syntax, schema, state); configuration,
+manifests and secrets read with `maelys_cli_read_trusted_file` (trust judged
+on the descriptor read, bounded by the bytes read) and failures reported
+with `maelys_cli_fail_file`; explicit
 `MAELYS_CLI_WRITE_REPLACE` / `MAELYS_CLI_WRITE_NO_REPLACE` on every file
 write; external programs started with absolute paths and `execve`, never a
 shell or PATH lookup.

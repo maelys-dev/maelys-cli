@@ -256,7 +256,9 @@ Handler rules:
   validated kinds, ranges, choices, duplicates, dependencies and arity;
 - reply exactly once: `maelys_cli_succeed()` / `maelys_cli_succeed_writer()`,
   `maelys_cli_emit_record()` then `maelys_cli_finish_records()`, or
-  `maelys_cli_fail()` / `maelys_cli_fail_errno()` / `maelys_cli_fail_error()`.
+  `maelys_cli_fail()` / `maelys_cli_fail_errno()` / `maelys_cli_fail_error()`,
+  or `maelys_cli_fail_file()` for an errno and explanation left by a
+  `maelys/cli/files.h` function (it picks the stable code itself).
   A helper that may reply returns the exit code and the caller checks
   `maelys_cli_replied(context)` before replying itself. Behind a JSON
   library that guarantees validity, `maelys_cli_succeed_trusted()` and
@@ -271,8 +273,15 @@ Handler rules:
   (same search order as delegates); `context->executable` is `argv[0]`;
 - return the value of that call; a `STREAM` handler returns the process exit
   code directly and writes nothing else to stdout;
-- validate in causal order: option presence, file type and permissions
-  (`maelys_cli_check_file()`), syntax, schema, then state and concurrency;
+- validate in causal order: option presence, file type and permissions,
+  syntax, schema, then state and concurrency; read configuration, manifests
+  and secrets through `maelys_cli_read_trusted_file()` (or
+  `maelys_cli_open_trusted()`), which judges the descriptor it read, so the
+  file checked is the file read; `maelys_cli_check_file()` is for files that
+  are not read, such as an executable; a secret takes
+  `MAELYS_CLI_FILE_OWNER_CALLER | MAELYS_CLI_FILE_PRIVATE |
+  MAELYS_CLI_FILE_NO_SYMLINK | MAELYS_CLI_FILE_SINGLE_LINK` and
+  `maelys_cli_zero()` before `free()`;
 - use the error code of the boundary that actually failed;
 - never write to stdout directly; use `maelys_cli_warn()` for stderr notes;
 - name every write policy: `MAELYS_CLI_WRITE_REPLACE` or
@@ -317,7 +326,7 @@ with the framework under `PREFIX/share/maelys-cli/docs/` (source:
 | --- | --- |
 | `maelys/cli/values.h` | `parse_u64_decimal`, `parse_u32_decimal`, `parse_i64_decimal`, `parse_byte_size`, `parse_duration_ms`, `parse_boolean`, `parse_choice`, `parse_hex`, borrowed string lists |
 | `maelys/cli/environment.h` | `NAME=VALUE` / imported overlays, `to_envp` for `execve` |
-| `maelys/cli/files.h` | bounded regular-file read, bounded descriptor read, atomic write with explicit policy, trust checks (`REGULAR`, `NO_SYMLINK`, `OWNER_TRUSTED`, `NOT_WRITABLE_BY_OTHERS`, `PRIVATE`, `EXECUTABLE`) |
+| `maelys/cli/files.h` | trusted open and read judged on the descriptor (`maelys_cli_open_trusted`, `maelys_cli_read_trusted_file`, bounded by the bytes read, never blocking on a FIFO), bounded regular-file read, bounded descriptor read, atomic write with explicit policy, trust checks (`REGULAR`, `NO_SYMLINK`, `OWNER_TRUSTED`, `OWNER_CALLER`, `NOT_WRITABLE_BY_OTHERS`, `PRIVATE`, `SINGLE_LINK`, `EXECUTABLE`), `maelys_cli_zero` for secrets, `maelys_cli_file_error_code` from errno |
 | `maelys/cli/digest.h` | SHA-256 of buffers and files |
 | `maelys/cli/json.h` | incremental JSON writer, strict validator, formatter, top-level member lookup |
 | `maelys/cli/terminal.h` | tty and color detection honoring `--color`, `NO_COLOR`, `CLICOLOR_FORCE`, `TERM=dumb` |

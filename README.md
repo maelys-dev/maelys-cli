@@ -53,7 +53,7 @@ shared renderer ──────────► human text | json envelope | j
 
 | Layer | Header | Content |
 | --- | --- | --- |
-| mechanics | `values.h`, `environment.h`, `files.h`, `digest.h` | `u32`/`u64`/`i64`, sizes `K/M/G/T`, durations, booleans, choices, hex; `NAME=VALUE` overlays; bounded reads, atomic writes with explicit `REPLACE`/`NO_REPLACE`; trust checks; SHA-256 |
+| mechanics | `values.h`, `environment.h`, `files.h`, `digest.h` | `u32`/`u64`/`i64`, sizes `K/M/G/T`, durations, booleans, choices, hex; `NAME=VALUE` overlays; bounded reads, trusted reads judged on the descriptor (`maelys_cli_read_trusted_file`), atomic writes with explicit `REPLACE`/`NO_REPLACE`; trust checks; SHA-256 |
 | output | `json.h`, `terminal.h` | incremental JSON writer, strict validator, formatter, member lookup; tty and color detection (`--color`, `NO_COLOR`, `CLICOLOR_FORCE`) |
 | processes | `process.h` | absolute-path trusted executables, `run` and `replace` via `execve` without shell, helper resolution |
 | contract | `catalog.h`, `invocation.h` | command, operand and option descriptors; parser; error codes; exit codes |
