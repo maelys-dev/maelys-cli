@@ -3,6 +3,7 @@
 #include <maelys/cli.h>
 
 #include <errno.h>
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -35,7 +36,7 @@ static int test_valid_manifest(void) {
     maelys_cli_error_t error;
     CHECK(maelys_cli_extension_load(path, &extension, &error) == 0);
     CHECK(strcmp(extension.command, "oci") == 0 && extension.cli_api == 1u);
-    char canonical[512];
+    char canonical[PATH_MAX];
     CHECK(realpath(executable, canonical) != NULL);
     CHECK(strcmp(extension.executable, canonical) == 0 && !extension.digest_verified);
     CHECK(strcmp(extension.summary, "Test command") == 0);
