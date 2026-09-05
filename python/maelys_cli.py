@@ -31,10 +31,14 @@ module from the outside.
 """
 from __future__ import annotations
 
+import errno
+import fcntl
 import json
 import os
 import re
+import stat
 import sys
+import tempfile
 from typing import Any, Callable, Optional
 
 CONTRACT = "agent-cli/v2"
@@ -60,6 +64,12 @@ SIZE_UNITS = {"": 1, "K": 1024, "M": 1024 ** 2, "G": 1024 ** 3, "T": 1024 ** 4}
 DURATION_UNITS = {"ms": 1, "s": 1000, "m": 60_000, "h": 3_600_000, "d": 86_400_000}
 
 Handler = Callable[["Invocation"], "tuple[Any, int]"]
+
+
+def environment_format() -> str:
+    """MAELYS_CLI_FORMAT selects json or text; any other value is ignored, as in C."""
+    value = os.environ.get("MAELYS_CLI_FORMAT", "")
+    return value if value in ("json", "text") else "text"
 
 
 class Failure(Exception):
@@ -219,8 +229,8 @@ def parse_value(kind: str, text: str, spec: dict, where: str, usage: str) -> Any
             raise refuse("true or false")
         return text == "true"
     if kind == "string":
-        if "pattern" in spec and not re.match(spec["pattern"], text):
-            raise refuse(f"a value matching {spec['pattern']}")
+        # `pattern` documents the value in describe; the parser does not
+        # enforce it, as libmaelys_cli does not.
         return text
     if kind in ("integer", "unsigned"):
         if not re.fullmatch(r"-?\d+" if kind == "integer" else r"\d+", text):
@@ -268,6 +278,222 @@ def parse_value(kind: str, text: str, spec: dict, where: str, usage: str) -> Any
         bounds = f"between {spec.get('minimum', '-inf')} and {spec.get('maximum', '+inf')}"
         raise Failure("VALIDATION_FAILED", f"{where} must be {bounds}, not {text}.", f"Use '{usage}'.")
     return value
+
+
+# ---- files -----------------------------------------------------------------------
+# The counterpart of maelys/cli/files.h: same requirements, same errno, same
+# explanations, the file judged is the file read.
+
+FILE_REGULAR = 1 << 0
+FILE_NO_SYMLINK = 1 << 1
+FILE_OWNER_TRUSTED = 1 << 2
+FILE_NOT_WRITABLE_BY_OTHERS = 1 << 3
+FILE_PRIVATE = 1 << 4
+FILE_EXECUTABLE = 1 << 5
+FILE_SINGLE_LINK = 1 << 6
+FILE_OWNER_CALLER = 1 << 7
+
+WRITE_REPLACE = "replace"
+WRITE_NO_REPLACE = "no-replace"
+
+EFTYPE = getattr(errno, "EFTYPE", errno.EINVAL)
+
+
+class FileError(OSError):
+    """An OSError with the short stable explanation of files.h (`out_error`)."""
+
+    def __init__(self, error_number: int, explanation: str, filename: Optional[str] = None) -> None:
+        super().__init__(error_number, os.strerror(error_number), filename)
+        self.explanation = explanation
+
+
+def file_error_code(error_number: int) -> str:
+    """The stable code for an errno of this section, as maelys_cli_file_error_code()."""
+    if error_number in (errno.ENOENT, errno.ENOTDIR):
+        return "NOT_FOUND"
+    if error_number in (errno.EACCES, errno.EPERM):
+        return "ACCESS_DENIED"
+    if error_number in (errno.EFBIG, errno.ELOOP, errno.EMLINK, errno.EINVAL, errno.EISDIR, EFTYPE):
+        return "VALIDATION_FAILED"
+    return "IO_FAILED"
+
+
+def file_failure(error: OSError, what: Optional[str] = None) -> Failure:
+    """The Failure for an OSError, as maelys_cli_fail_file(): code from the errno,
+    message `what: strerror`, hint from the explanation when the error carries one."""
+    number = error.errno or 0
+    subject = what or error.filename or "operation failed"
+    explanation = getattr(error, "explanation", None)
+    hint = f"{explanation[0].upper()}{explanation[1:]}." if explanation else \
+        "Inspect the named path or resource, correct its state and retry."
+    return Failure(file_error_code(number), f"{subject}: {os.strerror(number) if number else error}", hint)
+
+
+def _judge(status: os.stat_result, requirements: int) -> Optional["tuple[int, str]"]:
+    if requirements & FILE_REGULAR and not stat.S_ISREG(status.st_mode):
+        return EFTYPE, "path is not a regular file"
+    if requirements & FILE_OWNER_CALLER and status.st_uid != os.geteuid():
+        return errno.EPERM, "file is not owned by the caller"
+    if requirements & FILE_OWNER_TRUSTED and status.st_uid not in (0, os.geteuid()):
+        return errno.EPERM, "file is owned by an untrusted user"
+    if requirements & FILE_NOT_WRITABLE_BY_OTHERS and status.st_mode & (stat.S_IWGRP | stat.S_IWOTH):
+        return errno.EPERM, "file is writable by group or world"
+    if requirements & FILE_PRIVATE and status.st_mode & (stat.S_IRWXG | stat.S_IRWXO):
+        return errno.EPERM, "file grants permissions to group or world"
+    if requirements & FILE_SINGLE_LINK and status.st_nlink != 1:
+        return errno.EMLINK, "file has more than one hard link"
+    if requirements & FILE_EXECUTABLE and not status.st_mode & stat.S_IXUSR:
+        return errno.EACCES, "file is not executable"
+    return None
+
+
+def check_file(path: str, requirements: int) -> None:
+    """Judges the path by lstat/stat without opening it (maelys_cli_check_file);
+    for a file that is not read here. Raises FileError."""
+    if not path:
+        raise FileError(errno.EINVAL, "path is empty", path)
+    try:
+        status = os.lstat(path)
+    except OSError as error:
+        raise FileError(error.errno, "path does not exist or is not accessible", path) from None
+    if requirements & FILE_NO_SYMLINK and stat.S_ISLNK(status.st_mode):
+        raise FileError(errno.ELOOP, "path is a symbolic link", path)
+    if stat.S_ISLNK(status.st_mode):
+        try:
+            status = os.stat(path)
+        except OSError as error:
+            raise FileError(error.errno, "symbolic link target is not accessible", path) from None
+    verdict = _judge(status, requirements)
+    if verdict:
+        raise FileError(verdict[0], verdict[1], path)
+
+
+def _open_trusted(path: str, requirements: int) -> "tuple[int, os.stat_result]":
+    if not path:
+        raise FileError(errno.EINVAL, "path is empty", path)
+    flags = os.O_RDONLY | os.O_CLOEXEC | os.O_NONBLOCK
+    if requirements & FILE_NO_SYMLINK:
+        flags |= os.O_NOFOLLOW
+    try:
+        descriptor = os.open(path, flags)
+    except OSError as error:
+        number = errno.ELOOP if error.errno == errno.EMLINK else error.errno
+        explanation = "path is a symbolic link" if number == errno.ELOOP else \
+            "path does not exist or is not accessible"
+        raise FileError(number, explanation, path) from None
+    try:
+        try:
+            status = os.fstat(descriptor)
+        except OSError as error:
+            raise FileError(error.errno, "file status is not accessible", path) from None
+        verdict = _judge(status, requirements | FILE_REGULAR)
+        if verdict:
+            raise FileError(verdict[0], verdict[1], path)
+        try:
+            fcntl.fcntl(descriptor, fcntl.F_SETFL, fcntl.fcntl(descriptor, fcntl.F_GETFL) & ~os.O_NONBLOCK)
+        except OSError as error:
+            raise FileError(error.errno, "descriptor flags are not adjustable", path) from None
+    except BaseException:
+        os.close(descriptor)
+        raise
+    return descriptor, status
+
+
+def open_trusted(path: str, requirements: int) -> int:
+    """Opens one regular file read-only and applies the requirements to the
+    descriptor opened (maelys_cli_open_trusted): the open never blocks, a FIFO or
+    a device is refused as not regular, FILE_NO_SYMLINK opens with O_NOFOLLOW,
+    otherwise a link is followed and its target judged. The descriptor is
+    close-on-exec, blocking, at offset zero."""
+    return _open_trusted(path, requirements)[0]
+
+
+def zero(buffer: bytearray) -> None:
+    """Overwrites a mutable buffer with zeros; for a secret before it is dropped."""
+    buffer[:] = bytes(len(buffer))
+
+
+def _read_bounded(descriptor: int, maximum: int, explanation_path: Optional[str]) -> bytearray:
+    buffer = bytearray()
+    try:
+        while True:
+            chunk = os.read(descriptor, min(65536, maximum + 1 - len(buffer)))
+            if not chunk:
+                return buffer
+            buffer.extend(chunk)
+            if len(buffer) > maximum:
+                raise FileError(errno.EFBIG, "file is larger than the maximum size", explanation_path)
+    except BaseException:
+        zero(buffer)
+        raise
+
+
+def read_trusted_file(path: str, requirements: int, minimum_size: int, maximum_size: int) -> bytearray:
+    """open_trusted() then a read of the whole file bounded by the bytes actually
+    read (maelys_cli_read_trusted_file): EFBIG above maximum_size or below
+    minimum_size, whatever the size observed before the read. The buffer is a
+    bytearray, zeroed before release on any failure after the open; zero() it
+    when it held a secret."""
+    if minimum_size < 0 or minimum_size > maximum_size:
+        raise FileError(errno.EINVAL, "size bounds are invalid", path)
+    descriptor, status = _open_trusted(path, requirements)
+    try:
+        if status.st_size > maximum_size:
+            raise FileError(errno.EFBIG, "file is larger than the maximum size", path)
+        buffer = _read_bounded(descriptor, maximum_size, path)
+        if len(buffer) < minimum_size:
+            zero(buffer)
+            raise FileError(errno.EFBIG, "file is smaller than the minimum size", path)
+        return buffer
+    finally:
+        os.close(descriptor)
+
+
+def read_regular_file(path: str, minimum_size: int, maximum_size: int) -> bytearray:
+    """read_trusted_file() without requirement: links are followed, a regular
+    file is required, the bytes read must lie in the bounds."""
+    return read_trusted_file(path, 0, minimum_size, maximum_size)
+
+
+def write_file_atomic(path: str, data: bytes, mode: int, policy: str) -> None:
+    """Writes through a private temporary in the destination directory, fsyncs it
+    and publishes it atomically (maelys_cli_write_file_atomic). WRITE_REPLACE
+    renames over the target; WRITE_NO_REPLACE links it and fails with EEXIST when
+    any entry, a dangling link included, already occupies the path."""
+    if not path or mode == 0 or policy not in (WRITE_REPLACE, WRITE_NO_REPLACE):
+        raise FileError(errno.EINVAL, "write arguments are invalid", path)
+    if policy == WRITE_NO_REPLACE and os.path.lexists(path):
+        raise FileError(errno.EEXIST, "path already exists", path)
+    directory = os.path.dirname(path) or "."
+    descriptor, temporary = tempfile.mkstemp(prefix=os.path.basename(path) + ".tmp.", dir=directory)
+    published = False
+    try:
+        os.fchmod(descriptor, mode)
+        view = memoryview(data)
+        while view:
+            written = os.write(descriptor, view)
+            view = view[written:]
+        os.fsync(descriptor)
+        os.close(descriptor)
+        descriptor = -1
+        if policy == WRITE_REPLACE:
+            os.replace(temporary, path)
+            published = True
+        else:
+            os.link(temporary, path)
+            published = True
+            try:
+                os.unlink(temporary)
+            except OSError:
+                pass
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+        if not published:
+            try:
+                os.unlink(temporary)
+            except OSError:
+                pass
 
 
 # ---- the program ------------------------------------------------------------------
@@ -451,11 +677,14 @@ class Program:
                       "version": self.version, "contract": CONTRACT, "cliApi": CLI_API, "framework": self.framework}
         prefix = invocation.option("--prefix")
         if prefix is not None:
+            if not PREFIX_GRAMMAR.fullmatch(prefix):
+                raise Failure("VALIDATION_FAILED", f"Option --prefix takes a command identifier prefix, not '{prefix}'.",
+                              "Use lowercase letters, digits, '.' and '-', starting with a letter.")
             selected = [self.descriptor(c, summary=True) for c in self.catalog
                         if c["id"] == prefix or c["id"].startswith(f"{prefix}.")]
             if not selected:
-                raise Failure("INVALID_COMMAND", f"No command identifier equals or starts with '{prefix}.'.",
-                              "Run describe --summary to list the command identifiers.")
+                raise Failure("INVALID_COMMAND", f"No command in namespace: {prefix}.",
+                              "Run describe --summary --format json and select a returned command identifier.")
             data.update({"kind": "summary", "filter": {"kind": "command-prefix", "value": prefix},
                          "commands": selected})
             return data, EXIT_OK
@@ -591,7 +820,7 @@ class Program:
                           "Use another build of the product, or another command.")
         raw_operands = words[consumed:] + passthrough
         usage = command["usage"]
-        fmt = os.environ.get("MAELYS_CLI_FORMAT", "text")
+        fmt = environment_format()
         compact = False
         non_interactive = False
         rendering: list = []
@@ -736,7 +965,7 @@ class Program:
     def main(self, argv: Optional[list] = None) -> int:
         argv = list(sys.argv[1:] if argv is None else argv)
         command_id = ""
-        fmt = os.environ.get("MAELYS_CLI_FORMAT", "text")
+        fmt = environment_format()
         for index, word in enumerate(argv):
             if word in ("--json", "--format=json", "--format=jsonl"):
                 fmt = "json"
@@ -773,10 +1002,12 @@ class Program:
                 sys.stderr.write(self.envelope(command_id or "unknown", False, EXIT_FAILURE, error, compact))
             return EXIT_FAILURE
         except OSError as error:
-            message = f"{error.strerror}: {error.filename}" if error.filename else str(error)
-            payload = {"code": "IO_FAILED", "message": message, "hint": "Check the path and its permissions."}
+            # An OSError a handler did not convert: same table as maelys_cli_fail_file().
+            failure = file_failure(error)
+            payload = {"code": failure.code, "message": failure.message, "hint": failure.hint}
             if fmt == "text":
-                sys.stderr.write(f"{self.program}: [IO_FAILED] {message}\nHint: {payload['hint']}\n")
+                sys.stderr.write(self._colored(f"{self.program}: [{failure.code}] {failure.message}", argv) + "\n")
+                sys.stderr.write(f"Hint: {failure.hint}\n")
             else:
                 sys.stderr.write(self.envelope(command_id or "unknown", False, EXIT_FAILURE, payload, compact))
             return EXIT_FAILURE

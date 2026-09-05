@@ -47,8 +47,11 @@ def note_write(invocation: cli.Invocation):
             "action": "replace" if exists else "create"}
     if not invocation.apply:
         return plan, cli.EXIT_OK
-    with open(path, "w", encoding="utf-8") as handle:
-        handle.write(content)
+    try:
+        cli.write_file_atomic(path, content.encode("utf-8"), 0o644,
+                              cli.WRITE_REPLACE if invocation.flag("--replace") else cli.WRITE_NO_REPLACE)
+    except OSError as error:
+        raise cli.file_failure(error, path) from None
     plan["mode"] = "apply"
     return plan, cli.EXIT_OK
 

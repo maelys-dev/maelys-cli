@@ -66,7 +66,7 @@ HEADER_CPP := $(BUILD)/tests/header_cpp
 PC := $(BUILD)/pkgconfig/maelys-cli.pc
 EXTENSION_PC := $(BUILD)/pkgconfig/maelys-cli-extension.pc
 
-.PHONY: all check test header-check check-version cli-check api-doc-check agent-doc-check doc-topics-check python-check install \
+.PHONY: all check test header-check check-version cli-check api-doc-check agent-doc-check doc-topics-check python-check python-doc-check install \
 	install-check uninstall dist clean asan-ubsan analyze cmake-check \
 	generate-cli-reference contract-check conformance-check agents-install
 
@@ -175,17 +175,23 @@ agent-doc-check:
 doc-topics-check:
 	./scripts/doc-topics-check.sh
 
-# contract-check needs python3; it is part of check wherever python3 exists.
-check: test cli-check header-check check-version api-doc-check agent-doc-check doc-topics-check python-check
-	@if command -v python3 >/dev/null 2>&1; then $(MAKE) contract-check conformance-check; \
-	else echo "contract-check: skipped (python3 not found)"; fi
+# python-check, contract-check and conformance-check need python3; they are
+# part of check wherever python3 exists, as the C library itself does not
+# need Python.
+check: test cli-check header-check check-version api-doc-check agent-doc-check doc-topics-check python-doc-check
+	@if command -v python3 >/dev/null 2>&1; then $(MAKE) python-check contract-check conformance-check; \
+	else echo "python-check, contract-check, conformance-check: skipped (python3 not found)"; fi
 
 # The Python framework: python/maelys_cli.py, its reference product
-# python/examples/hello.py and its tests. The conformance kit runs against
-# the reference product in conformance-check.
+# python/examples/hello.py and its tests, run without writing bytecode so a
+# check never dirties the tree. The conformance kit runs against the
+# reference product in conformance-check.
 python-check:
-	python3 -m py_compile python/maelys_cli.py python/examples/hello.py python/tests/test_maelys_cli.py
-	python3 -W error -m unittest discover -s python/tests
+	PYTHONDONTWRITEBYTECODE=1 python3 -B -W error -m unittest discover -s python/tests
+
+# Every public name of python/maelys_cli.py is documented in docs/python.md.
+python-doc-check:
+	./scripts/python-doc-check.sh
 
 asan-ubsan:
 	$(MAKE) check BUILD=build/asan-ubsan CFLAGS='-O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer' LDFLAGS='-fsanitize=address,undefined'
@@ -212,7 +218,7 @@ conformance-check: $(DISPATCHER) $(EXAMPLE)
 		{ echo "conformance-check: $(AGENT_CLI_SPEC_DIR) is not at adapter/AGENT_CLI_SPEC_PIN" >&2; exit 1; }
 	MAELYS_COMMANDS_PATH=/nonexistent python3 $(AGENT_CLI_SPEC_DIR)/conformance/run.py $(BUILD)/bin/maelys-hello | tail -1
 	MAELYS_COMMANDS_PATH=/nonexistent python3 $(AGENT_CLI_SPEC_DIR)/conformance/run.py $(BUILD)/bin/maelys | tail -1
-	MAELYS_COMMANDS_PATH=/nonexistent python3 $(AGENT_CLI_SPEC_DIR)/conformance/run.py python3 python/examples/hello.py | tail -1
+	MAELYS_COMMANDS_PATH=/nonexistent PYTHONDONTWRITEBYTECODE=1 python3 $(AGENT_CLI_SPEC_DIR)/conformance/run.py python3 python/examples/hello.py | tail -1
 
 # Proves that the committed reference and contract match what the binaries
 # describe. Run before a release and in CI; needs python3.
