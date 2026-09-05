@@ -139,7 +139,8 @@ def operand(name: str, summary: str, required: bool = True, variadic: bool = Fal
 def _command(identifier: str, pattern: str, purpose: str, handler: Optional[Handler], effect: Any,
              operands: tuple = (), options: tuple = (), schema: Optional[dict] = None, mode: str = "json-envelope",
              protocol: Optional[str] = None, external: bool = False, hidden: bool = False,
-             unavailable: Optional[str] = None, passthrough: bool = False) -> dict:
+             unavailable: Optional[str] = None, passthrough: bool = False,
+             synopsis: Optional[str] = None) -> dict:
     if not IDENTIFIER.match(identifier):
         raise ValueError(f"a command identifier is [a-z][a-z0-9.-]*, not {identifier!r}")
     words = pattern.split()
@@ -148,15 +149,20 @@ def _command(identifier: str, pattern: str, purpose: str, handler: Optional[Hand
     variadic = [item for item in operands if item["variadic"]]
     if len(variadic) > 1 or (variadic and operands[-1] is not variadic[0]):
         raise ValueError(f"{identifier}: at most one operand is variadic, and it is the last one")
-    synopsis = pattern
-    for item in operands:
-        piece = item["name"] + ("..." if item["variadic"] else "")
-        synopsis += " " + (piece if item["required"] else f"[{piece}]")
-    for item in options:
-        piece = item["long"] + (f" {item['argument']['name']}" if "argument" in item else "")
-        synopsis += " " + (piece if item["required"] else f"[{piece}]")
-    if passthrough:
-        synopsis += " [ARGUMENTS...]"
+    # `synopsis` overrides the derived usage, as `.synopsis` does in C: the
+    # catalog still declares every option and describe still lists it.
+    if synopsis is None:
+        synopsis = pattern
+        for item in operands:
+            piece = item["name"] + ("..." if item["variadic"] else "")
+            synopsis += " " + (piece if item["required"] else f"[{piece}]")
+        for item in options:
+            piece = item["long"] + (f" {item['argument']['name']}" if "argument" in item else "")
+            synopsis += " " + (piece if item["required"] else f"[{piece}]")
+        if passthrough:
+            synopsis += " [ARGUMENTS...]"
+    elif not synopsis.startswith(pattern):
+        raise ValueError(f"{identifier}: a synopsis starts with the pattern {pattern!r}, not {synopsis!r}")
     return {"id": identifier, "pattern": words, "usage": synopsis, "purpose": purpose, "effect": effect,
             "outputMode": mode, "protocol": protocol, "external": external, "hidden": hidden,
             "unavailable": unavailable, "operands": operands, "options": options, "passthrough": passthrough,

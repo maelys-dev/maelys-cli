@@ -283,6 +283,20 @@ class Contract(unittest.TestCase):
             self.assertEqual(pathlib.Path(note).read_text(), "hi")
             self.assertEqual(sorted(os.listdir(directory)), ["note.txt", "secret"])
 
+    def test_synopsis_override(self) -> None:
+        program = cli.Program("p", "P", "1", [cli.read("adopt", "adopt", "x", lambda i: ({}, 0),
+                                                   operands=[cli.operand("DIR", "d")],
+                                                   options=[cli.flag("--apply", "a"), cli.option("--socle-sha", "trial", cli.argument("SHA", "hex"))],
+                                                   synopsis="adopt DIR [--apply]")])
+        command = program.command_by_id("adopt")
+        self.assertEqual(command["usage"], "adopt DIR [--apply]")
+        self.assertEqual([o["long"] for o in program.descriptor(command)["input"]["options"]], ["--apply", "--socle-sha"])
+        self.assertEqual(program.descriptor(command)["input"]["synopsis"], command["usage"])
+        invocation, _ = program.parse(["adopt", "here", "--socle-sha", "ab"])
+        self.assertEqual(invocation.option("--socle-sha"), "ab")
+        with self.assertRaises(ValueError):
+            cli.read("a", "a", "x", lambda i: ({}, 0), synopsis="b [--x]")
+
     def test_catalog_refuses_bad_declarations(self) -> None:
         with self.assertRaises(ValueError):
             cli.read("Bad", "bad", "x", lambda i: ({}, 0))

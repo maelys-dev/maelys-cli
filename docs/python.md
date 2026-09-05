@@ -55,6 +55,12 @@ synopsis, the help, `describe` and the completion.
 | `cli.stream(..., protocol=...)` | `stream`, `protocol-stream` | the exit status; rendering options are refused, stdout belongs to the protocol |
 | `cli.external(...)` | delegate, `passthrough` | the exit status; every word after the pattern reaches the handler verbatim |
 
+`synopsis="adopt DIR [--apply]"` overrides the derived usage, as
+`.synopsis` does in C, for a command whose trial or rarely used options
+should not clutter the line; it must start with the pattern, the catalog
+still declares every option, `describe` still lists them all and
+`input.synopsis` stays equal to `usage`.
+
 A command this build cannot run declares `unavailable="reason"`: it is
 listed by `describe` with `available: false`, refused with `UNSUPPORTED`,
 and never completed. `hidden=True` keeps it out of `help` and the completion.
@@ -108,6 +114,8 @@ functions `read`, `records`, `transaction`, `execute`, `stream`,
 `external`, `operand`, `option`, `flag`, `argument`; `Program` and the
 arguments of its constructor (`program`, `product`, `version`,
 `commands`, `guide=`, `text=`, `framework=`) and `Program.main(argv)`;
+the command keywords `operands=`, `options=`, `schema=`, `hidden=`,
+`unavailable=`, `synopsis=`, `protocol=`;
 `Invocation` with `operands`, `raw_operands`, `options`, `option()`,
 `flag()`, `apply`, `format`, `compact`, `non_interactive`; `Failure`;
 the file and error functions above; the `EXIT_*` and `FILE_*` constants.

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- `python/maelys_cli.py`: `synopsis=` on every declaration function
+  overrides the derived usage, as `.synopsis` does in C (must start with
+  the pattern; the catalog and `describe` still carry every option). For a
+  product whose trial options should not appear on the usage line.
 - `python/maelys_cli.py`: its public API is declared stable in
   `docs/python.md` ("Stability of the module"), with the versioning of the
   C library: additive within `0.5`, a `0.6` otherwise, and every change to
