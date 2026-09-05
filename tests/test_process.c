@@ -3,6 +3,7 @@
 #include <maelys/cli/process.h>
 
 #include <errno.h>
+#include <fcntl.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -19,8 +20,11 @@ static int test_check_executable(void) {
     CHECK(explanation != NULL && errno == EINVAL);
     CHECK(maelys_cli_process_check_executable("/nonexistent/maelys-bin", &explanation) != 0);
     CHECK(maelys_cli_process_check_executable("/tmp", &explanation) != 0);
-    char path[] = "/tmp/maelys-cli-exec.XXXXXX";
-    int descriptor = mkstemp(path);
+    char directory[] = "/tmp/maelys-cli-exec.XXXXXX";
+    CHECK(mkdtemp(directory) != NULL);
+    char path[1024];
+    CHECK(snprintf(path, sizeof(path), "%s/tool", directory) > 0);
+    int descriptor = open(path, O_WRONLY | O_CREAT | O_EXCL, 0600);
     CHECK(descriptor >= 0);
     CHECK(write(descriptor, "#!/bin/sh\nexit 0\n", 17u) == 17);
     CHECK(close(descriptor) == 0);
@@ -30,7 +34,19 @@ static int test_check_executable(void) {
     CHECK(maelys_cli_process_check_executable(path, &explanation) == 0);
     CHECK(chmod(path, 0644) == 0);
     CHECK(maelys_cli_process_check_executable(path, &explanation) != 0 && errno == EACCES);
+    CHECK(chmod(path, 0100) == 0);
+    CHECK(maelys_cli_process_check_executable(path, &explanation) == 0);
     (void)unlink(path);
+    (void)rmdir(directory);
+    char unsafe_path[] = "/tmp/maelys-cli-unsafe-parent.XXXXXX";
+    descriptor = mkstemp(unsafe_path);
+    CHECK(descriptor >= 0);
+    CHECK(write(descriptor, "#!/bin/sh\nexit 0\n", 17u) == 17);
+    CHECK(close(descriptor) == 0);
+    CHECK(chmod(unsafe_path, 0700) == 0);
+    CHECK(maelys_cli_process_check_executable(unsafe_path, &explanation) != 0 &&
+        errno == EPERM);
+    (void)unlink(unsafe_path);
     return 1;
 }
 
@@ -51,6 +67,21 @@ static int test_run(void) {
     char *missing[] = {"missing", NULL};
     CHECK(maelys_cli_process_run("/nonexistent/maelys-bin", missing, NULL, &status) != 0);
     CHECK(maelys_cli_process_run("sh", missing, NULL, &status) != 0 && errno == EINVAL);
+    char directory[] = "/tmp/maelys-cli-exec-failure.XXXXXX";
+    CHECK(mkdtemp(directory) != NULL);
+    char script[1024];
+    CHECK(snprintf(script, sizeof(script), "%s/tool", directory) > 0);
+    int descriptor = open(script, O_WRONLY | O_CREAT | O_EXCL, 0700);
+    CHECK(descriptor >= 0);
+    const char body[] = "#!/definitely/missing\nexit 0\n";
+    CHECK(write(descriptor, body, sizeof(body) - 1u) ==
+        (ssize_t)(sizeof(body) - 1u));
+    CHECK(close(descriptor) == 0);
+    char *bad_interpreter[] = {"tool", NULL};
+    CHECK(maelys_cli_process_run(script, bad_interpreter, NULL, &status) != 0);
+    CHECK(errno == ENOENT);
+    (void)unlink(script);
+    (void)rmdir(directory);
     return 1;
 }
 

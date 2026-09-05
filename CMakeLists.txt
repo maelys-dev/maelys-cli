@@ -85,6 +85,7 @@ if(MAELYS_CLI_BUILD_DISPATCHER AND MAELYS_CLI_HAVE_JSON)
                 share/agents/claude-skill.md ${MAELYS_CLI_EMBED} VERSION
         VERBATIM)
     add_executable(maelys cmd/maelys/main.c cmd/maelys/agents.c ${agent_texts})
+    target_include_directories(maelys PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
     target_link_libraries(maelys PRIVATE maelys_cli_extension)
     target_compile_definitions(maelys PRIVATE
         _POSIX_C_SOURCE=200809L _XOPEN_SOURCE=700 _DEFAULT_SOURCE _DARWIN_C_SOURCE)

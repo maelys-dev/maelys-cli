@@ -66,7 +66,7 @@ HEADER_CPP := $(BUILD)/tests/header_cpp
 PC := $(BUILD)/pkgconfig/maelys-cli.pc
 EXTENSION_PC := $(BUILD)/pkgconfig/maelys-cli-extension.pc
 
-.PHONY: all check test header-check check-version cli-check api-doc-check agent-doc-check doc-topics-check python-check python-doc-check install \
+.PHONY: all check test header-check check-version cli-check embed-check api-doc-check agent-doc-check doc-topics-check python-check python-doc-check install \
 	install-check uninstall dist clean asan-ubsan analyze cmake-check \
 	generate-cli-reference contract-check conformance-check agents-install
 
@@ -159,6 +159,9 @@ test: $(TESTS)
 cli-check: $(DISPATCHER) $(EXAMPLE)
 	./tests/test_cli.sh $(BUILD)/bin
 
+embed-check: $(EMBED)
+	CC=$(CC) ./tests/test_embed.sh ./$(EMBED)
+
 header-check: $(HEADER_CPP)
 	$(HEADER_CPP)
 
@@ -178,7 +181,7 @@ doc-topics-check:
 # python-check, contract-check and conformance-check need python3; they are
 # part of check wherever python3 exists, as the C library itself does not
 # need Python.
-check: test cli-check header-check check-version api-doc-check agent-doc-check doc-topics-check python-doc-check
+check: test cli-check embed-check header-check check-version api-doc-check agent-doc-check doc-topics-check python-doc-check
 	@if command -v python3 >/dev/null 2>&1; then $(MAKE) python-check contract-check conformance-check; \
 	else echo "python-check, contract-check, conformance-check: skipped (python3 not found)"; fi
 

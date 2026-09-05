@@ -72,6 +72,26 @@ def environment_format() -> str:
     return value if value in ("json", "text") else "text"
 
 
+def _terminal_safe(text: str) -> str:
+    """Render control characters visibly in human diagnostics."""
+    escaped = []
+    for character in text:
+        code = ord(character)
+        if character == "\n":
+            escaped.append("\\n")
+        elif character == "\r":
+            escaped.append("\\r")
+        elif character == "\t":
+            escaped.append("\\t")
+        elif code < 0x20 or 0x7f <= code <= 0x9f:
+            escaped.append(f"\\x{code:02x}")
+        elif code in (0x2028, 0x2029) or 0x202a <= code <= 0x202e or 0x2066 <= code <= 0x2069:
+            escaped.append(f"\\u{code:04x}")
+        else:
+            escaped.append(character)
+    return "".join(escaped)
+
+
 class Failure(Exception):
     """A failure envelope: stable code, causal message, next safe action."""
 
@@ -292,6 +312,19 @@ def parse_value(kind: str, text: str, spec: dict, where: str, usage: str) -> Any
         bounds = f"between {spec.get('minimum', '-inf')} and {spec.get('maximum', '+inf')}"
         raise Failure("VALIDATION_FAILED", f"{where} must be {bounds}, not {text}.", f"Use '{usage}'.")
     return value
+
+
+def _parse_flag(value: Optional[str], name: str, usage: str) -> bool:
+    """Parse the explicit spellings accepted by the C flag parser."""
+    if value is None:
+        return True
+    if value in ("true", "yes", "on", "1"):
+        return True
+    if value in ("false", "no", "off", "0"):
+        return False
+    raise Failure("VALIDATION_FAILED",
+                  f"Option {name} takes true, false, yes, no, on, off, 1 or 0, not '{value}'.",
+                  f"Use '{usage}'.")
 
 
 # ---- files -----------------------------------------------------------------------
@@ -664,7 +697,7 @@ class Program:
 
     def warn(self, message: str) -> None:
         """A diagnostic on stderr, `program: warning: message`, as maelys_cli_warn(); never stdout."""
-        sys.stderr.write(f"{self.program}: warning: {message}\n")
+        sys.stderr.write(f"{self.program}: warning: {_terminal_safe(message)}\n")
         sys.stderr.flush()
 
     def guide(self) -> str:
@@ -857,17 +890,17 @@ class Program:
             if name == "--format":
                 fmt = parse_value("choice", value or "", {"choices": list(FORMATS)}, "Option --format", usage)
             elif name == "--json":
-                fmt = "json"
+                fmt = "json" if _parse_flag(value, name, usage) else "text"
             elif name == "--compact":
-                compact = value != "false"
+                compact = _parse_flag(value, name, usage)
             elif name == "--pretty":
-                compact = value == "false"
+                compact = not _parse_flag(value, name, usage)
             elif name == "--non-interactive":
-                non_interactive = value != "false"
+                non_interactive = _parse_flag(value, name, usage)
             elif name == "--color":
                 parse_value("choice", value or "", {"choices": list(COLORS)}, "Option --color", usage)
             elif name == "--help":
-                help_requested = True
+                help_requested = _parse_flag(value, name, usage)
             elif name in ("--dry-run", "--plan") and isinstance(command["effect"], dict):
                 raise Failure("VALIDATION_FAILED", f"Option {name} is not supported by '{command['id']}': it plans by default.",
                               "Run without --apply to plan, then add --apply to write.")
@@ -887,18 +920,21 @@ class Program:
                     else:
                         options[name] = typed
                 else:
-                    options[name] = value != "false"
+                    options[name] = _parse_flag(value, name, usage)
         # dependencies, conflicts, groups; then required; then operands
+        def enabled(option_name: str) -> bool:
+            return option_name in options and options[option_name] is not False
+
         for definition in command["options"]:
             name = definition["long"]
-            if name not in options:
+            if not enabled(name):
                 continue
             for other in definition["requires"]:
-                if other not in options and other not in seen:
+                if not enabled(other):
                     raise Failure("VALIDATION_FAILED", f"Option {name} requires {other}.", f"Use '{usage}'.")
             for other in definition["conflictsWith"]:
                 if other.startswith("--"):
-                    if other in options or other in seen:
+                    if enabled(other):
                         raise Failure("VALIDATION_FAILED", f"Option {name} conflicts with {other}.", f"Use '{usage}'.")
                 else:
                     position = next((i for i, item in enumerate(command["operands"]) if item["name"] == other), None)
@@ -910,7 +946,7 @@ class Program:
             if "group" in definition:
                 groups.setdefault(definition["group"], []).append(definition["long"])
         for members in groups.values():
-            present = [name for name in members if name in options]
+            present = [name for name in members if enabled(name)]
             if present and len(present) != len(members):
                 raise Failure("VALIDATION_FAILED", f"Options {', '.join(members)} are given together or not at all.",
                               f"Use '{usage}'.")
@@ -1015,9 +1051,10 @@ class Program:
             if failure.issues:
                 error["issues"] = failure.issues
             if fmt == "text":
-                sys.stderr.write(self._colored(f"{self.program}: [{failure.code}] {failure.message}", argv) + "\n")
+                sys.stderr.write(self._colored(
+                    f"{self.program}: [{failure.code}] {_terminal_safe(failure.message)}", argv) + "\n")
                 if failure.hint:
-                    sys.stderr.write(f"Hint: {failure.hint}\n")
+                    sys.stderr.write(f"Hint: {_terminal_safe(failure.hint)}\n")
             else:
                 sys.stderr.write(self.envelope(command_id or "unknown", False, EXIT_FAILURE, error, compact))
             return EXIT_FAILURE
@@ -1026,8 +1063,9 @@ class Program:
             failure = file_failure(error)
             payload = {"code": failure.code, "message": failure.message, "hint": failure.hint}
             if fmt == "text":
-                sys.stderr.write(self._colored(f"{self.program}: [{failure.code}] {failure.message}", argv) + "\n")
-                sys.stderr.write(f"Hint: {failure.hint}\n")
+                sys.stderr.write(self._colored(
+                    f"{self.program}: [{failure.code}] {_terminal_safe(failure.message)}", argv) + "\n")
+                sys.stderr.write(f"Hint: {_terminal_safe(failure.hint)}\n")
             else:
                 sys.stderr.write(self.envelope(command_id or "unknown", False, EXIT_FAILURE, payload, compact))
             return EXIT_FAILURE

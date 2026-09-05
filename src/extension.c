@@ -8,6 +8,7 @@
 
 #include <dirent.h>
 #include <errno.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -91,23 +92,25 @@ int maelys_cli_extension_load(
     }
     memcpy(out->manifest, manifest_path, strlen(manifest_path) + 1u);
     const char *explanation = NULL;
-    if (maelys_cli_check_file(manifest_path,
-            MAELYS_CLI_FILE_REGULAR | MAELYS_CLI_FILE_NO_SYMLINK |
-            MAELYS_CLI_FILE_OWNER_TRUSTED |
-            MAELYS_CLI_FILE_NOT_WRITABLE_BY_OTHERS, &explanation) != 0) {
-        maelys_cli_error_set(error, MAELYS_CLI_CODE_ACCESS_DENIED,
-            "Install manifests as regular files owned by root or the current "
-            "user, not writable by group or world.",
-            "Manifest %s is untrusted: %s.", manifest_path,
-            explanation ? explanation : strerror(errno));
-        return -1;
-    }
     unsigned char *bytes = NULL;
     size_t size = 0u;
-    if (maelys_cli_read_regular_file(manifest_path, 2u,
-            MAELYS_CLI_EXTENSION_MAX_MANIFEST_BYTES, &bytes, &size) != 0) {
-        maelys_cli_error_from_errno(error, MAELYS_CLI_CODE_IO_FAILED, errno,
-            manifest_path);
+    if (maelys_cli_read_trusted_file(manifest_path,
+            MAELYS_CLI_FILE_REGULAR | MAELYS_CLI_FILE_NO_SYMLINK |
+            MAELYS_CLI_FILE_OWNER_TRUSTED |
+            MAELYS_CLI_FILE_NOT_WRITABLE_BY_OTHERS, 2u,
+            MAELYS_CLI_EXTENSION_MAX_MANIFEST_BYTES, &bytes, &size,
+            &explanation) != 0) {
+        int saved = errno;
+        if (saved == EFBIG || saved == ENOMEM || saved == EIO) {
+            maelys_cli_error_from_errno(error, MAELYS_CLI_CODE_IO_FAILED,
+                saved, manifest_path);
+        } else {
+            maelys_cli_error_set(error, MAELYS_CLI_CODE_ACCESS_DENIED,
+                "Install manifests as regular files owned by root or the "
+                "current user, not writable by group or world.",
+                "Manifest %s is untrusted: %s.", manifest_path,
+                explanation ? explanation : strerror(saved));
+        }
         return -1;
     }
     const maelys_json_limits_t limits = {
@@ -177,13 +180,32 @@ int maelys_cli_extension_load(
         goto done;
     }
     out->cli_api = (unsigned int)api;
-    if (maelys_cli_process_check_executable(out->executable, &explanation) != 0) {
+    char canonical_executable[PATH_MAX];
+    const char *canonical_error = NULL;
+    if (out->executable[0] != '/') {
+        canonical_error = "executable path must be absolute";
+    } else if (!realpath(out->executable, canonical_executable)) {
+        canonical_error = strerror(errno);
+    } else if (strlen(canonical_executable) >= sizeof(out->executable)) {
+        canonical_error = "canonical executable path is too long";
+    }
+    if (canonical_error) {
+        maelys_cli_error_set(error, MAELYS_CLI_CODE_ACCESS_DENIED,
+            "Install the executable as an absolute, regular, trusted binary.",
+            "Executable %s of manifest %s is unusable: %s.", out->executable,
+            manifest_path, canonical_error);
+        goto done;
+    }
+    if (maelys_cli_process_check_executable(canonical_executable,
+            &explanation) != 0) {
         maelys_cli_error_set(error, MAELYS_CLI_CODE_ACCESS_DENIED,
             "Install the executable as an absolute, regular, trusted binary.",
             "Executable %s of manifest %s is unusable: %s.", out->executable,
             manifest_path, explanation ? explanation : strerror(errno));
         goto done;
     }
+    memcpy(out->executable, canonical_executable,
+        strlen(canonical_executable) + 1u);
     if (out->sha256[0]) {
         char actual[MAELYS_CLI_SHA256_HEX_SIZE];
         if (strlen(out->sha256) != 64u ||

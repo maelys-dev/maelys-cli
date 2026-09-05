@@ -290,7 +290,9 @@ Handler rules:
 - name every write policy: `MAELYS_CLI_WRITE_REPLACE` or
   `MAELYS_CLI_WRITE_NO_REPLACE`;
 - start external programs with `maelys_cli_process_run()` or
-  `maelys_cli_process_replace()` on absolute paths: no shell, no PATH.
+  `maelys_cli_process_replace()` on absolute paths: no shell, no PATH. The
+  executable and its immediate parent must have trusted ownership and modes;
+  the framework holds both open through `exec`.
 
 ### Test it
 

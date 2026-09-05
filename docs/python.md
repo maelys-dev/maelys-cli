@@ -72,7 +72,9 @@ choices=None, minimum=None, maximum=None)`; at most one operand is
 variadic, and it is the last one. `cli.option(long, summary, argument=None,
 default=None, required=False, repeatable=False, requires=(),
 conflicts_with=(), group=None)`; `cli.flag(long, summary, ...)` is an
-option without argument, and `--flag=false` is accepted. `cli.argument(name,
+option without argument. Explicit flags accept `true/false`, `yes/no`,
+`on/off` and `1/0`; any other value is refused, including on `--apply`.
+`cli.argument(name,
 kind, choices, minimum, maximum, algorithms, pattern)` declares the value.
 `hidden=True` on an option or a flag keeps it out of the synopsis, the help
 and the completion while `describe` lists it with `hidden: true` and the

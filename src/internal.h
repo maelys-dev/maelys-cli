@@ -6,6 +6,7 @@
 #include "maelys/cli/invocation.h"
 
 #include <stddef.h>
+#include <stdio.h>
 
 /* Transport options accepted by every command with an envelope output. */
 const maelys_cli_option_t *maelys_cli_transport_options(size_t *out_count);
@@ -18,6 +19,9 @@ const maelys_cli_command_t *maelys_cli_app_find_command(
     const maelys_cli_app_t *app, const char *id);
 
 size_t maelys_cli_pattern_words(const char *pattern);
+
+/* Writes user-influenced text without allowing terminal control bytes. */
+void maelys_cli_fprint_terminal_safe(FILE *stream, const char *text);
 
 /* Validates text against an option's kind; fills the typed value. */
 int maelys_cli_option_validate_text(

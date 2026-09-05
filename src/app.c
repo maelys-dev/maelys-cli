@@ -854,10 +854,16 @@ static void emit_error(
         maelys_cli_json_writer_clear(&writer);
     }
     int color = context ? context->terminal.color_stderr : 0;
-    (void)fprintf(err, "%s%s: [%s]%s %s\n",
+    (void)fprintf(err, "%s%s: [%s]%s ",
         maelys_cli_style(color, MAELYS_CLI_STYLE_ERROR), program, error->code,
-        maelys_cli_style(color, MAELYS_CLI_STYLE_RESET), error->message);
-    if (error->hint[0]) (void)fprintf(err, "Hint: %s\n", error->hint);
+        maelys_cli_style(color, MAELYS_CLI_STYLE_RESET));
+    maelys_cli_fprint_terminal_safe(err, error->message);
+    (void)fputc('\n', err);
+    if (error->hint[0]) {
+        (void)fputs("Hint: ", err);
+        maelys_cli_fprint_terminal_safe(err, error->hint);
+        (void)fputc('\n', err);
+    }
     (void)fflush(err);
 }
 
@@ -916,10 +922,12 @@ void maelys_cli_warn(maelys_cli_context_t *context, const char *format, ...) {
         maelys_cli_style(color, MAELYS_CLI_STYLE_WARNING), program,
         maelys_cli_style(color, MAELYS_CLI_STYLE_RESET));
     if (format) {
+        char message[MAELYS_CLI_MAX_ERROR_MESSAGE];
         va_list arguments;
         va_start(arguments, format);
-        (void)vfprintf(err, format, arguments);
+        (void)vsnprintf(message, sizeof(message), format, arguments);
         va_end(arguments);
+        maelys_cli_fprint_terminal_safe(err, message);
     }
     (void)fputc('\n', err);
     (void)fflush(err);
@@ -939,7 +947,8 @@ int maelys_cli_confirm(
         (void)maelys_cli_fail_error(context, &error);
         return -1;
     }
-    (void)fprintf(context->err, "%s [y/N] ", question);
+    maelys_cli_fprint_terminal_safe(context->err, question);
+    (void)fputs(" [y/N] ", context->err);
     (void)fflush(context->err);
     char answer[16];
     if (!fgets(answer, sizeof(answer), stdin)) return 0;

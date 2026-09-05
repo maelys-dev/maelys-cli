@@ -14,7 +14,8 @@ starts external programs on behalf of a product CLI. Its security claims are:
 - every argument is validated against the declared catalog before a handler
   runs; unknown, duplicated, malformed or out-of-range inputs are refused;
 - successful data is written to stdout only and failures to stderr only, so a
-  caller can never mistake a diagnostic for data;
+  caller can never mistake a diagnostic for data; human diagnostics render
+  control bytes visibly instead of passing them to the terminal;
 - files are read within explicit size bounds, counted on the bytes actually
   read, and written through private temporaries published atomically with
   an explicit replacement policy; configuration, manifests and secrets are
@@ -23,14 +24,21 @@ starts external programs on behalf of a product CLI. Its security claims are:
   what is trusted, and a secret buffer is zeroed on failure;
 - external programs are started from absolute paths that must be regular,
   owned by root or the caller and not writable by group or world, through
-  `execve` without a shell or PATH lookup, with non-standard descriptors
-  closed;
+  `execve` without a shell or PATH lookup. The checked executable and its
+  trusted immediate parent remain open until `exec` (Linux executes binaries
+  directly by descriptor), and non-standard descriptors are close-on-exec;
 - the `maelys` dispatcher accepts external commands only from manifests in
   fixed directories that satisfy the same ownership and mode rules, with an
   optional SHA-256 pin of the executable, and refuses duplicates and
-  unsupported `cliApi` values; manifests are parsed by maelys-json under a
-  64 KiB, depth 8, 1024-token budget, with duplicate members and invalid
+  unsupported `cliApi` values; an executable alias is canonicalized before
+  checking, hashing and storing it. Manifests are parsed by maelys-json under
+  a 64 KiB, depth 8, 1024-token budget, with duplicate members and invalid
   UTF-8 rejected;
+- `maelys agents install` opens each project-relative parent directory without
+  following symbolic links and publishes managed files relative to those
+  descriptors, so a link cannot redirect a write outside the project;
+- `maelys-cli-embed --define` treats names and values as literal bytes and
+  never constructs a shell or `sed` program from them;
 - JSON written by the framework is always well-formed: the writer refuses
   invalid UTF-8 rather than emitting it;
 - `MAELYS_COMMANDS_PATH` overrides the manifest directories for development

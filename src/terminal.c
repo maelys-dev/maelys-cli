@@ -1,9 +1,76 @@
 #include "maelys/cli/terminal.h"
+#include "internal.h"
 
+#include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
+
+static size_t decode_utf8(const unsigned char *text, uint32_t *out) {
+    if (text[0] < 0x80u) {
+        *out = text[0];
+        return 1u;
+    }
+    if (text[0] >= 0xc2u && text[0] <= 0xdfu &&
+        text[1] >= 0x80u && text[1] <= 0xbfu) {
+        *out = ((uint32_t)(text[0] & 0x1fu) << 6u) |
+            (uint32_t)(text[1] & 0x3fu);
+        return 2u;
+    }
+    if (text[0] >= 0xe0u && text[0] <= 0xefu && text[1] && text[2] &&
+        text[1] >= (text[0] == 0xe0u ? 0xa0u : 0x80u) &&
+        text[1] <= (text[0] == 0xedu ? 0x9fu : 0xbfu) &&
+        text[2] >= 0x80u && text[2] <= 0xbfu) {
+        *out = ((uint32_t)(text[0] & 0x0fu) << 12u) |
+            ((uint32_t)(text[1] & 0x3fu) << 6u) |
+            (uint32_t)(text[2] & 0x3fu);
+        return 3u;
+    }
+    if (text[0] >= 0xf0u && text[0] <= 0xf4u && text[1] && text[2] &&
+        text[3] && text[1] >= (text[0] == 0xf0u ? 0x90u : 0x80u) &&
+        text[1] <= (text[0] == 0xf4u ? 0x8fu : 0xbfu) &&
+        text[2] >= 0x80u && text[2] <= 0xbfu &&
+        text[3] >= 0x80u && text[3] <= 0xbfu) {
+        *out = ((uint32_t)(text[0] & 0x07u) << 18u) |
+            ((uint32_t)(text[1] & 0x3fu) << 12u) |
+            ((uint32_t)(text[2] & 0x3fu) << 6u) |
+            (uint32_t)(text[3] & 0x3fu);
+        return 4u;
+    }
+    return 0u;
+}
+
+void maelys_cli_fprint_terminal_safe(FILE *stream, const char *text) {
+    if (!stream || !text) return;
+    const unsigned char *cursor = (const unsigned char *)text;
+    while (*cursor) {
+        if (*cursor == '\n' || *cursor == '\r' || *cursor == '\t') {
+            (void)fputs(*cursor == '\n' ? "\\n" :
+                *cursor == '\r' ? "\\r" : "\\t", stream);
+            ++cursor;
+            continue;
+        }
+        uint32_t codepoint = 0u;
+        size_t length = decode_utf8(cursor, &codepoint);
+        if (length == 0u) {
+            (void)fprintf(stream, "\\x%02x", (unsigned int)*cursor++);
+        } else if (codepoint < 0x20u ||
+                   (codepoint >= 0x7fu && codepoint <= 0x9fu)) {
+            (void)fprintf(stream, "\\x%02x", (unsigned int)codepoint);
+            cursor += length;
+        } else if (codepoint == 0x2028u || codepoint == 0x2029u ||
+                   (codepoint >= 0x202au && codepoint <= 0x202eu) ||
+                   (codepoint >= 0x2066u && codepoint <= 0x2069u)) {
+            (void)fprintf(stream, "\\u%04x", (unsigned int)codepoint);
+            cursor += length;
+        } else {
+            (void)fwrite(cursor, 1u, length, stream);
+            cursor += length;
+        }
+    }
+}
 
 static unsigned int detect_columns(int descriptor) {
     const char *columns = getenv("COLUMNS");

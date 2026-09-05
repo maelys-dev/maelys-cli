@@ -2,8 +2,28 @@
 
 ## Unreleased
 
+## 0.5.16 - 2026-09-05
+
 - maelys-release v0.14.2 adopted: workflows only (`uses:` lines at 1749a35;
   the generated header no longer carries the literal `\n` of 0.14.0).
+- Security: `maelys-cli-embed --define` now performs literal byte
+  substitution with `od` and `awk`; replacement text cannot become a `sed`
+  program or execute a command. Invalid definition names are refused, with
+  an adversarial regression test.
+- Security: trusted extension manifests are checked and read through one
+  descriptor; `maelys agents install` resolves and writes every managed path
+  relative to an open project directory and refuses symbolic-link parents.
+  Manifest executable aliases are canonicalized before checking and hashing.
+- Security: external execution holds the checked executable and its trusted
+  parent open through `exec`; Linux executes binaries by descriptor. Other
+  inherited descriptors are marked close-on-exec, preserving the error pipe
+  so interpreter and `exec` failures reach the parent as `errno`.
+- Text failures, warnings, confirmations and dispatcher startup errors escape
+  terminal control bytes originating in arguments or metadata.
+- `python/maelys_cli.py`: explicit flag values now accept only the C
+  spellings (`true/false`, `yes/no`, `on/off`, `1/0`); malformed values are
+  refused instead of enabling transactional `--apply`. Text diagnostics also
+  escape terminal control bytes.
 
 ## 0.5.15 - 2026-09-05
 

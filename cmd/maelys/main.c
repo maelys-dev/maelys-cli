@@ -4,6 +4,7 @@
  * manifest and started with execve, never through a shell or PATH lookup.
  */
 #include "agents.h"
+#include "internal.h"
 
 #include <maelys/cli.h>
 
@@ -195,8 +196,14 @@ int main(int argc, char **argv) {
     };
     if (build_catalog(&error) != 0) {
         release();
-        (void)fprintf(stderr, "maelys: [%s] %s\n", error.code, error.message);
-        if (error.hint[0]) (void)fprintf(stderr, "Hint: %s\n", error.hint);
+        (void)fprintf(stderr, "maelys: [%s] ", error.code);
+        maelys_cli_fprint_terminal_safe(stderr, error.message);
+        (void)fputc('\n', stderr);
+        if (error.hint[0]) {
+            (void)fputs("Hint: ", stderr);
+            maelys_cli_fprint_terminal_safe(stderr, error.hint);
+            (void)fputc('\n', stderr);
+        }
         return MAELYS_CLI_EXIT_FAILURE;
     }
     app.commands = state.commands;

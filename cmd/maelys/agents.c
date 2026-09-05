@@ -7,11 +7,14 @@
 #include "agents.h"
 
 #include <errno.h>
+#include <fcntl.h>
 #include <limits.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 #define BEGIN_MARKER "<!-- maelys-cli:begin -->"
 #define END_MARKER "<!-- maelys-cli:end -->"
@@ -155,24 +158,113 @@ static int desired_block_content(
     return 0;
 }
 
+/* Opens the parent of a repository-relative path one component at a time.
+ * O_NOFOLLOW makes every existing parent a real directory, not a link. */
+static int open_parent_at(
+    int root, const char *relative, int create, int *out_parent,
+    char *out_name, size_t out_name_size) {
+    char copy[PATH_MAX];
+    size_t length = relative ? strlen(relative) : 0u;
+    if (root < 0 || length == 0u || length >= sizeof(copy) ||
+        relative[0] == '/' || !out_parent || !out_name || out_name_size == 0u) {
+        errno = EINVAL;
+        return -1;
+    }
+    memcpy(copy, relative, length + 1u);
+    int current = fcntl(root, F_DUPFD_CLOEXEC, 3);
+    if (current < 0) return -1;
+    char *component = copy;
+    for (;;) {
+        char *slash = strchr(component, '/');
+        if (!slash) break;
+        *slash = '\0';
+        if (!*component || !strcmp(component, ".") || !strcmp(component, "..")) {
+            (void)close(current);
+            errno = EINVAL;
+            return -1;
+        }
+        int next = openat(current, component,
+            O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
+        if (next < 0 && errno == ENOENT && create) {
+            if (mkdirat(current, component, 0755) != 0 && errno != EEXIST) {
+                int saved = errno;
+                (void)close(current);
+                errno = saved;
+                return -1;
+            }
+            next = openat(current, component,
+                O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
+        }
+        if (next < 0) {
+            int saved = errno;
+            (void)close(current);
+            errno = saved;
+            return !create && saved == ENOENT ? 1 : -1;
+        }
+        (void)close(current);
+        current = next;
+        component = slash + 1;
+    }
+    if (!*component || !strcmp(component, ".") || !strcmp(component, "..") ||
+        strlen(component) >= out_name_size) {
+        (void)close(current);
+        errno = ENAMETOOLONG;
+        return -1;
+    }
+    memcpy(out_name, component, strlen(component) + 1u);
+    *out_parent = current;
+    return 0;
+}
+
 static int read_current(
-    const char *path, char **out_text, size_t *out_size, int *out_exists) {
+    int project, const char *relative, char **out_text, size_t *out_size,
+    int *out_exists) {
     unsigned char *bytes = NULL;
     size_t size = 0u;
     *out_text = NULL;
     *out_size = 0u;
     *out_exists = 0;
+    int parent = -1;
+    char name[PATH_MAX];
+    int parent_result = open_parent_at(project, relative, 0, &parent, name,
+        sizeof(name));
+    if (parent_result == 1) return 0;
+    if (parent_result != 0) return -1;
+    int descriptor = openat(parent, name,
+        O_RDONLY | O_CLOEXEC | O_NOFOLLOW | O_NONBLOCK);
+    int opened = errno;
+    (void)close(parent);
+    if (descriptor < 0) {
+        if (opened == ENOENT) return 0;
+        errno = opened;
+        return -1;
+    }
     struct stat status;
-    if (lstat(path, &status) != 0) {
-        if (errno == ENOENT) return 0;
+    int status_result = fstat(descriptor, &status);
+    if (status_result != 0 || !S_ISREG(status.st_mode)) {
+        int saved = status_result != 0 ? errno : EINVAL;
+        (void)close(descriptor);
+        errno = saved;
         return -1;
     }
-    if (S_ISLNK(status.st_mode)) {
-        errno = ELOOP;
+    int flags = fcntl(descriptor, F_GETFL);
+    if (flags < 0 || fcntl(descriptor, F_SETFL, flags & ~O_NONBLOCK) != 0) {
+        int saved = errno;
+        (void)close(descriptor);
+        errno = saved;
         return -1;
     }
-    if (maelys_cli_read_regular_file(path, 0u, MAX_HOST_FILE, &bytes, &size) != 0)
+    int read_result = maelys_cli_read_descriptor(descriptor, MAX_HOST_FILE,
+        &bytes, &size);
+    int saved = errno;
+    if (close(descriptor) != 0 && read_result == 0) {
+        read_result = -1;
+        saved = errno;
+    }
+    if (read_result != 0) {
+        errno = saved;
         return -1;
+    }
     if (size && memchr(bytes, '\0', size)) {
         free(bytes);
         errno = EILSEQ;
@@ -215,20 +307,72 @@ static int resolve_project(
     return 0;
 }
 
-static int ensure_parent(const char *path) {
-    char copy[PATH_MAX];
-    if (strlen(path) >= sizeof(copy)) {
-        errno = ENAMETOOLONG;
+static int write_file_atomic_at(
+    int project, const char *relative, const void *bytes, size_t size,
+    mode_t mode, maelys_cli_write_policy_t policy) {
+    if ((!bytes && size) || !mode ||
+        (policy != MAELYS_CLI_WRITE_REPLACE &&
+         policy != MAELYS_CLI_WRITE_NO_REPLACE)) {
+        errno = EINVAL;
         return -1;
     }
-    memcpy(copy, path, strlen(path) + 1u);
-    for (char *cursor = copy + 1; *cursor; ++cursor) {
-        if (*cursor != '/') continue;
-        *cursor = '\0';
-        if (mkdir(copy, 0755) != 0 && errno != EEXIST) return -1;
-        *cursor = '/';
+    int parent = -1;
+    char name[PATH_MAX];
+    if (open_parent_at(project, relative, 1, &parent, name, sizeof(name)) != 0)
+        return -1;
+    static unsigned long sequence;
+    char temporary[96];
+    int descriptor = -1;
+    for (unsigned int attempt = 0u; attempt < 128u; ++attempt) {
+        ++sequence;
+        int written = snprintf(temporary, sizeof(temporary),
+            ".maelys-cli.tmp.%ld.%lu", (long)getpid(), sequence);
+        if (written < 0 || (size_t)written >= sizeof(temporary)) {
+            errno = ENAMETOOLONG;
+            break;
+        }
+        descriptor = openat(parent, temporary,
+            O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0600);
+        if (descriptor >= 0 || errno != EEXIST) break;
     }
-    return 0;
+    if (descriptor < 0) {
+        int saved = errno;
+        (void)close(parent);
+        errno = saved;
+        return -1;
+    }
+    int result = fchmod(descriptor, mode);
+    size_t offset = 0u;
+    while (result == 0 && offset < size) {
+        ssize_t amount = write(descriptor,
+            (const unsigned char *)bytes + offset, size - offset);
+        if (amount > 0) offset += (size_t)amount;
+        else if (amount < 0 && errno == EINTR) continue;
+        else result = -1;
+    }
+    if (result == 0 && fsync(descriptor) != 0) result = -1;
+    int saved = errno;
+    if (close(descriptor) != 0 && result == 0) {
+        result = -1;
+        saved = errno;
+    }
+    if (result == 0) {
+        if (policy == MAELYS_CLI_WRITE_REPLACE) {
+            result = renameat(parent, temporary, parent, name);
+        } else if (linkat(parent, temporary, parent, name, 0) != 0) {
+            result = -1;
+        } else {
+            (void)unlinkat(parent, temporary, 0);
+        }
+        saved = errno;
+    }
+    if (result != 0) (void)unlinkat(parent, temporary, 0);
+    if (close(parent) != 0 && result == 0) {
+        result = -1;
+        saved = errno;
+    }
+    errno = result == 0 ? 0 : (saved ? saved : EIO);
+    return result;
 }
 
 typedef struct plan_entry {
@@ -243,8 +387,8 @@ static void free_plan(plan_entry_t *entries, size_t count) {
 }
 
 static int build_plan(
-    maelys_cli_context_t *context, const char *project, plan_entry_t *entries,
-    size_t *out_count) {
+    maelys_cli_context_t *context, int project_descriptor, const char *project,
+    plan_entry_t *entries, size_t *out_count) {
     size_t file_count = 0u;
     const managed_file_t *files = managed_files(&file_count);
     int mask = client_mask(context);
@@ -265,7 +409,8 @@ static int build_plan(
         char *current = NULL;
         size_t current_size = 0u;
         int exists = 0;
-        if (read_current(entry->path, &current, &current_size, &exists) != 0) {
+        if (read_current(project_descriptor, files[i].relative, &current,
+                &current_size, &exists) != 0) {
             int saved = errno;
             free_plan(entries, count);
             (void)maelys_cli_fail_errno(context, MAELYS_CLI_CODE_IO_FAILED,
@@ -310,10 +455,17 @@ int maelys_agents_install(maelys_cli_context_t *context) {
     char project[PATH_MAX];
     if (resolve_project(context, project, sizeof(project)) != 0)
         return MAELYS_CLI_EXIT_FAILURE;
+    int project_descriptor = open(project,
+        O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
+    if (project_descriptor < 0)
+        return maelys_cli_fail_errno(context, MAELYS_CLI_CODE_IO_FAILED,
+            errno, project);
     plan_entry_t entries[4];
     size_t count = 0u;
-    if (build_plan(context, project, entries, &count) != 0)
+    if (build_plan(context, project_descriptor, project, entries, &count) != 0) {
+        (void)close(project_descriptor);
         return MAELYS_CLI_EXIT_FAILURE;
+    }
     int apply = maelys_cli_flag(context, "apply");
     int changed = 0;
     for (size_t i = 0u; i < count; ++i) if (entries[i].state != 1) changed = 1;
@@ -321,18 +473,20 @@ int maelys_agents_install(maelys_cli_context_t *context) {
         for (size_t i = 0u; i < count; ++i) {
             plan_entry_t *entry = &entries[i];
             if (entry->state == 1) continue;
-            if (ensure_parent(entry->path) != 0 ||
-                maelys_cli_write_file_atomic(entry->path, entry->desired,
+            if (write_file_atomic_at(project_descriptor, entry->file->relative,
+                    entry->desired,
                     strlen(entry->desired), 0644,
                     entry->state == 0 ? MAELYS_CLI_WRITE_NO_REPLACE :
                     MAELYS_CLI_WRITE_REPLACE) != 0) {
                 int saved = errno;
                 free_plan(entries, count);
+                (void)close(project_descriptor);
                 return maelys_cli_fail_errno(context, MAELYS_CLI_CODE_IO_FAILED,
                     saved, entry->path);
             }
         }
     }
+    (void)close(project_descriptor);
     maelys_cli_json_writer_t writer;
     maelys_cli_json_writer_init(&writer);
     char human[4096];
@@ -384,10 +538,18 @@ int maelys_agents_status(maelys_cli_context_t *context) {
     char project[PATH_MAX];
     if (resolve_project(context, project, sizeof(project)) != 0)
         return MAELYS_CLI_EXIT_FAILURE;
+    int project_descriptor = open(project,
+        O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
+    if (project_descriptor < 0)
+        return maelys_cli_fail_errno(context, MAELYS_CLI_CODE_IO_FAILED,
+            errno, project);
     plan_entry_t entries[4];
     size_t count = 0u;
-    if (build_plan(context, project, entries, &count) != 0)
+    if (build_plan(context, project_descriptor, project, entries, &count) != 0) {
+        (void)close(project_descriptor);
         return MAELYS_CLI_EXIT_FAILURE;
+    }
+    (void)close(project_descriptor);
     int up_to_date = 1;
     for (size_t i = 0u; i < count; ++i) if (entries[i].state != 1) up_to_date = 0;
     maelys_cli_json_writer_t writer;

@@ -93,4 +93,4 @@ on the descriptor read, bounded by the bytes read) and failures reported
 with `maelys_cli_fail_file`; explicit
 `MAELYS_CLI_WRITE_REPLACE` / `MAELYS_CLI_WRITE_NO_REPLACE` on every file
 write; external programs started with absolute paths and `execve`, never a
-shell or PATH lookup.
+shell or PATH lookup, with a trusted immediate parent held open through exec.

@@ -9,7 +9,8 @@ extern "C" {
 
 /*
  * Safe invocation of external programs: absolute paths only, never a shell,
- * never PATH lookup, standard descriptors inherited, everything else closed.
+ * never PATH lookup, standard descriptors inherited, everything else closed
+ * atomically by exec.
  */
 
 typedef struct maelys_cli_process_status {
@@ -19,8 +20,10 @@ typedef struct maelys_cli_process_status {
     int term_signal;
 } maelys_cli_process_status_t;
 
-/* Refuses relative paths, symlink targets that are not regular files and
- * binaries writable by group or world. Returns -1 with errno. */
+/* Refuses relative paths, symlink targets that are not regular files,
+ * binaries writable by group or world, and untrusted immediate parent
+ * directories. The executable and its resolved parent stay open so run and
+ * replace execute the object that was checked. Returns -1 with errno. */
 int maelys_cli_process_check_executable(
     const char *path, const char **out_error);
 

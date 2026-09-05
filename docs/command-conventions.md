@@ -122,6 +122,11 @@ order (`schemaVersion`, `contract`, `command`, `ok`, `exitCode`, then
 `data` or `error`), and `describe COMMAND_ID` is minimal: `globalOptions`,
 `output` and `invariants` belong to the inventory forms only.
 
+Framework diagnostics escape control bytes from arguments as `\\n`, `\\r`,
+`\\t` or `\\xNN` in text mode; Unicode line and bidirectional controls use
+`\\uNNNN`, and malformed UTF-8 bytes use `\\xNN`. JSON mode uses JSON
+escaping. Products use `maelys_cli_warn()` for the same terminal-safe behavior.
+
 `ACCESS_DENIED` also covers an untrusted file or binary (ownership, modes,
 symlink, digest), and `PROTOCOL_FAILED` a manifest that violates
 `maelys.cli-extension/v1`. `UNEXPECTED` is what a handler that never

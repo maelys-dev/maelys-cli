@@ -229,6 +229,13 @@ check "agents refresh preserves user text outside the block" '[ "$code" = 0 ] &&
 run a-codex "$maelys" agents install "$work" --client codex --json --compact
 check "client filter limits files" 'printf "%s" "$out" | grep -q "AGENTS.md" && ! printf "%s" "$out" | grep -q "CLAUDE.md"'
 
+symlink_project="$work/symlink-project"
+outside_project="$work/outside-project"
+mkdir -p "$symlink_project" "$outside_project"
+ln -s "$outside_project" "$symlink_project/docs"
+run a-symlink "$maelys" agents install "$symlink_project" --client codex --apply --json --compact
+check "agents install refuses symbolic-link parents" '[ "$code" = 1 ] && [ ! -e "$outside_project/maelys-cli-guide.md" ]'
+
 run a-missing "$maelys" agents install "$work/absent" --json --compact
 check "missing project directory" '[ "$code" = 1 ] && printf "%s" "$err" | grep -q "\"code\":\"NOT_FOUND\""'
 
