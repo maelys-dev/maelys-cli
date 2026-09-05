@@ -99,6 +99,27 @@ rendering of success is the `text` mapping given to `Program` (`{"greet":
 render_greet}`), one line per record for `json-records`, or the data as
 indented JSON.
 
+## Stability of the module
+
+The public API of `python/maelys_cli.py` is a contract, vendored byte for
+byte by its consumers (maelys-release copies the file at the commit its
+`adapter/MAELYS_CLI_PIN` names and checks its SHA-256): the declaration
+functions `read`, `records`, `transaction`, `execute`, `stream`,
+`external`, `operand`, `option`, `flag`, `argument`; `Program` and the
+arguments of its constructor (`program`, `product`, `version`,
+`commands`, `guide=`, `text=`, `framework=`) and `Program.main(argv)`;
+`Invocation` with `operands`, `raw_operands`, `options`, `option()`,
+`flag()`, `apply`, `format`, `compact`, `non_interactive`; `Failure`;
+the file and error functions above; the `EXIT_*` and `FILE_*` constants.
+The rules are those of the C library: within the `0.5` line every change
+is additive (a new keyword with a default, a new function, a new
+constant); a signature or a behavior change, a removal, or a renamed
+member is a `0.6`. Every release that touches the module says so in
+`CHANGELOG.md` under a line starting with `python/maelys_cli.py`, naming
+what changed, so a consumer knows whether to bump its pin and re-vendor.
+Names starting with an underscore, `parse_value`'s message texts and
+the exact text rendering are not part of the contract.
+
 ## Files and errors
 
 The counterpart of `maelys/cli/files.h`, with the same requirements, the

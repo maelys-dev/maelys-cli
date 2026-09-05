@@ -69,6 +69,11 @@ or licensed text into the agent texts. See `LICENSING.md`.
   (`python-doc-check`: every public name documented in `docs/python.md`);
   CI runs its tests on Python 3.9, the oldest interpreter it declares.
   Never track `__pycache__`; every check runs Python with `-B`.
+  Its public API (`docs/python.md`, "Stability of the module") is
+  vendored by consumers at `adapter/MAELYS_CLI_PIN` and follows the C
+  versioning: additive within `0.5`, any other change is a `0.6`, and every
+  release that touches the module names the change in `CHANGELOG.md` under
+  a line starting with `python/maelys_cli.py`.
 
 ## Doctrine enforced by the framework
 
