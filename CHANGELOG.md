@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.15 - 2026-09-05
 
 - maelys-release v0.14.0 adopted: the declarations move from `adapter/` to
   `dependencies/` (`dependencies/agent-cli-spec.pin`,
