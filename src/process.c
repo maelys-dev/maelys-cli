@@ -214,7 +214,7 @@ static int execute_trusted(
     }
     execve(executable->name, argv, envp ? envp : environ);
     int saved = errno;
-    (void)fchdir(previous);
+    if (fchdir(previous) != 0) saved = errno;
     (void)close(previous);
     errno = saved;
     return -1;
