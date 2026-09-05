@@ -74,6 +74,11 @@ default=None, required=False, repeatable=False, requires=(),
 conflicts_with=(), group=None)`; `cli.flag(long, summary, ...)` is an
 option without argument, and `--flag=false` is accepted. `cli.argument(name,
 kind, choices, minimum, maximum, algorithms, pattern)` declares the value.
+`hidden=True` on an option or a flag keeps it out of the synopsis, the help
+and the completion while `describe` lists it with `hidden: true` and the
+parser accepts it, as `.hidden` does in C; a hidden option is never
+required. `invocation.program.warn(message)` writes `program: warning:
+message` on stderr, as `maelys_cli_warn()` does.
 
 The kinds are those of the contract, validated before the handler runs and
 returned typed by `invocation.option()` and `invocation.operands`:
@@ -117,7 +122,8 @@ arguments of its constructor (`program`, `product`, `version`,
 the command keywords `operands=`, `options=`, `schema=`, `hidden=`,
 `unavailable=`, `synopsis=`, `protocol=`;
 `Invocation` with `operands`, `raw_operands`, `options`, `option()`,
-`flag()`, `apply`, `format`, `compact`, `non_interactive`; `Failure`;
+`flag()`, `apply`, `format`, `compact`, `non_interactive`, `program`;
+`Program.warn(message)`; `Failure`;
 the file and error functions above; the `EXIT_*` and `FILE_*` constants.
 The rules are those of the C library: within the `0.5` line every change
 is additive (a new keyword with a default, a new function, a new

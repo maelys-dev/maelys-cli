@@ -1084,6 +1084,15 @@
                 "required": false,
                 "requires": [],
                 "summary": "Repeat the greeting."
+              },
+              {
+                "conflictsWith": [],
+                "hidden": true,
+                "long": "--trace",
+                "repeatable": false,
+                "required": false,
+                "requires": [],
+                "summary": "Report the parsed input on stderr; diagnostics."
               }
             ],
             "passthrough": false,

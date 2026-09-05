@@ -22,6 +22,8 @@ VERSION = "0.1.0"
 def greet(invocation: cli.Invocation):
     name = invocation.operands[0]
     times = invocation.option("--times")
+    if invocation.flag("--trace"):
+        invocation.program.warn(f"greet: name={name} times={times} shout={invocation.flag('--shout')}")
     greeting = f"Hello, {name}!"
     if invocation.flag("--shout"):
         greeting = greeting.upper()
@@ -76,7 +78,8 @@ PROGRAM = cli.Program("maelys-hello-py", "Maelys Hello (Python)", VERSION, [
              operands=[cli.operand("NAME", "Person or system to greet.")],
              options=[cli.flag("--shout", "Render the greeting in capitals."),
                       cli.option("--times", "Repeat the greeting.", cli.argument("N", "unsigned", minimum=1, maximum=10),
-                                 default="1")],
+                                 default="1"),
+                      cli.flag("--trace", "Report the parsed input on stderr; diagnostics.", hidden=True)],
              schema={"type": "object", "required": ["greeting", "times", "lines"],
                      "properties": {"greeting": {"type": "string"}, "times": {"type": "integer"},
                                     "lines": {"type": "array", "items": {"type": "string"}}}}),

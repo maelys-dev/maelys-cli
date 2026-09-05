@@ -25,12 +25,19 @@ static const maelys_cli_option_t greet_options[] = {
     {MAELYS_CLI_FLAG("shout", "Render the greeting in capitals.")},
     {MAELYS_CLI_UNSIGNED("times", "N", "Repeat the greeting.", 1u, 10u),
      .default_text = "1"},
+    /* Hidden: accepted and listed by describe, absent from usage, help and
+     * completion. */
+    {MAELYS_CLI_FLAG("trace", "Report the parsed input on stderr; diagnostics."),
+     .hidden = 1},
 };
 
 static int command_greet(maelys_cli_context_t *context) {
     const char *name = maelys_cli_operand(context, 0u);
     uint64_t times = 1u;
     (void)maelys_cli_option_unsigned(context, "times", &times);
+    if (maelys_cli_flag(context, "trace"))
+        maelys_cli_warn(context, "greet: name=%s times=%llu shout=%d", name,
+            (unsigned long long)times, maelys_cli_flag(context, "shout"));
     char greeting[256];
     (void)snprintf(greeting, sizeof(greeting), "Hello, %s!", name);
     if (maelys_cli_flag(context, "shout"))

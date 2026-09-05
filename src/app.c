@@ -320,6 +320,12 @@ static int validate_command(
                 "kind that is not string or path.", id, option->name);
             return -1;
         }
+        if (option->hidden && option->required) {
+            maelys_cli_error_set(error, MAELYS_CLI_CODE_UNEXPECTED, hint,
+                "Catalog command '%s' option --%s is hidden and required; a "
+                "required option must be shown.", id, option->name);
+            return -1;
+        }
         if (option->default_text) {
             maelys_cli_parsed_option_t probe;
             maelys_cli_error_t detail;
@@ -1072,6 +1078,10 @@ static int describe_option(
     if (option->group &&
         maelys_cli_json_key_string(writer, "group", option->group) != 0)
         return -1;
+    /* Emitted only when true, so generated references do not change. */
+    if (option->hidden &&
+        maelys_cli_json_key_boolean(writer, "hidden", 1) != 0)
+        return -1;
     return maelys_cli_json_end_object(writer) == 0 ? 0 : -1;
 }
 
@@ -1503,6 +1513,7 @@ static int emit_option_candidates(maelys_cli_context_t *context,
     const maelys_cli_option_t *options, size_t count, const char *prefix,
     const maelys_cli_invocation_t *given) {
     for (size_t i = 0u; i < count; ++i) {
+        if (options[i].hidden) continue;
         if (!options[i].repeatable &&
             maelys_cli_invocation_option(given, options[i].name))
             continue;
@@ -1660,7 +1671,7 @@ static int builtin_complete(maelys_cli_context_t *context) {
             size_t name_length = (size_t)(equals - prefix) - 2u;
             for (size_t i = 0u; i < command->option_count; ++i) {
                 const maelys_cli_option_t *option = &command->options[i];
-                if (strlen(option->name) != name_length ||
+                if (option->hidden || strlen(option->name) != name_length ||
                     memcmp(option->name, prefix + 2, name_length) != 0 ||
                     option->kind != MAELYS_CLI_VALUE_CHOICE || !option->choices)
                     continue;
@@ -1780,10 +1791,14 @@ static void command_help_text(
                 operand->summary, operand->required ? "" : " Optional.");
         }
     }
-    if (command->option_count) {
+    size_t shown = 0u;
+    for (size_t i = 0u; i < command->option_count; ++i)
+        if (!command->options[i].hidden) ++shown;
+    if (shown) {
         (void)fputs("\nOPTIONS\n", stream);
         for (size_t i = 0u; i < command->option_count; ++i)
-            option_help_line(stream, &command->options[i]);
+            if (!command->options[i].hidden)
+                option_help_line(stream, &command->options[i]);
     }
     (void)fprintf(stream, "\nGLOBAL OPTIONS\n  Run '%s help' for --format, "
         "--json, --compact, --non-interactive and --color.\n", app->program);

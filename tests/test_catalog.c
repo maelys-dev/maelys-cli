@@ -21,6 +21,7 @@ static const maelys_cli_option_t options[] = {
     {MAELYS_CLI_SIZE("size", "BYTES", "Size.", 1u, 0u), .required = 1},
     {MAELYS_CLI_STRING("tag", "TEXT", "Tag."), .repeatable = 1, .depends_on = "size"},
     MAELYS_CLI_APPLY_OPTION,
+    {MAELYS_CLI_FLAG("trace", "Trace; diagnostics."), .hidden = 1},
 };
 
 static maelys_cli_command_t good_command(void) {
@@ -63,6 +64,15 @@ static int test_validation(void) {
 
     command = good_command();
     command.pattern = "thing --make";
+    CHECK(!validate(&command));
+
+    /* A hidden option is never required. */
+    maelys_cli_option_t hidden_required[] = {
+        {MAELYS_CLI_FLAG("trace", "Trace."), .hidden = 1, .required = 1},
+    };
+    command = good_command();
+    command.options = hidden_required;
+    command.option_count = 1u;
     CHECK(!validate(&command));
 
     command = good_command();

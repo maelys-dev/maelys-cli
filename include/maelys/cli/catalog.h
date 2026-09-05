@@ -89,6 +89,11 @@ typedef struct maelys_cli_option {
                                        argument.pattern in describe; the
                                        handler enforces it (the framework
                                        does not run a regex engine) */
+    int hidden;                     /* not shown to humans: absent from the
+                                       derived synopsis, help and completion;
+                                       parsed, constrained and listed by
+                                       describe with "hidden": true (spec
+                                       2.2). Never combined with required. */
 } maelys_cli_option_t;
 
 struct maelys_cli_context;

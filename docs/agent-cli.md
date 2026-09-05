@@ -27,6 +27,9 @@ command by `id`; never replay a `PRECONDITION_FAILED` blindly; prefer
 
 ## What libmaelys_cli adds on top of the specification
 
+- A hidden option (spec 2.2) is listed by `describe` with `hidden: true`,
+  absent from `usage`, `help` and the completion, and accepted by the
+  parser; `--trace` of `maelys-hello greet` is the example.
 - `describe --summary --prefix PREFIX` (spec 2.1) returns one command
   namespace (`PREFIX` itself and `PREFIX.*`) with a `filter` member; an
   agent checks that the `describe` descriptor declares `--prefix` before

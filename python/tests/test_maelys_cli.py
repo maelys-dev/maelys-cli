@@ -297,6 +297,25 @@ class Contract(unittest.TestCase):
         with self.assertRaises(ValueError):
             cli.read("a", "a", "x", lambda i: ({}, 0), synopsis="b [--x]")
 
+    def test_hidden_option(self) -> None:
+        code, out, _ = run("describe", "greet", "--json")
+        descriptor = json.loads(out)["data"]["commands"][0]
+        trace = next(o for o in descriptor["input"]["options"] if o["long"] == "--trace")
+        self.assertIs(trace["hidden"], True)
+        self.assertNotIn("hidden", next(o for o in descriptor["input"]["options"] if o["long"] == "--shout"))
+        self.assertNotIn("--trace", descriptor["usage"])
+        code, out, _ = run("help", "greet")
+        self.assertIn("--shout", out)
+        self.assertNotIn("--trace", out)
+        code, out, _ = run("__complete", "--", "greet", "--")
+        self.assertIn("--shout", out)
+        self.assertNotIn("--trace", out)
+        code, out, err = run("greet", "x", "--trace", "--json")
+        self.assertEqual((code, json.loads(out)["data"]["greeting"]), (0, "Hello, x!"))
+        self.assertIn("warning: greet: name=x", err)
+        with self.assertRaises(ValueError):
+            cli.flag("--x", "x", hidden=True, required=True)
+
     def test_catalog_refuses_bad_declarations(self) -> None:
         with self.assertRaises(ValueError):
             cli.read("Bad", "bad", "x", lambda i: ({}, 0))

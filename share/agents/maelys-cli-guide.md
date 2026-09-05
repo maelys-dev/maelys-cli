@@ -150,7 +150,10 @@ options that must all be present), `.conflicts_with` (an option, or an
 operand named by its UPPER_CASE placeholder), `.pattern` (a regular
 expression documented as `argument.pattern` for a string or path option;
 the handler enforces it), `.group` (all-or-none:
-the options sharing a group name are given together or not at all) and
+the options sharing a group name are given together or not at all),
+`.hidden` (a hidden option: parsed and constrained like any other, listed
+by `describe` with `hidden: true`, absent from the derived synopsis, the
+help and the completion; never combined with `.required`) and
 `.default_text` (validated against the kind at startup, returned by
 `maelys_cli_option_unsigned/integer/choice` and `maelys_cli_option_or` when
 the option is absent: never repeat a default in the handler; when the
