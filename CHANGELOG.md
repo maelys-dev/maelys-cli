@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- maelys-release v0.14.0 adopted: the declarations move from `adapter/` to
+  `dependencies/` (`dependencies/agent-cli-spec.pin`,
+  `dependencies/maelys-json.pin`, `dependencies/packages`), the layout the
+  socle now requires; the Makefile, the documents and the generated files
+  follow. maelys-json pinned at v0.1.3 (packaging and test corpus only; the
+  library API is unchanged).
+
 ## 0.5.14 - 2026-09-05
 
 - agent-cli-spec pinned at v2.2.0: a hidden option. `.hidden` on
