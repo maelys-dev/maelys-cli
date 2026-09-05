@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.14 - 2026-09-05
 
 - agent-cli-spec pinned at v2.2.0: a hidden option. `.hidden` on
   `maelys_cli_option_t` keeps the option out of the derived synopsis, the
