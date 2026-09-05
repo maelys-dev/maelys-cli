@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.13 - 2026-09-05
 
 - `python/maelys_cli.py`: `synopsis=` on every declaration function
   overrides the derived usage, as `.synopsis` does in C (must start with
