@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- `python/maelys_cli.py`: its public API is declared stable in
+  `docs/python.md` ("Stability of the module"), with the versioning of the
+  C library: additive within `0.5`, a `0.6` otherwise, and every change to
+  the module named in this changelog under a line starting with the module
+  path, for the consumers that vendor the file at `adapter/MAELYS_CLI_PIN`.
+  No code change.
+
 ## 0.5.12 - 2026-09-05
 
 - `python/maelys_cli.py`: the framework for a product written in Python,
