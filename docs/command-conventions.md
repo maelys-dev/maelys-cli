@@ -49,6 +49,12 @@ and `all-or-none`.
 string or path option must match; the framework exposes it and the handler
 enforces it (no regex engine runs in the parser).
 
+`.hidden` on an option (spec 2.2) marks a diagnostic or trial option that
+humans are not offered: the parser accepts it and applies its constraints,
+`describe` lists it with `hidden: true` (emitted only when true), and the
+derived synopsis, `help COMMAND_ID` and `__complete` leave it out. A hidden
+option is never required; the catalog validation refuses that combination.
+
 `default_text` is the single source of an option's default: the catalog
 validation checks it against the option's kind at startup, and the typed
 accessors return it when the option is absent; `MAELYS_CLI_DEFAULT_OF`

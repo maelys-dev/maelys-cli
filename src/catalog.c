@@ -107,9 +107,11 @@ static void render_synopsis(const maelys_cli_command_t *command, sink_t *sink) {
         if (!operand->required) put(sink, "]");
     }
     for (size_t i = 0u; i < command->option_count; ++i)
-        if (command->options[i].required) put_option(sink, &command->options[i]);
+        if (command->options[i].required && !command->options[i].hidden)
+            put_option(sink, &command->options[i]);
     for (size_t i = 0u; i < command->option_count; ++i)
-        if (!command->options[i].required) put_option(sink, &command->options[i]);
+        if (!command->options[i].required && !command->options[i].hidden)
+            put_option(sink, &command->options[i]);
 }
 
 int maelys_cli_command_synopsis(

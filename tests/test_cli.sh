@@ -136,6 +136,14 @@ check "completion of command words" '[ "$out" = "write" ]'
 run complete-option "$hello" __complete -- limits --level ""
 check "completion of choices" '[ "$out" = "low
 high" ]'
+run hidden-describe "$hello" describe greet --json
+check "hidden option listed by describe" 'printf "%s" "$out" | grep -q "\"long\": \"--trace\"" && printf "%s" "$out" | grep -q "\"hidden\": true" && ! printf "%s" "$out" | grep -q "trace\]"'
+run hidden-help "$hello" help greet
+check "hidden option absent from help and usage" '[ "$code" = 0 ] && ! printf "%s" "$out" | grep -q -- "--trace"'
+run hidden-complete "$hello" __complete -- greet --
+check "hidden option never completed" 'printf "%s" "$out" | grep -q -- "--shout" && ! printf "%s" "$out" | grep -q -- "--trace"'
+run hidden-accepted "$hello" greet x --trace --json
+check "hidden option accepted and traced on stderr" '[ "$code" = 0 ] && printf "%s" "$err" | grep -q "warning: greet: name=x"'
 run env-format env MAELYS_CLI_FORMAT=json "$hello" greet x --times 99
 check "MAELYS_CLI_FORMAT shapes the failure envelope" '[ "$code" = 1 ] && printf "%s" "$err" | grep -q "\"code\": \"VALIDATION_FAILED\""'
 run env-stream env MAELYS_CLI_FORMAT=json "$hello" run /bin/sh -c "echo plain"

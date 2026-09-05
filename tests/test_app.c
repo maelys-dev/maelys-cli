@@ -18,6 +18,7 @@ static const maelys_cli_operand_t make_operands[] = {
     {MAELYS_CLI_OPERAND("NAME", "Name.")},
 };
 static const maelys_cli_option_t make_options[] = {
+    {MAELYS_CLI_FLAG("legacy", "Legacy behavior; diagnostics."), .hidden = 1},
     {MAELYS_CLI_PATH("git", "FILE", "Git path.")},
     {MAELYS_CLI_CHOICE("level", "Level.", levels), .default_text = "low"},
     {MAELYS_CLI_SIZE("memory", "BYTES", "Memory.", 1u, 0u)},
@@ -247,6 +248,7 @@ static int test_help_and_version(void) {
     release(&result);
     result = RUNV("thing", "make", "--help");
     CHECK(result.code == 0 && strstr(result.out, "--memory BYTES") && strstr(result.out, "preview by default"));
+    CHECK(!strstr(result.out, "--legacy")); /* hidden option: absent from usage and help */
     release(&result);
     result = RUNV("help", "exec");
     CHECK(result.code == 0 && strstr(result.out, "protocol-stream owned by protocol test-jsonl"));
@@ -305,6 +307,11 @@ static int test_describe(void) {
     result = RUNV("describe", "thing.make", "--json", "--compact");
     CHECK(result.code == 0 && strstr(result.out, "\"kind\":\"command\""));
     CHECK(strstr(result.out, "\"outputSchema\":{\"type\":\"object\",\"required\":[\"mode\"]}"));
+    /* Hidden option: listed with "hidden": true, absent from the synopsis; the
+     * member is emitted only when true. */
+    CHECK(strstr(result.out, "\"long\":\"--legacy\",\"required\":false,\"repeatable\":false,\"summary\":\"Legacy behavior; diagnostics.\",\"requires\":[],\"conflictsWith\":[],\"hidden\":true}"));
+    CHECK(!strstr(result.out, "\"long\":\"--git\",\"required\":false,\"repeatable\":false,\"summary\":\"Git path.\",\"argument\":{\"name\":\"FILE\",\"type\":\"path\"},\"requires\":[],\"conflictsWith\":[],\"hidden\""));
+    CHECK(!strstr(result.out, "[--legacy]"));
     CHECK(strstr(result.out, "\"choices\":[\"low\",\"high\"]") && strstr(result.out, "\"default\":\"low\""));
     CHECK(strstr(result.out, "\"minimum\":-10,\"maximum\":10"));
     CHECK(strstr(result.out, "\"digits\":4,\"alternativeDigits\":8"));
@@ -335,6 +342,9 @@ static int test_parsing_success(void) {
         "\"root\":\"/root\",\"git\":\"--literal\",\"tags\":2}}\n") == 0);
     CHECK(last_memory_present && last_memory == 2048u && last_wait == 1500u);
     CHECK(last_offset == -3 && last_level == 1u);
+    release(&result);
+    result = RUNV("thing", "make", "/root", "name", "--legacy", "--json", "--compact");
+    CHECK(result.code == 0 && strstr(result.out, "\"ok\":true")); /* hidden option accepted */
     release(&result);
     result = RUNV("thing", "make", "/root", "name", "--oid", "0123abcd", "--json", "--compact");
     CHECK(result.code == 0 && !result.err[0]);

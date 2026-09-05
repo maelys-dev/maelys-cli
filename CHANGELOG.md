@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- agent-cli-spec pinned at v2.2.0: a hidden option. `.hidden` on
+  `maelys_cli_option_t` keeps the option out of the derived synopsis, the
+  help and the completion while the parser accepts it and `describe` lists
+  it with `hidden: true` (emitted only when true); the catalog validation
+  refuses a hidden required option. `maelys-hello greet --trace` is the
+  example.
+- `python/maelys_cli.py`: `hidden=` on `option()` and `flag()`, the same
+  behavior; `Program.warn(message)`, the counterpart of `maelys_cli_warn()`.
+
 ## 0.5.13 - 2026-09-05
 
 - `python/maelys_cli.py`: `synopsis=` on every declaration function
