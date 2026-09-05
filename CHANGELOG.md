@@ -13,6 +13,18 @@
   reference product, checked by `python/tests/test_maelys_cli.py` and by
   the conformance kit in `make check`. `docs/python.md` is the guide; the
   agent texts mention the module.
+- The Python module follows the C library as its reference: `pattern` is
+  informative, `MAELYS_CLI_FORMAT` accepts `json` and `text` only, an
+  `OSError` maps to the stable code through the table of
+  `maelys_cli_file_error_code()` (`file_error_code`, `file_failure`), and
+  the file primitives of `files.h` exist with the same requirements,
+  errno values and explanations (`open_trusted`, `read_trusted_file`,
+  `read_regular_file`, `check_file`, `write_file_atomic`, `zero`,
+  `FileError`). `AGENTS.md` and the framework skill require the port in
+  every change; `scripts/python-doc-check.sh` holds `docs/python.md` to the
+  module; CI runs the module tests on Python 3.9. `python-check` is part of
+  `make check` only where `python3` exists, like `contract-check`, runs
+  with `-B`, and `__pycache__` is no longer tracked.
 
 ## 0.5.11 - 2026-09-05
 

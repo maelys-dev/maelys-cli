@@ -18,7 +18,9 @@ Read `AGENTS.md` (constitution, contracts, procedure) before editing.
    `agent-cli/v3` and the contract constants follow.
 2. Write down: the header declaration, the catalog validation rule, the
    parser rule and its causal position, the `describe` member, the
-   completion effect, the accessor a handler will use.
+   completion effect, the accessor a handler will use, and the Python
+   counterpart in `python/maelys_cli.py` (C is the reference; the Python
+   module mirrors it or the changelog says why not).
 3. Check the consumers' expectations: Maelys Git and Egress pin tags and
    commit generated references; anything that changes `describe` output
    (even additively) changes their generated files.
@@ -36,14 +38,19 @@ Read `AGENTS.md` (constitution, contracts, procedure) before editing.
 - Provide the handler-side accessor on the context; no private globals.
 - Keep C11 strict (`-Wall -Wextra -Wpedantic -Wconversion -Werror`), no
   dependency, same behavior on Linux and macOS.
+- Port the change to `python/maelys_cli.py` (standard library only, Python
+  3.9, run with `-B`, never track `__pycache__`): same vocabulary, same
+  messages where the kit reads them, same errno table and file primitives.
 
 ## Verify
 
 1. Unit tests: accepted and refused inputs, `describe` fragments, catalog
-   validation refusals, typed accessors.
+   validation refusals, typed accessors; the same in
+   `python/tests/test_maelys_cli.py` (`make python-check`).
 2. `tests/test_cli.sh` for behavior visible from `maelys-hello` or `maelys`.
 3. `docs/api-reference.md` for every public function
-   (`scripts/api-doc-check.sh`); `share/agents/maelys-cli-guide.md` for
+   (`scripts/api-doc-check.sh`); `docs/python.md` for every public name of
+   the Python module (`scripts/python-doc-check.sh`); `share/agents/maelys-cli-guide.md` for
    every macro and accessor (`scripts/agent-doc-check.sh`); the block,
    skill, templates, `docs/command-conventions.md`, `docs/agent-cli.md`
    and `README.md` where user-visible. Add the feature's keyword per

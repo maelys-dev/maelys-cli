@@ -6,10 +6,12 @@ outside in `make check`."""
 from __future__ import annotations
 
 import contextlib
+import errno
 import io
 import json
 import os
 import pathlib
+import stat
 import sys
 import tempfile
 import unittest
@@ -152,6 +154,134 @@ class Contract(unittest.TestCase):
         self.assertIn("Hint:", err)
         code, out, err = run("greet", env={"MAELYS_CLI_FORMAT": "json"})
         self.assertEqual(json.loads(err)["error"]["code"], "VALIDATION_FAILED")
+
+    def test_pattern_is_informative_and_prefix_is_validated(self) -> None:
+        program = cli.Program("p", "P", "1", [cli.read("tag", "tag", "x", lambda i: ({"v": i.option("--name")}, 0),
+                                                   options=[cli.option("--name", "n", cli.argument("NAME", "string", pattern="^[a-z]+$"))])])
+        invocation, _ = program.parse(["tag", "--name", "NOT-matching"])
+        self.assertEqual(invocation.option("--name"), "NOT-matching")
+        code, out, _ = run("describe", "describe", "--json")
+        prefix = next(o for o in json.loads(out)["data"]["commands"][0]["input"]["options"] if o["long"] == "--prefix")
+        self.assertEqual(prefix["argument"]["pattern"], cli.PREFIX_GRAMMAR.pattern)
+        code, error = failure("describe", "--summary", "--prefix", "Bad.")
+        self.assertEqual(error["code"], "VALIDATION_FAILED")
+        code, error = failure("describe", "--summary", "--prefix", "")
+        self.assertEqual(error["code"], "VALIDATION_FAILED")
+        self.assertEqual(failure("describe", "--summary", "--prefix", "zzz")[1]["message"], "No command in namespace: zzz.")
+
+    def test_format_environment_ignores_unknown_values(self) -> None:
+        code, out, err = run("greet", env={"MAELYS_CLI_FORMAT": "xml"})
+        self.assertTrue(err.startswith("maelys-hello-py: [VALIDATION_FAILED]"))
+        code, out, err = run("greet", "x", env={"MAELYS_CLI_FORMAT": "json"})
+        self.assertEqual(json.loads(out)["command"], "greet")
+
+    def test_os_errors_map_to_the_stable_codes(self) -> None:
+        self.assertEqual(cli.file_error_code(errno.ENOENT), "NOT_FOUND")
+        self.assertEqual(cli.file_error_code(errno.ENOTDIR), "NOT_FOUND")
+        self.assertEqual(cli.file_error_code(errno.EACCES), "ACCESS_DENIED")
+        self.assertEqual(cli.file_error_code(errno.EPERM), "ACCESS_DENIED")
+        for number in (errno.EFBIG, errno.ELOOP, errno.EMLINK, errno.EINVAL, errno.EISDIR, cli.EFTYPE):
+            self.assertEqual(cli.file_error_code(number), "VALIDATION_FAILED")
+        self.assertEqual(cli.file_error_code(errno.EIO), "IO_FAILED")
+        self.assertEqual(cli.file_error_code(0), "IO_FAILED")
+
+        def missing(invocation):
+            with open("/nonexistent/maelys", "rb"):
+                pass
+        program = cli.Program("p", "P", "1", [cli.read("m", "m", "x", missing)])
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            code = program.main(["m", "--json"])
+        error = json.loads(err.getvalue())["error"]
+        self.assertEqual((code, error["code"]), (1, "NOT_FOUND"))
+        self.assertTrue(error["message"].startswith("/nonexistent/maelys: "))
+        failure_ = cli.file_failure(cli.FileError(errno.EPERM, "file is not owned by the caller", "s"), "secret")
+        self.assertEqual((failure_.code, failure_.message, failure_.hint),
+                         ("ACCESS_DENIED", f"secret: {os.strerror(errno.EPERM)}", "File is not owned by the caller."))
+
+    def test_trusted_files(self) -> None:
+        secret = cli.FILE_NO_SYMLINK | cli.FILE_OWNER_CALLER | cli.FILE_PRIVATE | cli.FILE_SINGLE_LINK
+        with tempfile.TemporaryDirectory() as directory:
+            path = os.path.join(directory, "secret")
+            cli.write_file_atomic(path, b"hunter2", 0o600, cli.WRITE_NO_REPLACE)
+            with self.assertRaises(cli.FileError) as caught:
+                cli.write_file_atomic(path, b"x", 0o600, cli.WRITE_NO_REPLACE)
+            self.assertEqual(caught.exception.errno, errno.EEXIST)
+            cli.write_file_atomic(path, b"hunter2", 0o600, cli.WRITE_REPLACE)
+            self.assertEqual(stat.S_IMODE(os.stat(path).st_mode), 0o600)
+            self.assertEqual(sorted(os.listdir(directory)), ["secret"])
+            buffer = cli.read_trusted_file(path, secret, 1, 64)
+            self.assertEqual(bytes(buffer), b"hunter2")
+            cli.zero(buffer)
+            self.assertEqual(bytes(buffer), bytes(7))
+            self.assertEqual(bytes(cli.read_trusted_file(path, 0, 7, 7)), b"hunter2")
+            cli.check_file(path, secret)
+            for minimum, maximum, explanation in ((0, 6, "larger"), (8, 64, "smaller")):
+                with self.assertRaises(cli.FileError) as caught:
+                    cli.read_trusted_file(path, 0, minimum, maximum)
+                self.assertEqual(caught.exception.errno, errno.EFBIG)
+                self.assertIn(explanation, caught.exception.explanation)
+            with self.assertRaises(cli.FileError) as caught:
+                cli.read_trusted_file(path, 0, 9, 8)
+            self.assertEqual(caught.exception.errno, errno.EINVAL)
+            # Symbolic link: refused with NO_SYMLINK, followed and judged without.
+            link = os.path.join(directory, "link")
+            os.symlink(path, link)
+            with self.assertRaises(cli.FileError) as caught:
+                cli.read_trusted_file(link, cli.FILE_NO_SYMLINK, 0, 64)
+            self.assertEqual(caught.exception.errno, errno.ELOOP)
+            self.assertEqual(bytes(cli.read_trusted_file(link, cli.FILE_PRIVATE, 0, 64)), b"hunter2")
+            with self.assertRaises(cli.FileError):
+                cli.check_file(link, cli.FILE_NO_SYMLINK)
+            os.unlink(link)
+            # Hard link, permissions, FIFO, directory, missing, empty path.
+            alias = os.path.join(directory, "alias")
+            os.link(path, alias)
+            with self.assertRaises(cli.FileError) as caught:
+                cli.read_trusted_file(path, cli.FILE_SINGLE_LINK, 0, 64)
+            self.assertEqual(caught.exception.errno, errno.EMLINK)
+            os.unlink(alias)
+            os.chmod(path, 0o644)
+            with self.assertRaises(cli.FileError) as caught:
+                cli.open_trusted(path, cli.FILE_PRIVATE)
+            self.assertEqual((caught.exception.errno, cli.file_error_code(caught.exception.errno)),
+                             (errno.EPERM, "ACCESS_DENIED"))
+            descriptor = cli.open_trusted(path, cli.FILE_NOT_WRITABLE_BY_OTHERS)
+            self.assertEqual(os.get_inheritable(descriptor), False)
+            self.assertEqual(os.get_blocking(descriptor), True)
+            os.close(descriptor)
+            fifo = os.path.join(directory, "fifo")
+            os.mkfifo(fifo, 0o600)
+            with self.assertRaises(cli.FileError) as caught:
+                cli.open_trusted(fifo, 0)
+            self.assertEqual(caught.exception.errno, cli.EFTYPE)
+            os.unlink(fifo)
+            with self.assertRaises(cli.FileError) as caught:
+                cli.read_regular_file(directory, 0, 64)
+            self.assertEqual(caught.exception.errno, cli.EFTYPE)
+            with self.assertRaises(cli.FileError) as caught:
+                cli.read_regular_file("/nonexistent/maelys", 0, 64)
+            self.assertEqual(caught.exception.errno, errno.ENOENT)
+            with self.assertRaises(cli.FileError) as caught:
+                cli.read_regular_file("", 0, 64)
+            self.assertEqual(caught.exception.errno, errno.EINVAL)
+            # An empty file within bounds, and a growing file bounded by the bytes read.
+            cli.write_file_atomic(path, b"", 0o600, cli.WRITE_REPLACE)
+            self.assertEqual(bytes(cli.read_trusted_file(path, 0, 0, 8)), b"")
+            cli.write_file_atomic(path, b"12345678", 0o600, cli.WRITE_REPLACE)
+            descriptor = cli.open_trusted(path, 0)
+            with open(path, "ab") as handle:
+                handle.write(b"9")
+            with self.assertRaises(cli.FileError) as caught:
+                cli._read_bounded(descriptor, 8, path)
+            self.assertEqual(caught.exception.errno, errno.EFBIG)
+            os.close(descriptor)
+            self.assertEqual(len(cli.read_trusted_file(path, 0, 0, 9)), 9)
+            # The transaction of the reference product writes atomically and refuses to replace.
+            note = os.path.join(directory, "note.txt")
+            run("note", "write", note, "--content", "hi", "--apply", "--json")
+            self.assertEqual(pathlib.Path(note).read_text(), "hi")
+            self.assertEqual(sorted(os.listdir(directory)), ["note.txt", "secret"])
 
     def test_catalog_refuses_bad_declarations(self) -> None:
         with self.assertRaises(ValueError):

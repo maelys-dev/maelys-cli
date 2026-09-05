@@ -58,6 +58,17 @@ or licensed text into the agent texts. See `LICENSING.md`.
   their argument lists; see `docs/abi.md`.
 - `tools/maelys-cli-embed` is installed for consumers; keep it POSIX `sh`
   with `od` and `awk` only.
+- `python/maelys_cli.py` is the Python counterpart of the C library and
+  the C library is the reference: same declaration vocabulary, same causal
+  order of refusals, same `describe` shape, same errno-to-code table, same
+  file primitives with the same requirements and explanations, same
+  `MAELYS_CLI_FORMAT` values, `argument.pattern` informative in both. A
+  behavior that exists in one and not the other is a defect. It is held by
+  `python/tests/test_maelys_cli.py`, by the conformance kit on
+  `python/examples/hello.py` and by `scripts/python-doc-check.sh`
+  (`python-doc-check`: every public name documented in `docs/python.md`);
+  CI runs its tests on Python 3.9, the oldest interpreter it declares.
+  Never track `__pycache__`; every check runs Python with `-B`.
 
 ## Doctrine enforced by the framework
 
@@ -91,6 +102,10 @@ skill `.claude/skills/maelys-cli-framework/SKILL.md` is its checklist form.
    struct with zero as the neutral value; add or extend a `MAELYS_CLI_*`
    macro, never a macro argument. Anything a product could need in a
    handler is an accessor on `maelys_cli_context_t`, never a private global.
+   Then port the same surface to `python/maelys_cli.py` in the same change
+   (a declaration keyword, a value kind, a file primitive, an error
+   mapping), with the C behavior as the reference; a change that has no
+   Python counterpart says so in the changelog.
 3. Catalog validation: `maelys_cli_catalog_validate()` refuses every
    inconsistent declaration of the new field at startup, naming the
    command and option. A default, a reference to another option, a limit
@@ -105,13 +120,15 @@ skill `.claude/skills/maelys-cli-framework/SKILL.md` is its checklist form.
    offer.
 6. Tests, in the same change: unit test in `tests/test_*.c` (accepted and
    refused cases, `describe` output, catalog validation refusals), and
-   `tests/test_cli.sh` when the behavior is visible from a binary.
+   `tests/test_cli.sh` when the behavior is visible from a binary; the
+   same cases in `python/tests/test_maelys_cli.py` for the Python port.
 7. Documentation, in the same change: `docs/api-reference.md` (enforced
    by `scripts/api-doc-check.sh`), the installed agent texts in
    `share/agents/` (enforced by `scripts/agent-doc-check.sh` for macros
    and accessors), `docs/command-conventions.md`, `docs/agent-cli.md`,
    `docs/architecture.md`, `share/templates/` and `README.md` where the
-   feature is user-visible. Then add the feature's keyword to every
+   feature is user-visible; `docs/python.md` for the Python port (enforced
+   by `scripts/python-doc-check.sh`). Then add the feature's keyword to every
    document that must explain it in `docs/topics.tsv`: `make check` runs
    `scripts/doc-topics-check.sh` (`doc-topics-check`) and fails while a
    listed document does not mention a listed keyword. A programmatic doc

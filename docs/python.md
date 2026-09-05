@@ -31,6 +31,14 @@ PROGRAM = cli.Program("hello", "Hello", "0.1.0", [
 sys.exit(PROGRAM.main())
 ```
 
+A handler receives an `Invocation`: `invocation.operands` (typed when the
+operand declares a kind), `invocation.option("--name")` (the typed value,
+else the catalog's default parsed with the same kind, else `None`),
+`invocation.flag("--name")`, `invocation.apply`, `invocation.format`,
+`invocation.non_interactive`; `parse_value(kind, text, spec, where, usage)`
+is the validator behind both and answers `VALIDATION_FAILED` with the
+expected shape.
+
 `Program(program, product, version, commands, guide=..., text=...)` adds
 the built-ins `help`, `version`, `describe`, `completion` and
 `complete.candidates` (`__complete`), checks that every `requires` and
@@ -69,7 +77,10 @@ required: `ms`, `s`, `m`, `h`, `d`; in milliseconds), `path`,
 `absolute-path`, `choice`, `hex` (`minimum`/`maximum` bound its length),
 `sha256`, `digest` (`ALGORITHM:HEX` with `algorithms`). A `default` is
 text, parsed with the same kind when the option is absent: a handler never
-repeats a default. A repeatable option yields a list.
+repeats a default. A repeatable option yields a list. A `pattern` on a
+`string` argument documents the value in `describe`; the parser does not
+enforce it, as the C library does not (the built-in `--prefix` validates
+its own grammar and answers `VALIDATION_FAILED`).
 
 Errors are reported in the contract's causal order: unknown command;
 option spelling, support and duplication; value kind, range and choice;
@@ -82,15 +93,42 @@ operand arity and kinds; rendering constraints. Inside the handler, raise
 `--format json` renders the envelope on stdout; a failure is an envelope on
 stderr and exit 1, or `PROGRAM: [CODE] message` plus `Hint:` in text mode.
 `MAELYS_CLI_FORMAT=json` in the environment selects JSON by default, which is
-how an agent obtains the failure envelope of a `stream` command. Text
+how an agent obtains the failure envelope of a `stream` command; `text`
+selects text and any other value is ignored, as in C. Text
 rendering of success is the `text` mapping given to `Program` (`{"greet":
 render_greet}`), one line per record for `json-records`, or the data as
 indented JSON.
+
+## Files and errors
+
+The counterpart of `maelys/cli/files.h`, with the same requirements, the
+same `errno` values and the same explanations, so a product written in
+Python judges a file exactly as a C product does:
+
+| Name | Contract |
+| --- | --- |
+| `FILE_REGULAR`, `FILE_NO_SYMLINK`, `FILE_OWNER_TRUSTED`, `FILE_OWNER_CALLER`, `FILE_NOT_WRITABLE_BY_OTHERS`, `FILE_PRIVATE`, `FILE_SINGLE_LINK`, `FILE_EXECUTABLE` | The requirement bits of `MAELYS_CLI_FILE_*`; a secret takes `FILE_NO_SYMLINK \| FILE_OWNER_CALLER \| FILE_PRIVATE \| FILE_SINGLE_LINK`. |
+| `open_trusted(path, requirements)` | One open (`O_CLOEXEC`, `O_NONBLOCK`, `O_NOFOLLOW` under `FILE_NO_SYMLINK`), the requirements applied to `fstat` of the descriptor, a FIFO refused as not regular without blocking; returns a blocking descriptor at offset 0. |
+| `read_trusted_file(path, requirements, minimum_size, maximum_size)` | `open_trusted` then a read bounded by the bytes actually read (`EFBIG` outside the bounds, whatever `st_size` said); returns a `bytearray`, zeroed before release on any failure after the open. |
+| `read_regular_file(path, minimum_size, maximum_size)` | The same read without requirement: links followed, regular file required. |
+| `check_file(path, requirements)` | Judges the path by `lstat`/`stat` without opening it, for a file that is not read (an executable). |
+| `write_file_atomic(path, data, mode, policy)` | Private temporary in the destination directory, `fchmod`, `fsync`, then `WRITE_REPLACE` renames over the target or `WRITE_NO_REPLACE` links it and fails with `EEXIST` when any entry, a dangling link included, occupies the path. |
+| `zero(buffer)` | Overwrites a `bytearray` with zeros; call it on a secret before dropping it. Python cannot zero an immutable `bytes`, which is why the readers return `bytearray`. |
+| `FileError` | The `OSError` these functions raise; `.errno` is the C value (`EFTYPE` is `EINVAL` where the platform lacks it) and `.explanation` the short stable text of `out_error`. |
+| `file_error_code(error_number)` | The stable code for an `errno`: `NOT_FOUND` (`ENOENT`, `ENOTDIR`), `ACCESS_DENIED` (`EACCES`, `EPERM`), `VALIDATION_FAILED` (`EFBIG`, `ELOOP`, `EMLINK`, `EINVAL`, `EISDIR`, `EFTYPE`), `IO_FAILED` otherwise; the table of `maelys_cli_file_error_code()`. |
+| `file_failure(error, what=None)` | The `Failure` for an `OSError`, as `maelys_cli_fail_file()`: code from the table, message `what: strerror`, hint from the explanation. An `OSError` a handler lets escape is reported the same way. |
+| `environment_format()` | The format `MAELYS_CLI_FORMAT` selects: `json`, `text`, or `text` for any other value. |
 
 ## Proving it
 
 `python/tests/test_maelys_cli.py` exercises the contract from the inside
 through the reference product; `make conformance-check` runs the kit of
 agent-cli-spec, at the commit `adapter/AGENT_CLI_SPEC_PIN` names, against
-`python/examples/hello.py` as it does against the C binaries. A product
-built on the module runs the same kit on its own program in its CI.
+`python/examples/hello.py` as it does against the C binaries;
+`scripts/python-doc-check.sh` fails while a public name of the module is
+missing from this page. CI runs the module tests on Python 3.9, the oldest
+interpreter it declares, next to the current one. A product built on the
+module runs the same kit on its own program in its CI.
+
+The C library is the reference: where the two frameworks would differ, the
+Python module is the one that is wrong, and the difference is a defect.

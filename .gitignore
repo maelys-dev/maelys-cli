@@ -4,3 +4,4 @@ dist/
 *.a
 *.tmp
 .DS_Store
+__pycache__/
