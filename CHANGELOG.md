@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.11 - 2026-09-05
 
 - `maelys_cli_open_trusted()` and `maelys_cli_read_trusted_file()` judge
   the descriptor they open (`fstat`), so the file checked is the file read;
