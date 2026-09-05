@@ -1,9 +1,11 @@
 #include "maelys/cli/app.h"
+#include "maelys/cli/files.h"
 #include "maelys/cli/process.h"
 #include "maelys/cli/values.h"
 #include "maelys/cli/version.h"
 #include "internal.h"
 
+#include <ctype.h>
 #include <errno.h>
 #include <limits.h>
 #include <stdarg.h>
@@ -884,6 +886,19 @@ int maelys_cli_fail_errno(
     const char *what) {
     maelys_cli_error_t error;
     maelys_cli_error_from_errno(&error, code, saved_errno, what);
+    return maelys_cli_fail_error(context, &error);
+}
+
+int maelys_cli_fail_file(
+    maelys_cli_context_t *context, int saved_errno, const char *explanation,
+    const char *what) {
+    maelys_cli_error_t error;
+    maelys_cli_error_from_errno(&error, maelys_cli_file_error_code(saved_errno),
+        saved_errno, what);
+    if (explanation) {
+        (void)snprintf(error.hint, sizeof(error.hint), "%s.", explanation);
+        if (error.hint[0]) error.hint[0] = (char)toupper((unsigned char)error.hint[0]);
+    }
     return maelys_cli_fail_error(context, &error);
 }
 

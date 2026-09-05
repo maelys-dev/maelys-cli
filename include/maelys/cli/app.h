@@ -167,6 +167,13 @@ int maelys_cli_fail_errno(
     const char *what);
 int maelys_cli_fail_error(
     maelys_cli_context_t *context, const maelys_cli_error_t *error);
+/* Failure from an errno left by maelys/cli/files.h: the code comes from
+ * maelys_cli_file_error_code(), the message is `what: strerror(errno)` and
+ * the hint is the explanation the file function returned (or a generic one
+ * when NULL). Saves every product the same errno-to-code table. */
+int maelys_cli_fail_file(
+    maelys_cli_context_t *context, int saved_errno, const char *explanation,
+    const char *what);
 
 /* Diagnostics that never touch stdout. */
 void maelys_cli_warn(maelys_cli_context_t *context, const char *format, ...)

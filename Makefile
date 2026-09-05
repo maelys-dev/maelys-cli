@@ -133,6 +133,13 @@ $(BUILD)/tests/test_extension: tests/test_extension.c $(EXTENSION_LIB) $(LIB) $(
 	@mkdir -p $(@D)
 	$(CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) $(CFLAGS) $(COMMON_CFLAGS) $< $(EXTENSION_LIB) $(LIB) $(MAELYS_JSON_LIBS) $(LDFLAGS) -o $@
 
+# test_files links its own files.c with the fault hook enabled, so every
+# system-call failure path is exercised; the released archive has no hook.
+$(BUILD)/tests/test_files: tests/test_files.c src/files.c $(LIB) $(HEADERS)
+	@mkdir -p $(@D)
+	$(CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) -DMAELYS_CLI_FAULT_HOOK=maelys_cli_test_fault \
+		$(CFLAGS) $(COMMON_CFLAGS) tests/test_files.c src/files.c $(LIB) $(LDFLAGS) -o $@
+
 $(BUILD)/tests/test_%: tests/test_%.c $(LIB) $(HEADERS)
 	@mkdir -p $(@D)
 	$(CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) $(CFLAGS) $(COMMON_CFLAGS) $< $(LIB) $(LDFLAGS) -o $@

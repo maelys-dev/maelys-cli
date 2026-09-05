@@ -75,6 +75,14 @@ The only visible additions are `external`, `hidden`, `passthrough`,
 
 ## Egress (`cli/catalog.c` and `cli/maelys-egress.c`)
 
+Egress reads its configuration and its secrets: since 0.5.11 both go through
+`maelys_cli_read_trusted_file()` with the requirements they need
+(`MAELYS_CLI_FILE_OWNER_CALLER | MAELYS_CLI_FILE_PRIVATE |
+MAELYS_CLI_FILE_NO_SYMLINK | MAELYS_CLI_FILE_SINGLE_LINK` for a secret),
+`maelys_cli_zero()` before releasing a secret, and `maelys_cli_fail_file()`
+for the error, instead of a `maelys_cli_check_file()` followed by a read and
+a product-side errno table.
+
 Egress is the simplest consumer and the one whose migration is a contract
 change rather than a code change: its 0.11 CLI reimplemented the same model
 under the same `agent-cli/v2` name with a different vocabulary. The

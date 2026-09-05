@@ -79,10 +79,17 @@ a child without a named protocol and has no `protocol` member.
 7. rendering constraints: stream commands refuse rendering options, `jsonl`
    is accepted only by `json-records` commands.
 
-Everything after that belongs to the handler: file type and permissions
-(`maelys_cli_check_file()`), syntax, schema, policy, current state and
-concurrency preconditions, reported with the error code of the boundary
-that actually failed.
+Everything after that belongs to the handler: file type and permissions,
+syntax, schema, policy, current state and concurrency preconditions,
+reported with the error code of the boundary that actually failed.
+Configuration, manifests and secrets are read with
+`maelys_cli_read_trusted_file()`, which applies the trust requirements to
+the descriptor it reads and bounds the read by the bytes read, so a link
+posted between a check and a read, a file that grows meanwhile or a FIFO at
+the path cannot change what is judged; `maelys_cli_check_file()` remains for
+a file that is not read, such as an executable. `maelys_cli_fail_file()`
+turns the errno and explanation they leave into the stable code:
+`NOT_FOUND`, `ACCESS_DENIED`, `VALIDATION_FAILED` or `IO_FAILED`.
 
 An option value remains a value even when it starts with `--`; `--` ends
 option parsing; delegate commands receive every argument after their pattern

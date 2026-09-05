@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+- `maelys_cli_open_trusted()` and `maelys_cli_read_trusted_file()` judge
+  the descriptor they open (`fstat`), so the file checked is the file read;
+  the open never blocks (a FIFO is refused as not regular), `O_NOFOLLOW`
+  applies under `MAELYS_CLI_FILE_NO_SYMLINK`, and the read is bounded by
+  the bytes actually read, never by the size observed before it.
+  `maelys_cli_read_regular_file()` is now that read without requirement.
+- Requirements `MAELYS_CLI_FILE_SINGLE_LINK` (`EMLINK`) and
+  `MAELYS_CLI_FILE_OWNER_CALLER` (`EPERM`), for secrets.
+- `maelys_cli_zero()` (zeroing the compiler cannot elide) and buffers zeroed
+  before release on every read failure.
+- `maelys_cli_file_error_code()` maps an errno to the stable code and
+  `maelys_cli_fail_file()` reports it with the explanation as hint.
+- Tests exercise every system-call failure of `files.c` through a fault
+  hook compiled only into the test copy of the file.
+
 ## 0.5.10 - 2026-09-04
 
 - agent-cli-spec pinned at v2.1.0: `describe --summary --prefix PREFIX`

@@ -15,8 +15,12 @@ starts external programs on behalf of a product CLI. Its security claims are:
   runs; unknown, duplicated, malformed or out-of-range inputs are refused;
 - successful data is written to stdout only and failures to stderr only, so a
   caller can never mistake a diagnostic for data;
-- files are read within explicit size bounds and written through private
-  temporaries published atomically with an explicit replacement policy;
+- files are read within explicit size bounds, counted on the bytes actually
+  read, and written through private temporaries published atomically with
+  an explicit replacement policy; configuration, manifests and secrets are
+  judged on the descriptor that is read (`maelys_cli_read_trusted_file`), so
+  no link, replacement, growth or FIFO between a check and a read changes
+  what is trusted, and a secret buffer is zeroed on failure;
 - external programs are started from absolute paths that must be regular,
   owned by root or the caller and not writable by group or world, through
   `execve` without a shell or PATH lookup, with non-standard descriptors
