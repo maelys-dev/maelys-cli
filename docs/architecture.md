@@ -89,3 +89,11 @@ licenses and failure isolated, can be installed and removed as ordinary
 files, and can be implemented in another language while still honoring the
 `agent-cli/v2` contract. Discovery is restricted to manifests in fixed
 directories so that nothing on PATH can silently become a `maelys` command.
+
+## Python
+
+`python/maelys_cli.py` implements the same contract for Python products,
+without depending on the C library: one file, standard library only. The
+catalog vocabulary mirrors the C declaration macros so that a product reads
+the same in both languages; the conformance kit judges both from the
+outside. `python/examples/hello.py` is its reference product.

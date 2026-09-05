@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+- `python/maelys_cli.py`: the framework for a product written in Python,
+  one file, standard library only, Python 3.9 or later. The declaration
+  vocabulary mirrors the C macros (`cli.read`, `cli.records`,
+  `cli.transaction`, `cli.execute`, `cli.stream`, `cli.external`;
+  `cli.operand`, `cli.option`, `cli.flag`, `cli.argument` with every value
+  kind of the contract), with the built-ins, the envelopes, the exit codes,
+  the causal order of refusals, `describe --summary --prefix`, the
+  completion and `MAELYS_CLI_FORMAT`. `python/examples/hello.py` is its
+  reference product, checked by `python/tests/test_maelys_cli.py` and by
+  the conformance kit in `make check`. `docs/python.md` is the guide; the
+  agent texts mention the module.
+
 ## 0.5.11 - 2026-09-05
 
 - `maelys_cli_open_trusted()` and `maelys_cli_read_trusted_file()` judge
