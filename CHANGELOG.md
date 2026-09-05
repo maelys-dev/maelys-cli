@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- maelys-release v0.14.2 adopted: workflows only (`uses:` lines at 1749a35;
+  the generated header no longer carries the literal `\n` of 0.14.0).
+
 ## 0.5.15 - 2026-09-05
 
 - maelys-release v0.14.0 adopted: the declarations move from `adapter/` to
