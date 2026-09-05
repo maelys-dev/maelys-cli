@@ -3,7 +3,7 @@
 The contract every command follows is `agent-cli/v2`, specified in
 [maelys-dev/agent-cli-spec](https://github.com/maelys-dev/agent-cli-spec)
 (`spec/agent-cli.md` and `spec/extensions.md`, pinned in
-`adapter/AGENT_CLI_SPEC_PIN`). The specification defines discovery
+`dependencies/agent-cli-spec.pin`). The specification defines discovery
 (`describe` in its three forms), the descriptor, the value kinds, the six
 effects and the plan/`--apply` transaction, the global options, the
 built-in commands, the envelopes, the exit codes and the stable error

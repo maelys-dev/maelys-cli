@@ -3,7 +3,7 @@
 `python/maelys_cli.py` is the Python counterpart of `libmaelys_cli`: one
 file, standard library only, Python 3.9 or later, implementing the
 [agent-cli/v2](agent-cli.md) contract for a product written in Python. A
-product pins maelys-cli through `adapter/MAELYS_CLI_PIN` as a C product
+product pins maelys-cli through `dependencies/maelys-cli.pin` as a C product
 does, clones it with `scripts/checkout-dependency.sh maelys-cli`, and either
 copies `python/maelys_cli.py` next to its program or adds `python/` to
 `sys.path`. The reference product is `python/examples/hello.py`; the
@@ -114,7 +114,7 @@ indented JSON.
 
 The public API of `python/maelys_cli.py` is a contract, vendored byte for
 byte by its consumers (maelys-release copies the file at the commit its
-`adapter/MAELYS_CLI_PIN` names and checks its SHA-256): the declaration
+`dependencies/maelys-cli.pin` names and checks its SHA-256): the declaration
 functions `read`, `records`, `transaction`, `execute`, `stream`,
 `external`, `operand`, `option`, `flag`, `argument`; `Program` and the
 arguments of its constructor (`program`, `product`, `version`,
@@ -158,7 +158,7 @@ Python judges a file exactly as a C product does:
 
 `python/tests/test_maelys_cli.py` exercises the contract from the inside
 through the reference product; `make conformance-check` runs the kit of
-agent-cli-spec, at the commit `adapter/AGENT_CLI_SPEC_PIN` names, against
+agent-cli-spec, at the commit `dependencies/agent-cli-spec.pin` names, against
 `python/examples/hello.py` as it does against the C binaries;
 `scripts/python-doc-check.sh` fails while a public name of the module is
 missing from this page. CI runs the module tests on Python 3.9, the oldest

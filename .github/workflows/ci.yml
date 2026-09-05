@@ -2,7 +2,7 @@ name: ci
 
 # The `check` job is the socle's reusable CI (maelys-release
 # check-product.yml at the version release.yml pins): pinned dependency
-# checkouts, packages of adapter/PACKAGES, `make check` on the three release
+# checkouts, packages of dependencies/packages, `make check` on the three release
 # targets, sanitizers on Linux x86_64 and the socle drift check. The jobs
 # below it are this product's own.
 
@@ -17,7 +17,7 @@ permissions:
 
 jobs:
   check:
-    uses: maelys-dev/maelys-release/.github/workflows/check-product.yml@316f6a6cdacf1f3b3ed63e6b48412ab1e8f589e1 # v0.10.0
+    uses: maelys-dev/maelys-release/.github/workflows/check-product.yml@775d95f530ce5024dccf36468e0b25701dec9ec2 # v0.14.0
     with:
       product: maelys-cli
       dependency_checkout: |

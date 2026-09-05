@@ -207,15 +207,15 @@ generate-cli-reference: $(DISPATCHER) $(EXAMPLE)
 		--markdown docs/cli-reference.md --json docs/cli-contract.json
 
 # Proves that the programs conform to agent-cli/v2 as maelys-dev/agent-cli-spec
-# writes it, at the commit adapter/AGENT_CLI_SPEC_PIN names; the kit drives
+# writes it, at the commit dependencies/agent-cli-spec.pin names; the kit drives
 # each binary from the outside. The checkout comes from
 # scripts/checkout-dependency.sh agent-cli-spec, as every pinned dependency.
 AGENT_CLI_SPEC_DIR ?= ../agent-cli-spec
 conformance-check: $(DISPATCHER) $(EXAMPLE)
 	@test -x $(AGENT_CLI_SPEC_DIR)/conformance/run.py || \
 		{ echo "conformance-check: $(AGENT_CLI_SPEC_DIR) not found; run scripts/checkout-dependency.sh agent-cli-spec" >&2; exit 1; }
-	@test "$$(git -C $(AGENT_CLI_SPEC_DIR) rev-parse HEAD)" = "$$(sed -n 2p adapter/AGENT_CLI_SPEC_PIN)" || \
-		{ echo "conformance-check: $(AGENT_CLI_SPEC_DIR) is not at adapter/AGENT_CLI_SPEC_PIN" >&2; exit 1; }
+	@test "$$(git -C $(AGENT_CLI_SPEC_DIR) rev-parse HEAD)" = "$$(sed -n 2p dependencies/agent-cli-spec.pin)" || \
+		{ echo "conformance-check: $(AGENT_CLI_SPEC_DIR) is not at dependencies/agent-cli-spec.pin" >&2; exit 1; }
 	MAELYS_COMMANDS_PATH=/nonexistent python3 $(AGENT_CLI_SPEC_DIR)/conformance/run.py $(BUILD)/bin/maelys-hello | tail -1
 	MAELYS_COMMANDS_PATH=/nonexistent python3 $(AGENT_CLI_SPEC_DIR)/conformance/run.py $(BUILD)/bin/maelys | tail -1
 	MAELYS_COMMANDS_PATH=/nonexistent PYTHONDONTWRITEBYTECODE=1 python3 $(AGENT_CLI_SPEC_DIR)/conformance/run.py python3 python/examples/hello.py | tail -1
