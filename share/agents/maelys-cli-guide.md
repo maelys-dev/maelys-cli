@@ -357,3 +357,16 @@ duplicate command names and digest mismatches. There is no PATH search and no
 `dlopen`. Shell completion of `maelys COMMAND ...` is forwarded to the
 external command's own `__complete`, so an extension built on the
 framework completes for free.
+
+## Python products
+
+`python/maelys_cli.py` of the same pinned maelys-cli is the framework for a
+product written in Python: one file, standard library only, the declaration
+vocabulary of the C macros (`cli.read`, `cli.records`, `cli.transaction`,
+`cli.execute`, `cli.stream`, `cli.external`; `cli.operand`, `cli.option`,
+`cli.flag`, `cli.argument` with the contract's value kinds), the built-ins,
+the envelopes and the exit codes. A handler receives an `Invocation`
+(`operands`, `option()`, `flag()`, `apply`, `format`) and returns
+`(data, exit_code)` or raises `cli.Failure(code, message, hint)`. The guide is
+`docs/python.md`; the reference product `python/examples/hello.py` passes the
+conformance kit, and a product runs that kit on its own program.

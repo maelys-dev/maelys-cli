@@ -80,3 +80,8 @@ updating examples or releasing.
 Build variants compose one catalog with `maelys_cli_catalog_concat()`; a
 later part may only replace an `.unavailable` declaration of the same
 identifier (`EEXIST` otherwise).
+
+For a product written in Python, the same rules apply on `python/maelys_cli.py`
+(`cli.read`, `cli.transaction`, `cli.stream`, `cli.operand`, `cli.option`,
+`cli.argument`; see `docs/python.md`): one catalog, handlers that return
+`(data, exit_code)` or raise `cli.Failure`, the conformance kit in CI.

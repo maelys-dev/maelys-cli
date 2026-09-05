@@ -69,6 +69,13 @@ one handler and one JSON Schema file. In the same change, update:
    exact contract;
 5. the generated CLI reference when the project keeps one.
 
+A product written in Python builds on `python/maelys_cli.py` of the same
+pinned maelys-cli (one file, standard library only): the same declarations
+(`cli.read`, `cli.records`, `cli.transaction`, `cli.stream`, `cli.external`;
+`cli.operand`, `cli.option`, `cli.flag`, `cli.argument`), the same built-ins,
+envelopes and exit codes; `docs/python.md` is its guide and the conformance
+kit of agent-cli-spec runs on the product's program in its CI.
+
 Linking: a product CLI links `libmaelys_cli.a` only (no dependency). A
 dispatcher that runs external commands from manifests adds
 `libmaelys_cli_extension.a` and one `libmaelys-json.a` (pkg-config

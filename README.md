@@ -171,6 +171,19 @@ is [examples/hello/main.c](examples/hello/main.c) (`maelys-hello`) with its
 schemas in [examples/hello/schemas/](examples/hello/schemas/); it also drives
 the end-to-end tests.
 
+## Writing a product CLI in Python
+
+`python/maelys_cli.py` is the same framework for a product written in
+Python: one file, standard library only, Python 3.9 or later, the same
+declaration vocabulary (`read`, `records`, `transaction`, `execute`,
+`stream`, `external`; `operand`, `option`, `flag`, `argument` with the
+contract's value kinds), the same built-ins, envelopes, exit codes and
+causal order of refusals. A product pins maelys-cli as a C product does and
+copies the file next to its program or adds `python/` to its path. The
+reference product is `python/examples/hello.py`; `make check` runs the
+module's tests and the conformance kit against it. See
+[docs/python.md](docs/python.md).
+
 ## The `maelys` dispatcher
 
 `maelys` runs external commands declared by installed manifests. There is no
