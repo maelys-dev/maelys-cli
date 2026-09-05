@@ -11,6 +11,11 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+/* Linux has no EFTYPE; files.c falls back to EINVAL the same way. */
+#ifndef EFTYPE
+#define EFTYPE EINVAL
+#endif
+
 static char directory[] = "/tmp/maelys-cli-files.XXXXXX";
 
 /* Fault hook linked into the test copy of files.c: injects fault_errno once
