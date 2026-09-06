@@ -57,7 +57,7 @@ EXIT_CODES = {"0": "command completed", "1": "execution failed", "2": "valid rep
 STABLE_CODES = ("INVALID_COMMAND", "VALIDATION_FAILED", "PRECONDITION_FAILED", "POLICY_FAILED", "ACCESS_DENIED",
                 "NOT_FOUND", "IO_FAILED", "PROCESS_FAILED", "PROTOCOL_FAILED", "UNSUPPORTED", "UNEXPECTED")
 IDENTIFIER = re.compile(r"^[a-z][a-z0-9.-]*$")
-PREFIX_GRAMMAR = re.compile(r"^[a-z](?:[a-z0-9.-]*[a-z0-9-])?$")
+PREFIX_GRAMMAR = re.compile(r"^[a-z]([a-z0-9.-]*[a-z0-9-])?$")
 FORMATS = ("text", "json", "jsonl")
 COLORS = ("auto", "always", "never")
 SHELLS = ("bash", "zsh", "fish")

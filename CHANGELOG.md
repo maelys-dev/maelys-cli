@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- agent-cli-spec pinned at v2.3.1: the `--prefix` grammar is written with a
+  plain group, as the common dialect requires; the parser still accepts a
+  product pattern spelled with `(?:`.
+- maelys-release v0.15.1 adopted: release assets through a protected draft,
+  `workflow_dispatch` replays the complete flow for an existing tag, checks
+  and publication on Ubuntu 26.04. The product's own CI jobs move to the
+  same runners.
+
 ## 0.5.18 - 2026-09-06
 
 - agent-cli-spec pinned at v2.3.0. The trunk options `--progress
