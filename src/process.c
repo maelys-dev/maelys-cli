@@ -39,6 +39,7 @@ typedef struct trusted_executable {
     int descriptor;
     int directory;
     char name[PATH_MAX];
+    char path[PATH_MAX];  /* canonical absolute path, for the pathname exec */
     struct stat status;
 } trusted_executable_t;
 
@@ -145,6 +146,7 @@ static int open_trusted_executable(
         return -1;
     }
     memcpy(executable->name, slash + 1, strlen(slash + 1) + 1u);
+    memcpy(executable->path, resolved, strlen(resolved) + 1u);
     if (slash == resolved) slash[1] = '\0';
     else *slash = '\0';
     executable->directory = open(resolved,
@@ -276,18 +278,11 @@ static int execute_trusted(
         errno = ESTALE;
         return -1;
     }
-    int previous = open(".", O_RDONLY | O_DIRECTORY | O_CLOEXEC);
-    if (previous < 0 || fchdir(executable->directory) != 0) {
-        int saved = errno;
-        if (previous >= 0) (void)close(previous);
-        errno = saved;
-        return -1;
-    }
-    execve(executable->name, argv, envp ? envp : environ);
-    int saved = errno;
-    if (fchdir(previous) != 0) saved = errno;
-    (void)close(previous);
-    errno = saved;
+    /* The pathname exec keeps the caller's working directory: the program
+     * must start where the user is, never in its own directory. The
+     * verification above, on the held trusted directory, and the trusted
+     * parent's modes bound the remaining window. */
+    execve(executable->path, argv, envp ? envp : environ);
     return -1;
 }
 

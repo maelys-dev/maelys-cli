@@ -13,8 +13,8 @@
   JSON or under `--non-interactive`; `--pager` is a rendering option that a
   protocol stream refuses.
 - `.pattern` is enforced by the parser as POSIX ERE (`VALIDATION_FAILED`),
-  and a pattern that does not compile is refused at startup; the built-in
-  `--prefix` grammar is written without `(?:`. Text records into a pipe are
+  and a pattern that does not compile is refused at startup; the `(?:` group
+  of the contract's own `--prefix` grammar is compiled as a plain group. Text records into a pipe are
   tab-separated rows (union of member names sorted by code point, strings
   unquoted and escaped, other values compact JSON); the human line is shown
   on a terminal only. `describe --summary` no longer carries
@@ -24,6 +24,12 @@
   `progress_done()`, `record_text()`, `pager_command()`, `page_text()`;
   `pattern` enforced with `re.search`; `Program` refuses an invalid
   pattern.
+- Fix: an external program started by `maelys_cli_process_run()` or
+  `maelys_cli_process_replace()` keeps the caller's working directory. Since
+  0.5.16 the pathname exec (macOS, and Linux for a script) changed to the
+  executable's directory first, so every dispatched `maelys` extension and
+  every delegate ran in its own directory and relative operands broke. The
+  anchored inode check stays; the exec uses the canonical absolute path.
 
 ## 0.5.17 - 2026-09-06
 
