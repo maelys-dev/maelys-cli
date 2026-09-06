@@ -51,7 +51,9 @@ normative; this skill is the executable checklist.
 - Keep stdout data-only. Diagnostics go to stderr via `maelys_cli_warn()`.
 - Name the write policy on every file write; start programs with absolute
   paths through `maelys/cli/process.h`, never a shell; the executable's
-  immediate parent must also have trusted ownership and modes.
+  immediate parent must also have trusted ownership and modes, and a delegate
+  script must use a direct absolute interpreter not named `env`; relative and
+  `env` shebangs are refused.
 - Keep product types out of the shared framework; propose generic mechanics
   upstream in `maelys-cli` instead of copying `main()` fragments.
 - Link `libmaelys_cli.a` alone for a product CLI; add

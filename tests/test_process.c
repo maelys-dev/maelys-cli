@@ -32,6 +32,27 @@ static int test_check_executable(void) {
     CHECK(maelys_cli_process_check_executable(path, &explanation) != 0 && errno == EPERM);
     CHECK(chmod(path, 0755) == 0);
     CHECK(maelys_cli_process_check_executable(path, &explanation) == 0);
+    descriptor = open(path, O_WRONLY | O_TRUNC);
+    CHECK(descriptor >= 0);
+    const char env_script[] = "#!/usr/bin/env sh\nexit 0\n";
+    CHECK(write(descriptor, env_script, sizeof(env_script) - 1u) ==
+        (ssize_t)(sizeof(env_script) - 1u));
+    CHECK(close(descriptor) == 0);
+    CHECK(maelys_cli_process_check_executable(path, &explanation) != 0 &&
+        errno == EPERM && strstr(explanation, "PATH") != NULL);
+    descriptor = open(path, O_WRONLY | O_TRUNC);
+    CHECK(descriptor >= 0);
+    const char relative_script[] = "#!sh\nexit 0\n";
+    CHECK(write(descriptor, relative_script, sizeof(relative_script) - 1u) ==
+        (ssize_t)(sizeof(relative_script) - 1u));
+    CHECK(close(descriptor) == 0);
+    CHECK(maelys_cli_process_check_executable(path, &explanation) != 0 &&
+        errno == EPERM && strstr(explanation, "absolute") != NULL);
+    descriptor = open(path, O_WRONLY | O_TRUNC);
+    CHECK(descriptor >= 0);
+    CHECK(write(descriptor, "#!/bin/sh\nexit 0\n", 17u) == 17);
+    CHECK(close(descriptor) == 0);
+    CHECK(maelys_cli_process_check_executable(path, &explanation) == 0);
     CHECK(chmod(path, 0644) == 0);
     CHECK(maelys_cli_process_check_executable(path, &explanation) != 0 && errno == EACCES);
     CHECK(chmod(path, 0100) == 0);

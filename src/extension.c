@@ -3,6 +3,7 @@
 #include "maelys/cli/files.h"
 #include "maelys/cli/process.h"
 #include "maelys/cli/version.h"
+#include "internal.h"
 
 #include <maelys/json.h>
 
@@ -158,6 +159,14 @@ int maelys_cli_extension_load(
         copy_string_field(document, root, "sha256", 0, out->sha256,
             sizeof(out->sha256), manifest_path, error) != 0)
         goto done;
+    if (!maelys_cli_text_is_terminal_safe(out->version) ||
+        !maelys_cli_text_is_terminal_safe(out->summary)) {
+        maelys_cli_error_set(error, MAELYS_CLI_CODE_PROTOCOL_FAILED,
+            "Use one line of text without terminal control characters.",
+            "Manifest %s has an unsafe 'version' or 'summary' member.",
+            manifest_path);
+        goto done;
+    }
     if (!valid_command_name(out->command)) {
         maelys_cli_error_set(error, MAELYS_CLI_CODE_VALIDATION_FAILED,
             "Use a lowercase command name that is not a built-in.",

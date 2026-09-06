@@ -292,7 +292,8 @@ Handler rules:
 - start external programs with `maelys_cli_process_run()` or
   `maelys_cli_process_replace()` on absolute paths: no shell, no PATH. The
   executable and its immediate parent must have trusted ownership and modes;
-  the framework holds both open through `exec`.
+  the framework holds both open through `exec`; scripts use a direct absolute
+  interpreter not named `env` because relative and `env` shebangs are refused.
 
 ### Test it
 

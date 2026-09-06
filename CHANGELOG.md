@@ -1,6 +1,16 @@
 # Changelog
 
-## Unreleased
+## 0.5.17 - 2026-09-06
+
+- Security: trusted executables now require an absolute shebang interpreter
+  and refuse interpreters named `env`, closing hidden current-directory and
+  `PATH` lookups behind an otherwise absolute `execve` call.
+- Security: extension `version` and `summary` metadata must be terminal-safe
+  single-line UTF-8, preventing ANSI, line and bidirectional controls from
+  reaching `maelys help` or `maelys commands list`; Arabic and left-to-right
+  or right-to-left marks are covered with the other bidirectional controls.
+- These process and extension facilities are C-only and have no Python
+  counterpart.
 
 ## 0.5.16 - 2026-09-05
 

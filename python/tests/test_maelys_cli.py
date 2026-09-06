@@ -58,11 +58,14 @@ class Contract(unittest.TestCase):
 
     def test_causal_order_of_refusals(self) -> None:
         self.assertEqual(failure("nope")[1]["code"], "INVALID_COMMAND")
-        code, _, error_text = run("bad\x1b[2J\nline\x9b\u202e")
+        code, _, error_text = run("bad\x1b[2J\nline\x9b\u061c\u200e\u200f\u202e")
         self.assertEqual(code, 1)
-        self.assertIn("bad\\x1b[2J\\nline\\x9b\\u202e", error_text)
+        self.assertIn("bad\\x1b[2J\\nline\\x9b\\u061c\\u200e\\u200f\\u202e", error_text)
         self.assertNotIn("\x1b", error_text)
         self.assertNotIn("\x9b", error_text)
+        self.assertNotIn("\u061c", error_text)
+        self.assertNotIn("\u200e", error_text)
+        self.assertNotIn("\u200f", error_text)
         self.assertNotIn("\u202e", error_text)
         self.assertEqual(failure("greet", "x", "--bogus")[1]["code"], "VALIDATION_FAILED")
         code, error = failure("greet", "x", "--shout", "--shout")

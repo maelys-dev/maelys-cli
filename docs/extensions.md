@@ -27,8 +27,8 @@ plugin ABI is loaded.
 | `command` | yes | `[a-z][a-z0-9-]*`, at most 63 characters, not `help`, `version` or `describe` |
 | `executable` | yes | absolute path of a regular file, owned by root or the caller, not writable by group or world, owner-executable |
 | `cliApi` | yes | unsigned integer equal to the dispatcher's `MAELYS_CLI_API` (1) |
-| `version` | yes | free string reported by `commands list` |
-| `summary` | no | one line shown by `help` |
+| `version` | yes | one line without terminal control characters, reported by `commands list` |
+| `summary` | no | one line without terminal control characters, shown by `help` |
 | `sha256` | no | lowercase hex digest of the executable; when present it must match |
 
 ## Directories
@@ -56,6 +56,7 @@ manifest is:
 - writable by group or world;
 - larger than 64 KiB, not valid JSON or not an object;
 - of another schema or another `cliApi`;
+- carrying line, ANSI or bidirectional controls in `version` or `summary`;
 - pointing to an unusable executable or to a digest mismatch;
 - declaring a command already declared by an earlier manifest.
 
@@ -81,7 +82,9 @@ It receives the arguments after the command word verbatim, including
 
 Install the binary under `PREFIX/libexec/maelys/commands/` and the manifest
 under `PREFIX/share/maelys/commands/COMMAND.json` with mode `0644`. Packages
-compute `sha256` at build time.
+compute `sha256` at build time. A script uses a direct absolute interpreter
+in its shebang; relative interpreters and `#!/usr/bin/env ...` are refused
+because they perform implicit current-directory or `PATH` lookup.
 
 ## Product-level delegates
 

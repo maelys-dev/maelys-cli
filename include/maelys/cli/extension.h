@@ -55,8 +55,9 @@ typedef struct maelys_cli_extension_set {
 const char *const *maelys_cli_extension_default_directories(size_t *out_count);
 
 /* Loads and verifies one manifest: regular non-symlink file with trusted
- * owner and modes, valid schema and cliApi, absolute regular trusted
- * executable (stored as its canonical absolute path), optional digest match. */
+ * owner and modes, valid schema and cliApi, terminal-safe single-line version
+ * and summary, absolute regular trusted executable (stored as its canonical
+ * absolute path), optional digest match. */
 int maelys_cli_extension_load(
     const char *manifest_path, maelys_cli_extension_t *out,
     maelys_cli_error_t *error);

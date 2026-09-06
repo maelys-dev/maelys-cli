@@ -99,7 +99,9 @@ turns the errno and explanation they leave into the stable code:
 
 An option value remains a value even when it starts with `--`; `--` ends
 option parsing; delegate commands receive every argument after their pattern
-verbatim, including `--help`.
+verbatim, including `--help`. A delegate script names its interpreter directly
+with an absolute shebang; relative interpreters and interpreters named `env`
+are refused because they perform implicit current-directory or `PATH` lookup.
 
 `--dry-run` and `--plan` are refused, with the migration hint, only on
 commands that declare `--apply`; a product without transactions is not

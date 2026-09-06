@@ -185,6 +185,13 @@ check "dispatcher lists extensions" '[ "$code" = 0 ] && printf "%s" "$out" | gre
 run d-help "$maelys" help
 check "dispatcher help shows extension" 'printf "%s" "$out" | grep -q "hello \[ARGUMENTS...\]"'
 
+cat >"$commands/unsafe.json" <<MANIFEST
+{"schema":"maelys.cli-extension/v1","command":"unsafe","executable":"$hello","cliApi":1,"version":"1.0.0","summary":"clear\\u001b[2J"}
+MANIFEST
+run d-unsafe "$maelys" help
+check "dispatcher refuses terminal controls in extension metadata" '[ "$code" = 1 ] && [ -z "$out" ] && printf "%s" "$err" | grep -q "\[PROTOCOL_FAILED\]" && ! printf "%s" "$err" | grep -q "$(printf "\033")"'
+rm -f "$commands/unsafe.json"
+
 run d-exec "$maelys" hello greet dispatcher --json --compact
 check "dispatcher execs extension verbatim" '[ "$code" = 0 ] && printf "%s" "$out" | grep -q "\"greeting\":\"Hello, dispatcher!\""'
 
