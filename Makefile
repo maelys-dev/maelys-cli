@@ -219,9 +219,12 @@ conformance-check: $(DISPATCHER) $(EXAMPLE)
 		{ echo "conformance-check: $(AGENT_CLI_SPEC_DIR) not found; run scripts/checkout-dependency.sh agent-cli-spec" >&2; exit 1; }
 	@test "$$(git -C $(AGENT_CLI_SPEC_DIR) rev-parse HEAD)" = "$$(sed -n 2p dependencies/agent-cli-spec.pin)" || \
 		{ echo "conformance-check: $(AGENT_CLI_SPEC_DIR) is not at dependencies/agent-cli-spec.pin" >&2; exit 1; }
-	MAELYS_COMMANDS_PATH=/nonexistent python3 $(AGENT_CLI_SPEC_DIR)/conformance/run.py $(BUILD)/bin/maelys-hello | tail -1
-	MAELYS_COMMANDS_PATH=/nonexistent python3 $(AGENT_CLI_SPEC_DIR)/conformance/run.py $(BUILD)/bin/maelys | tail -1
-	MAELYS_COMMANDS_PATH=/nonexistent PYTHONDONTWRITEBYTECODE=1 python3 $(AGENT_CLI_SPEC_DIR)/conformance/run.py python3 python/examples/hello.py | tail -1
+	@for program in "$(BUILD)/bin/maelys-hello" "$(BUILD)/bin/maelys" "$$(command -v python3) python/examples/hello.py"; do \
+		if MAELYS_COMMANDS_PATH=/nonexistent PYTHONDONTWRITEBYTECODE=1 \
+			python3 $(AGENT_CLI_SPEC_DIR)/conformance/run.py $$program > $(BUILD)/conformance.log 2>&1; then \
+			tail -1 $(BUILD)/conformance.log; \
+		else grep -E '^(FAIL|conformance:)' $(BUILD)/conformance.log; echo "conformance-check: $$program failed" >&2; exit 1; fi; \
+	done
 
 # Proves that the committed reference and contract match what the binaries
 # describe. Run before a release and in CI; needs python3.

@@ -35,7 +35,7 @@
             "properties": {
               "commands": {
                 "items": {
-                  "type": "object"
+                  "type": "string"
                 },
                 "type": "array"
               },
@@ -130,13 +130,6 @@
                 "options": [
                   "--prefix",
                   "--summary"
-                ]
-              },
-              {
-                "kind": "at-most-one",
-                "options": [
-                  "--prefix",
-                  "COMMAND_ID"
                 ]
               }
             ],
@@ -705,6 +698,50 @@
           "summary": "Control ANSI colors on terminals."
         },
         {
+          "argument": {
+            "choices": [
+              "auto",
+              "always",
+              "never"
+            ],
+            "name": "VALUE",
+            "type": "choice"
+          },
+          "conflictsWith": [],
+          "default": "auto",
+          "long": "--progress",
+          "repeatable": false,
+          "required": false,
+          "requires": [],
+          "summary": "Show the progress of a long run on stderr in text mode: auto only when stderr is a terminal."
+        },
+        {
+          "conflictsWith": [],
+          "long": "--verbose",
+          "repeatable": false,
+          "required": false,
+          "requires": [],
+          "summary": "Add the details of the run on stderr in text mode; silent in JSON."
+        },
+        {
+          "argument": {
+            "choices": [
+              "auto",
+              "always",
+              "never"
+            ],
+            "name": "VALUE",
+            "type": "choice"
+          },
+          "conflictsWith": [],
+          "default": "auto",
+          "long": "--pager",
+          "repeatable": false,
+          "required": false,
+          "requires": [],
+          "summary": "Page the text rendering when stdout is a terminal; never in a pipe, in JSON or under --non-interactive."
+        },
+        {
           "conflictsWith": [],
           "long": "--help",
           "repeatable": false,
@@ -767,7 +804,7 @@
             "properties": {
               "commands": {
                 "items": {
-                  "type": "object"
+                  "type": "string"
                 },
                 "type": "array"
               },
@@ -862,13 +899,6 @@
                 "options": [
                   "--prefix",
                   "--summary"
-                ]
-              },
-              {
-                "kind": "at-most-one",
-                "options": [
-                  "--prefix",
-                  "COMMAND_ID"
                 ]
               }
             ],
@@ -1740,6 +1770,50 @@
           "required": false,
           "requires": [],
           "summary": "Control ANSI colors on terminals."
+        },
+        {
+          "argument": {
+            "choices": [
+              "auto",
+              "always",
+              "never"
+            ],
+            "name": "VALUE",
+            "type": "choice"
+          },
+          "conflictsWith": [],
+          "default": "auto",
+          "long": "--progress",
+          "repeatable": false,
+          "required": false,
+          "requires": [],
+          "summary": "Show the progress of a long run on stderr in text mode: auto only when stderr is a terminal."
+        },
+        {
+          "conflictsWith": [],
+          "long": "--verbose",
+          "repeatable": false,
+          "required": false,
+          "requires": [],
+          "summary": "Add the details of the run on stderr in text mode; silent in JSON."
+        },
+        {
+          "argument": {
+            "choices": [
+              "auto",
+              "always",
+              "never"
+            ],
+            "name": "VALUE",
+            "type": "choice"
+          },
+          "conflictsWith": [],
+          "default": "auto",
+          "long": "--pager",
+          "repeatable": false,
+          "required": false,
+          "requires": [],
+          "summary": "Page the text rendering when stdout is a terminal; never in a pipe, in JSON or under --non-interactive."
         },
         {
           "conflictsWith": [],

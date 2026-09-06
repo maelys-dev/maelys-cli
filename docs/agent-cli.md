@@ -27,6 +27,12 @@ command by `id`; never replay a `PRECONDITION_FAILED` blindly; prefer
 
 ## What libmaelys_cli adds on top of the specification
 
+- The trunk options `--progress`, `--verbose` and `--pager` (spec 2.3) are
+  in `globalOptions`; they write nothing under `--format json` or `jsonl`,
+  so an agent's envelope stays alone on its stream, and a pager never
+  starts in a pipe. `argument.pattern` is enforced (`VALIDATION_FAILED`),
+  the summary form carries no catalog-wide member, and text records into a
+  pipe are tab-separated rows.
 - A hidden option (spec 2.2) is listed by `describe` with `hidden: true`,
   absent from `usage`, `help` and the completion, and accepted by the
   parser; `--trace` of `maelys-hello greet` is the example.

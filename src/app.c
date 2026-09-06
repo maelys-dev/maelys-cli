@@ -7,11 +7,16 @@
 
 #include <ctype.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <limits.h>
+#include <regex.h>
+#include <signal.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
 const char *maelys_cli_argv0 = NULL;
 
@@ -54,7 +59,7 @@ static const maelys_cli_option_t describe_options[] = {
 
 #define HELP_SCHEMA "{\"type\":\"object\",\"additionalProperties\":false," \
     "\"required\":[\"text\",\"commands\"],\"properties\":{\"text\":{\"type\":" \
-    "\"string\"},\"commands\":{\"type\":\"array\",\"items\":{\"type\":\"object\"}}}}"
+    "\"string\"},\"commands\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}}}}"
 #define VERSION_SCHEMA "{\"type\":\"object\",\"additionalProperties\":false," \
     "\"required\":[\"product\",\"program\",\"version\",\"contract\",\"cliApi\"," \
     "\"framework\"],\"properties\":{\"product\":{\"type\":\"string\"}," \
@@ -320,6 +325,19 @@ static int validate_command(
                 "kind that is not string or path.", id, option->name);
             return -1;
         }
+        if (option->pattern) {
+            regex_t compiled;
+            int compiled_result = maelys_cli_pattern_compile(option->pattern,
+                &compiled);
+            if (compiled_result == 0) regfree(&compiled);
+            else {
+                maelys_cli_error_set(error, MAELYS_CLI_CODE_UNEXPECTED, hint,
+                    "Catalog command '%s' option --%s declares a pattern that "
+                    "is not a valid extended regular expression.", id,
+                    option->name);
+                return -1;
+            }
+        }
         if (option->hidden && option->required) {
             maelys_cli_error_set(error, MAELYS_CLI_CODE_UNEXPECTED, hint,
                 "Catalog command '%s' option --%s is hidden and required; a "
@@ -563,11 +581,217 @@ int maelys_cli_replied(const maelys_cli_context_t *context) {
     return context ? context->replied : 0;
 }
 
+/* ---- trunk diagnostics (spec 2.3, section 5) ---------------------------- */
+
+int maelys_cli_verbose(const maelys_cli_context_t *context) {
+    return context && context->invocation && context->invocation->verbose &&
+        context->invocation->format == MAELYS_CLI_FORMAT_TEXT;
+}
+
+int maelys_cli_progress_wanted(const maelys_cli_context_t *context) {
+    if (!context || !context->invocation ||
+        context->invocation->format != MAELYS_CLI_FORMAT_TEXT)
+        return 0;
+    if (context->invocation->progress == MAELYS_CLI_ALWAYS) return 1;
+    return context->invocation->progress == MAELYS_CLI_AUTO &&
+        context->terminal.stderr_is_tty;
+}
+
+void maelys_cli_progress_done(maelys_cli_context_t *context) {
+    if (!context || !context->progress_shown) return;
+    FILE *err = context->err ? context->err : stderr;
+    (void)fputs("\r\033[K", err);
+    (void)fflush(err);
+    context->progress_shown = 0;
+}
+
+void maelys_cli_progress(maelys_cli_context_t *context, const char *format, ...) {
+    if (!format || !maelys_cli_progress_wanted(context)) return;
+    FILE *err = context->err ? context->err : stderr;
+    char message[MAELYS_CLI_MAX_ERROR_MESSAGE];
+    va_list arguments;
+    va_start(arguments, format);
+    (void)vsnprintf(message, sizeof(message), format, arguments);
+    va_end(arguments);
+    if (context->terminal.stderr_is_tty) {
+        /* Rewritten in place and erased by maelys_cli_progress_done(). */
+        (void)fputc('\r', err);
+        maelys_cli_fprint_terminal_safe(err, message);
+        (void)fputs("\033[K", err);
+        context->progress_shown = 1;
+    } else {
+        maelys_cli_fprint_terminal_safe(err, message);
+        (void)fputc('\n', err);
+    }
+    (void)fflush(err);
+}
+
+void maelys_cli_detail(maelys_cli_context_t *context, const char *format, ...) {
+    if (!format || !maelys_cli_verbose(context)) return;
+    maelys_cli_progress_done(context);
+    FILE *err = context->err ? context->err : stderr;
+    const char *program = context->app ? context->app->program : "maelys";
+    char message[MAELYS_CLI_MAX_ERROR_MESSAGE];
+    va_list arguments;
+    va_start(arguments, format);
+    (void)vsnprintf(message, sizeof(message), format, arguments);
+    va_end(arguments);
+    (void)fprintf(err, "%s: ", program);
+    maelys_cli_fprint_terminal_safe(err, message);
+    (void)fputc('\n', err);
+    (void)fflush(err);
+}
+
+/* ---- pager (spec 2.3, section 5) ---------------------------------------- */
+
+/* Splits PAGER with POSIX shell quoting and backslash rules, without any
+ * expansion. Returns the word count, or -1 on an unterminated quote. */
+static int split_posix_words(
+    const char *text, char *buffer, size_t buffer_size, char **words,
+    size_t max_words) {
+    size_t used = 0u;
+    int count = 0;
+    const char *cursor = text;
+    while (*cursor) {
+        while (*cursor == ' ' || *cursor == '\t' || *cursor == '\n') ++cursor;
+        if (!*cursor) break;
+        if ((size_t)count + 1u >= max_words) return -1;
+        words[count] = buffer + used;
+        int quote = 0;
+        for (; *cursor; ++cursor) {
+            char c = *cursor;
+            if (quote == '\'') {
+                if (c == '\'') { quote = 0; continue; }
+            } else if (quote == '"') {
+                if (c == '"') { quote = 0; continue; }
+                if (c == '\\' && cursor[1] && strchr("\"\\$`\n", cursor[1])) {
+                    c = *++cursor;
+                    if (c == '\n') continue;
+                }
+            } else {
+                if (c == ' ' || c == '\t' || c == '\n') break;
+                if (c == '\'' || c == '"') { quote = c; continue; }
+                if (c == '\\') {
+                    if (!cursor[1]) break;
+                    c = *++cursor;
+                    if (c == '\n') continue;
+                }
+            }
+            if (used + 2u >= buffer_size) return -1;
+            buffer[used++] = c;
+        }
+        if (quote) return -1;
+        buffer[used++] = '\0';
+        ++count;
+    }
+    words[count] = NULL;
+    return count;
+}
+
+static int pager_applies(const maelys_cli_context_t *context) {
+    const maelys_cli_invocation_t *invocation = context->invocation;
+    const maelys_cli_command_t *command = invocation->command;
+    if (invocation->format != MAELYS_CLI_FORMAT_TEXT) return 0;
+    if (invocation->non_interactive || invocation->pager == MAELYS_CLI_NEVER)
+        return 0;
+    if (!command || command->delegate || command->output == MAELYS_CLI_OUTPUT_STREAM)
+        return 0;
+    /* Only the process's own terminal stdout is paged, never a test stream. */
+    if (context->out != stdout || !context->terminal.stdout_is_tty) return 0;
+    return 1;
+}
+
+/* Starts the pager named by PAGER (or less with LESS=FRX) and routes the
+ * text rendering through it; on any failure the rendering stays on stdout.
+ * The pager is the one program this library resolves through PATH: it is
+ * the user's own choice, started only when stdout is that user's terminal. */
+static void start_pager(maelys_cli_context_t *context) {
+    const char *setting = getenv("PAGER");
+    char buffer[4096];
+    char *words[64];
+    if (setting) {
+        int count = split_posix_words(setting, buffer, sizeof(buffer), words,
+            sizeof(words) / sizeof(words[0]));
+        if (count <= 0) return; /* empty disables; malformed falls back */
+    } else {
+        words[0] = (char *)"less";
+        words[1] = NULL;
+    }
+    int data_pipe[2];
+    int error_pipe[2];
+    if (pipe(data_pipe) != 0) return;
+    if (pipe(error_pipe) != 0) {
+        (void)close(data_pipe[0]);
+        (void)close(data_pipe[1]);
+        return;
+    }
+    (void)fcntl(error_pipe[0], F_SETFD, FD_CLOEXEC);
+    (void)fcntl(error_pipe[1], F_SETFD, FD_CLOEXEC);
+    (void)fcntl(data_pipe[1], F_SETFD, FD_CLOEXEC);
+    (void)fflush(stdout);
+    pid_t child = fork();
+    if (child < 0) {
+        (void)close(data_pipe[0]);
+        (void)close(data_pipe[1]);
+        (void)close(error_pipe[0]);
+        (void)close(error_pipe[1]);
+        return;
+    }
+    if (child == 0) {
+        (void)close(error_pipe[0]);
+        if (dup2(data_pipe[0], STDIN_FILENO) < 0) _exit(127);
+        (void)close(data_pipe[0]);
+        if (!setting && !getenv("LESS")) (void)setenv("LESS", "FRX", 1);
+        execvp(words[0], words);
+        int saved = errno;
+        (void)!write(error_pipe[1], &saved, sizeof(saved));
+        _exit(127);
+    }
+    (void)close(data_pipe[0]);
+    (void)close(error_pipe[1]);
+    int failure = 0;
+    ssize_t amount;
+    do {
+        amount = read(error_pipe[0], &failure, sizeof(failure));
+    } while (amount < 0 && errno == EINTR);
+    (void)close(error_pipe[0]);
+    if (amount != 0) {
+        /* The pager could not start: reap it and render on stdout. */
+        (void)close(data_pipe[1]);
+        int status;
+        while (waitpid(child, &status, 0) < 0 && errno == EINTR) {}
+        return;
+    }
+    FILE *stream = fdopen(data_pipe[1], "w");
+    if (!stream) {
+        (void)close(data_pipe[1]);
+        int status;
+        while (waitpid(child, &status, 0) < 0 && errno == EINTR) {}
+        return;
+    }
+    context->pager_out = context->out;
+    context->out = stream;
+    context->pager_pid = (int)child;
+    (void)signal(SIGPIPE, SIG_IGN); /* a pager quit early ends the rendering */
+}
+
+static void finish_pager(maelys_cli_context_t *context) {
+    if (!context->pager_pid) return;
+    (void)fflush(context->out);
+    (void)fclose(context->out);
+    context->out = context->pager_out;
+    context->pager_out = NULL;
+    int status;
+    while (waitpid((pid_t)context->pager_pid, &status, 0) < 0 && errno == EINTR) {}
+    context->pager_pid = 0;
+    (void)signal(SIGPIPE, SIG_DFL);
+}
+
 /* ---- rendering --------------------------------------------------------- */
 
 static const char *command_id(const maelys_cli_context_t *context) {
     return context && context->invocation && context->invocation->command ?
-        context->invocation->command->id : "unresolved";
+        context->invocation->command->id : "unknown";
 }
 
 static int write_json_document(
@@ -732,6 +956,22 @@ static int emit_record_with(
         return -1;
     }
     context->record_count++;
+    if (context->invocation->format == MAELYS_CLI_FORMAT_TEXT) {
+        /* On a terminal the human line is shown as given; elsewhere, or
+         * without one, records are held for the tabular pipe form of
+         * spec 2.3 section 7, rendered by maelys_cli_finish_records(). */
+        int tty = context->pager_pid ? context->terminal.stdout_is_tty :
+            (context->out && fileno(context->out) >= 0 &&
+             isatty(fileno(context->out)));
+        if (tty && human_line) {
+            if (fputs(human_line, context->out) == EOF ||
+                (human_line[0] && human_line[strlen(human_line) - 1u] != '\n' &&
+                 fputc('\n', context->out) == EOF))
+                return -1;
+            return 0;
+        }
+        context->records_buffered = 1;
+    }
     switch (context->invocation->format) {
         case MAELYS_CLI_FORMAT_JSONL: {
             if (trusted) {
@@ -746,6 +986,7 @@ static int emit_record_with(
             free(compact);
             return failed ? -1 : 0;
         }
+        case MAELYS_CLI_FORMAT_TEXT:
         case MAELYS_CLI_FORMAT_JSON:
             if (context->record_count == 1u &&
                 maelys_cli_json_begin_array(&context->records) != 0)
@@ -766,17 +1007,182 @@ static int emit_record_with(
                 return -1;
             }
             return 0;
-        case MAELYS_CLI_FORMAT_TEXT:
-            if (human_line) {
-                if (fputs(human_line, context->out) == EOF ||
-                    (human_line[0] && human_line[strlen(human_line) - 1u] != '\n' &&
-                     fputc('\n', context->out) == EOF))
-                    return -1;
-                return 0;
-            }
-            return write_json_document(context, context->out, record_json);
     }
     return -1;
+}
+
+/* ---- text records, pipe form (spec 2.3, section 7) ---------------------- */
+
+typedef struct text_columns {
+    char **names;
+    size_t count;
+    size_t capacity;
+} text_columns_t;
+
+static int column_add(text_columns_t *columns, const char *name) {
+    for (size_t i = 0u; i < columns->count; ++i)
+        if (!strcmp(columns->names[i], name)) return 0;
+    if (columns->count == columns->capacity) {
+        size_t capacity = columns->capacity ? columns->capacity * 2u : 8u;
+        char **grown = realloc(columns->names, capacity * sizeof(*grown));
+        if (!grown) return -1;
+        columns->names = grown;
+        columns->capacity = capacity;
+    }
+    columns->names[columns->count] = strdup(name);
+    if (!columns->names[columns->count]) return -1;
+    columns->count++;
+    return 0;
+}
+
+static int compare_names(const void *left, const void *right) {
+    /* strcmp on UTF-8 orders by Unicode code point. */
+    return strcmp(*(char *const *)left, *(char *const *)right);
+}
+
+/* Visits the members of the object at text[offset]; callback receives the
+ * decoded key and the raw value span. Returns -1 on malformed input. */
+static int visit_members(
+    const char *text, size_t length, size_t offset,
+    int (*callback)(void *state, const char *key, const char *value, size_t value_length),
+    void *state) {
+    size_t cursor = offset;
+    if (cursor >= length || text[cursor] != '{') return -1;
+    ++cursor;
+    for (;;) {
+        while (cursor < length && (text[cursor] == ' ' || text[cursor] == '\n' ||
+               text[cursor] == '\r' || text[cursor] == '\t'))
+            ++cursor;
+        if (cursor >= length) return -1;
+        if (text[cursor] == '}') return 0;
+        if (text[cursor] == ',') { ++cursor; continue; }
+        if (text[cursor] != '"') return -1;
+        size_t key_end = maelys_cli_json_value_end(text, length, cursor);
+        if (key_end == 0u) return -1;
+        char *key = maelys_cli_json_string_decode(text, length, cursor);
+        if (!key) return -1;
+        cursor = key_end;
+        while (cursor < length && text[cursor] != ':') ++cursor;
+        if (cursor >= length) { free(key); return -1; }
+        ++cursor;
+        while (cursor < length && (text[cursor] == ' ' || text[cursor] == '\n' ||
+               text[cursor] == '\r' || text[cursor] == '\t'))
+            ++cursor;
+        size_t value_end = maelys_cli_json_value_end(text, length, cursor);
+        if (value_end == 0u) { free(key); return -1; }
+        int result = callback(state, key, text + cursor, value_end - cursor);
+        free(key);
+        if (result != 0) return -1;
+        cursor = value_end;
+    }
+}
+
+static int collect_column(void *state, const char *key, const char *value, size_t value_length) {
+    (void)value;
+    (void)value_length;
+    return column_add((text_columns_t *)state, key);
+}
+
+typedef struct row_state {
+    const text_columns_t *columns;
+    const char **values;
+    size_t *lengths;
+} row_state_t;
+
+static int collect_cell(void *state, const char *key, const char *value, size_t value_length) {
+    row_state_t *row = (row_state_t *)state;
+    for (size_t i = 0u; i < row->columns->count; ++i) {
+        if (!strcmp(row->columns->names[i], key)) {
+            row->values[i] = value;
+            row->lengths[i] = value_length;
+            return 0;
+        }
+    }
+    return 0;
+}
+
+static int write_cell(FILE *stream, const char *value, size_t value_length) {
+    if (!value) return 0;
+    if (value[0] == '"') {
+        char *decoded = maelys_cli_json_string_decode(value, value_length, 0u);
+        if (!decoded) return -1;
+        int failed = 0;
+        for (const unsigned char *p = (const unsigned char *)decoded; *p && !failed; ++p) {
+            if (*p == '\\') failed = fputs("\\\\", stream) == EOF;
+            else if (*p == '\t') failed = fputs("\\t", stream) == EOF;
+            else if (*p == '\r') failed = fputs("\\r", stream) == EOF;
+            else if (*p == '\n') failed = fputs("\\n", stream) == EOF;
+            else if (*p < 0x20u || *p == 0x7fu)
+                failed = fprintf(stream, "\\u%04x", (unsigned int)*p) < 0;
+            else failed = fputc(*p, stream) == EOF;
+        }
+        free(decoded);
+        return failed ? -1 : 0;
+    }
+    char *copy = malloc(value_length + 1u);
+    if (!copy) return -1;
+    memcpy(copy, value, value_length);
+    copy[value_length] = '\0';
+    char *compact = NULL;
+    int result = maelys_cli_json_format(copy, 1, &compact);
+    free(copy);
+    if (result != 0) return -1;
+    int failed = fputs(compact, stream) == EOF;
+    free(compact);
+    return failed ? -1 : 0;
+}
+
+/* Renders the buffered records as tab-separated rows: the columns are the
+ * union of the member names sorted by code point, a missing member is an
+ * empty field, strings are unquoted and escaped, other values compact JSON. */
+static int write_text_records(maelys_cli_context_t *context, const char *array) {
+    size_t length = strlen(array);
+    text_columns_t columns = {NULL, 0u, 0u};
+    int result = 0;
+    size_t cursor = 1u; /* after '[' */
+    /* First pass: the columns. */
+    for (;;) {
+        while (cursor < length && (array[cursor] == ' ' || array[cursor] == ',' ||
+               array[cursor] == '\n')) ++cursor;
+        if (cursor >= length || array[cursor] == ']') break;
+        if (array[cursor] != '{') { result = -1; break; }
+        size_t end = maelys_cli_json_value_end(array, length, cursor);
+        if (end == 0u || visit_members(array, length, cursor, collect_column, &columns) != 0) {
+            result = -1;
+            break;
+        }
+        cursor = end;
+    }
+    if (result == 0 && columns.count > 1u)
+        qsort(columns.names, columns.count, sizeof(*columns.names), compare_names);
+    /* Second pass: the rows. */
+    cursor = 1u;
+    const char **values = result == 0 && columns.count ? calloc(columns.count, sizeof(*values)) : NULL;
+    size_t *lengths = result == 0 && columns.count ? calloc(columns.count, sizeof(*lengths)) : NULL;
+    if (result == 0 && columns.count && (!values || !lengths)) result = -1;
+    while (result == 0) {
+        while (cursor < length && (array[cursor] == ' ' || array[cursor] == ',' ||
+               array[cursor] == '\n')) ++cursor;
+        if (cursor >= length || array[cursor] == ']') break;
+        size_t end = maelys_cli_json_value_end(array, length, cursor);
+        for (size_t i = 0u; values && lengths && i < columns.count; ++i) { values[i] = NULL; lengths[i] = 0u; }
+        row_state_t row = {&columns, values, lengths};
+        if (end == 0u || visit_members(array, length, cursor, collect_cell, &row) != 0) {
+            result = -1;
+            break;
+        }
+        for (size_t i = 0u; values && lengths && i < columns.count && result == 0; ++i) {
+            if (i && fputc('\t', context->out) == EOF) result = -1;
+            if (result == 0 && write_cell(context->out, values[i], lengths[i]) != 0) result = -1;
+        }
+        if (result == 0 && fputc('\n', context->out) == EOF) result = -1;
+        cursor = end;
+    }
+    free(values);
+    free(lengths);
+    for (size_t i = 0u; i < columns.count; ++i) free(columns.names[i]);
+    free(columns.names);
+    return result;
 }
 
 int maelys_cli_emit_record(
@@ -797,6 +1203,23 @@ int maelys_cli_finish_records(maelys_cli_context_t *context, int exit_code) {
         return maelys_cli_fail(context, MAELYS_CLI_CODE_UNEXPECTED,
             "Report this defect to the command implementation.",
             "Command '%s' emitted an invalid record.", command_id(context));
+    }
+    if (context->invocation->format == MAELYS_CLI_FORMAT_TEXT &&
+        context->records_buffered && context->record_count > 0u) {
+        if (maelys_cli_json_end_array(&context->records) != 0) {
+            maelys_cli_json_writer_clear(&context->records);
+            return MAELYS_CLI_EXIT_FAILURE;
+        }
+        char *array = maelys_cli_json_finish(&context->records);
+        if (!array) return MAELYS_CLI_EXIT_FAILURE;
+        int written = write_text_records(context, array);
+        free(array);
+        if (written != 0)
+            return maelys_cli_fail(context, MAELYS_CLI_CODE_UNEXPECTED,
+                "Report this defect to the command implementation.",
+                "Command '%s' emitted a record that is not an object.",
+                command_id(context));
+        return maelys_cli_succeed(context, "{}", "", exit_code);
     }
     if (context->invocation->format != MAELYS_CLI_FORMAT_JSON)
         return maelys_cli_succeed(context, "{}", "", exit_code);
@@ -827,6 +1250,7 @@ int maelys_cli_finish_records(maelys_cli_context_t *context, int exit_code) {
 static void emit_error(
     maelys_cli_context_t *context, const maelys_cli_error_t *error,
     int exit_code) {
+    maelys_cli_progress_done(context);
     FILE *err = context && context->err ? context->err : stderr;
     const char *program = context && context->app && context->app->program ?
         context->app->program : "maelys";
@@ -915,6 +1339,7 @@ int maelys_cli_fail_file(
 }
 
 void maelys_cli_warn(maelys_cli_context_t *context, const char *format, ...) {
+    maelys_cli_progress_done(context);
     FILE *err = context && context->err ? context->err : stderr;
     const char *program = context && context->app ? context->app->program : "maelys";
     int color = context ? context->terminal.color_stderr : 0;
@@ -1146,6 +1571,9 @@ static int describe_constraints(
         const char *targets[2] = {option->depends_on, option->conflicts_with};
         for (size_t k = 0u; k < 2u; ++k) {
             if (!targets[k]) continue;
+            /* A conflict with an operand stays in conflictsWith only: the
+             * entries of input.constraints name options. */
+            if (k == 1u && conflicts_with_operand(option)) continue;
             char first[MAELYS_CLI_MAX_OPTION_NAME + 2u];
             char second[MAELYS_CLI_MAX_OPTION_NAME + 2u];
             (void)snprintf(first, sizeof(first), "--%s", option->name);
@@ -1324,9 +1752,10 @@ static int describe_data(
     }
     if (maelys_cli_json_end_array(writer) != 0) return -1;
     if ((query || prefix) && matched == 0u) return 1;
-    /* A single descriptor and a filtered summary stay minimal: catalog-wide
-     * members are only emitted by the inventory forms. */
-    if (query || prefix) return maelys_cli_json_end_object(writer) == 0 ? 0 : -1;
+    /* A single descriptor and a summary stay minimal: the catalog-wide
+     * members belong to the catalog form alone (spec 2.3, section 1). */
+    if (query || prefix || summary)
+        return maelys_cli_json_end_object(writer) == 0 ? 0 : -1;
     if (maelys_cli_json_key(writer, "globalOptions") != 0 ||
         describe_global_options(writer) != 0)
         return -1;
@@ -1876,13 +2305,18 @@ static int help_for(
         maelys_cli_json_key_string(&writer, "text", text) == 0 &&
         maelys_cli_json_key(&writer, "commands") == 0 &&
         maelys_cli_json_begin_array(&writer) == 0;
+    /* `commands` lists identifiers (spec 2.3, section 6): the target's, or
+     * every visible command of the guide. */
     if (built) {
-        if (target) built = describe_command(&writer, target, 1) == 0;
+        if (target) built = maelys_cli_json_string(&writer, target->id) == 0;
         else {
             size_t count = maelys_cli_app_command_count(context->app);
-            for (size_t i = 0u; built && i < count; ++i)
-                built = describe_command(&writer,
-                    maelys_cli_app_command_at(context->app, i), 1) == 0;
+            for (size_t i = 0u; built && i < count; ++i) {
+                const maelys_cli_command_t *command =
+                    maelys_cli_app_command_at(context->app, i);
+                if (command->hidden) continue;
+                built = maelys_cli_json_string(&writer, command->id) == 0;
+            }
         }
     }
     built = built && maelys_cli_json_end_array(&writer) == 0 &&
@@ -2087,6 +2521,7 @@ int maelys_cli_run(
     if (!invocation.rendering_requested) apply_environment_format(&invocation);
     maelys_cli_terminal_detect(&context.terminal, invocation.color);
     const maelys_cli_command_t *command = invocation.command;
+    if (pager_applies(&context)) start_pager(&context);
     int result;
     if (invocation.help_requested && !command->delegate) {
         /* Command-level help renders through the help builtin's contract. */
@@ -2106,8 +2541,10 @@ int maelys_cli_run(
                 "Command '%s' finished without reporting a result.", command->id);
         }
     }
+    maelys_cli_progress_done(&context);
     maelys_cli_json_writer_clear(&context.records);
     (void)fflush(context.out);
+    finish_pager(&context);
     (void)fflush(context.err);
     return result;
 }

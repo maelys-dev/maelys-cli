@@ -76,6 +76,12 @@ option without argument. Explicit flags accept `true/false`, `yes/no`,
 `on/off` and `1/0`; any other value is refused, including on `--apply`.
 `cli.argument(name,
 kind, choices, minimum, maximum, algorithms, pattern)` declares the value.
+A `pattern` on a `string` or `path` argument is enforced (spec 2.3): the
+value must match it (`re.search`, as POSIX ERE searches), else
+`VALIDATION_FAILED`; `Program` refuses a pattern that does not compile.
+Write it in the common subset of ECMA-262 and POSIX ERE (no `(?:`, no
+`\d`, no lookaround) so the C parser reads the same motif.
+
 `hidden=True` on an option or a flag keeps it out of the synopsis, the help
 and the completion while `describe` lists it with `hidden: true` and the
 parser accepts it, as `.hidden` does in C; a hidden option is never
@@ -101,6 +107,24 @@ option spelling, support and duplication; value kind, range and choice;
 operand arity and kinds; rendering constraints. Inside the handler, raise
 `cli.Failure(code, message, hint)` with one of the eleven stable codes.
 
+## Diagnostics and paging
+
+The trunk options of spec 2.3 exist on every command: `--progress
+auto|always|never`, `--verbose` and `--pager auto|always|never`, listed in
+`globalOptions`, never repeatable. A handler reads `invocation.verbose`
+(true only in text mode) and `invocation.progress_wanted`, and writes with
+`invocation.detail(message)` (one `PROGRAM: message` line on stderr),
+`invocation.show_progress(message)` (transient on a terminal, erased by
+`invocation.progress_done()`); all three are silent under `--format json`
+or `jsonl`. `page_text(text, invocation)` sends the text rendering through
+the pager named by `PAGER` (`pager_command()`, POSIX quoting, no
+expansion, `less` with `LESS=FRX` when unset) when stdout is a terminal,
+`--pager` is not `never` and `--non-interactive` is absent; `main()` calls
+it, a pager never starts in a pipe, and a pager that cannot start leaves the
+text on stdout. `record_text(records)` is the tab-separated form of records
+(section 7 of the contract) used by text rendering of `json-records`
+commands, into a pipe as on a terminal.
+
 ## Rendering
 
 `--format json` renders the envelope on stdout; a failure is an envelope on
@@ -124,8 +148,10 @@ arguments of its constructor (`program`, `product`, `version`,
 the command keywords `operands=`, `options=`, `schema=`, `hidden=`,
 `unavailable=`, `synopsis=`, `protocol=`;
 `Invocation` with `operands`, `raw_operands`, `options`, `option()`,
-`flag()`, `apply`, `format`, `compact`, `non_interactive`, `program`;
-`Program.warn(message)`; `Failure`;
+`flag()`, `apply`, `format`, `compact`, `non_interactive`, `program`,
+`verbose`, `progress`, `pager`, `progress_wanted`, `detail()`,
+`show_progress()`, `progress_done()`; `Program.warn(message)`;
+`record_text`, `pager_command`, `page_text`; `Failure`;
 the file and error functions above; the `EXIT_*` and `FILE_*` constants.
 The rules are those of the C library: within the `0.5` line every change
 is additive (a new keyword with a default, a new function, a new

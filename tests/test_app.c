@@ -31,6 +31,7 @@ static const maelys_cli_option_t make_options[] = {
     {MAELYS_CLI_FLAG("strict", "Strict."), .depends_on = "git"},
     {MAELYS_CLI_FLAG("lenient", "Lenient."), .conflicts_with = "strict"},
     MAELYS_CLI_APPLY_OPTION,
+    {MAELYS_CLI_STRING("label", "TEXT", "Lowercase label."), .pattern = "^[a-z]+$"},
 };
 
 static int last_memory_present;
@@ -294,14 +295,16 @@ static int test_describe(void) {
     CHECK(result.code == 1 && !result.out[0] && strstr(result.err, "\"code\":\"INVALID_COMMAND\""));
     release(&result);
     result = RUNV("describe", "--summary", "--prefix", "Thing.");
-    CHECK(expect_failure(&result, "[VALIDATION_FAILED]", "Invalid command prefix"));
+    CHECK(expect_failure(&result, "[VALIDATION_FAILED]", "Option --prefix expects a value matching"));
     result = RUNV("describe", "--prefix", "thing");
     CHECK(expect_failure(&result, "[VALIDATION_FAILED]", "--prefix requires --summary"));
     result = RUNV("describe", "thing.make", "--summary", "--prefix", "thing");
     CHECK(expect_failure(&result, "[VALIDATION_FAILED]", "--prefix conflicts with operand COMMAND_ID"));
     result = RUNV("describe", "describe", "--json", "--compact");
     CHECK(result.code == 0 && strstr(result.out, "\"long\":\"--prefix\"") && strstr(result.out, "\"conflictsWith\":[\"COMMAND_ID\"]"));
-    CHECK(strstr(result.out, "\"kind\":\"at-most-one\",\"options\":[\"--prefix\",\"COMMAND_ID\"]"));
+    /* An operand conflict stays in conflictsWith; input.constraints names options only (spec 2.3 kit). */
+    CHECK(strstr(result.out, "\"conflictsWith\":[\"COMMAND_ID\"]"));
+    CHECK(!strstr(result.out, "\"options\":[\"--prefix\",\"COMMAND_ID\"]"));
     CHECK(strstr(result.out, "\"pattern\":\"^[a-z](?:[a-z0-9.-]*[a-z0-9-])?$\""));
     release(&result);
     result = RUNV("describe", "thing.make", "--json", "--compact");
@@ -448,8 +451,41 @@ static int test_stream_records_and_codes(void) {
     result = RUNV("records", "--json", "--compact");
     CHECK(result.code == 0 && strstr(result.out, "\"data\":{\"count\":2,\"records\":[{\"i\":0},{\"i\":1}]}"));
     release(&result);
+    /* Text records into a pipe: the tabular form of spec 2.3 section 7, the
+     * human line being reserved for a terminal. */
     result = RUNV("records");
-    CHECK(result.code == 0 && strcmp(result.out, "zero\none\n") == 0);
+    CHECK(result.code == 0 && strcmp(result.out, "0\n1\n") == 0 && !result.err[0]);
+    release(&result);
+    /* Trunk diagnostics: silent in JSON, stdout unchanged in text, never a
+     * failure rendering; duplicates and invalid choices refused. */
+    result = RUNV("version", "--verbose", "--progress", "always", "--json", "--compact");
+    CHECK(result.code == 0 && !result.err[0] && strstr(result.out, "\"ok\":true"));
+    release(&result);
+    result = RUNV("version", "--verbose", "--progress", "always", "--pager", "always");
+    CHECK(result.code == 0 && strcmp(result.out, "prog 9.9.9\n") == 0 && !strstr(result.err, "prog: ["));
+    release(&result);
+    result = RUNV("version", "--verbose=false", "--progress=never", "--pager=never");
+    CHECK(result.code == 0 && strcmp(result.out, "prog 9.9.9\n") == 0 && !result.err[0]);
+    release(&result);
+    result = RUNV("version", "--verbose", "--verbose");
+    CHECK(expect_failure(&result, "[VALIDATION_FAILED]", "may be supplied only once"));
+    result = RUNV("version", "--pager=sometimes");
+    CHECK(expect_failure(&result, "[VALIDATION_FAILED]", "Option --pager expects one of"));
+    result = RUNV("exec", "hello", "--pager", "never");
+    CHECK(expect_failure(&result, "[VALIDATION_FAILED]", "does not support CLI output rendering"));
+    /* --progress and --verbose are not rendering options: a stream accepts them. */
+    result = RUNV("exec", "--verbose", "--progress", "never", "hello");
+    CHECK(result.code == 7 && strcmp(result.out, "1\n") == 0); /* the stream ran */
+    release(&result);
+    /* A declared pattern is enforced, in the ERE dialect. */
+    result = RUNV("thing", "make", "/root", "name", "--label", "OK");
+    CHECK(expect_failure(&result, "[VALIDATION_FAILED]", "Option --label expects a value matching ^[a-z]+$"));
+    result = RUNV("thing", "make", "/root", "name", "--label", "ok", "--json", "--compact");
+    CHECK(result.code == 0 && strstr(result.out, "\"ok\":true"));
+    release(&result);
+    /* The summary carries none of the catalog-wide members. */
+    result = RUNV("describe", "--summary", "--json", "--compact");
+    CHECK(result.code == 0 && !strstr(result.out, "globalOptions") && !strstr(result.out, "\"invariants\""));
     release(&result);
     result = RUNV("report", "--json", "--compact");
     CHECK(result.code == 2 && strstr(result.out, "\"ok\":true,\"exitCode\":2,\"data\":{\"valid\":false}"));

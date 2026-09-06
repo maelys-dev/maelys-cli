@@ -73,6 +73,19 @@ The envelope, `describe` shape, error codes and exit codes are preserved, so
 The only visible additions are `external`, `hidden`, `passthrough`,
 `framework` and `cliApi` in `describe`, and richer `argument` metadata.
 
+## Every consumer, at agent-cli-spec 2.3.0 (maelys-cli 0.5.18)
+
+- `.pattern` is now enforced by the parser: a product that declared a
+  pattern as documentation must make sure its values match, and rewrite
+  any `(?:` group, `\d` class or lookaround into the common subset of
+  ECMA-262 and POSIX ERE.
+- Text records into a pipe are tab-separated rows; a test that compared the
+  `human_line` of `maelys_cli_emit_record()` in a pipe compares the rows
+  now (the human line is shown on a terminal only). `jsonl` is unchanged.
+- `--progress`, `--verbose` and `--pager` exist on every command; a product
+  option with one of these spellings must have the trunk's shape and
+  meaning, or be renamed.
+
 ## Egress (`cli/catalog.c` and `cli/maelys-egress.c`)
 
 Egress reads its configuration and its secrets: since 0.5.11 both go through

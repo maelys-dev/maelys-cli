@@ -1,5 +1,30 @@
 # Changelog
 
+## Unreleased
+
+- agent-cli-spec pinned at v2.3.0. The trunk options `--progress
+  auto|always|never`, `--verbose` and `--pager auto|always|never` exist on
+  every command and in `globalOptions`: diagnostics on stderr in text mode
+  only (`maelys_cli_verbose()`, `maelys_cli_detail()`,
+  `maelys_cli_progress_wanted()`, `maelys_cli_progress()`,
+  `maelys_cli_progress_done()`), silent under `--format json` or `jsonl`;
+  the text rendering goes through `PAGER` (POSIX quoting, no shell) or
+  `less` with `LESS=FRX` when stdout is a terminal, never in a pipe, in
+  JSON or under `--non-interactive`; `--pager` is a rendering option that a
+  protocol stream refuses.
+- `.pattern` is enforced by the parser as POSIX ERE (`VALIDATION_FAILED`),
+  and a pattern that does not compile is refused at startup; the built-in
+  `--prefix` grammar is written without `(?:`. Text records into a pipe are
+  tab-separated rows (union of member names sorted by code point, strings
+  unquoted and escaped, other values compact JSON); the human line is shown
+  on a terminal only. `describe --summary` no longer carries
+  `globalOptions`, `invariants` and `output`.
+- `python/maelys_cli.py`: the same trunk options, `Invocation.verbose`,
+  `progress`, `pager`, `progress_wanted`, `detail()`, `show_progress()`,
+  `progress_done()`, `record_text()`, `pager_command()`, `page_text()`;
+  `pattern` enforced with `re.search`; `Program` refuses an invalid
+  pattern.
+
 ## 0.5.17 - 2026-09-06
 
 - Security: trusted executables now require an absolute shebang interpreter

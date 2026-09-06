@@ -57,6 +57,10 @@ typedef struct maelys_cli_context {
     size_t record_count;
     int records_failed;
     int replied;
+    int records_buffered;    /* text records held for the tabular form */
+    int progress_shown;      /* a transient progress line is on stderr */
+    int pager_pid;           /* the pager child, or 0 */
+    FILE *pager_out;         /* stdout of the process while paging */
 } maelys_cli_context_t;
 
 /* Process entry point: returns the exit code. Uses stdout and stderr. */
@@ -107,6 +111,30 @@ const char *maelys_cli_option_at(
     const maelys_cli_context_t *context, const char *name, size_t occurrence);
 int maelys_cli_json_mode(const maelys_cli_context_t *context);
 int maelys_cli_non_interactive(const maelys_cli_context_t *context);
+
+/* Trunk diagnostics of spec 2.3, on stderr, in text mode only; both write
+ * nothing under --format json or jsonl so the envelope stays alone. */
+/* True when --verbose is active in text mode. */
+int maelys_cli_verbose(const maelys_cli_context_t *context);
+/* One detail line, `PROGRAM: message`, when maelys_cli_verbose(); never a
+ * failure rendering (`PROGRAM: [`). */
+void maelys_cli_detail(maelys_cli_context_t *context, const char *format, ...)
+#if defined(__GNUC__) || defined(__clang__)
+    __attribute__((format(printf, 2, 3)))
+#endif
+    ;
+/* True when progress may be shown: text mode and --progress always, or auto
+ * with stderr a terminal. */
+int maelys_cli_progress_wanted(const maelys_cli_context_t *context);
+/* Transient progress: on a terminal the line is rewritten in place and
+ * erased by maelys_cli_progress_done(); on another stderr (--progress
+ * always) each call is one line. Nothing when progress is not wanted. */
+void maelys_cli_progress(maelys_cli_context_t *context, const char *format, ...)
+#if defined(__GNUC__) || defined(__clang__)
+    __attribute__((format(printf, 2, 3)))
+#endif
+    ;
+void maelys_cli_progress_done(maelys_cli_context_t *context);
 
 /* 1 once a reply (success, records or failure) has been emitted. Helpers
  * that may reply return the exit code; callers test this before replying

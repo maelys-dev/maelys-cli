@@ -22,6 +22,11 @@ starts external programs on behalf of a product CLI. Its security claims are:
   judged on the descriptor that is read (`maelys_cli_read_trusted_file`), so
   no link, replacement, growth or FIFO between a check and a read changes
   what is trusted, and a secret buffer is zeroed on failure;
+- the only program resolved through `PATH` is the pager of `--pager`, the
+  user's own `PAGER` (or `less`), started only when stdout is that user's
+  terminal, never in a pipe, in JSON or under `--non-interactive`, split
+  with POSIX quoting and no shell; it receives the rendering on its stdin
+  and nothing else;
 - external programs are started from absolute paths that must be regular,
   owned by root or the caller and not writable by group or world, through
   `execve` without a shell or PATH lookup. The checked executable and its

@@ -45,9 +45,15 @@ UPPER_CASE placeholder, as `--prefix` conflicts with `COMMAND_ID`), and
 `group` and `input.constraints` entries of kind `requires`, `at-most-one`
 and `all-or-none`.
 
-`.pattern` documents, as `argument.pattern`, the regular expression a
-string or path option must match; the framework exposes it and the handler
-enforces it (no regex engine runs in the parser).
+`.pattern` is, as `argument.pattern`, the regular expression a string or
+path value must match (spec 2.3): the parser enforces it with POSIX ERE
+(`regcomp`, `REG_EXTENDED`) and refuses a mismatch with `VALIDATION_FAILED`;
+the catalog validation refuses a pattern that does not compile. Write
+patterns in the common subset of ECMA-262 and POSIX ERE: literals, bracket
+classes and ranges, `.`, `*`, `+`, `?`, `{m,n}`, alternation, plain
+`( )` groups, `^` and `$`; no `(?:`, no `\d`, no lookaround, no
+back-reference, so that an agent, the kit, the C parser and the Python
+module read the same motif.
 
 `.hidden` on an option (spec 2.2) marks a diagnostic or trial option that
 humans are not offered: the parser accepts it and applies its constraints,
@@ -102,6 +108,28 @@ option parsing; delegate commands receive every argument after their pattern
 verbatim, including `--help`. A delegate script names its interpreter directly
 with an absolute shebang; relative interpreters and interpreters named `env`
 are refused because they perform implicit current-directory or `PATH` lookup.
+
+The trunk options of spec 2.3 exist on every command without a declaration
+and appear in `globalOptions`: `--progress auto|always|never` (progress of
+a long run on stderr, in text mode, `auto` only when stderr is a terminal),
+`--verbose` (details on stderr, text mode, one `PROGRAM: ` line each) and
+`--pager auto|always|never` (the text rendering through the user's pager
+when stdout is a terminal; never in a pipe, in JSON or JSONL, or under
+`--non-interactive`). None is repeatable; `--flag=false` disables a flag.
+`--pager` is a rendering option, refused by a `protocol-stream` command;
+`--progress` and `--verbose` are not, a stream accepts them and a delegate
+receives all three verbatim. Under `--format json` or `jsonl` the three are
+accepted and write nothing. The pager is `PAGER`, split with POSIX quoting
+and no expansion (empty disables it), or `less` with `LESS=FRX`; a pager
+that cannot start leaves the rendering on stdout.
+
+Text records into a pipe render one tab-separated row per record (spec 2.3,
+section 7): the columns are the union of the records' member names sorted
+by code point, a missing member is an empty field, a string is unquoted
+with `\\`, `\t`, `\r`, `\n` and `\uXXXX` escapes, every other value is
+compact JSON. On a terminal the `human_line` given to
+`maelys_cli_emit_record()` is shown instead when there is one. The stable
+machine form stays `jsonl`.
 
 `--dry-run` and `--plan` are refused, with the migration hint, only on
 commands that declare `--apply`; a product without transactions is not
