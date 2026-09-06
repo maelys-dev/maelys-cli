@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.18 - 2026-09-06
 
 - agent-cli-spec pinned at v2.3.0. The trunk options `--progress
   auto|always|never`, `--verbose` and `--pager auto|always|never` exist on
