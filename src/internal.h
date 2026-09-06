@@ -27,8 +27,8 @@ void maelys_cli_fprint_terminal_safe(FILE *stream, const char *text);
 int maelys_cli_text_is_terminal_safe(const char *text);
 
 /* Compiles an argument.pattern as POSIX ERE. The motif is written in the
- * common subset of ECMA-262 and ERE; the one ECMA spelling the contract's
- * own grammar uses, the non-capturing group `(?:`, is rewritten to `(`,
+ * common subset of ECMA-262 and ERE (spec 2.3.1 excludes `(?:`); a product
+ * that still writes the non-capturing group `(?:` gets it rewritten to `(`,
  * which means the same. Returns 0, or -1 when the pattern does not compile. */
 int maelys_cli_pattern_compile(const char *pattern, void *out_regex);
 

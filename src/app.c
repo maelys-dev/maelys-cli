@@ -54,7 +54,7 @@ static const maelys_cli_option_t describe_options[] = {
      "Restrict the summary to one command namespace: the command named "
      "PREFIX and every command whose identifier starts with PREFIX followed "
      "by a dot."), .depends_on = "summary", .conflicts_with = "COMMAND_ID",
-     .pattern = "^[a-z](?:[a-z0-9.-]*[a-z0-9-])?$"},
+     .pattern = "^[a-z]([a-z0-9.-]*[a-z0-9-])?$"},
 };
 
 #define HELP_SCHEMA "{\"type\":\"object\",\"additionalProperties\":false," \

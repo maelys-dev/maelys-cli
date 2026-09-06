@@ -17,7 +17,7 @@ permissions:
 
 jobs:
   check:
-    uses: maelys-dev/maelys-release/.github/workflows/check-product.yml@1749a35778ed441a7f2b53cc2de0dbc51fb9708c # v0.14.2
+    uses: maelys-dev/maelys-release/.github/workflows/check-product.yml@d1e44d269087e1d516df0f9ecb5ca527239f34de # v0.15.1
     with:
       product: maelys-cli
       dependency_checkout: |
@@ -30,7 +30,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runner: [ubuntu-24.04, ubuntu-24.04-arm, macos-15]
+        runner: [ubuntu-26.04, ubuntu-26.04-arm, macos-15]
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
@@ -45,7 +45,8 @@ jobs:
         run: make analyze
 
   # The Python framework declares Python 3.9 or later; its tests run on the
-  # oldest supported interpreter here, the newest in the check job.
+  # oldest supported interpreter here, the newest in the check job. This job
+  # stays on Ubuntu 24.04: setup-python has no 3.9 build for 26.04.
   python:
     runs-on: ubuntu-24.04
     steps:
@@ -57,7 +58,7 @@ jobs:
         run: make python-check python-doc-check
 
   gcc:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - name: Pinned dependency checkouts

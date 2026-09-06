@@ -305,7 +305,7 @@ static int test_describe(void) {
     /* An operand conflict stays in conflictsWith; input.constraints names options only (spec 2.3 kit). */
     CHECK(strstr(result.out, "\"conflictsWith\":[\"COMMAND_ID\"]"));
     CHECK(!strstr(result.out, "\"options\":[\"--prefix\",\"COMMAND_ID\"]"));
-    CHECK(strstr(result.out, "\"pattern\":\"^[a-z](?:[a-z0-9.-]*[a-z0-9-])?$\""));
+    CHECK(strstr(result.out, "\"pattern\":\"^[a-z]([a-z0-9.-]*[a-z0-9-])?$\""));
     release(&result);
     result = RUNV("describe", "thing.make", "--json", "--compact");
     CHECK(result.code == 0 && strstr(result.out, "\"kind\":\"command\""));
