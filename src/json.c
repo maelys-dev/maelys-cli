@@ -1,8 +1,10 @@
 #include "maelys/cli/json.h"
+#include "internal.h"
 
 #include <errno.h>
 #include <inttypes.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -475,6 +477,84 @@ static int scan_document(scanner_t *scanner) {
     if (scan_value(scanner) != 0) return -1;
     skip_space(scanner);
     return scanner->offset == scanner->length ? 0 : -1;
+}
+
+/* Internal (internal.h): the end offset of the value that starts at or after
+ * `offset` (leading whitespace skipped), or 0 on malformed input. */
+size_t maelys_cli_json_value_end(const char *text, size_t length, size_t offset) {
+    if (!text || offset >= length) return 0u;
+    scanner_t scanner = {text, length, offset, 0u, NULL, 1};
+    if (scan_value(&scanner) != 0) return 0u;
+    return scanner.offset;
+}
+
+/* Internal: decodes the JSON string that starts at text[offset] (a quote)
+ * into a malloc'd UTF-8 buffer; returns NULL on malformed input. Escapes
+ * become their characters; surrogate pairs are combined. */
+char *maelys_cli_json_string_decode(const char *text, size_t length, size_t offset) {
+    if (!text || offset >= length || text[offset] != '"') return NULL;
+    size_t end = maelys_cli_json_value_end(text, length, offset);
+    if (end == 0u) return NULL;
+    char *out = malloc(end - offset);
+    if (!out) return NULL;
+    size_t used = 0u;
+    for (size_t i = offset + 1u; i + 1u < end;) {
+        unsigned char c = (unsigned char)text[i];
+        if (c != '\\') {
+            out[used++] = (char)c;
+            ++i;
+            continue;
+        }
+        char escape = text[i + 1u];
+        i += 2u;
+        if (escape == 'u') {
+            uint32_t code = 0u;
+            for (size_t h = 0u; h < 4u; ++h) {
+                char d = text[i + h];
+                code = code * 16u + (uint32_t)(d >= 'a' ? d - 'a' + 10 :
+                    d >= 'A' ? d - 'A' + 10 : d - '0');
+            }
+            i += 4u;
+            if (code >= 0xd800u && code <= 0xdbffu && i + 6u <= end &&
+                text[i] == '\\' && text[i + 1u] == 'u') {
+                uint32_t low = 0u;
+                for (size_t h = 0u; h < 4u; ++h) {
+                    char d = text[i + 2u + h];
+                    low = low * 16u + (uint32_t)(d >= 'a' ? d - 'a' + 10 :
+                        d >= 'A' ? d - 'A' + 10 : d - '0');
+                }
+                if (low >= 0xdc00u && low <= 0xdfffu) {
+                    code = 0x10000u + ((code - 0xd800u) << 10u) + (low - 0xdc00u);
+                    i += 6u;
+                }
+            }
+            if (code < 0x80u) out[used++] = (char)code;
+            else if (code < 0x800u) {
+                out[used++] = (char)(0xc0u | (code >> 6u));
+                out[used++] = (char)(0x80u | (code & 0x3fu));
+            } else if (code < 0x10000u) {
+                out[used++] = (char)(0xe0u | (code >> 12u));
+                out[used++] = (char)(0x80u | ((code >> 6u) & 0x3fu));
+                out[used++] = (char)(0x80u | (code & 0x3fu));
+            } else {
+                out[used++] = (char)(0xf0u | (code >> 18u));
+                out[used++] = (char)(0x80u | ((code >> 12u) & 0x3fu));
+                out[used++] = (char)(0x80u | ((code >> 6u) & 0x3fu));
+                out[used++] = (char)(0x80u | (code & 0x3fu));
+            }
+            continue;
+        }
+        switch (escape) {
+            case 'b': out[used++] = '\b'; break;
+            case 'f': out[used++] = '\f'; break;
+            case 'n': out[used++] = '\n'; break;
+            case 'r': out[used++] = '\r'; break;
+            case 't': out[used++] = '\t'; break;
+            default: out[used++] = escape; break;
+        }
+    }
+    out[used] = '\0';
+    return out;
 }
 
 int maelys_cli_json_validate(

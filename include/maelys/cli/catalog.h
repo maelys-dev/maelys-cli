@@ -85,10 +85,12 @@ typedef struct maelys_cli_option {
                                        group name are given together or not
                                        at all */
     const char *pattern;            /* STRING/PATH: regular expression the
-                                       value must match, exposed as
-                                       argument.pattern in describe; the
-                                       handler enforces it (the framework
-                                       does not run a regex engine) */
+                                       value must match (VALIDATION_FAILED
+                                       otherwise), exposed as argument.pattern
+                                       in describe. Written in the common
+                                       subset of ECMA-262 and POSIX ERE (spec
+                                       2.3); compiled with regcomp() at
+                                       startup and applied by the parser */
     int hidden;                     /* not shown to humans: absent from the
                                        derived synopsis, help and completion;
                                        parsed, constrained and listed by

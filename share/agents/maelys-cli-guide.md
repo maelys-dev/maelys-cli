@@ -148,8 +148,10 @@ Option attributes added after a macro: `.required`, `.repeatable`,
 `.depends_on` (one option), `.depends_on_all` (NULL-terminated list of
 options that must all be present), `.conflicts_with` (an option, or an
 operand named by its UPPER_CASE placeholder), `.pattern` (a regular
-expression documented as `argument.pattern` for a string or path option;
-the handler enforces it), `.group` (all-or-none:
+expression documented as `argument.pattern` for a string or path option
+and enforced by the parser as POSIX ERE, `VALIDATION_FAILED` on a mismatch,
+refused at startup when it does not compile; write it in the common subset
+of ECMA-262 and ERE, no `(?:`), `.group` (all-or-none:
 the options sharing a group name are given together or not at all),
 `.hidden` (a hidden option: parsed and constrained like any other, listed
 by `describe` with `hidden: true`, absent from the derived synopsis, the
@@ -286,7 +288,14 @@ Handler rules:
   MAELYS_CLI_FILE_NO_SYMLINK | MAELYS_CLI_FILE_SINGLE_LINK` and
   `maelys_cli_zero()` before `free()`;
 - use the error code of the boundary that actually failed;
-- never write to stdout directly; use `maelys_cli_warn()` for stderr notes;
+- never write to stdout directly; use `maelys_cli_warn()` for stderr notes,
+  `maelys_cli_detail()` for the details a human asked for with `--verbose`
+  and `maelys_cli_progress()` / `maelys_cli_progress_done()` for the
+  transient progress of a long run (`--progress`): all on stderr, all silent
+  in JSON, decided by `maelys_cli_verbose()` and
+  `maelys_cli_progress_wanted()`; the trunk options `--progress`,
+  `--verbose` and `--pager` exist on every command without a declaration,
+  and text goes through the user's pager on a terminal without any code;
 - name every write policy: `MAELYS_CLI_WRITE_REPLACE` or
   `MAELYS_CLI_WRITE_NO_REPLACE`;
 - start external programs with `maelys_cli_process_run()` or

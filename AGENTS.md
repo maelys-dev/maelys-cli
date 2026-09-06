@@ -62,7 +62,9 @@ or licensed text into the agent texts. See `LICENSING.md`.
   the C library is the reference: same declaration vocabulary, same causal
   order of refusals, same `describe` shape, same errno-to-code table, same
   file primitives with the same requirements and explanations, same
-  `MAELYS_CLI_FORMAT` values, `argument.pattern` informative in both. A
+  `MAELYS_CLI_FORMAT` values, `argument.pattern` enforced in both (POSIX
+  ERE in C, `re.search` in Python, patterns written in the common subset of
+  ECMA-262 and ERE), same trunk diagnostics and pager rules. A
   behavior that exists in one and not the other is a defect. It is held by
   `python/tests/test_maelys_cli.py`, by the conformance kit on
   `python/examples/hello.py` and by `scripts/python-doc-check.sh`

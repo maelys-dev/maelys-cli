@@ -24,6 +24,9 @@ def greet(invocation: cli.Invocation):
     times = invocation.option("--times")
     if invocation.flag("--trace"):
         invocation.program.warn(f"greet: name={name} times={times} shout={invocation.flag('--shout')}")
+    invocation.detail(f"greeting {name} {times} time(s)")
+    invocation.show_progress(f"greeting {name}")
+    invocation.progress_done()
     greeting = f"Hello, {name}!"
     if invocation.flag("--shout"):
         greeting = greeting.upper()

@@ -119,8 +119,9 @@ class Contract(unittest.TestCase):
     def test_records_render_as_jsonl_and_text(self) -> None:
         code, out, _ = run("list", "--limit", "2", "--format", "jsonl")
         self.assertEqual([json.loads(line)["name"] for line in out.splitlines()], ["alpha", "beta"])
-        code, out, _ = run("list", "--limit", "1")
-        self.assertEqual(out, '{"name":"alpha","size":1}\n')
+        code, out, _ = run("list", "--limit", "2")
+        self.assertEqual(out, "alpha\t1\nbeta\t2\n")
+        self.assertEqual(cli.record_text([{"b": "x\ty", "a": None}, {"c": [1, "2"]}]), 'null\tx\\ty\t\n\t\t[1,"2"]\n')
 
     def test_describe_forms(self) -> None:
         code, out, _ = run("describe", "--json")
@@ -170,11 +171,18 @@ class Contract(unittest.TestCase):
         code, out, err = run("greet", env={"MAELYS_CLI_FORMAT": "json"})
         self.assertEqual(json.loads(err)["error"]["code"], "VALIDATION_FAILED")
 
-    def test_pattern_is_informative_and_prefix_is_validated(self) -> None:
+    def test_pattern_is_enforced_and_prefix_is_validated(self) -> None:
         program = cli.Program("p", "P", "1", [cli.read("tag", "tag", "x", lambda i: ({"v": i.option("--name")}, 0),
                                                    options=[cli.option("--name", "n", cli.argument("NAME", "string", pattern="^[a-z]+$"))])])
-        invocation, _ = program.parse(["tag", "--name", "NOT-matching"])
-        self.assertEqual(invocation.option("--name"), "NOT-matching")
+        invocation, _ = program.parse(["tag", "--name", "matching"])
+        self.assertEqual(invocation.option("--name"), "matching")
+        with self.assertRaises(cli.Failure) as caught:
+            program.parse(["tag", "--name", "NOT-matching"])
+        self.assertEqual(caught.exception.code, "VALIDATION_FAILED")
+        self.assertIn("a value matching ^[a-z]+$", caught.exception.message)
+        with self.assertRaises(ValueError):
+            cli.Program("p", "P", "1", [cli.read("t", "t", "x", lambda i: ({}, 0),
+                                              options=[cli.option("--n", "n", cli.argument("N", "string", pattern="^([a-z]+$"))])])
         code, out, _ = run("describe", "describe", "--json")
         prefix = next(o for o in json.loads(out)["data"]["commands"][0]["input"]["options"] if o["long"] == "--prefix")
         self.assertEqual(prefix["argument"]["pattern"], cli.PREFIX_GRAMMAR.pattern)
@@ -183,6 +191,48 @@ class Contract(unittest.TestCase):
         code, error = failure("describe", "--summary", "--prefix", "")
         self.assertEqual(error["code"], "VALIDATION_FAILED")
         self.assertEqual(failure("describe", "--summary", "--prefix", "zzz")[1]["message"], "No command in namespace: zzz.")
+
+    def test_trunk_diagnostics_and_pager(self) -> None:
+        code, out, err = run("version", "--verbose", "--progress", "always", "--pager", "always", "--json", "--compact")
+        self.assertEqual((code, err), (0, ""))
+        self.assertTrue(json.loads(out)["ok"])
+        _, plain, _ = run("greet", "Ada")
+        code, out, err = run("greet", "Ada", "--verbose", "--progress", "always")
+        self.assertEqual((code, out), (0, plain))
+        self.assertIn("maelys-hello-py: greeting Ada 1 time(s)\n", err)
+        self.assertFalse(any(line.startswith("maelys-hello-py: [") for line in err.splitlines()))
+        code, out, err = run("greet", "Ada", "--verbose=false", "--progress=never", "--pager=never")
+        self.assertEqual((code, out, err), (0, plain, ""))
+        self.assertEqual(failure("version", "--verbose", "--verbose")[1]["code"], "VALIDATION_FAILED")
+        self.assertEqual(failure("version", "--pager=sometimes")[1]["code"], "VALIDATION_FAILED")
+        code, out, _ = run("describe", "--json")
+        longs = [o["long"] for o in json.loads(out)["data"]["globalOptions"]]
+        self.assertEqual(longs[-4:], ["--progress", "--verbose", "--pager", "--help"])
+        code, out, _ = run("describe", "--summary", "--json")
+        self.assertNotIn("globalOptions", json.loads(out)["data"])
+        # No pager in a pipe, whatever PAGER names.
+        with tempfile.TemporaryDirectory() as directory:
+            marker = os.path.join(directory, "started")
+            code, out, err = run("version", "--pager", "always",
+                                 env={"PAGER": f"sh -c 'touch {marker}; cat'"})
+            self.assertEqual((code, out, err), (0, "maelys-hello-py 0.1.0\n", ""))
+            self.assertFalse(os.path.exists(marker))
+        self.assertEqual(cli.pager_command.__name__, "pager_command")
+        saved = os.environ.get("PAGER")
+        try:
+            os.environ["PAGER"] = "  "
+            self.assertIsNone(cli.pager_command())
+            os.environ["PAGER"] = "less -R 'a b'"
+            self.assertEqual(cli.pager_command(), ["less", "-R", "a b"])
+            os.environ["PAGER"] = "less 'unterminated"
+            self.assertIsNone(cli.pager_command())
+            os.environ.pop("PAGER")
+            self.assertEqual(cli.pager_command(), ["less"])
+        finally:
+            if saved is None:
+                os.environ.pop("PAGER", None)
+            else:
+                os.environ["PAGER"] = saved
 
     def test_format_environment_ignores_unknown_values(self) -> None:
         code, out, err = run("greet", env={"MAELYS_CLI_FORMAT": "xml"})

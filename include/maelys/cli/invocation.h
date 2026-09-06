@@ -75,7 +75,22 @@ typedef struct maelys_cli_invocation {
     int help_requested;
     int rendering_requested; /* any --format/--json/--compact/--pretty */
     int pattern_words;       /* argv entries consumed by the pattern */
+    /* Trunk options of spec 2.3: diagnostics and paging. Progress and pager
+     * use maelys_cli_tristate_t; verbose is a flag. --pager is a rendering
+     * option (refused by protocol streams); --progress and --verbose are
+     * not (accepted by every command, forwarded verbatim by delegates). */
+    int verbose;
+    int progress;            /* maelys_cli_tristate_t */
+    int pager;               /* maelys_cli_tristate_t */
+    int pager_requested;     /* --pager given explicitly */
 } maelys_cli_invocation_t;
+
+/* auto | always | never, in the order of the trunk's choices. */
+typedef enum maelys_cli_tristate {
+    MAELYS_CLI_AUTO = 0,
+    MAELYS_CLI_ALWAYS = 1,
+    MAELYS_CLI_NEVER = 2
+} maelys_cli_tristate_t;
 
 void maelys_cli_error_set(
     maelys_cli_error_t *error, const char *code, const char *hint,

@@ -93,6 +93,9 @@ check "jsonl records" '[ "$code" = 0 ] && [ "$out" = "{\"index\":0,\"name\":\"al
 {\"index\":1,\"name\":\"beta\"}
 {\"index\":2,\"name\":\"gamma\"}" ]'
 
+run records-text "$hello" list --limit 2
+check "text records into a pipe are tab-separated rows" '[ "$code" = 0 ] && [ "$out" = "0	alpha
+1	beta" ]'
 run records-json "$hello" list --limit 2 --json --compact
 check "json records envelope" 'printf "%s" "$out" | grep -q "\"data\":{\"count\":2,\"records\":\[{\"index\":0,\"name\":\"alpha\"},{\"index\":1,\"name\":\"beta\"}\]}"'
 
@@ -136,6 +139,18 @@ check "completion of command words" '[ "$out" = "write" ]'
 run complete-option "$hello" __complete -- limits --level ""
 check "completion of choices" '[ "$out" = "low
 high" ]'
+run trunk-json "$hello" version --verbose --progress always --pager always --json --compact
+check "trunk diagnostics are silent in JSON" '[ "$code" = 0 ] && [ -z "$err" ] && printf "%s" "$out" | grep -q "\"ok\":true"'
+run trunk-text "$hello" greet Ada --verbose --progress always
+check "verbose details go to stderr with the program prefix, stdout unchanged" '[ "$code" = 0 ] && [ "$out" = "Hello, Ada!" ] && printf "%s" "$err" | grep -q "^maelys-hello: greeting Ada 1 time" && ! printf "%s" "$err" | grep -q "maelys-hello: \["'
+run trunk-quiet "$hello" greet Ada --verbose=false --progress=never --pager=never
+check "false and never trunk values are silent" '[ "$code" = 0 ] && [ "$out" = "Hello, Ada!" ] && [ -z "$err" ]'
+marker=$(mktemp -u)
+run pager-pipe env PAGER="sh -c 'touch $marker; cat'" "$hello" version --pager always
+check "no pager starts in a pipe, whatever --pager says" '[ "$code" = 0 ] && [ "$out" = "maelys-hello 0.1.0" ] && [ ! -e "$marker" ]'
+rm -f "$marker"
+run pattern-refused "$hello" describe --summary --prefix "Bad." --json
+check "a declared pattern is enforced" '[ "$code" = 1 ] && printf "%s" "$err" | grep -q "expects a value matching"'
 run hidden-describe "$hello" describe greet --json
 check "hidden option listed by describe" 'printf "%s" "$out" | grep -q "\"long\": \"--trace\"" && printf "%s" "$out" | grep -q "\"hidden\": true" && ! printf "%s" "$out" | grep -q "trace\]"'
 run hidden-help "$hello" help greet

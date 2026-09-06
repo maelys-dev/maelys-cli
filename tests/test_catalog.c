@@ -66,6 +66,15 @@ static int test_validation(void) {
     command.pattern = "thing --make";
     CHECK(!validate(&command));
 
+    /* A pattern must be a valid extended regular expression. */
+    maelys_cli_option_t bad_pattern[] = {
+        {MAELYS_CLI_STRING("label", "TEXT", "Label."), .pattern = "^([a-z]+$"},
+    };
+    command = good_command();
+    command.options = bad_pattern;
+    command.option_count = 1u;
+    CHECK(!validate(&command));
+
     /* A hidden option is never required. */
     maelys_cli_option_t hidden_required[] = {
         {MAELYS_CLI_FLAG("trace", "Trace."), .hidden = 1, .required = 1},

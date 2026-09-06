@@ -4,6 +4,7 @@
 
 #include <errno.h>
 #include <inttypes.h>
+#include <regex.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -33,6 +34,7 @@ void maelys_cli_error_from_errno(
 
 static const char *const format_choices[] = {"text", "json", "jsonl", NULL};
 static const char *const color_choices[] = {"auto", "always", "never", NULL};
+static const char *const tristate_choices[] = {"auto", "always", "never", NULL};
 
 static const maelys_cli_option_t transport[] = {
     {MAELYS_CLI_CHOICE("format",
@@ -45,6 +47,15 @@ static const maelys_cli_option_t transport[] = {
      "Never prompt; fail instead of asking a question.")},
     {MAELYS_CLI_CHOICE("color", "Control ANSI colors on terminals.",
      color_choices), .default_text = "auto"},
+    {MAELYS_CLI_CHOICE("progress",
+     "Show the progress of a long run on stderr in text mode: auto only "
+     "when stderr is a terminal.", tristate_choices), .default_text = "auto"},
+    {MAELYS_CLI_FLAG("verbose",
+     "Add the details of the run on stderr in text mode; silent in JSON.")},
+    {MAELYS_CLI_CHOICE("pager",
+     "Page the text rendering when stdout is a terminal; never in a pipe, "
+     "in JSON or under --non-interactive.", tristate_choices),
+     .default_text = "auto"},
     {MAELYS_CLI_FLAG("help", "Show the help of the selected command.")},
 };
 
@@ -224,6 +235,26 @@ static int validate_value(
                     option->name);
                 return -1;
             }
+            if (option->pattern) {
+                /* The value MUST match the declared pattern (spec 2.3): the
+                 * common subset of ECMA-262 and POSIX ERE, run as ERE. */
+                regex_t compiled;
+                if (maelys_cli_pattern_compile(option->pattern, &compiled) != 0) {
+                    maelys_cli_error_set(error, MAELYS_CLI_CODE_UNEXPECTED,
+                        "Report this defect to the command implementation.",
+                        "Option --%s declares a pattern that is not a valid "
+                        "extended regular expression.", option->name);
+                    return -1;
+                }
+                int matched = regexec(&compiled, value, 0u, NULL, 0);
+                regfree(&compiled);
+                if (matched != 0) {
+                    maelys_cli_error_set(error, MAELYS_CLI_CODE_VALIDATION_FAILED,
+                        hint, "Option --%s expects a value matching %s.",
+                        option->name, option->pattern);
+                    return -1;
+                }
+            }
             return 0;
         case MAELYS_CLI_VALUE_INTEGER: {
             int64_t minimum = option->signed_minimum;
@@ -314,6 +345,32 @@ static int validate_value(
     return -1;
 }
 
+int maelys_cli_pattern_compile(const char *pattern, void *out_regex) {
+    if (!pattern || !out_regex) return -1;
+    size_t length = strlen(pattern);
+    char *rewritten = malloc(length + 1u);
+    if (!rewritten) return -1;
+    size_t used = 0u;
+    for (size_t i = 0u; i < length; ++i) {
+        if (pattern[i] == '\\' && i + 1u < length) {
+            rewritten[used++] = pattern[i++];
+            rewritten[used++] = pattern[i];
+            continue;
+        }
+        if (pattern[i] == '(' && i + 2u < length && pattern[i + 1u] == '?' &&
+            pattern[i + 2u] == ':') {
+            rewritten[used++] = '(';
+            i += 2u;
+            continue;
+        }
+        rewritten[used++] = pattern[i];
+    }
+    rewritten[used] = '\0';
+    int result = regcomp((regex_t *)out_regex, rewritten, REG_EXTENDED | REG_NOSUB);
+    free(rewritten);
+    return result == 0 ? 0 : -1;
+}
+
 static void apply_transport(
     maelys_cli_invocation_t *out, const maelys_cli_parsed_option_t *parsed) {
     const char *name = parsed->name;
@@ -334,6 +391,13 @@ static void apply_transport(
         out->non_interactive = parsed->boolean_value;
     } else if (!strcmp(name, "color")) {
         out->color = (maelys_cli_color_mode_t)parsed->choice_index;
+    } else if (!strcmp(name, "progress")) {
+        out->progress = (int)parsed->choice_index;
+    } else if (!strcmp(name, "verbose")) {
+        out->verbose = parsed->boolean_value;
+    } else if (!strcmp(name, "pager")) {
+        out->pager = (int)parsed->choice_index;
+        out->pager_requested = 1;
     } else if (!strcmp(name, "help")) {
         out->help_requested = parsed->boolean_value;
     }
@@ -574,7 +638,8 @@ int maelys_cli_parse(
         parsed->descriptor = NULL;
         parsed->boolean_value = 1;
     }
-    if (out->command->output == MAELYS_CLI_OUTPUT_STREAM && out->rendering_requested) {
+    if (out->command->output == MAELYS_CLI_OUTPUT_STREAM &&
+        (out->rendering_requested || out->pager_requested)) {
         maelys_cli_error_set(error, MAELYS_CLI_CODE_VALIDATION_FAILED,
             "Remove rendering flags; stdout is reserved for the declared "
             "protocol stream.",

@@ -183,6 +183,11 @@ Replies (exactly one per handler; a second call is ignored and returns the given
 | `int maelys_cli_fail_errno(ctx, code, int saved_errno, const char *what)` / `maelys_cli_fail_error(ctx, const maelys_cli_error_t *)` | Same from `errno` or a prepared error. |
 | `int maelys_cli_fail_file(ctx, int saved_errno, const char *explanation, const char *what)` | Failure from an `errno` and the `out_error` explanation left by `maelys/cli/files.h`: code from `maelys_cli_file_error_code`, message `what: strerror(errno)`, hint = the explanation (capitalised, with a period) or the generic hint when `NULL`. |
 | `void maelys_cli_warn(ctx, const char *format, ...)` | `program: warning: ...` on stderr; never touches stdout. Control bytes in the formatted message are rendered as `\n`, `\r`, `\t` or `\xNN`; Unicode line and bidirectional controls use `\uNNNN`, and malformed UTF-8 bytes use `\xNN`. |
+| `int maelys_cli_verbose(ctx)` | True when `--verbose` is active in text mode (spec 2.3); always false under `--format json` or `jsonl`. |
+| `void maelys_cli_detail(ctx, const char *format, ...)` | One detail line `program: message` on stderr when `maelys_cli_verbose`; nothing otherwise. Never a failure rendering (`program: [`); control bytes escaped. |
+| `int maelys_cli_progress_wanted(ctx)` | True in text mode with `--progress always`, or `--progress auto` (the default) when stderr is a terminal. |
+| `void maelys_cli_progress(ctx, const char *format, ...)` | Transient progress on stderr when wanted: rewritten in place on a terminal (`\r`, erased by `maelys_cli_progress_done`), one line per call on another stderr. The runtime erases it before any failure, warning or exit. |
+| `void maelys_cli_progress_done(ctx)` | Erases the transient progress line, if any. |
 | `int maelys_cli_confirm(ctx, const char *question, int *out_confirmed)` | Prompts on stderr with control bytes escaped and reads stdin when interactive; under `--non-interactive` or without a terminal it emits `VALIDATION_FAILED` and returns `-1`. |
 
 ## `maelys/cli/extension.h` (libmaelys_cli_extension)

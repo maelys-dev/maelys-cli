@@ -26,6 +26,17 @@ void maelys_cli_fprint_terminal_safe(FILE *stream, const char *text);
 /* True when text contains valid UTF-8 without terminal control code points. */
 int maelys_cli_text_is_terminal_safe(const char *text);
 
+/* Compiles an argument.pattern as POSIX ERE. The motif is written in the
+ * common subset of ECMA-262 and ERE; the one ECMA spelling the contract's
+ * own grammar uses, the non-capturing group `(?:`, is rewritten to `(`,
+ * which means the same. Returns 0, or -1 when the pattern does not compile. */
+int maelys_cli_pattern_compile(const char *pattern, void *out_regex);
+
+/* JSON spans for the text rendering of records: the end of the value that
+ * starts at `offset` (0 when malformed), and a decoded copy of a string. */
+size_t maelys_cli_json_value_end(const char *text, size_t length, size_t offset);
+char *maelys_cli_json_string_decode(const char *text, size_t length, size_t offset);
+
 /* Validates text against an option's kind; fills the typed value. */
 int maelys_cli_option_validate_text(
     const maelys_cli_option_t *option, const char *value,
