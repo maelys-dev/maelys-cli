@@ -42,6 +42,27 @@ static size_t decode_utf8(const unsigned char *text, uint32_t *out) {
     return 0u;
 }
 
+static int terminal_control(uint32_t codepoint) {
+    return codepoint < 0x20u ||
+        (codepoint >= 0x7fu && codepoint <= 0x9fu) ||
+        codepoint == 0x061cu || codepoint == 0x200eu || codepoint == 0x200fu ||
+        codepoint == 0x2028u || codepoint == 0x2029u ||
+        (codepoint >= 0x202au && codepoint <= 0x202eu) ||
+        (codepoint >= 0x2066u && codepoint <= 0x2069u);
+}
+
+int maelys_cli_text_is_terminal_safe(const char *text) {
+    if (!text) return 0;
+    const unsigned char *cursor = (const unsigned char *)text;
+    while (*cursor) {
+        uint32_t codepoint = 0u;
+        size_t length = decode_utf8(cursor, &codepoint);
+        if (length == 0u || terminal_control(codepoint)) return 0;
+        cursor += length;
+    }
+    return 1;
+}
+
 void maelys_cli_fprint_terminal_safe(FILE *stream, const char *text) {
     if (!stream || !text) return;
     const unsigned char *cursor = (const unsigned char *)text;
@@ -56,13 +77,10 @@ void maelys_cli_fprint_terminal_safe(FILE *stream, const char *text) {
         size_t length = decode_utf8(cursor, &codepoint);
         if (length == 0u) {
             (void)fprintf(stream, "\\x%02x", (unsigned int)*cursor++);
-        } else if (codepoint < 0x20u ||
-                   (codepoint >= 0x7fu && codepoint <= 0x9fu)) {
+        } else if (terminal_control(codepoint) && codepoint <= 0x9fu) {
             (void)fprintf(stream, "\\x%02x", (unsigned int)codepoint);
             cursor += length;
-        } else if (codepoint == 0x2028u || codepoint == 0x2029u ||
-                   (codepoint >= 0x202au && codepoint <= 0x202eu) ||
-                   (codepoint >= 0x2066u && codepoint <= 0x2069u)) {
+        } else if (terminal_control(codepoint)) {
             (void)fprintf(stream, "\\u%04x", (unsigned int)codepoint);
             cursor += length;
         } else {

@@ -26,14 +26,18 @@ starts external programs on behalf of a product CLI. Its security claims are:
   owned by root or the caller and not writable by group or world, through
   `execve` without a shell or PATH lookup. The checked executable and its
   trusted immediate parent remain open until `exec` (Linux executes binaries
-  directly by descriptor), and non-standard descriptors are close-on-exec;
+  directly by descriptor), script shebangs require an absolute interpreter
+  not named `env`, and non-standard descriptors are close-on-exec. Only the
+  direct shebang is inspected: an absolute interpreter that is itself a script
+  can delegate again, and its contents are not recursively inspected;
 - the `maelys` dispatcher accepts external commands only from manifests in
   fixed directories that satisfy the same ownership and mode rules, with an
   optional SHA-256 pin of the executable, and refuses duplicates and
   unsupported `cliApi` values; an executable alias is canonicalized before
-  checking, hashing and storing it. Manifests are parsed by maelys-json under
-  a 64 KiB, depth 8, 1024-token budget, with duplicate members and invalid
-  UTF-8 rejected;
+  checking, hashing and storing it. Manifest metadata shown in text output
+  refuses terminal control characters. Manifests are parsed by maelys-json
+  under a 64 KiB, depth 8, 1024-token budget, with duplicate members and
+  invalid UTF-8 rejected;
 - `maelys agents install` opens each project-relative parent directory without
   following symbolic links and publishes managed files relative to those
   descriptors, so a link cannot redirect a write outside the project;

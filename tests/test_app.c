@@ -381,9 +381,9 @@ static int expect_failure(run_result_t *result, const char *code, const char *fr
 static int test_parsing_failures(void) {
     run_result_t result = RUNV("things");
     CHECK(expect_failure(&result, "[INVALID_COMMAND]", "Unknown prog command: things"));
-    result = RUNV("bad\033[2J\nline\233\342\200\256");
+    result = RUNV("bad\033[2J\nline\233\330\234\342\200\216\342\200\217\342\200\256");
     CHECK(result.code == 1 && strstr(result.err,
-        "bad\\x1b[2J\\nline\\x9b\\u202e"));
+        "bad\\x1b[2J\\nline\\x9b\\u061c\\u200e\\u200f\\u202e"));
     CHECK(strchr(result.err, '\033') == NULL && strchr(result.err, '\233') == NULL);
     release(&result);
     result = RUNV("thing", "make", "/root", "name", "--token", "x");

@@ -23,6 +23,9 @@ size_t maelys_cli_pattern_words(const char *pattern);
 /* Writes user-influenced text without allowing terminal control bytes. */
 void maelys_cli_fprint_terminal_safe(FILE *stream, const char *text);
 
+/* True when text contains valid UTF-8 without terminal control code points. */
+int maelys_cli_text_is_terminal_safe(const char *text);
+
 /* Validates text against an option's kind; fills the typed value. */
 int maelys_cli_option_validate_text(
     const maelys_cli_option_t *option, const char *value,

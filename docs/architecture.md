@@ -47,7 +47,8 @@ descriptor the base catalog declares `.unavailable`.
    once; the runtime turns a silent handler into an `UNEXPECTED` failure.
 6. Delegates are resolved beside the executable, in `../libexec/PROGRAM`,
    in `../libexec` and in the application's `helper_directories`, then
-   replaced with `execve`.
+   replaced with `execve`; scripts require an absolute shebang interpreter
+   not named `env`, so this path performs no implicit interpreter lookup.
 
 ## Rendering
 

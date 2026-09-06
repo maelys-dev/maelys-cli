@@ -49,6 +49,73 @@ static void close_trusted_executable(trusted_executable_t *executable) {
     executable->directory = -1;
 }
 
+/* A relative shebang interpreter or one named env defeats the promise that
+ * this module never resolves a program outside an explicit absolute path.
+ * Inspect a second descriptor for readable executables and bind it to the
+ * held inode before judging the interpreter token. Execute-only binaries
+ * remain supported. */
+static int reject_unsafe_shebang(
+    const trusted_executable_t *executable, const char **out_error) {
+    int descriptor = openat(executable->directory, executable->name,
+        O_RDONLY | O_CLOEXEC | O_NOFOLLOW | O_NONBLOCK);
+    if (descriptor < 0) {
+        if (errno == EACCES) return 0;
+        if (out_error) *out_error = "executable header is not accessible";
+        return -1;
+    }
+    struct stat status;
+    int status_result = fstat(descriptor, &status);
+    if (status_result != 0 || status.st_dev != executable->status.st_dev ||
+        status.st_ino != executable->status.st_ino) {
+        int saved = status_result != 0 ? errno : ESTALE;
+        (void)close(descriptor);
+        if (out_error)
+            *out_error = "executable changed while its header was checked";
+        errno = saved;
+        return -1;
+    }
+    unsigned char header[1024];
+    ssize_t amount;
+    do {
+        amount = pread(descriptor, header, sizeof(header), 0);
+    } while (amount < 0 && errno == EINTR);
+    int saved = errno;
+    if (close(descriptor) != 0 && amount >= 0) {
+        amount = -1;
+        saved = errno;
+    }
+    if (amount < 0) {
+        if (out_error) *out_error = "executable header is not readable";
+        errno = saved;
+        return -1;
+    }
+    if (amount < 3 || header[0] != '#' || header[1] != '!') return 0;
+    size_t length = (size_t)amount;
+    size_t begin = 2u;
+    while (begin < length && (header[begin] == ' ' || header[begin] == '\t'))
+        ++begin;
+    size_t end = begin;
+    while (end < length && header[end] != '\0' && header[end] != ' ' &&
+           header[end] != '\t' && header[end] != '\r' && header[end] != '\n')
+        ++end;
+    if (begin == end || header[begin] != '/') {
+        if (out_error)
+            *out_error = "executable shebang interpreter path must be absolute";
+        errno = EPERM;
+        return -1;
+    }
+    size_t basename = begin;
+    for (size_t i = begin; i < end; ++i)
+        if (header[i] == '/') basename = i + 1u;
+    if (end - basename == 3u && memcmp(header + basename, "env", 3u) == 0) {
+        if (out_error)
+            *out_error = "executable shebang delegates interpreter lookup to PATH";
+        errno = EPERM;
+        return -1;
+    }
+    return 0;
+}
+
 static int open_trusted_executable(
     const char *path, trusted_executable_t *executable,
     const char **out_error) {
@@ -142,6 +209,10 @@ static int open_trusted_executable(
         if (out_error) *out_error = "executable is not executable";
         close_trusted_executable(executable);
         errno = EACCES;
+        return -1;
+    }
+    if (reject_unsafe_shebang(executable, out_error) != 0) {
+        close_trusted_executable(executable);
         return -1;
     }
     return 0;

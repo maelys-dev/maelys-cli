@@ -118,6 +118,19 @@ static int test_rejections(void) {
     CHECK(maelys_cli_extension_load(path, &extension, &error) != 0);
     CHECK(strcmp(error.code, "PROTOCOL_FAILED") == 0);
 
+    CHECK(write_text(path, "{\"schema\":\"maelys.cli-extension/v1\",\"command\":\"x\","
+        "\"executable\":\"/bin/sh\",\"cliApi\":1,\"version\":\"1\","
+        "\"summary\":\"clear\\u001b[2J\"}", 0644));
+    CHECK(maelys_cli_extension_load(path, &extension, &error) != 0);
+    CHECK(strcmp(error.code, "PROTOCOL_FAILED") == 0 &&
+        strstr(error.message, "unsafe"));
+    CHECK(write_text(path, "{\"schema\":\"maelys.cli-extension/v1\",\"command\":\"x\","
+        "\"executable\":\"/bin/sh\",\"cliApi\":1,"
+        "\"version\":\"1\\u202e\"}", 0644));
+    CHECK(maelys_cli_extension_load(path, &extension, &error) != 0);
+    CHECK(strcmp(error.code, "PROTOCOL_FAILED") == 0 &&
+        strstr(error.message, "unsafe"));
+
     CHECK(write_text(path, "[]", 0644));
     CHECK(maelys_cli_extension_load(path, &extension, &error) != 0);
 

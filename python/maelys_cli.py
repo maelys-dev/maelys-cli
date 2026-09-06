@@ -85,7 +85,7 @@ def _terminal_safe(text: str) -> str:
             escaped.append("\\t")
         elif code < 0x20 or 0x7f <= code <= 0x9f:
             escaped.append(f"\\x{code:02x}")
-        elif code in (0x2028, 0x2029) or 0x202a <= code <= 0x202e or 0x2066 <= code <= 0x2069:
+        elif code in (0x061c, 0x200e, 0x200f, 0x2028, 0x2029) or 0x202a <= code <= 0x202e or 0x2066 <= code <= 0x2069:
             escaped.append(f"\\u{code:04x}")
         else:
             escaped.append(character)
