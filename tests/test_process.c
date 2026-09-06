@@ -4,6 +4,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -71,6 +72,45 @@ static int test_check_executable(void) {
     return 1;
 }
 
+/* A started program keeps the caller's working directory (0.5.16 regression:
+ * the pathname fallback changed to the executable's directory). */
+static int test_run_keeps_working_directory(void) {
+    char scripts[] = "/tmp/maelys-cli-exec.XXXXXX";
+    char work[] = "/tmp/maelys-cli-cwd.XXXXXX";
+    CHECK(mkdtemp(scripts) && mkdtemp(work));
+    char script[512];
+    char report[512];
+    (void)snprintf(script, sizeof(script), "%s/where", scripts);
+    (void)snprintf(report, sizeof(report), "%s/report", scripts);
+    int descriptor = open(script, O_WRONLY | O_CREAT | O_EXCL, 0755);
+    CHECK(descriptor >= 0);
+    static const char body[] = "#!/bin/sh\npwd > \"$1\"\n";
+    CHECK(write(descriptor, body, sizeof(body) - 1u) == (ssize_t)(sizeof(body) - 1u));
+    CHECK(close(descriptor) == 0);
+    char previous[PATH_MAX];
+    CHECK(getcwd(previous, sizeof(previous)));
+    CHECK(chdir(work) == 0);
+    char expected[PATH_MAX];
+    CHECK(getcwd(expected, sizeof(expected)));
+    char *argv[] = {script, report, NULL};
+    maelys_cli_process_status_t status;
+    int run = maelys_cli_process_run(script, argv, NULL, &status);
+    CHECK(chdir(previous) == 0);
+    CHECK(run == 0 && maelys_cli_process_exit_code(&status) == 0);
+    FILE *stream = fopen(report, "r");
+    CHECK(stream);
+    char seen[PATH_MAX] = "";
+    CHECK(fgets(seen, sizeof(seen), stream));
+    (void)fclose(stream);
+    seen[strcspn(seen, "\n")] = '\0';
+    CHECK(strcmp(seen, expected) == 0);
+    (void)unlink(report);
+    (void)unlink(script);
+    (void)rmdir(scripts);
+    (void)rmdir(work);
+    return 1;
+}
+
 static int test_run(void) {
     maelys_cli_process_status_t status;
     char *exit_three[] = {"sh", "-c", "exit 3", NULL};
@@ -126,6 +166,7 @@ static int test_resolve_and_directory(void) {
 int main(void) {
     int failures = 0;
     RUN(test_check_executable);
+    RUN(test_run_keeps_working_directory);
     RUN(test_run);
     RUN(test_resolve_and_directory);
     return failures ? 1 : 0;
