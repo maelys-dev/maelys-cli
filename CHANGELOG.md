@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.19 - 2026-09-06
 
 - agent-cli-spec pinned at v2.3.1: the `--prefix` grammar is written with a
   plain group, as the common dialect requires; the parser still accepts a
