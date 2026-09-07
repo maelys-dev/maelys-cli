@@ -107,6 +107,26 @@ option spelling, support and duplication; value kind, range and choice;
 operand arity and kinds; rendering constraints. Inside the handler, raise
 `cli.Failure(code, message, hint)` with one of the eleven stable codes.
 
+## Color
+
+The C library resolves `--color` once, into a per-stream decision
+(`maelys_cli_terminal_detect()`'s `color_stdout` / `color_stderr`), and a
+handler reads it from the context; the Python module mirrors that instead
+of a handler re-scanning `sys.argv` or the environment itself, which gets
+the per-option spellings, `NO_COLOR`, `CLICOLOR_FORCE` and the per-stream
+distinction subtly wrong. `invocation.color` is the raw choice (`auto`,
+`always` or `never`); `invocation.color_stdout` and `invocation.color_stderr`
+are the resolved booleans a handler builds its own colored human rendering
+from, decided once from the real stdout and stderr (unaffected by later
+paging, per section 5: color follows the original stdout). `terminal_color(mode)`
+is the function behind them, `(color_stdout, color_stderr)` for one mode:
+`never` wins; `always` or `CLICOLOR_FORCE` force both on; otherwise
+`NO_COLOR` or `TERM=dumb` force both off; otherwise each stream follows its
+own `isatty()`. The runtime uses the same resolution for its own failure
+rendering; before a command resolves (a command line that fails to parse
+at all), only an explicit `--color never` is honored, never an unresolved
+`--color always` — the same asymmetry as `maelys_cli_run()`'s prescan.
+
 ## Diagnostics and paging
 
 The trunk options of spec 2.3 exist on every command: `--progress
@@ -150,7 +170,8 @@ the command keywords `operands=`, `options=`, `schema=`, `hidden=`,
 `Invocation` with `operands`, `raw_operands`, `options`, `option()`,
 `flag()`, `apply`, `format`, `compact`, `non_interactive`, `program`,
 `verbose`, `progress`, `pager`, `progress_wanted`, `detail()`,
-`show_progress()`, `progress_done()`; `Program.warn(message)`;
+`show_progress()`, `progress_done()`, `color`, `color_stdout`,
+`color_stderr`; `Program.warn(message)`; `terminal_color`;
 `record_text`, `pager_command`, `page_text`; `Failure`;
 the file and error functions above; the `EXIT_*` and `FILE_*` constants.
 The rules are those of the C library: within the `0.5` line every change

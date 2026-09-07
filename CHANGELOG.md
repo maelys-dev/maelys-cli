@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- `python/maelys_cli.py`: fixes issue #39, `--color` reaches the C
+  invocation but not the Python one. `Invocation.color`,
+  `.color_stdout` and `.color_stderr` mirror
+  `maelys_cli_terminal_detect()`'s per-stream resolution
+  (`terminal_color()`); a handler reads them instead of re-scanning
+  `sys.argv` or the environment. The runtime's own failure rendering uses
+  the same resolution, honoring an explicit `--color never` even before a
+  command resolves, never an unresolved `--color always` (the C prescan's
+  asymmetry).
+
 ## 0.5.19 - 2026-09-06
 
 - agent-cli-spec pinned at v2.3.1: the `--prefix` grammar is written with a

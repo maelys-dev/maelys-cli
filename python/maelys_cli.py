@@ -75,6 +75,35 @@ def environment_format() -> str:
     return value if value in ("json", "text") else "text"
 
 
+def terminal_color(mode: str) -> "tuple[bool, bool]":
+    """The per-stream color decision of maelys_cli_terminal_detect(): (color_stdout,
+    color_stderr). mode 'never' wins over everything; 'always' or CLICOLOR_FORCE force
+    both streams on; otherwise NO_COLOR or TERM=dumb force both off; otherwise each
+    stream follows its own isatty()."""
+    if mode == "never":
+        return False, False
+    force = os.environ.get("CLICOLOR_FORCE")
+    if mode == "always" or (force and force != "0"):
+        return True, True
+    no_color = os.environ.get("NO_COLOR")
+    term = os.environ.get("TERM")
+    if no_color or not term or term == "dumb":
+        return False, False
+    return sys.stdout.isatty(), sys.stderr.isatty()
+
+
+def _prescan_color_never(argv: list) -> bool:
+    """Whether argv already says --color never, checked before a command resolves
+    (maelys_cli_run()'s prescan): the only thing an unresolved command line may do to
+    coloring, since an unresolved '--color always' is not trusted."""
+    never = False
+    for index, word in enumerate(argv):
+        if word == "--color=never" or (word == "--color" and index + 1 < len(argv)
+                                        and argv[index + 1] == "never"):
+            never = True
+    return never
+
+
 def _terminal_safe(text: str) -> str:
     """Render control characters visibly in human diagnostics."""
     escaped = []
@@ -617,7 +646,8 @@ class Invocation:
 
     def __init__(self, program: "Program", command: dict, operands: list, options: dict,
                  fmt: str, compact: bool, non_interactive: bool, raw_operands: list,
-                 verbose: bool = False, progress: str = "auto", pager: str = "auto") -> None:
+                 verbose: bool = False, progress: str = "auto", pager: str = "auto",
+                 color: str = "auto") -> None:
         self.program = program
         self.command = command
         self.operands = operands
@@ -629,7 +659,21 @@ class Invocation:
         self.verbose = verbose and fmt == "text"
         self.progress = progress
         self.pager = pager
+        self.color = color
         self._progress_shown = False
+
+    @property
+    def color_stdout(self) -> bool:
+        """Resolved --color decision for stdout (maelys_cli_terminal_detect()'s
+        color_stdout): a handler building its own human rendering reads this,
+        never re-parses --color or the environment itself."""
+        return terminal_color(self.color)[0]
+
+    @property
+    def color_stderr(self) -> bool:
+        """Resolved --color decision for stderr (color_stderr); what the runtime
+        itself uses for a failure or a warning rendering."""
+        return terminal_color(self.color)[1]
 
     @property
     def progress_wanted(self) -> bool:
@@ -996,6 +1040,7 @@ class Program:
         verbose = False
         progress = "auto"
         pager = "auto"
+        color = "auto"
         rendering: list = []
         help_requested = False
         options: dict = {}
@@ -1018,7 +1063,7 @@ class Program:
             elif name == "--non-interactive":
                 non_interactive = _parse_flag(value, name, usage)
             elif name == "--color":
-                parse_value("choice", value or "", {"choices": list(COLORS)}, "Option --color", usage)
+                color = parse_value("choice", value or "", {"choices": list(COLORS)}, "Option --color", usage)
             elif name == "--progress":
                 progress = parse_value("choice", value or "", {"choices": list(TRISTATE)}, "Option --progress", usage)
             elif name == "--verbose":
@@ -1083,7 +1128,7 @@ class Program:
         if help_requested:
             help_command = self.command_by_id("help")
             return Invocation(self, help_command, [command["id"]], {}, fmt, compact, non_interactive,
-                              [command["id"]], verbose, progress, pager), help_command
+                              [command["id"]], verbose, progress, pager, color), help_command
         operands: list = []
         if not command["passthrough"]:
             required = sum(1 for item in command["operands"] if item["required"])
@@ -1104,7 +1149,7 @@ class Program:
             raise Failure("VALIDATION_FAILED", f"--format jsonl is accepted only by json-records commands, not '{command['id']}'.",
                           "Use --format json.")
         return Invocation(self, command, operands, options, fmt, compact, non_interactive, raw_operands,
-                          verbose, progress, pager), command
+                          verbose, progress, pager, color), command
 
     # ---- rendering ----
 
@@ -1131,18 +1176,24 @@ class Program:
         return json.dumps(data, indent=2, ensure_ascii=False) + "\n"
 
     @staticmethod
-    def _colored(text: str, argv: list) -> str:
-        colors = [word.split("=", 1)[1] for word in argv if word.startswith("--color=")]
-        colors += [argv[i + 1] for i, word in enumerate(argv) if word == "--color" and i + 1 < len(argv)]
-        never = "never" in colors or os.environ.get("NO_COLOR") or os.environ.get("TERM") == "dumb"
-        if never or not ("always" in colors or sys.stderr.isatty()):
-            return text
-        return f"\033[31m{text}\033[0m"
+    def _colored(text: str, color: bool) -> str:
+        return f"\033[31m{text}\033[0m" if color else text
+
+    @staticmethod
+    def _failure_color(invocation: Optional["Invocation"], argv: list) -> bool:
+        """color_stderr of a resolved Invocation; before a command resolves, only an
+        explicit --color never is trusted (maelys_cli_run()'s prescan), never an
+        unresolved --color always."""
+        if invocation is not None:
+            return invocation.color_stderr
+        mode = "never" if _prescan_color_never(argv) else "auto"
+        return terminal_color(mode)[1]
 
     def main(self, argv: Optional[list] = None) -> int:
         argv = list(sys.argv[1:] if argv is None else argv)
         command_id = ""
         self.resolved_command_id = ""
+        invocation: Optional[Invocation] = None
         fmt = environment_format()
         for index, word in enumerate(argv):
             if word in ("--json", "--format=json", "--format=jsonl"):
@@ -1177,7 +1228,8 @@ class Program:
                 error["issues"] = failure.issues
             if fmt == "text":
                 sys.stderr.write(self._colored(
-                    f"{self.program}: [{failure.code}] {_terminal_safe(failure.message)}", argv) + "\n")
+                    f"{self.program}: [{failure.code}] {_terminal_safe(failure.message)}",
+                    self._failure_color(invocation, argv)) + "\n")
                 if failure.hint:
                     sys.stderr.write(f"Hint: {_terminal_safe(failure.hint)}\n")
             else:
@@ -1190,7 +1242,8 @@ class Program:
             payload = {"code": failure.code, "message": failure.message, "hint": failure.hint}
             if fmt == "text":
                 sys.stderr.write(self._colored(
-                    f"{self.program}: [{failure.code}] {_terminal_safe(failure.message)}", argv) + "\n")
+                    f"{self.program}: [{failure.code}] {_terminal_safe(failure.message)}",
+                    self._failure_color(invocation, argv)) + "\n")
                 sys.stderr.write(f"Hint: {_terminal_safe(failure.hint)}\n")
             else:
                 sys.stderr.write(self.envelope(command_id or self.resolved_command_id or "unknown", False,

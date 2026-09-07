@@ -234,6 +234,52 @@ class Contract(unittest.TestCase):
             else:
                 os.environ["PAGER"] = saved
 
+    def test_color(self) -> None:
+        # terminal_color() is the resolution behind Invocation.color_stdout/
+        # color_stderr, mirroring maelys_cli_terminal_detect(): never wins; always
+        # or CLICOLOR_FORCE force both streams; otherwise isatty() decides, false
+        # for both under this test harness (redirected to io.StringIO).
+        self.assertEqual(cli.terminal_color("never"), (False, False))
+        self.assertEqual(cli.terminal_color("always"), (True, True))
+        self.assertEqual(cli.terminal_color("auto"), (False, False))
+        saved = os.environ.get("CLICOLOR_FORCE")
+        try:
+            os.environ["CLICOLOR_FORCE"] = "1"
+            self.assertEqual(cli.terminal_color("auto"), (True, True))
+            self.assertEqual(cli.terminal_color("never"), (False, False))
+        finally:
+            if saved is None:
+                os.environ.pop("CLICOLOR_FORCE", None)
+            else:
+                os.environ["CLICOLOR_FORCE"] = saved
+        # A resolved Invocation exposes the same decision; a handler reads it
+        # instead of re-scanning sys.argv or the environment.
+        program = cli.Program("p", "P", "1", [cli.read("c", "c", "x", lambda i:
+            ({"stdout": i.color_stdout, "stderr": i.color_stderr}, 0))])
+        invocation, _ = program.parse(["c", "--color", "always"])
+        self.assertEqual((invocation.color, invocation.color_stdout, invocation.color_stderr),
+                         ("always", True, True))
+        invocation, _ = program.parse(["c"])
+        self.assertEqual(invocation.color, "auto")
+        self.assertFalse(invocation.color_stdout or invocation.color_stderr)
+        # The runtime's own failure rendering: a resolved invocation honors
+        # --color always even off a terminal.
+        with tempfile.TemporaryDirectory() as directory:
+            path = os.path.join(directory, "note.txt")
+            run("note", "write", path, "--content", "hi", "--apply", "--json")
+            code, out, err = run("note", "write", path, "--content", "again", "--color", "always")
+            self.assertEqual(code, 1)
+            self.assertIn("\033[31m", err)
+            self.assertIn("[PRECONDITION_FAILED]", err)
+        # An unresolved command line does not honor --color always (the C
+        # prescan's asymmetry), but does honor an explicit --color never.
+        code, out, err = run("no-such-command", "--color", "always")
+        self.assertEqual(code, 1)
+        self.assertNotIn("\033[31m", err)
+        code, out, err = run("no-such-command", "--color", "never")
+        self.assertEqual(code, 1)
+        self.assertNotIn("\033[31m", err)
+
     def test_format_environment_ignores_unknown_values(self) -> None:
         code, out, err = run("greet", env={"MAELYS_CLI_FORMAT": "xml"})
         self.assertTrue(err.startswith("maelys-hello-py: [VALIDATION_FAILED]"))
