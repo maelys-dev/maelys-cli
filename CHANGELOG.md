@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.20 - 2026-09-07
 
 - `python/maelys_cli.py`: fixes issue #39, `--color` reaches the C
   invocation but not the Python one. `Invocation.color`,
