@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- maelys-release v0.28.1 adopted (from v0.21.1): workflow pins only, plus
+  `scripts/checkout-dependency.sh` support for a pinned dependency's own
+  submodules (declared, never automatic) and CC-BY-4.0 attribution on the
+  socle's own installed skill and `AGENTS.md`/`CLAUDE.md` block. No
+  content of `docs/cli.md`/`docs/cli-contract.json` changed. Versions
+  v0.22.1 through v0.27.0 in between were no-ops for this product
+  (resilient `apt-get`, opt-in packaging targets, publish channels,
+  fuzzing, declarations output) or already matched (v0.28.0's agent-text
+  attribution, already implemented in 3f65948/PR #45).
+
 ## 0.5.21 - 2026-09-10
 
 - maelys-release v0.21.1 adopted (from v0.15.1): `docs/cli-reference.md`
