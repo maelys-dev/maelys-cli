@@ -189,8 +189,10 @@ Any command change updates, in the same change:
 3. the JSON Schema file when the data shape changes (embedded with
    `maelys-cli-embed`, referenced with `MAELYS_CLI_SCHEMA`);
 4. the tests of the catalog, options and envelopes;
-5. the generated reference (`maelys-cli-reference`, checked by
-   `contract-check`).
+5. the generated reference (`maelys-cli-reference`), regenerated and
+   checked by the release socle (`maelys-release check .`), not by a
+   target of this repository; `docs/cli.reference` declares only what the
+   socle cannot guess, `[build]` and the second program documented.
 
 `maelys_cli_catalog_validate()` runs at every startup and in tests. It
 checks identifier and pattern validity and uniqueness, summaries, value
