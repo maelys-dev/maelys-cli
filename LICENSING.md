@@ -14,7 +14,7 @@ statically or otherwise, into a larger work keeps its own license
 available in Source Code Form under MPL-2.0. Extensions started by the
 dispatcher are separate programs and are not covered software.
 
-## Installed agent texts: CC-BY-4.0
+## Installed agent texts, and every Claude skill: CC-BY-4.0
 
 The texts under [`share/agents/`](share/agents/), including the managed
 `AGENTS.md` and `CLAUDE.md` blocks, guide and skill, are licensed under
@@ -23,6 +23,11 @@ CC-BY-4.0, with attribution to David Bromberg. See
 text's copyright, source and license link. When sharing adaptations, retain
 those notices and indicate your changes. The license covers the installed
 block, not unrelated content a product writes outside it.
+
+The same license and attribution cover every `.claude/skills/*/SKILL.md` of
+this repository, whether installed from `share/agents/` or, like
+`.claude/skills/maelys-cli-framework/SKILL.md`, written for this repository
+alone: a Claude skill carries the notice regardless of who wrote it.
 
 ## Other installed templates: CC0-1.0
 
