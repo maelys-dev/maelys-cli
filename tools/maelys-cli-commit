@@ -1,0 +1,25 @@
+#!/bin/sh
+# Prints the 7-character commit this checkout is built from, for the
+# generated agent texts (`maelys agents install`) to stamp next to the
+# version: a tag alone does not identify content, only the pair does, and
+# the pin a consumer keeps beside these texts already carries both.
+#
+# In a git checkout (a clone, a worktree, the CI checkout of a tag) `git
+# rev-parse` answers directly. A GitHub release source archive of a tag
+# has no `.git`: GitHub builds it with `git archive`, which expands the
+# `export-subst` placeholder of ../COMMIT (`.gitattributes`) into the full
+# commit before the archive is made, so that file still answers there. A
+# plain `git clone` checks that file out unexpanded (export-subst runs only
+# for `git archive`), which is why git is tried first. Prints `unknown`
+# when neither source is available; never fails the build over this.
+set -eu
+root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+commit=$(git -C "$root" rev-parse --short=7 HEAD 2>/dev/null) || commit=""
+if [ -z "$commit" ] && [ -f "$root/COMMIT" ]; then
+    first_line=$(sed -n '1p' "$root/COMMIT")
+    case $first_line in
+        '$Format'*) ;; # export-subst did not run: still the placeholder
+        ?*) commit=$(printf '%.7s' "$first_line") ;;
+    esac
+fi
+printf '%s\n' "${commit:-unknown}"

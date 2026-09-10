@@ -1,4 +1,4 @@
-# Maelys CLI framework (maelys-cli @VERSION@)
+# Maelys CLI framework (maelys-cli @VERSION@, @COMMIT@)
 
 This project builds its command-line interface on `libmaelys_cli`. The
 complete guide is in `docs/maelys-cli-guide.md`; this block is the summary

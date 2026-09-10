@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+- The four texts `maelys agents install` writes (the `AGENTS.md`/`CLAUDE.md`
+  block, `docs/maelys-cli-guide.md`, `.claude/skills/maelys-cli-command/SKILL.md`)
+  now stamp the commit next to the version, e.g. `maelys-cli 0.5.20
+  (bd7f689)`: a tag alone does not identify content, and a consumer's own
+  pin is already a tag-and-commit pair for that reason. `tools/maelys-cli-commit`
+  answers `git rev-parse` in a checkout, the new `COMMIT` file's
+  `export-subst` expansion (`.gitattributes`) in a source archive that has
+  none (a GitHub tag tarball, which Homebrew's `--build-from-source`
+  builds from), or `unknown`. Consumers regenerate with `maelys agents
+  install DIR --apply` to pick up the new stamp; the marker text changed,
+  not its meaning.
+
 ## 0.5.20 - 2026-09-07
 
 - `python/maelys_cli.py`: fixes issue #39, `--color` reaches the C
