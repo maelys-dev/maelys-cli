@@ -73,16 +73,22 @@ if(MAELYS_CLI_HAVE_JSON)
 endif()
 
 set(MAELYS_CLI_EMBED ${CMAKE_CURRENT_SOURCE_DIR}/tools/maelys-cli-embed)
+set(MAELYS_CLI_COMMIT_TOOL ${CMAKE_CURRENT_SOURCE_DIR}/tools/maelys-cli-commit)
 
 if(MAELYS_CLI_BUILD_DISPATCHER AND MAELYS_CLI_HAVE_JSON)
     set(agent_texts ${CMAKE_CURRENT_BINARY_DIR}/generated/agent_texts.c)
+    # The commit is computed at build time (tools/maelys-cli-commit), inside
+    # the command below, so a fresh configure and build always stamps the
+    # checkout's actual commit; an incremental build with no other DEPENDS
+    # changed keeps its previous stamp, as CMake's Makefile equivalent does
+    # for anything outside its listed dependencies.
     add_custom_command(
         OUTPUT ${agent_texts}
         COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/generated
-        COMMAND sh -c "printf 'const char maelys_agents_version[] = \"%s\";\\n' '${MAELYS_CLI_VERSION}' > '${agent_texts}.tmp' && '${MAELYS_CLI_EMBED}' --define VERSION=${MAELYS_CLI_VERSION} maelys_agents_instructions_block=share/agents/instructions-block.md maelys_agents_guide=share/agents/maelys-cli-guide.md maelys_agents_claude_skill=share/agents/claude-skill.md >> '${agent_texts}.tmp' && mv '${agent_texts}.tmp' '${agent_texts}'"
+        COMMAND sh -c "printf 'const char maelys_agents_version[] = \"%s\";\\n' '${MAELYS_CLI_VERSION}' > '${agent_texts}.tmp' && '${MAELYS_CLI_EMBED}' --define VERSION=${MAELYS_CLI_VERSION} --define COMMIT=\$('${MAELYS_CLI_COMMIT_TOOL}') maelys_agents_instructions_block=share/agents/instructions-block.md maelys_agents_guide=share/agents/maelys-cli-guide.md maelys_agents_claude_skill=share/agents/claude-skill.md >> '${agent_texts}.tmp' && mv '${agent_texts}.tmp' '${agent_texts}'"
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
         DEPENDS share/agents/instructions-block.md share/agents/maelys-cli-guide.md
-                share/agents/claude-skill.md ${MAELYS_CLI_EMBED} VERSION
+                share/agents/claude-skill.md ${MAELYS_CLI_EMBED} ${MAELYS_CLI_COMMIT_TOOL} VERSION
         VERBATIM)
     add_executable(maelys cmd/maelys/main.c cmd/maelys/agents.c ${agent_texts})
     target_include_directories(maelys PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)

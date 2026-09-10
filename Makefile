@@ -66,7 +66,7 @@ HEADER_CPP := $(BUILD)/tests/header_cpp
 PC := $(BUILD)/pkgconfig/maelys-cli.pc
 EXTENSION_PC := $(BUILD)/pkgconfig/maelys-cli-extension.pc
 
-.PHONY: all check test header-check check-version cli-check embed-check api-doc-check agent-doc-check doc-topics-check python-check python-doc-check install \
+.PHONY: all check test header-check check-version cli-check embed-check commit-check api-doc-check agent-doc-check doc-topics-check python-check python-doc-check install \
 	install-check uninstall dist clean asan-ubsan analyze cmake-check \
 	generate-cli-reference contract-check conformance-check agents-install
 
@@ -91,10 +91,23 @@ $(EXTENSION_LIB): $(EXTENSION_OBJECTS)
 	@mkdir -p $(@D)
 	$(AR) rcs $@ $^
 
-$(EMBEDDED): $(AGENT_TEXTS) $(EMBED) VERSION
+# The commit stamped into the generated agent texts, next to the version
+# (tools/maelys-cli-commit); a stamp file so a commit change alone (no
+# template or VERSION change) still triggers regeneration.
+COMMIT_STAMP := $(BUILD)/generated/commit.txt
+$(COMMIT_STAMP): tools/maelys-cli-commit FORCE
+	@mkdir -p $(@D)
+	@commit=$$(tools/maelys-cli-commit); \
+	if [ ! -f $@ ] || [ "$$(cat $@ 2>/dev/null)" != "$$commit" ]; then \
+		printf '%s' "$$commit" > $@; \
+	fi
+.PHONY: FORCE
+FORCE:
+
+$(EMBEDDED): $(AGENT_TEXTS) $(EMBED) VERSION $(COMMIT_STAMP)
 	@mkdir -p $(@D)
 	{ printf 'const char maelys_agents_version[] = "%s";\n' "$(VERSION)"; \
-	  $(EMBED) --define VERSION=$(VERSION) \
+	  $(EMBED) --define VERSION=$(VERSION) --define COMMIT=$$(cat $(COMMIT_STAMP)) \
 	    maelys_agents_instructions_block=share/agents/instructions-block.md \
 	    maelys_agents_guide=share/agents/maelys-cli-guide.md \
 	    maelys_agents_claude_skill=share/agents/claude-skill.md; } > $@.tmp
@@ -162,6 +175,9 @@ cli-check: $(DISPATCHER) $(EXAMPLE)
 embed-check: $(EMBED)
 	CC=$(CC) ./tests/test_embed.sh ./$(EMBED)
 
+commit-check: tools/maelys-cli-commit
+	./tests/test_commit.sh ./tools/maelys-cli-commit
+
 header-check: $(HEADER_CPP)
 	$(HEADER_CPP)
 
@@ -181,7 +197,7 @@ doc-topics-check:
 # python-check, contract-check and conformance-check need python3; they are
 # part of check wherever python3 exists, as the C library itself does not
 # need Python.
-check: test cli-check embed-check header-check check-version api-doc-check agent-doc-check doc-topics-check python-doc-check
+check: test cli-check embed-check commit-check header-check check-version api-doc-check agent-doc-check doc-topics-check python-doc-check
 	@if command -v python3 >/dev/null 2>&1; then $(MAKE) python-check contract-check conformance-check; \
 	else echo "python-check, contract-check, conformance-check: skipped (python3 not found)"; fi
 

@@ -165,6 +165,15 @@ skill `.claude/skills/maelys-cli-framework/SKILL.md` is its checklist form.
 - `describe COMMAND_ID` omits `globalOptions`, `output` and `invariants`.
 - A single invalid extension manifest stops the `maelys` dispatcher.
 - The reference generator omits versions unless `--include-versions`.
+- The four texts `maelys agents install` writes stamp the commit next to
+  the version (`maelys-cli 0.5.20 (bd7f689)`), never a date: the pin a
+  consumer keeps beside these files is already two lines, tag and commit,
+  because a tag alone does not identify content; a date would move on
+  every regeneration and prove nothing. `tools/maelys-cli-commit` reads
+  `git rev-parse` in a checkout, or the `COMMIT` file's `export-subst`
+  expansion (`.gitattributes`) in a source archive that has none, such as
+  a GitHub tag tarball; `unknown` when neither is available, never a
+  failed build.
 
 ## When adding a command to `maelys` or `maelys-hello`
 

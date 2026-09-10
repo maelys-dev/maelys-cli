@@ -234,6 +234,11 @@ check "agents status reports missing with exit 2" '[ "$code" = 2 ] && printf "%s
 run a-apply "$maelys" agents install "$project" --apply --json --compact
 check "agents apply creates managed files" '[ "$code" = 0 ] && grep -q "maelys-cli:begin" "$project/AGENTS.md" && grep -q "Existing notes." "$project/AGENTS.md" && grep -q "maelys-cli:begin" "$project/CLAUDE.md" && [ -f "$project/docs/maelys-cli-guide.md" ] && [ -f "$project/.claude/skills/maelys-cli-command/SKILL.md" ]'
 check "skill keeps frontmatter first" '[ "$(head -1 "$project/.claude/skills/maelys-cli-command/SKILL.md")" = "---" ]'
+check "generated texts stamp a commit next to the version, not a date" \
+    'grep -Eq "maelys-cli [0-9]+\.[0-9]+\.[0-9]+ \(([0-9a-f]{7}|unknown)\)" "$project/docs/maelys-cli-guide.md" && \
+     grep -Eq "maelys-cli [0-9]+\.[0-9]+\.[0-9]+ \(([0-9a-f]{7}|unknown)\)" "$project/.claude/skills/maelys-cli-command/SKILL.md" && \
+     grep -Eq "maelys-cli [0-9]+\.[0-9]+\.[0-9]+, ([0-9a-f]{7}|unknown)\)" "$project/AGENTS.md" && \
+     grep -Eq "maelys-cli [0-9]+\.[0-9]+\.[0-9]+, ([0-9a-f]{7}|unknown)\)" "$project/CLAUDE.md"'
 
 run a-status1 "$maelys" agents status "$project"
 check "agents status current" '[ "$code" = 0 ] && printf "%s" "$out" | grep -q "current"'
