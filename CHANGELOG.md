@@ -90,6 +90,10 @@
 - These process and extension facilities are C-only and have no Python
   counterpart.
 
+- Installed agent texts (`share/agents/`) use CC-BY-4.0 with attribution to
+  David Bromberg. Managed blocks, guide and skill retain their notices when
+  installed; Make and CMake distribute the license. Other templates stay CC0.
+
 ## 0.5.16 - 2026-09-05
 
 - maelys-release v0.14.2 adopted: workflows only (`uses:` lines at 1749a35;

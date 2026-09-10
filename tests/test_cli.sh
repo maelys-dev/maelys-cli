@@ -239,6 +239,9 @@ check "generated texts stamp a commit next to the version, not a date" \
      grep -Eq "maelys-cli [0-9]+\.[0-9]+\.[0-9]+ \(([0-9a-f]{7}|unknown)\)" "$project/.claude/skills/maelys-cli-command/SKILL.md" && \
      grep -Eq "maelys-cli [0-9]+\.[0-9]+\.[0-9]+, ([0-9a-f]{7}|unknown)\)" "$project/AGENTS.md" && \
      grep -Eq "maelys-cli [0-9]+\.[0-9]+\.[0-9]+, ([0-9a-f]{7}|unknown)\)" "$project/CLAUDE.md"'
+for agent_file in AGENTS.md CLAUDE.md docs/maelys-cli-guide.md .claude/skills/maelys-cli-command/SKILL.md; do
+    check "agent attribution survives installation: $agent_file" 'grep -q "SPDX-License-Identifier: CC-BY-4.0" "$project/$agent_file" && grep -q "Copyright 2026 David Bromberg" "$project/$agent_file" && grep -q "https://creativecommons.org/licenses/by/4.0/" "$project/$agent_file" && grep -q "Source: https://github.com/maelys-dev/maelys-cli/" "$project/$agent_file" && ! grep -q "CC0" "$project/$agent_file"'
+done
 
 run a-status1 "$maelys" agents status "$project"
 check "agents status current" '[ "$code" = 0 ] && printf "%s" "$out" | grep -q "current"'

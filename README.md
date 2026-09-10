@@ -324,6 +324,8 @@ rule so that a consumer never links two copies of maelys-json.
 
 ## License
 
-MPL-2.0 for the framework code (see [LICENSE](LICENSE)); CC0-1.0 for the
-agent texts and templates copied into consumer projects (see
-[share/LICENSE](share/LICENSE)). Details in [LICENSING.md](LICENSING.md).
+MPL-2.0 for the framework code (see [LICENSE](LICENSE)); CC-BY-4.0 for
+installed agent texts, attributed to David Bromberg (see
+[share/agents/LICENSE](share/agents/LICENSE)); CC0-1.0 for the other
+copyable templates (see [share/LICENSE](share/LICENSE)).
+Details in [LICENSING.md](LICENSING.md).

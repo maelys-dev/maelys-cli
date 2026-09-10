@@ -14,15 +14,21 @@ statically or otherwise, into a larger work keeps its own license
 available in Source Code Form under MPL-2.0. Extensions started by the
 dispatcher are separate programs and are not covered software.
 
-## Installed agent texts and templates: CC0-1.0
+## Installed agent texts: CC-BY-4.0
 
-Everything under [`share/agents/`](share/agents/) and
-[`share/templates/`](share/templates/) is dedicated to the public domain
-under CC0 1.0 Universal; see [`share/LICENSE`](share/LICENSE). These files
-are copied into consumer repositories by `maelys agents install` and by
-hand, where they are meant to be edited freely and to carry no license
-obligation of their own. The generated markers keep the attribution line
-as a courtesy, not as a requirement.
+The texts under [`share/agents/`](share/agents/), including the managed
+`AGENTS.md` and `CLAUDE.md` blocks, guide and skill, are licensed under
+CC-BY-4.0, with attribution to David Bromberg. See
+[`share/agents/LICENSE`](share/agents/LICENSE). Installation preserves each
+text's copyright, source and license link. When sharing adaptations, retain
+those notices and indicate your changes. The license covers the installed
+block, not unrelated content a product writes outside it.
+
+## Other installed templates: CC0-1.0
+
+[`share/templates/`](share/templates/) remains CC0-1.0; see
+[`share/LICENSE`](share/LICENSE). This exception does not cover
+`share/agents/` and does not change the framework code's MPL-2.0 license.
 
 ## Third-party material
 
