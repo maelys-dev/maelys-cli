@@ -68,7 +68,7 @@ EXTENSION_PC := $(BUILD)/pkgconfig/maelys-cli-extension.pc
 
 .PHONY: all check test header-check check-version cli-check embed-check commit-check api-doc-check agent-doc-check doc-topics-check python-check python-doc-check install \
 	install-check uninstall dist clean asan-ubsan analyze cmake-check \
-	generate-cli-reference contract-check conformance-check agents-install
+	conformance-check agents-install
 
 all: $(LIB) $(EXTENSION_LIB) $(DISPATCHER) $(EXAMPLE) $(PC) $(EXTENSION_PC)
 
@@ -194,12 +194,14 @@ agent-doc-check:
 doc-topics-check:
 	./scripts/doc-topics-check.sh
 
-# python-check, contract-check and conformance-check need python3; they are
-# part of check wherever python3 exists, as the C library itself does not
-# need Python.
+# python-check and conformance-check need python3; they are part of check
+# wherever python3 exists, as the C library itself does not need Python.
+# The generated reference (docs/cli.md, docs/cli-contract.json) is no
+# longer verified here: maelys-release regenerates and compares both,
+# locally with 'maelys-release check .' and in CI through check-product.yml.
 check: test cli-check embed-check commit-check header-check check-version api-doc-check agent-doc-check doc-topics-check python-doc-check
-	@if command -v python3 >/dev/null 2>&1; then $(MAKE) python-check contract-check conformance-check; \
-	else echo "python-check, contract-check, conformance-check: skipped (python3 not found)"; fi
+	@if command -v python3 >/dev/null 2>&1; then $(MAKE) python-check conformance-check; \
+	else echo "python-check, conformance-check: skipped (python3 not found)"; fi
 
 # The Python framework: python/maelys_cli.py, its reference product
 # python/examples/hello.py and its tests, run without writing bytecode so a
@@ -221,10 +223,6 @@ analyze: $(HELLO_GENERATED)
 			$(CPPFLAGS) $(COMMON_CPPFLAGS) $(MAELYS_JSON_CFLAGS) -I$(BUILD)/generated -std=c11 $$source || exit 1; \
 	done
 
-generate-cli-reference: $(DISPATCHER) $(EXAMPLE)
-	python3 tools/generate_cli_reference.py --build $(BUILD)/bin \
-		--markdown docs/cli-reference.md --json docs/cli-contract.json
-
 # Proves that the programs conform to agent-cli/v2 as maelys-dev/agent-cli-spec
 # writes it, at the commit dependencies/agent-cli-spec.pin names; the kit drives
 # each binary from the outside. The checkout comes from
@@ -241,19 +239,6 @@ conformance-check: $(DISPATCHER) $(EXAMPLE)
 			tail -1 $(BUILD)/conformance.log; \
 		else grep -E '^(FAIL|conformance:)' $(BUILD)/conformance.log; echo "conformance-check: $$program failed" >&2; exit 1; fi; \
 	done
-
-# Proves that the committed reference and contract match what the binaries
-# describe. Run before a release and in CI; needs python3.
-contract-check: $(DISPATCHER) $(EXAMPLE)
-	@mkdir -p $(BUILD)/contract
-	python3 tools/generate_cli_reference.py --build $(BUILD)/bin \
-		--markdown $(BUILD)/contract/cli-reference.md \
-		--json $(BUILD)/contract/cli-contract.json
-	cmp -s $(BUILD)/contract/cli-reference.md docs/cli-reference.md || \
-		{ echo "docs/cli-reference.md drifted; run make generate-cli-reference" >&2; exit 1; }
-	cmp -s $(BUILD)/contract/cli-contract.json docs/cli-contract.json || \
-		{ echo "docs/cli-contract.json drifted; run make generate-cli-reference" >&2; exit 1; }
-	@echo "contract-check: ok"
 
 # The command alone (Homebrew formula `maelys`): the dispatcher and its
 # manifest directory. Its agent texts are embedded, nothing else is needed.

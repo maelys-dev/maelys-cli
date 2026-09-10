@@ -119,10 +119,12 @@ Steps, in one Egress change:
 2. replace the hand-written parser and renderer of `cli/maelys-egress.c`
    with `maelys_cli_main()`; `serve` becomes
    `MAELYS_CLI_PROTOCOL_STREAM(..., "egress-fd4")` or the relevant name;
-3. delete `tools/generate_cli_reference.py` and `tools/check_cli_contract.py`
-   in favor of the framework's generator (`generate_cli_reference.py
-   --build DIR maelys-egress`) and a `contract-check` target modeled on the
-   framework's, which rejects stale generated documentation in CI;
+3. delete `tools/generate_cli_reference.py`, `tools/check_cli_contract.py`
+   and any local reference-check target: the release socle finds the
+   framework's generator by itself at the pinned commit and regenerates and
+   compares `docs/cli.md`/`docs/cli-contract.json` (`maelys-release check`,
+   `check-product.yml` in CI), declared in `docs/cli.reference` when Egress
+   builds outside `build/bin` or documents more than its own binary;
 4. replace `docs/command-conventions.md` and `docs/agent-cli.md` with the
    short product templates installed under
    `PREFIX/share/maelys-cli/templates/`, keeping only Egress specifics

@@ -56,8 +56,9 @@ Read `AGENTS.md` (constitution, contracts, procedure) before editing.
    and `README.md` where user-visible. Add the feature's keyword per
    document in `docs/topics.tsv` (`scripts/doc-topics-check.sh`), which
    turns "did I document it everywhere" into a failing check.
-4. `CHANGELOG.md`, `VERSION`, `include/maelys/cli/version.h`, then
-   `make generate-cli-reference`.
-5. `make check`, `make asan-ubsan`, `make analyze`, `make install-check`,
-   `make cmake-check`. Push, wait for CI (Linux amd64/arm64, macOS, GCC),
-   then tag; never move a pushed tag.
+4. `CHANGELOG.md`, `VERSION`, `include/maelys/cli/version.h`. The generated
+   reference (`docs/cli.md`, `docs/cli-contract.json`) is the release
+   socle's job (`maelys-release check .`), not a target here.
+5. `make check`, `maelys-release check .`, `make asan-ubsan`, `make analyze`,
+   `make install-check`, `make cmake-check`. Push, wait for CI (Linux
+   amd64/arm64, macOS, GCC), then tag; never move a pushed tag.

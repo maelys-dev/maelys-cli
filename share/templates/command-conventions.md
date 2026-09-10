@@ -69,6 +69,7 @@ from the catalog; packages install it in the shell's completion directory.
 - the catalog in the product sources defines commands, operands and options;
 - `schemas/*.json` define `data` of every command and are embedded at build
   time by `maelys-cli-embed`;
-- `docs/cli-reference.md` and `docs/cli-contract.json` are generated from
-  `describe` with the maelys-cli reference generator; `make contract-check`
-  rejects a stale copy in CI.
+- `docs/cli.md` and `docs/cli-contract.json` are generated from `describe`
+  with the maelys-cli reference generator; the release socle regenerates
+  and compares them (`maelys-release check`, and `check-product.yml` in
+  CI), declared in `docs/cli.reference` — nothing of this product's own.

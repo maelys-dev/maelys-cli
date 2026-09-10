@@ -68,7 +68,7 @@ implements it is in [docs/command-conventions.md](docs/command-conventions.md),
 what it adds for agents in [docs/agent-cli.md](docs/agent-cli.md), the
 external command model in [docs/extensions.md](docs/extensions.md) and the
 ABI policy in [docs/abi.md](docs/abi.md). The generated reference of the
-bundled programs is [docs/cli-reference.md](docs/cli-reference.md).
+bundled programs is [docs/cli.md](docs/cli.md).
 
 ## Writing a product CLI
 
@@ -267,7 +267,7 @@ maelys-json is never looked for.
 The installed reference generator keeps the product's wording:
 
 ```sh
-maelys-cli-reference --build build/bin --markdown docs/cli-reference.md \
+maelys-cli-reference --build build/bin --markdown docs/cli.md \
     --json docs/cli-contract.json --title "Référence CLI" \
     --intro-file docs/cli-intro.md --columns "Identifiant|Usage|Effet|Sortie|But" \
     --global-label "Options globales :" my-program
@@ -277,7 +277,7 @@ A command declared `.unavailable` on some hosts (a Linux-only command
 built on macOS) would make the described contract host-dependent;
 `--neutral-availability` describes every command as available, or only the
 comma-separated identifiers given (`--neutral-availability unpack-rootfs`),
-so one committed contract passes `contract-check` on every host.
+so one committed contract is host-independent.
 
 ## Building and testing
 
@@ -286,11 +286,15 @@ make                 # libmaelys_cli.a, maelys, maelys-hello, pkg-config file
 make check           # unit tests, end-to-end CLI tests, C++ header gate
 make asan-ubsan      # the same under AddressSanitizer and UBSan
 make install-check   # install into a scratch prefix and build a consumer
-make contract-check  # committed reference and contract match describe (part of check)
 make cmake-check     # CMake package: build, install, find_package consumer
 make install PREFIX=/opt/homebrew   # lib, headers, maelys, maelys-cli-embed, maelys-cli-reference, agent texts
-make generate-cli-reference
 ```
+
+`docs/cli.md` and `docs/cli-contract.json`, the generated reference and its
+machine-readable contract, are regenerated and compared by the shared
+release socle (`maelys-release check .`, and `check-product.yml` in CI),
+declared in `docs/cli.reference`; maelys-cli carries no rule, path or
+freshness check of its own for them.
 
 Requirements: a C11 compiler, POSIX `make`, `sh`, `od` and `awk`; a
 `maelys-json` checkout beside this one (`MAELYS_JSON_DIR`, tag `v0.1.0`) or an

@@ -1,6 +1,17 @@
 # Changelog
 
-## Unreleased
+## 0.5.21 - 2026-09-10
+
+- maelys-release v0.21.1 adopted (from v0.15.1): `docs/cli-reference.md`
+  is now `docs/cli.md`, one name for every product's generated reference;
+  `docs/cli.reference` declares what the socle cannot guess (`[build]
+  build/release/bin`, `[programs] maelys maelys-hello`). The socle now
+  regenerates and compares `docs/cli.md`/`docs/cli-contract.json` itself,
+  using this repository's own `tools/generate_cli_reference.py` at the
+  commit it is checked out at (maelys-cli does not pin itself): `make
+  generate-cli-reference` and `make contract-check` are gone, replaced by
+  `maelys-release check .` locally and `check-product.yml` in CI. No
+  content change to the reference itself.
 
 - The four texts `maelys agents install` writes (the `AGENTS.md`/`CLAUDE.md`
   block, `docs/maelys-cli-guide.md`, `.claude/skills/maelys-cli-command/SKILL.md`)
