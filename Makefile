@@ -263,6 +263,7 @@ install-sdk: $(LIB) $(EXTENSION_LIB) $(PC) $(EXTENSION_PC)
 	install -m 0644 include/maelys/cli/*.h $(DESTDIR)$(PREFIX)/include/maelys/cli/
 	install -m 0644 $(PC) $(DESTDIR)$(PREFIX)/lib/pkgconfig/maelys-cli.pc
 	install -m 0644 share/agents/*.md $(DESTDIR)$(PREFIX)/share/maelys-cli/agents/
+	install -m 0644 share/agents/LICENSE $(DESTDIR)$(PREFIX)/share/maelys-cli/agents/
 	install -m 0644 share/templates/* $(DESTDIR)$(PREFIX)/share/maelys-cli/templates/
 	install -m 0644 share/LICENSE $(DESTDIR)$(PREFIX)/share/maelys-cli/LICENSE
 	install -m 0644 LICENSE LICENSING.md $(DESTDIR)$(PREFIX)/share/maelys-cli/docs/

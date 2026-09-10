@@ -23,9 +23,11 @@ public contract is stricter than in a product repository.
 
 ## Licensing boundary
 
-Code is MPL-2.0; `share/agents/` and `share/templates/` are CC0-1.0 because
-they are copied into consumer repositories. Never move code into `share/`
-or licensed text into the agent texts. See `LICENSING.md`.
+Code is MPL-2.0; `share/agents/` texts are CC-BY-4.0, attributed to David
+Bromberg, and `share/templates/` remains CC0-1.0. Preserve the agent texts'
+copyright, source and license notices when installing them; indicate changes
+when sharing adaptations. Never move code into `share/` or third-party text
+under incompatible terms into the agent texts. See `LICENSING.md`.
 
 ## Contracts that must not drift
 

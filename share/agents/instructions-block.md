@@ -1,3 +1,10 @@
+<!-- SPDX-License-Identifier: CC-BY-4.0
+Copyright 2026 David Bromberg.
+Source: https://github.com/maelys-dev/maelys-cli/blob/main/share/agents/instructions-block.md
+License: https://creativecommons.org/licenses/by/4.0/
+When sharing adaptations, retain attribution and indicate your changes.
+-->
+
 # Maelys CLI framework (maelys-cli @VERSION@, @COMMIT@)
 
 This project builds its command-line interface on `libmaelys_cli`. The
