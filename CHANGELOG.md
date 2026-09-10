@@ -1,7 +1,11 @@
 # Changelog
 
-## Unreleased
+## 0.5.22 - 2026-09-11
 
+- Licensing: the repository's own `.claude/skills/maelys-cli-framework/SKILL.md`
+  now carries the CC-BY-4.0 notice, like the installed
+  `share/agents/claude-skill.md` (flagged by maelys-platform's audit).
+  `LICENSING.md` names both cases under one section.
 - maelys-release v0.28.1 adopted (from v0.21.1): workflow pins only, plus
   `scripts/checkout-dependency.sh` support for a pinned dependency's own
   submodules (declared, never automatic) and CC-BY-4.0 attribution on the
