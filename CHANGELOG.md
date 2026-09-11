@@ -9,9 +9,6 @@
   repository builds one. Sources only: no header, no artifact, no installed
   path and no public name changes, and `git` records the three files as
   renames.
-
-## Unreleased
-
 - maelys-json pinned at v0.1.5 (from v0.1.3). Both versions in between are
   additive: 0.1.4 adds `maelys_json_writer_object_begin_except` and
   `maelys_json_error_pointer` without ABI change, 0.1.5 moves the fuzz
