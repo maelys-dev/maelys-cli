@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.25 - 2026-09-11
 
 - maelys-json pinned at v0.2.0 (from v0.1.6), which **removes**
   `maelys_json_value_pointer` and `maelys_json_document_parse_file_bytes`.
