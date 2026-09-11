@@ -63,6 +63,14 @@ manifest is:
 A single invalid manifest blocks the whole dispatcher on purpose: a partial
 catalog would let an agent believe a command is absent.
 
+A manifest that does not parse is reported with the position of the failing
+value twice over: its RFC 6901 JSON Pointer for a machine (`Manifest /path
+is not valid JSON at /version: ...`) and the line, column and offset for a
+human. The pointer is omitted when the failure is at the document root,
+where it would name nothing, and when a key on its path carries a terminal
+control — the metadata check above never ran for a document that did not
+parse, so the pointer is held to the same rule as `version` and `summary`.
+
 ## Linking a dispatcher
 
 Manifest discovery is `libmaelys_cli_extension.a`, separate from the core so
