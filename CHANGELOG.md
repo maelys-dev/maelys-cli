@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.23 - 2026-09-11
 
 - agent-cli-spec pinned at v2.4.0. `--field NAME`, a rendering option in
   `globalOptions`, renders one top-level member of a command's `data`
