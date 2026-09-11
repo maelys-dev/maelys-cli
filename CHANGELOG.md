@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.24 - 2026-09-11
 
 - The dispatcher's sources move from `cmd/maelys/` to `cli/`, the spelling
   maelys-egress, maelys-oci and maelys-warden already use for the single
