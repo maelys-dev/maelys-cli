@@ -20,7 +20,7 @@
 - the extension manifest and `MAELYS_CLI_API` change together;
 - headers compile as C11 and C++17;
 - two archives: `libmaelys_cli.a` (core, no dependency) and
-  `libmaelys_cli_extension.a` (manifest discovery, links maelys-json 0.1,
+  `libmaelys_cli_extension.a` (manifest discovery, links maelys-json 0.2,
   ABI 1). A consumer links each archive once and never embeds them in its
   own archive; pkg-config `Requires` and CMake `PUBLIC` links carry the
   graph.

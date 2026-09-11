@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+- maelys-json pinned at v0.2.0 (from v0.1.6), which **removes**
+  `maelys_json_value_pointer` and `maelys_json_document_parse_file_bytes`.
+  0.1.6 had added them on this product's integration report, and the same
+  report then observed that neither maelys-cli nor maelys-git-core has a
+  call for either: a manifest is a flat object, and files are read by the
+  consumer's own bounded reader. Nothing here called them, so no code
+  changes; `maelys_json_error_pointer`, which this product does use, is
+  untouched. `MAELYS_JSON_ABI_VERSION` is 2 and the CMake package declares
+  0.2.x incompatible with 0.1.x, so the version this repository asks for
+  moves with it: `find_package(maelys-json 0.2)` in `CMakeLists.txt` and in
+  the installed `maelys-cli-config.cmake`, `maelys-json >= 0.2` in
+  `maelys-cli-extension.pc`, and `docs/abi.md` says 0.2.
+
 ## 0.5.24 - 2026-09-11
 
 - The dispatcher's sources move from `cmd/maelys/` to `cli/`, the spelling
