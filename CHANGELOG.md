@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- maelys-json pinned at v0.1.5 (from v0.1.3). The two versions in between are
+  additive for this product: 0.1.4 adds `maelys_json_writer_object_begin_except`
+  and `maelys_json_error_pointer` without ABI change, 0.1.5 moves the fuzz
+  harnesses and re-adopts the release socle. Nothing here uses the new
+  functions yet; the bump keeps the pin current and the whole verification
+  suite green against it. The README no longer names a maelys-json version of
+  its own, which had drifted to `v0.1.0`: it points at
+  `dependencies/maelys-json.pin`.
+
 ## 0.5.23 - 2026-09-11
 
 - agent-cli-spec pinned at v2.4.0. `--field NAME`, a rendering option in
