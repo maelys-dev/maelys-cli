@@ -83,6 +83,15 @@ typedef struct maelys_cli_invocation {
     int progress;            /* maelys_cli_tristate_t */
     int pager;               /* maelys_cli_tristate_t */
     int pager_requested;     /* --pager given explicitly */
+    /* --field NAME of spec 2.4: renders one top-level member of data by the
+     * section 7 pipe rules, instead of the whole result. NULL when absent.
+     * A rendering option (refused by protocol streams, like --pager);
+     * refused together with --format json by the parser when both are
+     * explicit, and defensively at reply time otherwise (an environment
+     * MAELYS_CLI_FORMAT=json applies after parsing). A name absent from
+     * data is MAELYS_CLI_CODE_VALIDATION_FAILED, discovered only once the
+     * handler has produced data. */
+    const char *field;
 } maelys_cli_invocation_t;
 
 /* auto | always | never, in the order of the trunk's choices. */

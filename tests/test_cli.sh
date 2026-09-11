@@ -151,6 +151,15 @@ check "no pager starts in a pipe, whatever --pager says" '[ "$code" = 0 ] && [ "
 rm -f "$marker"
 run pattern-refused "$hello" describe --summary --prefix "Bad." --json
 check "a declared pattern is enforced" '[ "$code" = 1 ] && printf "%s" "$err" | grep -q "expects a value matching"'
+run field-scalar "$hello" describe --field program
+check "--field renders one scalar member" '[ "$code" = 0 ] && [ "$out" = "maelys-hello" ]'
+run field-records "$hello" list --limit 2 --field records
+check "--field records on a json-records command equals its own rendering" '[ "$code" = 0 ] && [ "$out" = "0	alpha
+1	beta" ]'
+run field-json-refused "$hello" describe --field program --json
+check "--field with --format json is refused" '[ "$code" = 1 ] && printf "%s" "$err" | grep -q "conflicts with --format json"'
+run field-absent "$hello" describe --field no-such-member
+check "--field of a member data does not carry fails once the command has run" '[ "$code" = 1 ] && printf "%s" "$err" | grep -q "names .no-such-member."'
 run hidden-describe "$hello" describe greet --json
 check "hidden option listed by describe" 'printf "%s" "$out" | grep -q "\"long\": \"--trace\"" && printf "%s" "$out" | grep -q "\"hidden\": true" && ! printf "%s" "$out" | grep -q "trace\]"'
 run hidden-help "$hello" help greet

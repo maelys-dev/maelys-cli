@@ -516,6 +516,73 @@ static int test_stream_records_and_codes(void) {
     return 1;
 }
 
+/* --field NAME, spec 2.4: renders one top-level member of data instead of
+ * the whole result, by the section 7 pipe rules extended to every shape. */
+static int test_field(void) {
+    /* Scalar. */
+    run_result_t result = RUNV("describe", "--field", "program");
+    CHECK(result.code == 0 && strcmp(result.out, "prog\n") == 0 && !result.err[0]);
+    release(&result);
+    result = RUNV("describe", "--field", "program", "--format", "jsonl");
+    CHECK(result.code == 0 && strcmp(result.out, "\"prog\"\n") == 0);
+    release(&result);
+    /* Array of scalars. */
+    result = RUNV("describe", "--field", "invariants");
+    CHECK(result.code == 0 && strstr(result.out, "usage and agent discovery share one catalog\n"));
+    release(&result);
+    /* Array of objects: the same tab-separated rows as ordinary records. */
+    result = RUNV("describe", "--field", "globalOptions");
+    CHECK(result.code == 0 && strstr(result.out, "--format") && strstr(result.out, "\t"));
+    release(&result);
+    result = RUNV("describe", "--field", "globalOptions", "--format", "jsonl");
+    CHECK(result.code == 0 && strstr(result.out, "\"long\":\"--format\""));
+    release(&result);
+    /* Object: one row, its members as columns. */
+    result = RUNV("describe", "--field", "output");
+    CHECK(result.code == 0 && strstr(result.out, "agent-cli/v2\t"));
+    release(&result);
+    /* Refused with --format json (data would not validate against its
+     * declared outputSchema once filtered), the alias included; both
+     * requested JSON rendering, so the refusal itself is JSON too. */
+    result = RUNV("describe", "--field", "program", "--json", "--compact");
+    CHECK(result.code == 1 && !result.out[0] &&
+        strstr(result.err, "\"code\":\"VALIDATION_FAILED\"") &&
+        strstr(result.err, "conflicts with --format json"));
+    release(&result);
+    result = RUNV("describe", "--field", "program", "--format", "json", "--compact");
+    CHECK(result.code == 1 && !result.out[0] &&
+        strstr(result.err, "\"code\":\"VALIDATION_FAILED\"") &&
+        strstr(result.err, "conflicts with --format json"));
+    release(&result);
+    /* A name absent from data: found only once the command has run. A
+     * jsonl failure still renders as a JSON envelope, as any failure does. */
+    result = RUNV("describe", "--field", "no-such-member");
+    CHECK(expect_failure(&result, "[VALIDATION_FAILED]", "names 'no-such-member'"));
+    result = RUNV("describe", "--field", "no-such-member", "--format", "jsonl", "--compact");
+    CHECK(result.code == 1 && !result.out[0] &&
+        strstr(result.err, "\"code\":\"VALIDATION_FAILED\"") &&
+        strstr(result.err, "names 'no-such-member'"));
+    release(&result);
+    /* A rendering option: refused by a stream, jsonl allowed with it on a
+     * command that is not json-records, duplicates refused like any option. */
+    result = RUNV("exec", "hello", "--field", "program");
+    CHECK(expect_failure(&result, "[VALIDATION_FAILED]", "does not support CLI output rendering"));
+    result = RUNV("describe", "--field", "program", "--field", "program");
+    CHECK(expect_failure(&result, "[VALIDATION_FAILED]", "may be supplied only once"));
+    /* On a json-records command: records equals the ordinary rendering,
+     * count is its own scalar, and jsonl streams records the usual way. */
+    result = RUNV("records", "--field", "records");
+    CHECK(result.code == 0 && strcmp(result.out, "0\n1\n") == 0);
+    release(&result);
+    result = RUNV("records", "--field", "count");
+    CHECK(result.code == 0 && strcmp(result.out, "2\n") == 0);
+    release(&result);
+    result = RUNV("records", "--field", "records", "--format", "jsonl");
+    CHECK(result.code == 0 && strcmp(result.out, "{\"i\":0}\n{\"i\":1}\n") == 0);
+    release(&result);
+    return 1;
+}
+
 static int test_typed_operands_and_completion(void) {
     run_result_t result = RUNV("typed", "zsh", "7");
     CHECK(result.code == 0 && last_shell == 1u && last_count_present && last_count == 7u);
@@ -697,6 +764,7 @@ int main(void) {
     RUN(test_parsing_success);
     RUN(test_parsing_failures);
     RUN(test_stream_records_and_codes);
+    RUN(test_field);
     RUN(test_typed_operands_and_completion);
     RUN(test_groups_defaults_unavailable);
     RUN(test_environment_format);

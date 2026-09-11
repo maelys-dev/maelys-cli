@@ -123,6 +123,23 @@ accepted and write nothing. The pager is `PAGER`, split with POSIX quoting
 and no expansion (empty disables it), or `less` with `LESS=FRX`; a pager
 that cannot start leaves the rendering on stdout.
 
+`--field NAME` (spec 2.4, also a rendering option) renders one top-level
+member of `data` instead of the whole result, by the tab-separated-records
+rules above extended to every JSON shape: an array whose elements are all
+objects renders one row per object; any other array is one value per line;
+an object is one row, its members as columns; any other scalar is its
+escaped value on one line. In `jsonl` mode an array is one compact value
+per line and anything else is exactly one line, so the rendering is total
+and never depends on what the handler returned. `--field` conflicts with
+an explicit `--format json`/`--json` (a filtered envelope would not
+validate against `outputSchema`); the parser refuses the pair when both
+are explicit, and the reply still refuses it when `MAELYS_CLI_FORMAT=json`
+resolves the format only after parsing. A name absent from `data` is
+`VALIDATION_FAILED`, found only once the handler has produced `data`,
+unlike every other rendering refusal. `--field` also lifts the
+records-only restriction on `jsonl`: combined with `--field`, `jsonl` is
+accepted on any command.
+
 Text records into a pipe render one tab-separated row per record (spec 2.3,
 section 7): the columns are the union of the records' member names sorted
 by code point, a missing member is an empty field, a string is unquoted

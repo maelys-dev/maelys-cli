@@ -156,6 +156,17 @@ rendering of success is the `text` mapping given to `Program` (`{"greet":
 render_greet}`), one line per record for `json-records`, or the data as
 indented JSON.
 
+`Invocation.field` (spec 2.4's `--field NAME`) renders one top-level member
+of `data` instead of the whole result: `field_text(value)` is the four-shape
+dispatcher (array of objects through `record_text`, any other array one
+value per line, an object as a single-element `record_text`, any other
+scalar its escaped value); `field_jsonl(value)` is its `jsonl` counterpart
+(an array as one compact value per line, else exactly one line). `main()`
+refuses `--field` together with `--format json` (`VALIDATION_FAILED`, even
+when `MAELYS_CLI_FORMAT=json` resolved it) and a name absent from `data`,
+after the handler has run. `--field` also lifts the records-only
+restriction on `jsonl`.
+
 ## Stability of the module
 
 The public API of `python/maelys_cli.py` is a contract, vendored byte for
@@ -169,10 +180,10 @@ the command keywords `operands=`, `options=`, `schema=`, `hidden=`,
 `unavailable=`, `synopsis=`, `protocol=`;
 `Invocation` with `operands`, `raw_operands`, `options`, `option()`,
 `flag()`, `apply`, `format`, `compact`, `non_interactive`, `program`,
-`verbose`, `progress`, `pager`, `progress_wanted`, `detail()`,
+`verbose`, `progress`, `pager`, `field`, `progress_wanted`, `detail()`,
 `show_progress()`, `progress_done()`, `color`, `color_stdout`,
 `color_stderr`; `Program.warn(message)`; `terminal_color`;
-`record_text`, `pager_command`, `page_text`; `Failure`;
+`record_text`, `pager_command`, `page_text`, `field_text`, `field_jsonl`; `Failure`;
 the file and error functions above; the `EXIT_*` and `FILE_*` constants.
 The rules are those of the C library: within the `0.5` line every change
 is additive (a new keyword with a default, a new function, a new

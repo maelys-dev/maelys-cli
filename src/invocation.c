@@ -56,6 +56,9 @@ static const maelys_cli_option_t transport[] = {
      "Page the text rendering when stdout is a terminal; never in a pipe, "
      "in JSON or under --non-interactive.", tristate_choices),
      .default_text = "auto"},
+    {MAELYS_CLI_STRING("field", "NAME",
+     "Render one top-level member of data instead of the whole result, by "
+     "the text or jsonl rendering rules.")},
     {MAELYS_CLI_FLAG("help", "Show the help of the selected command.")},
 };
 
@@ -398,6 +401,8 @@ static void apply_transport(
     } else if (!strcmp(name, "pager")) {
         out->pager = (int)parsed->choice_index;
         out->pager_requested = 1;
+    } else if (!strcmp(name, "field")) {
+        out->field = parsed->value;
     } else if (!strcmp(name, "help")) {
         out->help_requested = parsed->boolean_value;
     }
@@ -639,7 +644,7 @@ int maelys_cli_parse(
         parsed->boolean_value = 1;
     }
     if (out->command->output == MAELYS_CLI_OUTPUT_STREAM &&
-        (out->rendering_requested || out->pager_requested)) {
+        (out->rendering_requested || out->pager_requested || out->field)) {
         maelys_cli_error_set(error, MAELYS_CLI_CODE_VALIDATION_FAILED,
             "Remove rendering flags; stdout is reserved for the declared "
             "protocol stream.",
@@ -647,13 +652,27 @@ int maelys_cli_parse(
             "rendering.", out->command->id);
         PARSE_FAIL();
     }
-    if (out->format == MAELYS_CLI_FORMAT_JSONL &&
+    if (out->format == MAELYS_CLI_FORMAT_JSONL && !out->field &&
         out->command->output != MAELYS_CLI_OUTPUT_RECORDS) {
         maelys_cli_error_set(error, MAELYS_CLI_CODE_VALIDATION_FAILED,
-            "Use --format json for this command; jsonl is reserved for "
-            "record streams.",
+            "Use --format json for this command, or add --field to render "
+            "one member in jsonl; jsonl otherwise is reserved for record "
+            "streams.",
             "'%s' does not produce records and cannot render jsonl.",
             out->command->id);
+        PARSE_FAIL();
+    }
+    /* Explicit --field with an explicit --format json (or --json): data is
+     * governed by outputSchema, and a filtered envelope would not validate
+     * against it (spec 2.4). An environment MAELYS_CLI_FORMAT=json applies
+     * after parsing and cannot be caught here; the reply functions refuse
+     * it too, defensively, once the resolved format is known. */
+    if (out->field && out->format == MAELYS_CLI_FORMAT_JSON &&
+        out->rendering_requested) {
+        maelys_cli_error_set(error, MAELYS_CLI_CODE_VALIDATION_FAILED,
+            "Use --format text or --format jsonl with --field.",
+            "--field conflicts with --format json: a filtered envelope "
+            "would not validate against the command's outputSchema.");
         PARSE_FAIL();
     }
     PARSE_DONE();

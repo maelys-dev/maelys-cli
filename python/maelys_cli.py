@@ -61,7 +61,7 @@ PREFIX_GRAMMAR = re.compile(r"^[a-z]([a-z0-9.-]*[a-z0-9-])?$")
 FORMATS = ("text", "json", "jsonl")
 COLORS = ("auto", "always", "never")
 SHELLS = ("bash", "zsh", "fish")
-RENDERING = ("--format", "--json", "--compact", "--pretty", "--color", "--pager")
+RENDERING = ("--format", "--json", "--compact", "--pretty", "--color", "--pager", "--field")
 TRISTATE = ("auto", "always", "never")
 SIZE_UNITS = {"": 1, "K": 1024, "M": 1024 ** 2, "G": 1024 ** 3, "T": 1024 ** 4}
 DURATION_UNITS = {"ms": 1, "s": 1000, "m": 60_000, "h": 3_600_000, "d": 86_400_000}
@@ -278,6 +278,8 @@ GLOBAL_OPTIONS = [
     flag("--verbose", "Add the details of the run on stderr in text mode; silent in JSON."),
     option("--pager", "Page the text rendering when stdout is a terminal; never in a pipe, in JSON or under --non-interactive.",
            argument("VALUE", "choice", TRISTATE), default="auto"),
+    option("--field", "Render one top-level member of data instead of the whole result, by "
+           "the text or jsonl rendering rules.", argument("NAME", "string")),
     flag("--help", "Show the help of the selected command."),
 ]
 INVARIANTS = [
@@ -586,22 +588,49 @@ def write_file_atomic(path: str, data: bytes, mode: int, policy: str) -> None:
 
 # ---- the program ------------------------------------------------------------------
 
+def _cell(value: Any) -> str:
+    """One field of the section 7 pipe form: a string unquoted and escaped, anything
+    else compact JSON. Shared by record_text() and field_text()."""
+    if isinstance(value, str):
+        escapes = {"\\": "\\\\", "\t": "\\t", "\r": "\\r", "\n": "\\n"}
+        return "".join(escapes.get(char, f"\\u{ord(char):04x}") if ord(char) < 32 or char == "\\"
+                       or ord(char) == 127 else char for char in value)
+    return json.dumps(value, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
+
+
 def record_text(records: list) -> str:
     """The text form of records (spec 2.3, section 7): one tab-separated row per
     record, the columns being the union of the member names sorted by code
     point, a missing member an empty field, strings unquoted and escaped,
     every other value compact JSON. The same rows on a terminal and in a pipe."""
     columns = sorted({key for record in records if isinstance(record, dict) for key in record})
-
-    def cell(value: Any) -> str:
-        if isinstance(value, str):
-            escapes = {"\\": "\\\\", "\t": "\\t", "\r": "\\r", "\n": "\\n"}
-            return "".join(escapes.get(char, f"\\u{ord(char):04x}") if ord(char) < 32 or char == "\\"
-                           or ord(char) == 127 else char for char in value)
-        return json.dumps(value, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
-
-    return "".join("\t".join(cell(record[key]) if key in record else "" for key in columns) + "\n"
+    return "".join("\t".join(_cell(record[key]) if key in record else "" for key in columns) + "\n"
                    for record in records if isinstance(record, dict))
+
+
+def field_text(value: Any) -> str:
+    """--field's text rendering (spec 2.4, section 5): the pipe rules of section 7
+    extended to every shape. An array whose every element is an object gives one
+    row per object (record_text(), unmodified: --field records on a json-records
+    command equals its existing rendering); any other array gives one value per
+    line; an object gives one row, its members as columns; anything else gives
+    its escaped value on one line."""
+    if isinstance(value, list):
+        if value and all(isinstance(item, dict) for item in value):
+            return record_text(value)
+        return "".join(_cell(item) + "\n" for item in value)
+    if isinstance(value, dict):
+        return record_text([value])
+    return _cell(value) + "\n"
+
+
+def field_jsonl(value: Any) -> str:
+    """--field's jsonl rendering (spec 2.4, section 5): an array gives one compact
+    JSON value per line, anything else exactly one line; the rendering is total,
+    so what a format accepts never depends on the data."""
+    items = value if isinstance(value, list) else [value]
+    return "".join(json.dumps(item, ensure_ascii=False, separators=(",", ":"), allow_nan=False) + "\n"
+                   for item in items)
 
 
 def pager_command() -> Optional[list]:
@@ -647,7 +676,7 @@ class Invocation:
     def __init__(self, program: "Program", command: dict, operands: list, options: dict,
                  fmt: str, compact: bool, non_interactive: bool, raw_operands: list,
                  verbose: bool = False, progress: str = "auto", pager: str = "auto",
-                 color: str = "auto") -> None:
+                 color: str = "auto", field: Optional[str] = None) -> None:
         self.program = program
         self.command = command
         self.operands = operands
@@ -660,6 +689,7 @@ class Invocation:
         self.progress = progress
         self.pager = pager
         self.color = color
+        self.field = field
         self._progress_shown = False
 
     @property
@@ -865,7 +895,13 @@ class Program:
         lines.extend(f"  {command['usage']:<{width}}  {command['purpose']}" for command in visible)
         lines.extend(["", "GLOBAL OPTIONS"])
         for item in GLOBAL_OPTIONS:
-            spelled = item["long"] + (f" {'|'.join(item['argument']['choices'])}" if "argument" in item else "")
+            argument = item.get("argument")
+            if argument and argument.get("choices"):
+                spelled = f"{item['long']} {'|'.join(argument['choices'])}"
+            elif argument:
+                spelled = f"{item['long']} {argument['name']}"
+            else:
+                spelled = item["long"]
             lines.append(f"  {spelled:<28} {item['summary']}")
         lines.extend(["", f"Run '{self.program} describe --format json' for the machine-readable catalog."])
         return "\n".join(lines) + "\n"
@@ -1041,6 +1077,8 @@ class Program:
         progress = "auto"
         pager = "auto"
         color = "auto"
+        field = None
+        format_requested = False
         rendering: list = []
         help_requested = False
         options: dict = {}
@@ -1054,8 +1092,10 @@ class Program:
                 rendering.append(name)
             if name == "--format":
                 fmt = parse_value("choice", value or "", {"choices": list(FORMATS)}, "Option --format", usage)
+                format_requested = True
             elif name == "--json":
                 fmt = "json" if _parse_flag(value, name, usage) else "text"
+                format_requested = True
             elif name == "--compact":
                 compact = _parse_flag(value, name, usage)
             elif name == "--pretty":
@@ -1070,6 +1110,11 @@ class Program:
                 verbose = _parse_flag(value, name, usage)
             elif name == "--pager":
                 pager = parse_value("choice", value or "", {"choices": list(TRISTATE)}, "Option --pager", usage)
+            elif name == "--field":
+                if value is None:
+                    raise Failure("VALIDATION_FAILED", "Option --field needs a value NAME.",
+                                  "Pass the option's argument.")
+                field = value
             elif name == "--help":
                 help_requested = _parse_flag(value, name, usage)
             elif name in ("--dry-run", "--plan") and isinstance(command["effect"], dict):
@@ -1128,7 +1173,7 @@ class Program:
         if help_requested:
             help_command = self.command_by_id("help")
             return Invocation(self, help_command, [command["id"]], {}, fmt, compact, non_interactive,
-                              [command["id"]], verbose, progress, pager, color), help_command
+                              [command["id"]], verbose, progress, pager, color, field), help_command
         operands: list = []
         if not command["passthrough"]:
             required = sum(1 for item in command["operands"] if item["required"])
@@ -1145,11 +1190,20 @@ class Program:
         if command["outputMode"] == "protocol-stream" and rendering:
             raise Failure("VALIDATION_FAILED", f"Command '{command['id']}' owns its stdout and refuses {rendering[0]}.",
                           "Set MAELYS_CLI_FORMAT=json in the environment to receive its failure envelope as JSON.")
-        if fmt == "jsonl" and command["outputMode"] != "json-records":
-            raise Failure("VALIDATION_FAILED", f"--format jsonl is accepted only by json-records commands, not '{command['id']}'.",
+        if fmt == "jsonl" and field is None and command["outputMode"] != "json-records":
+            raise Failure("VALIDATION_FAILED", f"--format jsonl is accepted only by json-records commands, not "
+                          f"'{command['id']}'; add --field to render one member in jsonl.",
                           "Use --format json.")
+        # data is governed by outputSchema; a filtered envelope would not validate
+        # against it (spec 2.4). An environment MAELYS_CLI_FORMAT=json applies after
+        # parsing and cannot be caught here; main() refuses it too, defensively.
+        if field is not None and fmt == "json" and format_requested:
+            raise Failure("VALIDATION_FAILED",
+                          "--field conflicts with --format json: a filtered envelope would not "
+                          "validate against the command's outputSchema.",
+                          "Use --format text or --format jsonl with --field.")
         return Invocation(self, command, operands, options, fmt, compact, non_interactive, raw_operands,
-                          verbose, progress, pager, color), command
+                          verbose, progress, pager, color, field), command
 
     # ---- rendering ----
 
@@ -1209,7 +1263,29 @@ class Program:
                 return int(result[1] if isinstance(result, tuple) else result)
             data, exit_code = command["handler"](invocation)
             invocation.progress_done()
-            if fmt == "text":
+            if invocation.field is not None:
+                # Reached with fmt == "json" only via an environment
+                # MAELYS_CLI_FORMAT=json the parser could not see; an explicit
+                # --format json was already refused there. A name absent from
+                # data is discoverable only now, once the handler has run.
+                if fmt == "json":
+                    raise Failure("VALIDATION_FAILED",
+                                  "--field conflicts with --format json: a filtered envelope "
+                                  "would not validate against the command's outputSchema.",
+                                  "Use --format text or --format jsonl with --field.")
+                if invocation.field not in data:
+                    raise Failure("VALIDATION_FAILED",
+                                  f"Option --field names '{invocation.field}', which "
+                                  f"'{command_id}' does not have.",
+                                  "Use a top-level member of the command's data.")
+                value = data[invocation.field]
+                if fmt == "jsonl":
+                    sys.stdout.write(field_jsonl(value))
+                else:
+                    text = field_text(value)
+                    if not page_text(text, invocation):
+                        sys.stdout.write(text)
+            elif fmt == "text":
                 text = self.render_text(command, data)
                 if not page_text(text, invocation):
                     sys.stdout.write(text)

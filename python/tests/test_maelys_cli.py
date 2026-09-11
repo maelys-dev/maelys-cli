@@ -123,6 +123,30 @@ class Contract(unittest.TestCase):
         self.assertEqual(out, "alpha\t1\nbeta\t2\n")
         self.assertEqual(cli.record_text([{"b": "x\ty", "a": None}, {"c": [1, "2"]}]), 'null\tx\\ty\t\n\t\t[1,"2"]\n')
 
+    def test_field(self) -> None:
+        code, out, err = run("describe", "--field", "program")
+        self.assertEqual((code, err, out), (0, "", "maelys-hello-py\n"))
+        code, out, _ = run("help", "--field", "commands")
+        self.assertEqual(out.splitlines()[:3], ["help", "version", "describe"])
+        code, out, _ = run("list", "--limit", "2", "--field", "records")
+        self.assertEqual(out, "alpha\t1\nbeta\t2\n")
+        code, out, _ = run("list", "--limit", "2", "--field", "count")
+        self.assertEqual(out, "2\n")
+        code, out, _ = run("list", "--limit", "2", "--field", "records", "--format", "jsonl")
+        self.assertEqual([json.loads(line)["name"] for line in out.splitlines()], ["alpha", "beta"])
+        code, out, err = run("describe", "--field", "program", "--format", "jsonl")
+        self.assertEqual((code, err, out), (0, "", '"maelys-hello-py"\n'))
+        self.assertEqual(cli.field_text({"a": 1, "b": "x"}), cli.record_text([{"a": 1, "b": "x"}]))
+        self.assertEqual(cli.field_jsonl({"a": 1}), '{"a":1}\n')
+        self.assertEqual(cli.field_jsonl([1, 2]), "1\n2\n")
+        self.assertEqual(cli.field_text(5), "5\n")
+        self.assertEqual(cli.field_text([1, "a"]), "1\na\n")
+        self.assertEqual(failure("describe", "--field", "no-such-member")[1]["code"], "VALIDATION_FAILED")
+        code, body = failure("describe", "--field", "program")
+        self.assertEqual((code, body["code"]), (1, "VALIDATION_FAILED"))
+        self.assertIn("conflicts with --format json", body["message"])
+        self.assertEqual(failure("describe", "--field", "program", "--field", "program")[1]["code"], "VALIDATION_FAILED")
+
     def test_describe_forms(self) -> None:
         code, out, _ = run("describe", "--json")
         catalog = json.loads(out)["data"]
@@ -207,7 +231,7 @@ class Contract(unittest.TestCase):
         self.assertEqual(failure("version", "--pager=sometimes")[1]["code"], "VALIDATION_FAILED")
         code, out, _ = run("describe", "--json")
         longs = [o["long"] for o in json.loads(out)["data"]["globalOptions"]]
-        self.assertEqual(longs[-4:], ["--progress", "--verbose", "--pager", "--help"])
+        self.assertEqual(longs[-5:], ["--progress", "--verbose", "--pager", "--field", "--help"])
         code, out, _ = run("describe", "--summary", "--json")
         self.assertNotIn("globalOptions", json.loads(out)["data"])
         # No pager in a pipe, whatever PAGER names.
