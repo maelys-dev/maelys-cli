@@ -1,5 +1,28 @@
 # Changelog
 
+## Unreleased
+
+- agent-cli-spec pinned at v2.4.0. `--field NAME`, a rendering option in
+  `globalOptions`, renders one top-level member of a command's `data`
+  instead of the whole result, by the section 7 pipe rules extended to
+  every JSON shape: an array of objects is one row per object, any other
+  array is one value per line, an object is one row of its members, any
+  other scalar is its escaped value on one line; in `jsonl` mode an array
+  is one compact value per line and anything else is exactly one line, so
+  rendering never depends on data shape. `--field` conflicts with an
+  explicit `--format json`/`--json` (a filtered envelope would not
+  validate against `outputSchema`), caught by the parser when both are
+  explicit and again at reply time for `MAELYS_CLI_FORMAT=json`; a field
+  name absent from `data` is `VALIDATION_FAILED`, discovered only once the
+  handler has run. `jsonl` is now accepted on any command when combined
+  with `--field` (previously refused outside `json-records`). Refused, like
+  `--pager`, by a `protocol-stream` command.
+- `python/maelys_cli.py`: `Invocation.field`, `field_text()`, `field_jsonl()`,
+  the same causal-order refusals. `Program.guide()` also fixed to spell a
+  free-string global option's argument by its name instead of assuming
+  every option with an argument declares `choices` (latent since
+  `--field` is the first such option).
+
 ## 0.5.22 - 2026-09-11
 
 - Licensing: the repository's own `.claude/skills/maelys-cli-framework/SKILL.md`

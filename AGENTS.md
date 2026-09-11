@@ -66,7 +66,8 @@ under incompatible terms into the agent texts. See `LICENSING.md`.
   file primitives with the same requirements and explanations, same
   `MAELYS_CLI_FORMAT` values, `argument.pattern` enforced in both (POSIX
   ERE in C, `re.search` in Python, patterns written in the common subset of
-  ECMA-262 and ERE), same trunk diagnostics and pager rules. A
+  ECMA-262 and ERE), same trunk diagnostics, pager and `--field` rendering
+  rules. A
   behavior that exists in one and not the other is a defect. It is held by
   `python/tests/test_maelys_cli.py`, by the conformance kit on
   `python/examples/hello.py` and by `scripts/python-doc-check.sh`
@@ -169,6 +170,13 @@ skill `.claude/skills/maelys-cli-framework/SKILL.md` is its checklist form.
 - `describe COMMAND_ID` omits `globalOptions`, `output` and `invariants`.
 - A single invalid extension manifest stops the `maelys` dispatcher.
 - The reference generator omits versions unless `--include-versions`.
+- `--field`'s absent-member refusal (`VALIDATION_FAILED`) is checked at
+  reply time, not parse time like every other rendering refusal: whether
+  `data` carries the named member can only be known once the handler has
+  run. Its conflict with an explicit `--format json`/`--json` is checked
+  both at parse time (the common case) and again at reply time, because
+  `MAELYS_CLI_FORMAT=json` in the environment only resolves the format
+  after parsing completes.
 - The four texts `maelys agents install` writes stamp the commit next to
   the version (`maelys-cli 0.5.20 (bd7f689)`), never a date: the pin a
   consumer keeps beside these files is already two lines, tag and commit,

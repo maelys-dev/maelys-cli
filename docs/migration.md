@@ -86,6 +86,12 @@ The only visible additions are `external`, `hidden`, `passthrough`,
   option with one of these spellings must have the trunk's shape and
   meaning, or be renamed.
 
+## Every consumer, at agent-cli-spec 2.4.0
+
+- `--field NAME` exists on every command; a product option spelled
+  `--field` must have the trunk's shape and meaning, or be renamed. No
+  other change: a product that never uses `--field` is unaffected.
+
 ## Egress (`cli/catalog.c` and `cli/maelys-egress.c`)
 
 Egress reads its configuration and its secrets: since 0.5.11 both go through

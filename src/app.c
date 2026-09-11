@@ -840,6 +840,10 @@ static int envelope_prefix(
         maelys_cli_json_key_integer(writer, "exitCode", exit_code) == 0 ? 0 : -1;
 }
 
+/* Defined below, with the text-rendering primitives it reuses (spec 2.4). */
+static int reply_field(
+    maelys_cli_context_t *context, const char *data, int exit_code);
+
 static int succeed_with(
     maelys_cli_context_t *context, const char *data_json, const char *human,
     int exit_code, int trusted) {
@@ -858,6 +862,8 @@ static int succeed_with(
             command_id(context), offset);
         return maelys_cli_fail_error(context, &error);
     }
+    if (context->invocation->field)
+        return reply_field(context, data, exit_code);
     if (context->invocation->format == MAELYS_CLI_FORMAT_TEXT) {
         if (human) {
             size_t length = strlen(human);
@@ -956,7 +962,13 @@ static int emit_record_with(
         return -1;
     }
     context->record_count++;
-    if (context->invocation->format == MAELYS_CLI_FORMAT_TEXT) {
+    /* --field defers everything to maelys_cli_finish_records(): count and
+     * records must exist as named members of one object before the field
+     * renderer can select between them, so neither the terminal human line
+     * nor immediate jsonl streaming can run; every format buffers, exactly
+     * as the JSON format always has. */
+    if (context->invocation->format == MAELYS_CLI_FORMAT_TEXT &&
+        !context->invocation->field) {
         /* On a terminal the human line is shown as given; elsewhere, or
          * without one, records are held for the tabular pipe form of
          * spec 2.3 section 7, rendered by maelys_cli_finish_records(). */
@@ -972,20 +984,25 @@ static int emit_record_with(
         }
         context->records_buffered = 1;
     }
-    switch (context->invocation->format) {
-        case MAELYS_CLI_FORMAT_JSONL: {
-            if (trusted) {
-                int failed = fputs(record_json, context->out) == EOF ||
-                    fputc('\n', context->out) == EOF;
-                return failed ? -1 : 0;
-            }
-            char *compact = NULL;
-            if (maelys_cli_json_format(record_json, 1, &compact) != 0) return -1;
-            int failed = fputs(compact, context->out) == EOF ||
-                fputc('\n', context->out) == EOF || fflush(context->out) != 0;
-            free(compact);
+    if (context->invocation->format == MAELYS_CLI_FORMAT_JSONL &&
+        !context->invocation->field) {
+        if (trusted) {
+            int failed = fputs(record_json, context->out) == EOF ||
+                fputc('\n', context->out) == EOF;
             return failed ? -1 : 0;
         }
+        char *compact = NULL;
+        if (maelys_cli_json_format(record_json, 1, &compact) != 0) return -1;
+        int failed = fputs(compact, context->out) == EOF ||
+            fputc('\n', context->out) == EOF || fflush(context->out) != 0;
+        free(compact);
+        return failed ? -1 : 0;
+    }
+    /* TEXT, JSON, and JSONL held back for --field: buffer into an array,
+     * exactly as JSON always has, so maelys_cli_finish_records() can build
+     * the {"count","records"} object the field renderer selects from. */
+    switch (context->invocation->format) {
+        case MAELYS_CLI_FORMAT_JSONL:
         case MAELYS_CLI_FORMAT_TEXT:
         case MAELYS_CLI_FORMAT_JSON:
             if (context->record_count == 1u &&
@@ -1185,6 +1202,207 @@ static int write_text_records(maelys_cli_context_t *context, const char *array) 
     return result;
 }
 
+/* ---- --field, one member of data (spec 2.4) ------------------------------ */
+
+/* Calls callback for each top-level element of the JSON array whose source
+ * starts at array[0] == '['. Returns -1 on malformed input, or when the
+ * callback itself does. */
+static int iterate_array(
+    const char *array, size_t length,
+    int (*callback)(void *state, const char *element, size_t element_length),
+    void *state) {
+    if (length == 0u || array[0] != '[') return -1;
+    size_t cursor = 1u;
+    for (;;) {
+        while (cursor < length && (array[cursor] == ' ' || array[cursor] == ',' ||
+               array[cursor] == '\n' || array[cursor] == '\r' || array[cursor] == '\t'))
+            ++cursor;
+        if (cursor >= length) return -1;
+        if (array[cursor] == ']') return 0;
+        size_t end = maelys_cli_json_value_end(array, length, cursor);
+        if (end == 0u) return -1;
+        if (callback(state, array + cursor, end - cursor) != 0) return -1;
+        cursor = end;
+    }
+}
+
+typedef struct all_objects_state {
+    int all;
+    int any;
+} all_objects_state_t;
+
+static int mark_if_not_object(void *state_ptr, const char *element, size_t element_length) {
+    all_objects_state_t *state = state_ptr;
+    state->any = 1;
+    if (element_length == 0u || element[0] != '{') state->all = 0;
+    return 0;
+}
+
+/* True for an array with at least one element, all of them objects (spec:
+ * "an array whose every element is an object"). An empty array is false,
+ * as either branch renders it as no lines. */
+static int array_is_all_objects(const char *array, size_t length) {
+    all_objects_state_t state = {1, 0};
+    if (iterate_array(array, length, mark_if_not_object, &state) != 0) return 0;
+    return state.any && state.all;
+}
+
+/* Wraps a JSON value span with '[' ']' into a fresh NUL-terminated buffer,
+ * so write_text_records() can render an object as the one-row array of
+ * itself the field rules ask for. */
+static char *bracket(const char *value, size_t length) {
+    char *wrapped = malloc(length + 3u);
+    if (!wrapped) return NULL;
+    wrapped[0] = '[';
+    memcpy(wrapped + 1, value, length);
+    wrapped[length + 1u] = ']';
+    wrapped[length + 2u] = '\0';
+    return wrapped;
+}
+
+typedef struct write_line_state {
+    FILE *out;
+    int failed;
+} write_line_state_t;
+
+static int write_array_line_text(void *state_ptr, const char *element, size_t element_length) {
+    write_line_state_t *state = state_ptr;
+    if (write_cell(state->out, element, element_length) != 0 ||
+        fputc('\n', state->out) == EOF)
+        state->failed = 1;
+    return state->failed ? -1 : 0;
+}
+
+static int write_array_line_jsonl(void *state_ptr, const char *element, size_t element_length) {
+    write_line_state_t *state = state_ptr;
+    char *copy = malloc(element_length + 1u);
+    if (!copy) { state->failed = 1; return -1; }
+    memcpy(copy, element, element_length);
+    copy[element_length] = '\0';
+    char *compact = NULL;
+    int formatted = maelys_cli_json_format(copy, 1, &compact);
+    free(copy);
+    if (formatted != 0) { state->failed = 1; return -1; }
+    if (fputs(compact, state->out) == EOF || fputc('\n', state->out) == EOF)
+        state->failed = 1;
+    free(compact);
+    return state->failed ? -1 : 0;
+}
+
+/* Renders one field value in text mode: the section 7 pipe rules, extended
+ * by section 5 to every shape. An array whose every element is an object
+ * gives one row per object (write_text_records, unmodified: --field records
+ * on a json-records command equals its existing rendering); any other
+ * array gives one value per line; an object gives one row, its members as
+ * columns; anything else gives its escaped value on one line. */
+static int render_field_text(
+    maelys_cli_context_t *context, const char *value, size_t length) {
+    if (length && value[0] == '[') {
+        if (array_is_all_objects(value, length)) {
+            char *copy = malloc(length + 1u);
+            if (!copy) return -1;
+            memcpy(copy, value, length);
+            copy[length] = '\0';
+            int result = write_text_records(context, copy);
+            free(copy);
+            return result;
+        }
+        write_line_state_t state = {context->out, 0};
+        return iterate_array(value, length, write_array_line_text, &state) != 0 ||
+            state.failed ? -1 : 0;
+    }
+    if (length && value[0] == '{') {
+        char *wrapped = bracket(value, length);
+        if (!wrapped) return -1;
+        int result = write_text_records(context, wrapped);
+        free(wrapped);
+        return result;
+    }
+    return write_cell(context->out, value, length) != 0 ||
+        fputc('\n', context->out) == EOF ? -1 : 0;
+}
+
+/* Renders one field value in jsonl mode: an array gives one compact JSON
+ * value per line, anything else exactly one line, the rendering total so
+ * validity never depends on the data (spec 2.4). */
+static int render_field_jsonl(
+    maelys_cli_context_t *context, const char *value, size_t length) {
+    if (length && value[0] == '[') {
+        write_line_state_t state = {context->out, 0};
+        return iterate_array(value, length, write_array_line_jsonl, &state) != 0 ||
+            state.failed ? -1 : 0;
+    }
+    char *copy = malloc(length + 1u);
+    if (!copy) return -1;
+    memcpy(copy, value, length);
+    copy[length] = '\0';
+    char *compact = NULL;
+    int formatted = maelys_cli_json_format(copy, 1, &compact);
+    free(copy);
+    if (formatted != 0) return -1;
+    int failed = fputs(compact, context->out) == EOF || fputc('\n', context->out) == EOF;
+    free(compact);
+    return failed ? -1 : 0;
+}
+
+typedef struct find_member_state {
+    const char *name;
+    const char *value;
+    size_t length;
+    int found;
+} find_member_state_t;
+
+static int match_member(
+    void *state_ptr, const char *key, const char *value, size_t value_length) {
+    find_member_state_t *state = state_ptr;
+    if (!state->found && !strcmp(key, state->name)) {
+        state->value = value;
+        state->length = value_length;
+        state->found = 1;
+    }
+    return 0;
+}
+
+/* Applies --field NAME to a complete, valid JSON object `data`: renders the
+ * named top-level member by the active format (text or jsonl; json was
+ * refused earlier by the parser whenever the option was explicit) and
+ * returns exit_code, or replies VALIDATION_FAILED when the name is absent
+ * -- discoverable only now, once the handler has produced data, unlike
+ * every other rendering refusal. context->replied is already 1 on entry
+ * (succeed_with/finish_records set it before calling this); the failure
+ * path resets it, as the invalid-JSON defect path already does. */
+static int reply_field(
+    maelys_cli_context_t *context, const char *data, int exit_code) {
+    const char *name = context->invocation->field;
+    if (context->invocation->format == MAELYS_CLI_FORMAT_JSON) {
+        /* Reached only via an environment MAELYS_CLI_FORMAT=json the parser
+         * could not see; an explicit --format json was already refused. */
+        maelys_cli_error_t error;
+        context->replied = 0;
+        maelys_cli_error_set(&error, MAELYS_CLI_CODE_VALIDATION_FAILED,
+            "Use --format text or --format jsonl with --field.",
+            "--field conflicts with --format json: a filtered envelope "
+            "would not validate against the command's outputSchema.");
+        return maelys_cli_fail_error(context, &error);
+    }
+    find_member_state_t state = {name, NULL, 0u, 0};
+    if (visit_members(data, strlen(data), 0u, match_member, &state) != 0 ||
+        !state.found) {
+        maelys_cli_error_t error;
+        context->replied = 0;
+        maelys_cli_error_set(&error, MAELYS_CLI_CODE_VALIDATION_FAILED,
+            "Use a top-level member of the command's data.",
+            "Option --field names '%s', which '%s' does not have.",
+            name, command_id(context));
+        return maelys_cli_fail_error(context, &error);
+    }
+    int written = context->invocation->format == MAELYS_CLI_FORMAT_JSONL ?
+        render_field_jsonl(context, state.value, state.length) :
+        render_field_text(context, state.value, state.length);
+    if (written != 0 || fflush(context->out) != 0) return MAELYS_CLI_EXIT_FAILURE;
+    return exit_code;
+}
+
 int maelys_cli_emit_record(
     maelys_cli_context_t *context, const char *record_json,
     const char *human_line) {
@@ -1204,7 +1422,8 @@ int maelys_cli_finish_records(maelys_cli_context_t *context, int exit_code) {
             "Report this defect to the command implementation.",
             "Command '%s' emitted an invalid record.", command_id(context));
     }
-    if (context->invocation->format == MAELYS_CLI_FORMAT_TEXT &&
+    if (!context->invocation->field &&
+        context->invocation->format == MAELYS_CLI_FORMAT_TEXT &&
         context->records_buffered && context->record_count > 0u) {
         if (maelys_cli_json_end_array(&context->records) != 0) {
             maelys_cli_json_writer_clear(&context->records);
@@ -1221,7 +1440,11 @@ int maelys_cli_finish_records(maelys_cli_context_t *context, int exit_code) {
                 command_id(context));
         return maelys_cli_succeed(context, "{}", "", exit_code);
     }
-    if (context->invocation->format != MAELYS_CLI_FORMAT_JSON)
+    /* --field needs count and records as named members of one object even
+     * in text or jsonl, where this function otherwise never builds one:
+     * only the field renderer, in succeed_with(), knows which to keep. */
+    if (!context->invocation->field &&
+        context->invocation->format != MAELYS_CLI_FORMAT_JSON)
         return maelys_cli_succeed(context, "{}", "", exit_code);
     maelys_cli_json_writer_t data;
     maelys_cli_json_writer_init(&data);

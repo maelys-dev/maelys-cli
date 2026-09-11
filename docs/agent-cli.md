@@ -33,6 +33,13 @@ command by `id`; never replay a `PRECONDITION_FAILED` blindly; prefer
   starts in a pipe. `argument.pattern` is enforced (`VALIDATION_FAILED`),
   the summary form carries no catalog-wide member, and text records into a
   pipe are tab-separated rows.
+- `--field NAME` (spec 2.4) renders one top-level member of `data` instead
+  of the whole result; useful for an agent that wants a single value or
+  list without parsing the full envelope. It refuses an explicit `--format
+  json`/`--json` (`VALIDATION_FAILED`: a filtered envelope would not
+  validate against `outputSchema`) and any name absent from `data`, so an
+  agent that already asked for JSON should never add it; it is otherwise
+  compatible with `jsonl`, which `--field` accepts on any command.
 - A hidden option (spec 2.2) is listed by `describe` with `hidden: true`,
   absent from `usage`, `help` and the completion, and accepted by the
   parser; `--trace` of `maelys-hello greet` is the example.
