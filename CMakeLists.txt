@@ -27,7 +27,7 @@ set(MAELYS_JSON_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../maelys-json"
 set(MAELYS_CLI_HAVE_JSON OFF)
 set(MAELYS_CLI_JSON_INSTALLED OFF)
 if(MAELYS_CLI_BUILD_EXTENSION)
-    find_package(maelys-json 0.1 CONFIG QUIET)
+    find_package(maelys-json 0.2 CONFIG QUIET)
 endif()
 if(NOT MAELYS_CLI_BUILD_EXTENSION)
     message(STATUS "maelys-cli: core only, maelys-json not configured")
