@@ -121,15 +121,27 @@ int maelys_cli_extension_load(
     maelys_json_error_t parse_error;
     maelys_json_result_t parsed = maelys_json_document_parse(bytes, size,
         MAELYS_JSON_PROFILE_RFC8259, &limits, &document, &parse_error);
-    free(bytes);
     if (parsed != MAELYS_JSON_OK) {
         char detail[160];
+        /* The RFC 6901 pointer of the failing value, which needs the bytes
+         * the parser saw, hence computed before they are released. It
+         * carries decoded manifest keys, and the metadata check below never
+         * ran for a document that did not parse, so it is named only when it
+         * is terminal-safe. Empty is the document root, and adds nothing. */
+        char pointer[128] = "";
+        char at[160] = "";
         (void)maelys_json_error_format(&parse_error, detail, sizeof(detail));
+        (void)maelys_json_error_pointer(bytes, size, &parse_error, pointer,
+            sizeof(pointer));
+        free(bytes);
+        if (pointer[0] && maelys_cli_text_is_terminal_safe(pointer))
+            (void)snprintf(at, sizeof(at), " at %s", pointer);
         maelys_cli_error_set(error, MAELYS_CLI_CODE_PROTOCOL_FAILED,
             "Repair or remove the manifest.",
-            "Manifest %s is not valid JSON: %s.", manifest_path, detail);
+            "Manifest %s is not valid JSON%s: %s.", manifest_path, at, detail);
         return -1;
     }
+    free(bytes);
     int result = -1;
     maelys_json_value_t root = maelys_json_document_root(document);
     if (maelys_json_value_type(document, root) != MAELYS_JSON_TYPE_OBJECT) {

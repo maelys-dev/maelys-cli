@@ -216,6 +216,13 @@ run d-unsafe "$maelys" help
 check "dispatcher refuses terminal controls in extension metadata" '[ "$code" = 1 ] && [ -z "$out" ] && printf "%s" "$err" | grep -q "\[PROTOCOL_FAILED\]" && ! printf "%s" "$err" | grep -q "$(printf "\033")"'
 rm -f "$commands/unsafe.json"
 
+cat >"$commands/broken.json" <<MANIFEST
+{"schema":"maelys.cli-extension/v1","version":}
+MANIFEST
+run d-broken "$maelys" help
+check "an unparsable manifest names the failing member" '[ "$code" = 1 ] && printf "%s" "$err" | grep -q "not valid JSON at /version:"'
+rm -f "$commands/broken.json"
+
 run d-exec "$maelys" hello greet dispatcher --json --compact
 check "dispatcher execs extension verbatim" '[ "$code" = 0 ] && printf "%s" "$out" | grep -q "\"greeting\":\"Hello, dispatcher!\""'
 

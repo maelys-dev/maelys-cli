@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+- maelys-json pinned at v0.1.5 (from v0.1.3). Both versions in between are
+  additive: 0.1.4 adds `maelys_json_writer_object_begin_except` and
+  `maelys_json_error_pointer` without ABI change, 0.1.5 moves the fuzz
+  harnesses and re-adopts the release socle. The README no longer names a
+  maelys-json version of its own, which had drifted to `v0.1.0`: it points at
+  `dependencies/maelys-json.pin`.
+- A manifest that does not parse now names the failing value by its RFC 6901
+  JSON Pointer next to the line and column it already gave (`Manifest /path
+  is not valid JSON at /version: line 1, column 25 ...`), so an agent reading
+  the `PROTOCOL_FAILED` envelope has a structural position instead of a
+  lexical one to recount. The pointer is omitted at the document root, where
+  it names nothing, and when a key on its path carries a terminal control:
+  the pointer decodes manifest keys and the metadata check never ran for a
+  document that did not parse, so it is held to the rule `version` and
+  `summary` already follow. `maelys_json_writer_object_begin_except` has no
+  use here: maelys-json is read-only in this product, in `src/extension.c`
+  alone, and the envelopes are written by the core's own writer.
+
 ## 0.5.23 - 2026-09-11
 
 - agent-cli-spec pinned at v2.4.0. `--field NAME`, a rendering option in

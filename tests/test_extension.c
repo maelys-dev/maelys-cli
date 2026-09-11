@@ -107,6 +107,22 @@ static int test_rejections(void) {
     CHECK(write_text(path, "{not json", 0644));
     CHECK(maelys_cli_extension_load(path, &extension, &error) != 0);
     CHECK(strcmp(error.code, "PROTOCOL_FAILED") == 0);
+    /* A failure at the root names no member: the pointer would be empty. */
+    CHECK(!strstr(error.message, " at "));
+
+    /* A failure inside a member names it as an RFC 6901 pointer. */
+    CHECK(write_text(path, "{\"schema\":\"maelys.cli-extension/v1\",\"version\":}",
+        0644));
+    CHECK(maelys_cli_extension_load(path, &extension, &error) != 0);
+    CHECK(strcmp(error.code, "PROTOCOL_FAILED") == 0 &&
+        strstr(error.message, "not valid JSON at /version:"));
+
+    /* The pointer carries decoded keys, and this document never reached the
+     * metadata check: a key with a terminal control drops the pointer. */
+    CHECK(write_text(path, "{\"cl\\u001bear\":[1,}", 0644));
+    CHECK(maelys_cli_extension_load(path, &extension, &error) != 0);
+    CHECK(strcmp(error.code, "PROTOCOL_FAILED") == 0);
+    CHECK(!strchr(error.message, '\033') && !strstr(error.message, " at "));
 
     /* Duplicate members and invalid UTF-8 are refused by maelys-json. */
     CHECK(write_text(path, "{\"schema\":\"maelys.cli-extension/v1\",\"command\":\"x\","
