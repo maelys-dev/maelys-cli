@@ -9,12 +9,17 @@
   repository builds one. Sources only: no header, no artifact, no installed
   path and no public name changes, and `git` records the three files as
   renames.
-- maelys-json pinned at v0.1.5 (from v0.1.3). Both versions in between are
+- maelys-json pinned at v0.1.6 (from v0.1.3). Every version in between is
   additive: 0.1.4 adds `maelys_json_writer_object_begin_except` and
-  `maelys_json_error_pointer` without ABI change, 0.1.5 moves the fuzz
-  harnesses and re-adopts the release socle. The README no longer names a
-  maelys-json version of its own, which had drifted to `v0.1.0`: it points at
-  `dependencies/maelys-json.pin`.
+  `maelys_json_error_pointer`, 0.1.5 moves the fuzz harnesses, 0.1.6 adds
+  `maelys_json_value_pointer` and `maelys_json_document_parse_file_bytes`,
+  hardens the contract of `error_pointer` and escapes the pointer in
+  `maelys-json-canon` — the last three from this product's integration
+  report. None of the new functions has a use here: a manifest is a flat
+  object, so a semantic error already names its member, and manifests are
+  read through `maelys_cli_read_trusted_file()`, never `parse_file`. The
+  README no longer names a maelys-json version of its own, which had
+  drifted to `v0.1.0`: it points at `dependencies/maelys-json.pin`.
 - A manifest that does not parse now names the failing value by its RFC 6901
   JSON Pointer next to the line and column it already gave (`Manifest /path
   is not valid JSON at /version: line 1, column 25 ...`), so an agent reading
