@@ -14,6 +14,23 @@
   moves with it: `find_package(maelys-json 0.2)` in `CMakeLists.txt` and in
   the installed `maelys-cli-config.cmake`, `maelys-json >= 0.2` in
   `maelys-cli-extension.pc`, and `docs/abi.md` says 0.2.
+- maelys-release v0.38.0 adopted (from v0.28.1): workflow pins, the managed
+  `AGENTS.md`/`CLAUDE.md` block and the installed socle skill. No content of
+  `docs/cli.md`/`docs/cli-contract.json` changed. The block carries three
+  rules this repository did not have: the release ceremony is
+  `maelys-release cut DIR X.Y.Z --apply` then `--tag --apply`, a failed
+  release is replayed with `gh workflow run release.yml --ref vX.Y.Z -f
+  tag=vX.Y.Z` (`--ref` names the tag, because the `release` environment only
+  accepts tags `v*`), and the prose of this repository belongs in maelys-docs
+  rather than in `docs/` here.
+- `maelys-release.conf` declares `[cut] after-version sh tools/sync-version.sh`.
+  This product's version is materialised twice, in `VERSION` and in the
+  `MAELYS_CLI_VERSION*` macros of `include/maelys/cli/version.h`, and
+  `make check-version` fails when they drift. `cut` writes `VERSION` and
+  commits the bump alone, so without this the header would stay behind and
+  the release pull request's own checks would fail. The new script rewrites
+  the four macros from `VERSION`, and `--check` reports drift without
+  writing.
 
 ## 0.5.24 - 2026-09-11
 
