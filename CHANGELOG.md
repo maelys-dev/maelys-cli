@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- The dispatcher's sources move from `cmd/maelys/` to `cli/`, the spelling
+  maelys-egress, maelys-oci and maelys-warden already use for the single
+  binary a product builds. `cmd/<name>/` is maelys-git-core's convention,
+  where five distinct executables justify one directory each; this
+  repository builds one. Sources only: no header, no artifact, no installed
+  path and no public name changes, and `git` records the three files as
+  renames.
+
+## Unreleased
+
 - maelys-json pinned at v0.1.5 (from v0.1.3). Both versions in between are
   additive: 0.1.4 adds `maelys_json_writer_object_begin_except` and
   `maelys_json_error_pointer` without ABI change, 0.1.5 moves the fuzz

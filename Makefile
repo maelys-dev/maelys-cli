@@ -32,7 +32,7 @@ MAELYS_JSON_LIB ?= $(MAELYS_JSON_BUILD)/lib/libmaelys-json.a
 MAELYS_JSON_CFLAGS ?= -I$(MAELYS_JSON_DIR)/include
 MAELYS_JSON_LIBS ?= $(MAELYS_JSON_LIB)
 HEADERS := $(wildcard include/maelys/*.h include/maelys/cli/*.h src/*.h \
-	cmd/maelys/*.h tests/*.h)
+	cli/*.h tests/*.h)
 
 SOURCES := src/version.c src/values.c src/environment.c src/files.c \
 	src/digest.c src/json.c src/terminal.c src/process.c src/catalog.c \
@@ -53,7 +53,7 @@ HELLO_SCHEMAS := $(wildcard examples/hello/schemas/*.json)
 HELLO_SCHEMA_SYMBOLS := $(foreach schema,$(HELLO_SCHEMAS),\
 	hello_$(subst -,_,$(basename $(notdir $(schema))))_schema=$(schema))
 HELLO_GENERATED := $(BUILD)/generated/hello_schemas.c $(BUILD)/generated/hello_schemas.h
-DISPATCHER_SOURCES := cmd/maelys/main.c cmd/maelys/agents.c
+DISPATCHER_SOURCES := cli/main.c cli/agents.c
 DISPATCHER_OBJECTS := $(patsubst %.c,$(BUILD)/%.o,$(DISPATCHER_SOURCES)) \
 	$(BUILD)/generated/agent_texts.o
 DISPATCHER := $(BUILD)/bin/maelys
@@ -128,7 +128,7 @@ $(BUILD)/generated/agent_texts.o: $(EMBEDDED)
 	@mkdir -p $(@D)
 	$(CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) $(CFLAGS) $(COMMON_CFLAGS) -c $< -o $@
 
-$(BUILD)/cmd/maelys/%.o: cmd/maelys/%.c $(HEADERS)
+$(BUILD)/cli/%.o: cli/%.c $(HEADERS)
 	@mkdir -p $(@D)
 	$(CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) $(CFLAGS) $(COMMON_CFLAGS) -c $< -o $@
 
