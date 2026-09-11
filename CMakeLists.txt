@@ -90,7 +90,7 @@ if(MAELYS_CLI_BUILD_DISPATCHER AND MAELYS_CLI_HAVE_JSON)
         DEPENDS share/agents/instructions-block.md share/agents/maelys-cli-guide.md
                 share/agents/claude-skill.md ${MAELYS_CLI_EMBED} ${MAELYS_CLI_COMMIT_TOOL} VERSION
         VERBATIM)
-    add_executable(maelys cmd/maelys/main.c cmd/maelys/agents.c ${agent_texts})
+    add_executable(maelys cli/main.c cli/agents.c ${agent_texts})
     target_include_directories(maelys PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
     target_link_libraries(maelys PRIVATE maelys_cli_extension)
     target_compile_definitions(maelys PRIVATE

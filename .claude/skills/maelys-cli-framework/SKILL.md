@@ -1,6 +1,6 @@
 ---
 name: maelys-cli-framework
-description: Add or change a feature of libmaelys_cli itself (descriptor field, value kind, macro, parser rule, describe member, built-in command, mechanic) while keeping the agent-cli/v2 contract, the catalog validation, the tests and every agent-facing document in step. Use for changes under include/, src/, cmd/, share/agents or docs of the maelys-cli repository; not for product CLIs built on the framework.
+description: Add or change a feature of libmaelys_cli itself (descriptor field, value kind, macro, parser rule, describe member, built-in command, mechanic) while keeping the agent-cli/v2 contract, the catalog validation, the tests and every agent-facing document in step. Use for changes under include/, src/, cli/, share/agents or docs of the maelys-cli repository; not for product CLIs built on the framework.
 ---
 <!-- SPDX-License-Identifier: CC-BY-4.0
 Copyright 2026 David Bromberg.
