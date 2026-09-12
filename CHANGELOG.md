@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- `maelys-release.conf` declares `[gate] none`: this repository publishes
+  without an approval step on the `release` environment, and says so instead
+  of leaving the socle to report the gap at every `preflight`. What guards a
+  publication here is upstream of the environment — a signed annotated tag on
+  `main`, which only the signing key can create, on a commit whose checks
+  `maelys-release cut` verifies twice, once on the release commit and once on
+  the merge commit it tags. The socle's conventions note that an approver who
+  may approve their own deployment is a pause rather than a control; the
+  declaration names what the environment actually holds. Arming a reviewer
+  later is one `gh api` call and `reviewer` on that line.
+
 ## 0.5.25 - 2026-09-11
 
 - maelys-json pinned at v0.2.0 (from v0.1.6), which **removes**
