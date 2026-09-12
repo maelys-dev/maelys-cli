@@ -158,6 +158,25 @@ skill `.claude/skills/maelys-cli-framework/SKILL.md` is its checklist form.
 10. Tag only a commit whose CI is green (`git tag -a vX.Y.Z`, push the
     tag); never move a pushed tag. Consumers pin tags.
 
+## The branch rule, and the one door through it
+
+`main` is held by a ruleset: no deletion, no force-push, changes arrive
+through a pull request, and one status must be green — the `ci` job of
+`.github/workflows/ci.yml`, which succeeds only when `check`, `packaging`,
+`python` and `gcc` all did. That job exists to be the required context:
+every other job is named after a runner or the socle's matrix, so a socle
+bump or a runner rename would leave the rule waiting on a status that no
+longer reports, and nothing downstream lifts that.
+
+The repository-admin role may merge a pull request the rule would refuse.
+That door is for an infrastructure failure — runners that will not start,
+a required status that can no longer report — and it is a human act,
+visible on the pull request and in the audit log. **An agent session never
+walks through it: never `gh pr merge --admin`, never a bypass, whatever the
+urgency.** An agent that believes a merge is warranted says so and leaves
+the decision; a red pull request that must land is a decision about risk,
+not a step in a procedure.
+
 ## Behaviors that look like bugs but are decisions
 
 - `--dry-run`/`--plan` are refused only on commands declaring `--apply`.
