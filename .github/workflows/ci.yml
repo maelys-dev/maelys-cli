@@ -17,7 +17,7 @@ permissions:
 
 jobs:
   check:
-    uses: maelys-dev/maelys-release/.github/workflows/check-product.yml@71610a81b6b24bfa0124cbdbdb0651ce64ccb3b8 # v0.40.1
+    uses: maelys-dev/maelys-release/.github/workflows/check-product.yml@fe113a6b06aec01c857f552773412b87052e2329 # untagged
     with:
       product: maelys-cli
       dependency_checkout: |
