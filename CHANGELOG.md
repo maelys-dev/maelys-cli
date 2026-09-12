@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- maelys-release v0.40.1 adopted (from v0.38.0): workflow pins only. The
+  managed `AGENTS.md`/`CLAUDE.md` block and the installed socle skill are
+  unchanged, and so are `docs/cli.md` and `docs/cli-contract.json`. The
+  versions in between carry `cut`'s audit of its own write, which this
+  product reported (0.40.0) and whose refusal it then narrowed: a carrier
+  that still holds the old version stops the release, a carrier that holds
+  neither is a note, because a file that has simply stopped naming a version
+  reads identically to one a cut forgot (0.40.1). The audit finds this
+  product's `VERSION` and `include/maelys/cli/version.h`, both already
+  covered by the `[cut] after-version` declared here, so it passes silently.
 - `maelys-release.conf` declares `[gate] none`: this repository publishes
   without an approval step on the `release` environment, and says so instead
   of leaving the socle to report the gap at every `preflight`. What guards a
