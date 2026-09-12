@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- CI gains a `ci` job that succeeds only when `check`, `packaging`, `python`
+  and `gcc` all did, and `main`'s branch rule requires that one status
+  instead of the nine it required before. Those nine are named after a
+  runner or the socle's matrix (`packaging (macos-15)`, `check / check
+  (ubuntu-26.04)`), so a socle bump or a runner rename would have left the
+  rule waiting on a status that no longer reports, blocking the branch with
+  nothing downstream to lift it. `AGENTS.md` states the rule and its one
+  door: the repository-admin role may merge what the rule refuses, for an
+  infrastructure failure, as a human act — an agent session never does.
 - maelys-release v0.40.1 adopted (from v0.38.0): workflow pins only. The
   managed `AGENTS.md`/`CLAUDE.md` block and the installed socle skill are
   unchanged, and so are `docs/cli.md` and `docs/cli-contract.json`. The
