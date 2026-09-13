@@ -158,6 +158,33 @@ skill `.claude/skills/maelys-cli-framework/SKILL.md` is its checklist form.
 10. Tag only a commit whose CI is green (`git tag -a vX.Y.Z`, push the
     tag); never move a pushed tag. Consumers pin tags.
 
+## What the conformance kit cannot see
+
+The kit judges `maelys-hello`, the dispatcher and `hello.py`: products, which
+declare what a product plausibly needs. A macro no product uses is a macro
+whose `describe` output no schema has ever judged, and `MAELYS_CLI_HEX_OR`
+went that way — it serializes an `alternativeDigits` member that the 2.4
+`argument` definition, closed with `additionalProperties: false`, does not
+allow. A consumer found it, not the kit.
+
+`make describe-schema-check` closes that gap. `tests/catalog_surface.c`
+declares every macro of `catalog.h` and every descriptor field the framework
+serializes, and `scripts/describe-schema-check.py` validates each of its
+`describe` forms — catalog-wide, `--summary`, and every command on its own —
+against `schemas/describe.json` of the pinned specification, using that
+specification's own validator rather than a second implementation. It also
+refuses while a declaration macro of `catalog.h` is absent from the fixture,
+comments excluded, so a macro added later cannot escape by never being
+exercised.
+
+It is **not in `make check` yet**, because it reports two members the 2.4
+contract does not allow: `argument.alternativeDigits` (`MAELYS_CLI_HEX_OR`)
+and `constraints[].group` (all-or-none groups). Both carry information a
+consumer needs, so the repair is a pull request on agent-cli-spec, a tag
+there and a pin bump here — never a change of the `describe` shape here
+first. The target joins `check` in the change that closes the second of the
+two.
+
 ## The branch rule, and the one door through it
 
 `main` is held by a ruleset: no deletion, no force-push, changes arrive
