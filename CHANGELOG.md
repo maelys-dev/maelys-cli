@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.27 - 2026-09-14
 
 - maelys-release v0.51.1 adopted (from v0.40.1). The pinned dependencies now
   live under one root, never beside this repository: `maelys-release.conf`
