@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+- maelys-release adopted at v0.54.0 (from v0.51.1); the three managed files
+  change and nothing else. 0.54.0 renames the legs of `check-product.yml`
+  (`check (linux)`, `check (linux-arm64)`, `check (macos)`) so a required
+  context stops carrying an image's version; this repository's ruleset
+  requires `ci` alone, so there was nothing to narrow before adopting nor
+  to widen after. 0.53.0 fixes the socle leaving a product's working copy
+  detached — what happened here twice, reported as such — by moving only
+  what it put under its own root; it also materialises the socle itself
+  under `$MAELYS_DEPENDENCIES_DIR/maelys-release` from the `uses:` line,
+  which `scripts/checkout-dependencies.sh` now does, attempted and never
+  required. 0.52.0 announces a coming rule a version early through `check`.
+
 ## 0.5.29 - 2026-09-14
 
 - Python: a `hex` argument or operand states its width with `digits`, an
