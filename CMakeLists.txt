@@ -20,10 +20,11 @@ endif()
 
 # The core has no dependency. The extension archive (manifest discovery)
 # and the dispatcher read untrusted JSON through maelys-json: an installed
-# package, or a sibling source tree for in-tree consumers; without either
-# they are skipped and the core still builds and installs.
-set(MAELYS_JSON_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../maelys-json"
-    CACHE PATH "Path to the maelys-json source tree (fallback)")
+# package, or the pinned source tree under MAELYS_DEPENDENCIES_DIR, the root
+# `maelys-release dependencies . --apply` materialises ([dependencies] apart);
+# without either they are skipped and the core still builds and installs.
+set(MAELYS_JSON_SOURCE_DIR "$ENV{MAELYS_DEPENDENCIES_DIR}/maelys-json"
+    CACHE PATH "Path to the pinned maelys-json source tree (fallback)")
 set(MAELYS_CLI_HAVE_JSON OFF)
 set(MAELYS_CLI_JSON_INSTALLED OFF)
 if(MAELYS_CLI_BUILD_EXTENSION)

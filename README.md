@@ -297,8 +297,9 @@ declared in `docs/cli.reference`; maelys-cli carries no rule, path or
 freshness check of its own for them.
 
 Requirements: a C11 compiler, POSIX `make`, `sh`, `od` and `awk`; a
-`maelys-json` checkout beside this one (`MAELYS_JSON_DIR`, at the tag
-`dependencies/maelys-json.pin` names) or an
+`maelys-json` checkout under `MAELYS_DEPENDENCIES_DIR`, the root
+`maelys-release dependencies . --apply` materialises at the tag
+`dependencies/maelys-json.pin` names (never beside this repository), or an
 installed copy (`MAELYS_JSON_CFLAGS`/`MAELYS_JSON_LIBS`) for the extension
 archive, the dispatcher and their tests; `python3` only for the reference
 generator; a C++17 compiler only for the header gate.
