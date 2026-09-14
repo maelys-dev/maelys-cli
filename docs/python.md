@@ -68,9 +68,10 @@ and never completed. `hidden=True` keeps it out of `help` and the completion.
 ## Operands, options and value kinds
 
 `cli.operand(name, summary, required=True, variadic=False, kind=None,
-choices=None, minimum=None, maximum=None, algorithms=None, pattern=None)`;
-an operand describes its value exactly as an argument does (spec 2.6), and
-`pattern` is refused on a kind that is not `string` or `path`; at most one
+choices=None, minimum=None, maximum=None, algorithms=None, pattern=None,
+digits=None)`; an operand describes its value exactly as an argument does
+(spec 2.6), and `pattern` is refused on a kind that is not `string` or
+`path`, `digits` on a kind that is not `hex`; at most one
 operand is variadic, and it is the last one. `cli.option(long, summary, argument=None,
 default=None, required=False, repeatable=False, requires=(),
 conflicts_with=(), group=None)`; `cli.flag(long, summary, ...)` is an
@@ -85,7 +86,8 @@ other; at least two distinct options of the command, checked when the
 `Program` is built. `all-or-none` is refused there: it is declared with
 `group=`, its option-level form, so a rule has one declaration.
 `cli.argument(name,
-kind, choices, minimum, maximum, algorithms, pattern)` declares the value.
+kind, choices, minimum, maximum, algorithms, pattern, digits)` declares the
+value.
 A `pattern` on a `string` or `path` argument is enforced (spec 2.3): the
 value must match it (`re.search`, as POSIX ERE searches), else
 `VALIDATION_FAILED`; `Program` refuses a pattern that does not compile.
@@ -102,9 +104,15 @@ The kinds are those of the contract, validated before the handler runs and
 returned typed by `invocation.option()` and `invocation.operands`:
 `boolean`, `string` (optionally `pattern`), `integer` and `unsigned`
 (ranges), `size` (`4K`, `16M`, `2G`, `1T`, in bytes), `duration` (unit
-required: `ms`, `s`, `m`, `h`, `d`; in milliseconds), `path`,
-`absolute-path`, `choice`, `hex` (`minimum`/`maximum` bound its length),
-`sha256`, `digest` (`ALGORITHM:HEX` with `algorithms`). A `default` is
+required: `ms`, `s`, `m`, `h`, `d`; in milliseconds) — `describe` states a
+bound of an unsigned kind only when it is declared, and a `minimum=0` on
+`unsigned`, `size` or `duration` is the kind's own floor, not stated —,
+`path`,
+`absolute-path`, `choice`, `hex` (`digits` states its width: an integer,
+or a pair such as `[40, 64]` when two widths are accepted, as
+`MAELYS_CLI_HEX` and `MAELYS_CLI_HEX_OR` do; a `hex` without `digits`, or
+with `minimum`/`maximum`, is refused), `sha256`, `digest` (`ALGORITHM:HEX`
+with `algorithms`). A `default` is
 text, parsed with the same kind when the option is absent: a handler never
 repeats a default. A repeatable option yields a list. A `pattern` on a
 `string` argument documents the value in `describe`; the parser does not

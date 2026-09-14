@@ -1,5 +1,32 @@
 # Changelog
 
+## Unreleased
+
+- Python: a `hex` argument or operand states its width with `digits`, an
+  integer or a pair such as `[40, 64]`, and `describe` emits it so — the
+  shape the C reference emits for `MAELYS_CLI_HEX` and `MAELYS_CLI_HEX_OR`.
+  It bounded the length with `minimum`/`maximum` instead, a shape the
+  contract allows too, so the same `--digest` was described one way by
+  `maelys-hello` and another by `hello.py`; no product of the fleet
+  declares a hex value in Python, so only the fixture changes. A `hex`
+  without `digits`, or with `minimum`/`maximum`, is refused when the
+  `Program` is built, as the C catalog validation refuses a hex without a
+  width; `digits` on any other kind is refused too. `make
+  hello-parity-check` compares the value members the two hellos declare
+  under the same name, so a divergence cannot return in silence.
+- `describe` states a bound of an `unsigned`, `size` or `duration` value
+  only when the declaration does. It wrote `"minimum": 0` for every such
+  value, the floor of the kind itself, and `"maximum": 18446744073709551615`
+  for a maximum of 0, which the catalog defines as unbounded: a sentinel
+  leaked as a number above 2^53 that a JavaScript reader cannot hold
+  exactly, where an absent member says what was meant. The parity check
+  found it on its first run, on `--memory` and `--wall-time` of the hellos;
+  in the fleet it changes the descriptor of `--grace-seconds` of maelys-oci
+  and of `--max-total-blob-bytes`, `--approvals` and `--required-approvals`
+  of maelys-git-core, each into a shape the contract allows equally. The
+  parser is unchanged: a maximum of 0 still accepts every value. Python
+  drops a declared `minimum=0` on those kinds for the same shape.
+
 ## 0.5.28 - 2026-09-14
 
 - `maelys-cli-embed` writes a byte above 127 as `(char)N`. It wrote every

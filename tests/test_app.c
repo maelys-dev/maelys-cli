@@ -359,6 +359,11 @@ static int test_describe(void) {
     CHECK(!strstr(result.out, "[--legacy]"));
     CHECK(strstr(result.out, "\"choices\":[\"low\",\"high\"]") && strstr(result.out, "\"default\":\"low\""));
     CHECK(strstr(result.out, "\"minimum\":-10,\"maximum\":10"));
+    /* An unsigned kind states a bound only when declared: a maximum of 0 is
+     * unbounded and absent, not UINT64_MAX; a minimum of 0 is the floor. */
+    CHECK(strstr(result.out, "\"argument\":{\"name\":\"BYTES\",\"type\":\"size\",\"minimum\":1}"));
+    CHECK(strstr(result.out, "\"argument\":{\"name\":\"DURATION\",\"type\":\"duration\"}"));
+    CHECK(!strstr(result.out, "18446744073709551615"));
     /* Two accepted lengths are the array the contract declares, not a second
      * member: this assertion used to pin `alternativeDigits`, which the
      * `argument` definition never allowed. */

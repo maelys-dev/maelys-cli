@@ -199,10 +199,13 @@ equality with the catalog, reference resolution, hidden-option refusal,
 completion. `make conformance-check` runs it on the fixture beside the
 three products.
 
-One divergence between the two reference implementations is recorded here
-rather than fixed by stealth: a hex width is `digits` in C and a length
-`minimum`/`maximum` in Python, both shapes the contract allows, so a
-product's `describe` differs by language for the same declaration.
+The two reference implementations describe the same declaration in the
+same shape, and `make hello-parity-check` holds them to it on the one
+member that once differed: a hex width is `digits` in both, an integer or
+a pair, never a length `minimum`/`maximum` — a shape the contract allows
+too, which is why the divergence lived unnoticed until it was written
+down here. When the two hellos disagree on a value member, the C one is
+the reference and the Python one is the defect.
 
 ## The branch rule, and the one door through it
 
