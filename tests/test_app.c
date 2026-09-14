@@ -317,7 +317,11 @@ static int test_describe(void) {
     CHECK(!strstr(result.out, "[--legacy]"));
     CHECK(strstr(result.out, "\"choices\":[\"low\",\"high\"]") && strstr(result.out, "\"default\":\"low\""));
     CHECK(strstr(result.out, "\"minimum\":-10,\"maximum\":10"));
-    CHECK(strstr(result.out, "\"digits\":4,\"alternativeDigits\":8"));
+    /* Two accepted lengths are the array the contract declares, not a second
+     * member: this assertion used to pin `alternativeDigits`, which the
+     * `argument` definition never allowed. */
+    CHECK(strstr(result.out, "\"digits\":[4,8]"));
+    CHECK(!strstr(result.out, "alternativeDigits"));
     CHECK(strstr(result.out, "\"type\":\"absolute-path\""));
     CHECK(strstr(result.out, "\"type\":\"digest\",\"algorithms\":[\"sha256\",\"sha1\"]"));
     CHECK(strstr(result.out, "[--digest ALGORITHM:HEX]"));
