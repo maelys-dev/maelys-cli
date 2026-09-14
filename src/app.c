@@ -1675,13 +1675,27 @@ static int describe_value_type(
         if (option->pattern &&
             maelys_cli_json_key_string(writer, "pattern", option->pattern) != 0)
             return -1;
-        if (option->kind == MAELYS_CLI_VALUE_HEX &&
-            (maelys_cli_json_key_unsigned(writer, "digits",
-                (uint64_t)option->hex_digits) != 0 ||
-             (option->hex_digits_alternative &&
-              maelys_cli_json_key_unsigned(writer, "alternativeDigits",
-                (uint64_t)option->hex_digits_alternative) != 0)))
-            return -1;
+        /* One accepted length is the number; two are the array the contract
+         * already declares (`digits` is integer or array of integers). The
+         * second length used to be an `alternativeDigits` member of its own,
+         * which no schema allowed: MAELYS_CLI_HEX_OR is declared by no
+         * product of this repository, so the conformance kit, which judges
+         * products, never saw it. */
+        if (option->kind == MAELYS_CLI_VALUE_HEX) {
+            if (option->hex_digits_alternative) {
+                if (maelys_cli_json_key(writer, "digits") != 0 ||
+                    maelys_cli_json_begin_array(writer) != 0 ||
+                    maelys_cli_json_unsigned(writer,
+                        (uint64_t)option->hex_digits) != 0 ||
+                    maelys_cli_json_unsigned(writer,
+                        (uint64_t)option->hex_digits_alternative) != 0 ||
+                    maelys_cli_json_end_array(writer) != 0)
+                    return -1;
+            } else if (maelys_cli_json_key_unsigned(writer, "digits",
+                    (uint64_t)option->hex_digits) != 0) {
+                return -1;
+            }
+        }
     }
     return 0;
 }

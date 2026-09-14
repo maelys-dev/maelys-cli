@@ -177,13 +177,19 @@ refuses while a declaration macro of `catalog.h` is absent from the fixture,
 comments excluded, so a macro added later cannot escape by never being
 exercised.
 
-It is **not in `make check` yet**, because it reports two members the 2.4
-contract does not allow: `argument.alternativeDigits` (`MAELYS_CLI_HEX_OR`)
-and `constraints[].group` (all-or-none groups). Both carry information a
-consumer needs, so the repair is a pull request on agent-cli-spec, a tag
-there and a pin bump here — never a change of the `describe` shape here
-first. The target joins `check` in the change that closes the second of the
-two.
+It found two members. One was ours: `MAELYS_CLI_HEX_OR` emitted a second
+length as `alternativeDigits` when the contract's `digits` already accepts
+an array, so the framework had invented a shape beside the conforming one
+— fixed, and the unit test that used to pin the wrong shape now pins
+`digits: [4, 8]`.
+
+The other is **not ours to decide**: an all-or-none entry of
+`input.constraints` carries the `group` name, and the `constraint`
+definition is closed on `kind` and `options`. Each entry already lists its
+own options, so the rule is expressed without the name; whether the
+contract should carry it, an implementation drop it, or `x-group` hold it,
+belongs to agent-cli-spec. The target joins `make check` when that is
+settled — the shape of `describe` is never changed here first.
 
 ## The branch rule, and the one door through it
 

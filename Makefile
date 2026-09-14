@@ -236,11 +236,9 @@ analyze: $(HELLO_GENERATED)
 AGENT_CLI_SPEC_DIR ?= ../agent-cli-spec
 # The conformance kit judges the reference products; this judges the
 # framework's whole serializable surface against the same pinned schema. It
-# is not in `check` yet: it reports two members the 2.4 contract does not
-# allow, `argument.alternativeDigits` (MAELYS_CLI_HEX_OR) and
-# `constraints[].group` (all-or-none groups), and the repair is a pull
-# request on agent-cli-spec, then a pin bump, never a change of the shape
-# here first.
+# is not in `check` yet: it reports one member the 2.4 contract does not
+# allow, `constraints[].group` of an all-or-none group, whose repair is a
+# decision of agent-cli-spec and not of this repository.
 describe-schema-check: $(BUILD)/tests/catalog_surface
 	@test -f $(AGENT_CLI_SPEC_DIR)/conformance/validate.py || \
 		{ echo "describe-schema-check: $(AGENT_CLI_SPEC_DIR) not found; run scripts/checkout-dependency.sh agent-cli-spec" >&2; exit 1; }

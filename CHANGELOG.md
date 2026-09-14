@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Fix: an option declared with `MAELYS_CLI_HEX_OR` describes its two accepted
+  lengths as `"digits": [40, 64]`, the array the contract already declares,
+  instead of `"digits": 40` beside an `alternativeDigits` member that the
+  `argument` definition — closed with `additionalProperties: false` — never
+  allowed. The framework had invented a shape next to the conforming one, and
+  the unit test pinned the invented one, so it checked the framework against
+  itself rather than against the contract. `make describe-schema-check`, which
+  validates against the pinned schema, is what told them apart; it now reports
+  only `constraints[].group`, whose repair belongs to agent-cli-spec.
 - `make describe-schema-check` validates what the framework can serialize,
   not only what the reference products declare. `tests/catalog_surface.c`
   uses every declaration macro of `catalog.h` and every descriptor field,
