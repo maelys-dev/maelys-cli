@@ -17,12 +17,9 @@ permissions:
 
 jobs:
   check:
-    uses: maelys-dev/maelys-release/.github/workflows/check-product.yml@71610a81b6b24bfa0124cbdbdb0651ce64ccb3b8 # v0.40.1
+    uses: maelys-dev/maelys-release/.github/workflows/check-product.yml@128597d44b99618dbe2b4dfacd35377ac7865cf8 # v0.51.1
     with:
       product: maelys-cli
-      dependency_checkout: |
-        sh scripts/checkout-dependency.sh maelys-json
-        sh scripts/checkout-dependency.sh agent-cli-spec
       check_command: make check
       sanitizer_command: make asan-ubsan
 
@@ -35,7 +32,7 @@ jobs:
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - name: Pinned dependency checkouts
-        run: sh scripts/checkout-dependency.sh maelys-json && sh scripts/checkout-dependency.sh agent-cli-spec
+        run: sh scripts/checkout-dependencies.sh "$RUNNER_TEMP/dependencies" >> "$GITHUB_ENV"
       - name: Install check
         run: make install-check
       - name: CMake package
@@ -62,7 +59,7 @@ jobs:
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - name: Pinned dependency checkouts
-        run: sh scripts/checkout-dependency.sh maelys-json && sh scripts/checkout-dependency.sh agent-cli-spec
+        run: sh scripts/checkout-dependencies.sh "$RUNNER_TEMP/dependencies" >> "$GITHUB_ENV"
       - name: Build with GCC
         run: make check CC=gcc CXX=g++
 

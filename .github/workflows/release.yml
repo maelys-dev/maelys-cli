@@ -1,6 +1,6 @@
 name: release
 
-# Managed by maelys-release v0.40.1 (0.40.1). Regenerate with
+# Managed by maelys-release v0.51.1 (0.51.1). Regenerate with
 # 'maelys-release adopt' of maelys-release; do not edit by hand.
 on:
   push:
@@ -19,7 +19,7 @@ permissions:
 
 jobs:
   release:
-    uses: maelys-dev/maelys-release/.github/workflows/release.yml@71610a81b6b24bfa0124cbdbdb0651ce64ccb3b8 # v0.40.1
+    uses: maelys-dev/maelys-release/.github/workflows/release.yml@128597d44b99618dbe2b4dfacd35377ac7865cf8 # v0.51.1
     permissions:
       contents: write
       id-token: write
@@ -28,13 +28,12 @@ jobs:
       product: maelys-cli
       tag: ${{ inputs.tag || github.ref_name }}
       dependency_checkout: |
-        sh scripts/checkout-dependency.sh agent-cli-spec
-        sh scripts/checkout-dependency.sh maelys-json
+        sh scripts/checkout-dependencies.sh "$RUNNER_TEMP/dependencies" >>"$GITHUB_ENV"
 
   tap-libmaelys-cli:
     needs: release
     if: needs.release.result == 'success'
-    uses: maelys-dev/maelys-release/.github/workflows/tap.yml@71610a81b6b24bfa0124cbdbdb0651ce64ccb3b8 # v0.40.1
+    uses: maelys-dev/maelys-release/.github/workflows/tap.yml@128597d44b99618dbe2b4dfacd35377ac7865cf8 # v0.51.1
     permissions:
       contents: write
       id-token: write
@@ -50,7 +49,7 @@ jobs:
   tap-maelys:
     needs: release
     if: needs.release.result == 'success'
-    uses: maelys-dev/maelys-release/.github/workflows/tap.yml@71610a81b6b24bfa0124cbdbdb0651ce64ccb3b8 # v0.40.1
+    uses: maelys-dev/maelys-release/.github/workflows/tap.yml@128597d44b99618dbe2b4dfacd35377ac7865cf8 # v0.51.1
     permissions:
       contents: write
       id-token: write

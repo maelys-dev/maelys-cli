@@ -7,7 +7,7 @@ cleanup() {
 }
 trap cleanup EXIT HUP INT TERM
 
-make -C "${MAELYS_JSON_DIR:-../maelys-json}" install DESTDIR="$root" PREFIX=/usr >/dev/null
+make -C "${MAELYS_JSON_DIR:-${MAELYS_DEPENDENCIES_DIR:?set MAELYS_DEPENDENCIES_DIR to the root maelys-release dependencies . --apply materialised, or MAELYS_JSON_DIR}/maelys-json}" install DESTDIR="$root" PREFIX=/usr >/dev/null
 make install DESTDIR="$root" PREFIX=/usr >/dev/null
 test -f "$root/usr/lib/libmaelys-json.a"
 test -f "$root/usr/lib/libmaelys_cli.a"

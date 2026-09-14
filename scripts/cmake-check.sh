@@ -7,7 +7,7 @@ root=$(mktemp -d "${TMPDIR:-/tmp}/maelys-cli-cmake.XXXXXX")
 cleanup() { rm -rf "$root"; }
 trap cleanup EXIT HUP INT TERM
 
-json_dir=${MAELYS_JSON_DIR:-../maelys-json}
+json_dir=${MAELYS_JSON_DIR:-${MAELYS_DEPENDENCIES_DIR:?set MAELYS_DEPENDENCIES_DIR to the root maelys-release dependencies . --apply materialised, or MAELYS_JSON_DIR}/maelys-json}
 cmake -S "$json_dir" -B "$root/json-build" -DCMAKE_INSTALL_PREFIX="$root/prefix" \
     -DCMAKE_BUILD_TYPE=Release >/dev/null
 cmake --build "$root/json-build" --parallel >/dev/null

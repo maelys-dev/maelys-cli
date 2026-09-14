@@ -102,7 +102,9 @@ def main() -> int:
     if not (conformance / "validate.py").is_file() or not schema_path.is_file():
         sys.exit(
             f"describe-schema-check: {spec_dir} carries no conformance/validate.py "
-            "and schemas/describe.json; run scripts/checkout-dependency.sh agent-cli-spec"
+            "and schemas/describe.json; MAELYS_DEPENDENCIES_DIR must name the root "
+            "'maelys-release dependencies . --apply' materialised, or "
+            "AGENT_CLI_SPEC_DIR the pinned checkout"
         )
     sys.path.insert(0, str(conformance))
     from validate import validate  # noqa: E402  (the pinned specification's own)

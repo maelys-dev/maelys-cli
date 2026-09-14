@@ -20,10 +20,19 @@ COMMON_CXXFLAGS := -std=c++17 -Wall -Wextra -Wpedantic -Werror
 
 VERSION := $(shell sed -n '1p' VERSION)
 
-# maelys-json is the JSON reader of the framework: a sibling checkout built
+# The pinned dependencies live under one root the socle gives, never beside
+# this repository ([dependencies] apart in maelys-release.conf):
+# `maelys-release dependencies . --apply` materialises them on a machine and
+# prints MAELYS_DEPENDENCIES_DIR, the managed scripts/checkout-dependencies.sh
+# does the same in a job. A build with no root fails on its own message
+# instead of reading whatever sits beside the repository. One dependency at
+# a time still overrides through its own variable.
+MAELYS_DEPENDENCIES_DIR ?=
+
+# maelys-json is the JSON reader of the framework: its pinned checkout built
 # on demand, or an installed copy (MAELYS_JSON_CFLAGS/MAELYS_JSON_LIBS from
-# pkg-config). Pin: tag v0.1.0.
-MAELYS_JSON_DIR ?= ../maelys-json
+# pkg-config). Pin: dependencies/maelys-json.pin.
+MAELYS_JSON_DIR ?= $(MAELYS_DEPENDENCIES_DIR)/maelys-json
 # Built inside this tree, per build variant (release, asan-ubsan, ...), with
 # the same CFLAGS/LDFLAGS: recursive make passes BUILD along, so the
 # dependency must not be looked up in the sibling's own build directory.
@@ -81,6 +90,8 @@ $(LIB): $(OBJECTS)
 	$(AR) rcs $@ $^
 
 $(MAELYS_JSON_BUILD)/lib/libmaelys-json.a:
+	@test -f $(MAELYS_JSON_DIR)/include/maelys/json.h || \
+		{ echo "no pinned maelys-json at '$(MAELYS_JSON_DIR)': MAELYS_DEPENDENCIES_DIR must name the root 'maelys-release dependencies . --apply' materialised, or MAELYS_JSON_DIR its pinned checkout, or MAELYS_JSON_CFLAGS/MAELYS_JSON_LIBS an installed maelys-json" >&2; exit 1; }
 	$(MAKE) -C $(MAELYS_JSON_DIR) BUILD=$(MAELYS_JSON_BUILD)
 
 $(BUILD)/src/extension.o: src/extension.c $(HEADERS) $(MAELYS_JSON_LIB)
@@ -231,22 +242,22 @@ analyze: $(HELLO_GENERATED)
 
 # Proves that the programs conform to agent-cli/v2 as maelys-dev/agent-cli-spec
 # writes it, at the commit dependencies/agent-cli-spec.pin names; the kit drives
-# each binary from the outside. The checkout comes from
-# scripts/checkout-dependency.sh agent-cli-spec, as every pinned dependency.
-AGENT_CLI_SPEC_DIR ?= ../agent-cli-spec
+# each binary from the outside. The checkout lives under
+# MAELYS_DEPENDENCIES_DIR, as every pinned dependency.
+AGENT_CLI_SPEC_DIR ?= $(MAELYS_DEPENDENCIES_DIR)/agent-cli-spec
 # The conformance kit judges the reference products; this judges the
-# framework's whole serializable surface against the same pinned schema. It
-# is not in `check` yet: it reports one member the 2.4 contract does not
-# allow, `constraints[].group` of an all-or-none group, whose repair is a
-# decision of agent-cli-spec and not of this repository.
+# framework's whole serializable surface against the same pinned schema.
+# Part of `check` since 2.5.0 closed the last member it reported; a red run
+# means the framework emits a member the pinned contract refuses, and the
+# repair is never a change of the describe shape here first.
 describe-schema-check: $(BUILD)/tests/catalog_surface
 	@test -f $(AGENT_CLI_SPEC_DIR)/conformance/validate.py || \
-		{ echo "describe-schema-check: $(AGENT_CLI_SPEC_DIR) not found; run scripts/checkout-dependency.sh agent-cli-spec" >&2; exit 1; }
+		{ echo "describe-schema-check: no pinned agent-cli-spec at '$(AGENT_CLI_SPEC_DIR)': MAELYS_DEPENDENCIES_DIR must name the root 'maelys-release dependencies . --apply' materialised, or AGENT_CLI_SPEC_DIR its pinned checkout" >&2; exit 1; }
 	python3 scripts/describe-schema-check.py $(BUILD)/tests/catalog_surface $(AGENT_CLI_SPEC_DIR)
 
 conformance-check: $(DISPATCHER) $(EXAMPLE)
 	@test -x $(AGENT_CLI_SPEC_DIR)/conformance/run.py || \
-		{ echo "conformance-check: $(AGENT_CLI_SPEC_DIR) not found; run scripts/checkout-dependency.sh agent-cli-spec" >&2; exit 1; }
+		{ echo "conformance-check: no pinned agent-cli-spec at '$(AGENT_CLI_SPEC_DIR)': MAELYS_DEPENDENCIES_DIR must name the root 'maelys-release dependencies . --apply' materialised, or AGENT_CLI_SPEC_DIR its pinned checkout" >&2; exit 1; }
 	@test "$$(git -C $(AGENT_CLI_SPEC_DIR) rev-parse HEAD)" = "$$(sed -n 2p dependencies/agent-cli-spec.pin)" || \
 		{ echo "conformance-check: $(AGENT_CLI_SPEC_DIR) is not at dependencies/agent-cli-spec.pin" >&2; exit 1; }
 	@for program in "$(BUILD)/bin/maelys-hello" "$(BUILD)/bin/maelys" "$$(command -v python3) python/examples/hello.py"; do \
