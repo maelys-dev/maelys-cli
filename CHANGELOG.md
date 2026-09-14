@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.28 - 2026-09-14
 
 - `maelys-cli-embed` writes a byte above 127 as `(char)N`. It wrote every
   byte as a bare integer into a `const char[]`, and 226 fits no signed
