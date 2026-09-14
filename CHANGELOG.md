@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.26 - 2026-09-14
 
 - Fix: an option declared with `MAELYS_CLI_HEX_OR` describes its two accepted
   lengths as `"digits": [40, 64]`, the array the contract already declares,
