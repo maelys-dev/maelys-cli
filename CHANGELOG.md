@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- maelys-release adopted at v0.56.0 (from v0.54.0): the workflow pins and
+  the managed prose of `AGENTS.md`, `CLAUDE.md` and the release skill, which
+  now open on the rules every repository shares and name the rename order
+  with its missing word — narrow, adopt, *merge*, widen — that 0.55.0
+  restored. 0.56.0 sorts `docs/` on maelys-platform's conditions: the two
+  verified references are `ok` rather than noted, and the five prose pages
+  the public README links are named as held. `cut` now refuses an entry
+  that does not name a dependency whose pin moved since the last tag.
+
+## Unreleased
+
 - `docs/api-reference.md` and `docs/python.md` open on a `VERIFIED by`
   marker naming the check that holds them (`api-doc-check`,
   `python-doc-check`): the "verified reference" of the documentation
