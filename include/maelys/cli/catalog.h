@@ -60,6 +60,27 @@ typedef struct maelys_cli_operand {
     size_t hex_digits_alternative;
 } maelys_cli_operand_t;
 
+/* A cross-option rule stated in input.constraints (spec 2.5): what the
+ * option fields cannot say. `exactly-one` has no option-level form, so this
+ * is its only site; `requires` and `at-most-one` may restate over several
+ * options what depends_on and conflicts_with say pairwise. `all-or-none`
+ * is declared by `.group` on the options, its option-level form, and the
+ * catalog validation refuses it here so that a rule has one declaration:
+ * describe derives its entry from the groups. `options` is a NULL-terminated
+ * list of at least two option names of the command, without dashes; for
+ * `requires` the first option requires every other. */
+typedef enum maelys_cli_constraint_kind {
+    MAELYS_CLI_CONSTRAINT_REQUIRES = 0,
+    MAELYS_CLI_CONSTRAINT_AT_MOST_ONE = 1,
+    MAELYS_CLI_CONSTRAINT_EXACTLY_ONE = 2,
+    MAELYS_CLI_CONSTRAINT_ALL_OR_NONE = 3
+} maelys_cli_constraint_kind_t;
+
+typedef struct maelys_cli_constraint {
+    maelys_cli_constraint_kind_t kind;
+    const char *const *options;
+} maelys_cli_constraint_t;
+
 typedef struct maelys_cli_option {
     const char *name;               /* long spelling without dashes */
     maelys_cli_value_kind_t kind;
@@ -123,6 +144,11 @@ typedef struct maelys_cli_command {
                                          handler nor delegate; the command
                                          stays described and fails with
                                          UNSUPPORTED */
+    /* Cross-option rules stated in input.constraints (spec 2.5), validated
+     * at startup and enforced by the parser with the option dependencies.
+     * Zero means none; appended last, as every field is. */
+    const maelys_cli_constraint_t *constraints;
+    size_t constraint_count;
 } maelys_cli_command_t;
 
 /* Upper bound of a derived synopsis; the catalog validation names the
@@ -134,6 +160,13 @@ typedef struct maelys_cli_command {
     .operands = (array), .operand_count = MAELYS_CLI_COUNT(array)
 #define MAELYS_CLI_OPTIONS(array) \
     .options = (array), .option_count = MAELYS_CLI_COUNT(array)
+#define MAELYS_CLI_CONSTRAINTS(array) \
+    .constraints = (array), .constraint_count = MAELYS_CLI_COUNT(array)
+/* One input.constraints entry: MAELYS_CLI_CONSTRAINT(
+ *     MAELYS_CLI_CONSTRAINT_EXACTLY_ONE, policy_sources) with a
+ * NULL-terminated array of option names. */
+#define MAELYS_CLI_CONSTRAINT(kind_, options_) \
+    .kind = (kind_), .options = (options_)
 
 /*
  * Declaration helpers. Each macro expands to the designated fields of one

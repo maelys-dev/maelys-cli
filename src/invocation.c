@@ -596,6 +596,54 @@ int maelys_cli_parse(
             }
         }
     }
+    /* The rules the command states itself (spec 2.5), in the same causal
+     * slot as the option dependencies they extend. exactly-one has no other
+     * site: zero of the options is refused as two are. */
+    for (size_t c = 0u; c < out->command->constraint_count; ++c) {
+        const maelys_cli_constraint_t *rule = &out->command->constraints[c];
+        size_t present = 0u;
+        char listed[512];
+        size_t used = 0u;
+        listed[0] = '\0';
+        for (size_t o = 0u; rule->options && rule->options[o]; ++o) {
+            if (option_enabled(out, rule->options[o])) ++present;
+            int wrote = snprintf(listed + used, sizeof(listed) - used, "%s--%s",
+                o ? ", " : "", rule->options[o]);
+            if (wrote > 0 && (size_t)wrote < sizeof(listed) - used)
+                used += (size_t)wrote;
+        }
+        switch (rule->kind) {
+        case MAELYS_CLI_CONSTRAINT_REQUIRES:
+            if (!option_enabled(out, rule->options[0])) break;
+            for (size_t o = 1u; rule->options[o]; ++o) {
+                if (option_enabled(out, rule->options[o])) continue;
+                maelys_cli_error_set(error, MAELYS_CLI_CODE_VALIDATION_FAILED,
+                    "Supply every dependent option and retry.",
+                    "--%s requires --%s.", rule->options[0], rule->options[o]);
+                PARSE_FAIL();
+            }
+            break;
+        case MAELYS_CLI_CONSTRAINT_AT_MOST_ONE:
+            if (present > 1u) {
+                maelys_cli_error_set(error, MAELYS_CLI_CODE_VALIDATION_FAILED,
+                    "Keep one of the listed options and retry.",
+                    "At most one of %s may be given.", listed);
+                PARSE_FAIL();
+            }
+            break;
+        case MAELYS_CLI_CONSTRAINT_EXACTLY_ONE:
+            if (present != 1u) {
+                maelys_cli_error_set(error, MAELYS_CLI_CODE_VALIDATION_FAILED,
+                    "Supply exactly one of the listed options and retry.",
+                    "Exactly one of %s must be given.", listed);
+                PARSE_FAIL();
+            }
+            break;
+        case MAELYS_CLI_CONSTRAINT_ALL_OR_NONE:
+            /* Refused by the catalog validation: declared through .group. */
+            break;
+        }
+    }
     for (size_t i = 0u; i < out->command->option_count; ++i) {
         const maelys_cli_option_t *option = &out->command->options[i];
         if (option->required && !find_parsed(out, option->name)) {

@@ -1,5 +1,38 @@
 # Changelog
 
+## Unreleased
+
+- agent-cli-spec pinned at v2.5.0. `input.constraints` states the
+  cross-option rules rather than repeating them, and an all-or-none entry
+  carries no name: its options are the whole rule, the name stays on each
+  option's `group`, and the kit now checks that a command's entries and its
+  groups agree. `describe` drops the `group` member it put on those entries —
+  the second of the two members `make describe-schema-check` had found, the
+  one this repository could not decide alone. With both closed, that check
+  is part of `make check`. The contract ships the exhaustive reference
+  catalog this repository's property test had suggested, and the kit's
+  report names what it cannot see: declarations a program never emits.
+- A command states the rules its option fields cannot say:
+  `MAELYS_CLI_CONSTRAINTS(array)` of `MAELYS_CLI_CONSTRAINT(kind, options)`
+  entries, appended last to `maelys_cli_command_t` with zero as neutral.
+  `MAELYS_CLI_CONSTRAINT_EXACTLY_ONE` has no option-level form, so this is
+  its only site — five sources of policy, exactly one of them, zero refused
+  as two are, which is maelys-warden's case and what `conflicts_with` could
+  not express (ten half-declarations that still accept the empty choice).
+  `_AT_MOST_ONE` and `_REQUIRES` (the first option requires every other)
+  state over several options what the pairwise fields say. Validated at
+  startup — known options of the command, no duplicate, at least two — and
+  enforced by the parser in the causal slot of the dependencies; stated by
+  `describe` after the derived entries. `MAELYS_CLI_CONSTRAINT_ALL_OR_NONE`
+  is refused at startup: all-or-none is declared by `.group`, and a rule has
+  one declaration so that `describe` and the parser cannot drift apart.
+  Reported by maelys-warden.
+- `python/maelys_cli.py`: `cli.constraint(kind, *options)` and the
+  `constraints=` command keyword, the same kinds, refusals and causal slot.
+  The Python `describe` already carried no name on its all-or-none entries;
+  the C one did — a divergence between the two reference implementations
+  that the property test, which judges the C output, is what surfaced.
+
 ## 0.5.26 - 2026-09-14
 
 - Fix: an option declared with `MAELYS_CLI_HEX_OR` describes its two accepted

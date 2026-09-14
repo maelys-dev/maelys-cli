@@ -50,7 +50,10 @@ command by `id`; never replay a `PRECONDITION_FAILED` blindly; prefer
 - `describe COMMAND_ID` is minimal: no `globalOptions`, `output` or
   `invariants`; those come with `describe` and `describe --summary`.
   Operands carry `type`, `choices` and limits like option arguments;
-  `input.constraints` includes `all-or-none` groups; a descriptor with
+  `input.constraints` states the cross-option rules — `requires`,
+  `at-most-one`, `exactly-one`, `all-or-none` — and an agent reads
+  `exactly-one` there or nowhere, the options carrying no form of it (spec
+  2.5); an entry's `options` is the whole rule; a descriptor with
   `available: false` names a command this build cannot run, do not invoke
   it.
 - `MAELYS_CLI_FORMAT=json` in the environment selects JSON without

@@ -401,6 +401,48 @@ static int validate_command(
             }
         }
     }
+    for (size_t c = 0u; c < command->constraint_count; ++c) {
+        const maelys_cli_constraint_t *rule = &command->constraints[c];
+        if (rule->kind == MAELYS_CLI_CONSTRAINT_ALL_OR_NONE) {
+            maelys_cli_error_set(error, MAELYS_CLI_CODE_UNEXPECTED, hint,
+                "Catalog command '%s' states an all-or-none constraint; "
+                "declare .group on its options instead, the one form the "
+                "entry is derived from.", id);
+            return -1;
+        }
+        if ((unsigned)rule->kind > MAELYS_CLI_CONSTRAINT_ALL_OR_NONE) {
+            maelys_cli_error_set(error, MAELYS_CLI_CODE_UNEXPECTED, hint,
+                "Catalog command '%s' constraint %zu has an unknown kind.",
+                id, c);
+            return -1;
+        }
+        size_t listed = 0u;
+        for (size_t o = 0u; rule->options && rule->options[o]; ++o, ++listed) {
+            int found = 0;
+            for (size_t j = 0u; j < command->option_count; ++j)
+                if (!strcmp(command->options[j].name, rule->options[o]))
+                    found = 1;
+            if (!found) {
+                maelys_cli_error_set(error, MAELYS_CLI_CODE_UNEXPECTED, hint,
+                    "Catalog command '%s' constraint %zu names unknown option "
+                    "--%s.", id, c, rule->options[o]);
+                return -1;
+            }
+            for (size_t p = 0u; p < o; ++p)
+                if (!strcmp(rule->options[p], rule->options[o])) {
+                    maelys_cli_error_set(error, MAELYS_CLI_CODE_UNEXPECTED, hint,
+                        "Catalog command '%s' constraint %zu names --%s "
+                        "twice.", id, c, rule->options[o]);
+                    return -1;
+                }
+        }
+        if (listed < 2u) {
+            maelys_cli_error_set(error, MAELYS_CLI_CODE_UNEXPECTED, hint,
+                "Catalog command '%s' constraint %zu names fewer than two "
+                "options.", id, c);
+            return -1;
+        }
+    }
     if (command->output_schema_json) {
         size_t offset = 0u;
         const char *first = command->output_schema_json;
@@ -1783,10 +1825,12 @@ static int describe_constraints(
                 if (command->options[j].group &&
                     !strcmp(command->options[j].group, option->group))
                     first_member = 0;
+            /* No name on the entry: its options are the whole rule (spec
+             * 2.5), and the name is already carried by each option's
+             * `group`. The kit checks that entries and groups agree. */
             if (first_member) {
                 if (maelys_cli_json_begin_object(writer) != 0 ||
                     maelys_cli_json_key_string(writer, "kind", "all-or-none") != 0 ||
-                    maelys_cli_json_key_string(writer, "group", option->group) != 0 ||
                     maelys_cli_json_key(writer, "options") != 0 ||
                     maelys_cli_json_begin_array(writer) != 0)
                     return -1;
@@ -1826,6 +1870,27 @@ static int describe_constraints(
                 maelys_cli_json_end_object(writer) != 0)
                 return -1;
         }
+    }
+    /* The rules the command states itself (spec 2.5), after the ones
+     * derived from the option fields: exactly-one has no other site. */
+    static const char *const declared_kinds[] = {
+        "requires", "at-most-one", "exactly-one", "all-or-none"};
+    for (size_t c = 0u; c < command->constraint_count; ++c) {
+        const maelys_cli_constraint_t *rule = &command->constraints[c];
+        if (maelys_cli_json_begin_object(writer) != 0 ||
+            maelys_cli_json_key_string(writer, "kind",
+                declared_kinds[rule->kind]) != 0 ||
+            maelys_cli_json_key(writer, "options") != 0 ||
+            maelys_cli_json_begin_array(writer) != 0)
+            return -1;
+        for (size_t o = 0u; rule->options && rule->options[o]; ++o) {
+            char spelled[MAELYS_CLI_MAX_OPTION_NAME + 2u];
+            (void)snprintf(spelled, sizeof(spelled), "--%s", rule->options[o]);
+            if (maelys_cli_json_string(writer, spelled) != 0) return -1;
+        }
+        if (maelys_cli_json_end_array(writer) != 0 ||
+            maelys_cli_json_end_object(writer) != 0)
+            return -1;
     }
     return maelys_cli_json_end_array(writer);
 }

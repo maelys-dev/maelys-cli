@@ -147,6 +147,69 @@ class Contract(unittest.TestCase):
         self.assertIn("conflicts with --format json", body["message"])
         self.assertEqual(failure("describe", "--field", "program", "--field", "program")[1]["code"], "VALIDATION_FAILED")
 
+    def test_constraints(self) -> None:
+        """The rules a command states itself (spec 2.5): describe carries them
+        after the derived entries, the parser enforces them in the slot of the
+        dependencies, and exactly-one refuses zero as it refuses two."""
+        def policy(invocation: cli.Invocation):
+            return {}, cli.EXIT_OK
+        program = cli.Program("policy-py", "Policy", "0.0.1", [
+            cli.read("policy", "policy", "Choose a policy.", policy,
+                     options=[cli.flag("--ro", "Read-only."), cli.flag("--rw", "Read-write."),
+                              cli.option("--plan", "From a plan.", cli.argument("FILE", "path")),
+                              cli.flag("--trace", "Trace."), cli.flag("--quiet", "Quiet."),
+                              cli.flag("--paired-a", "Pair.", group="pair"),
+                              cli.flag("--paired-b", "Pair.", group="pair")],
+                     constraints=[cli.constraint("exactly-one", "--ro", "--rw", "--plan"),
+                                  cli.constraint("at-most-one", "--trace", "--quiet"),
+                                  cli.constraint("requires", "--trace", "--plan")]),
+        ])
+
+        def local(*argv: str) -> tuple[int, str, str]:
+            out, err = io.StringIO(), io.StringIO()
+            saved = dict(os.environ)
+            os.environ.pop("MAELYS_CLI_FORMAT", None)
+            os.environ["NO_COLOR"] = "1"
+            try:
+                with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                    code = program.main(list(argv))
+            finally:
+                os.environ.clear()
+                os.environ.update(saved)
+            return code, out.getvalue(), err.getvalue()
+
+        code, out, _ = local("describe", "policy", "--json")
+        constraints = json.loads(out)["data"]["commands"][0]["input"]["constraints"]
+        # The derived all-or-none entry has no name; the stated rules follow it.
+        self.assertEqual(constraints, [
+            {"kind": "all-or-none", "options": ["--paired-a", "--paired-b"]},
+            {"kind": "exactly-one", "options": ["--ro", "--rw", "--plan"]},
+            {"kind": "at-most-one", "options": ["--trace", "--quiet"]},
+            {"kind": "requires", "options": ["--trace", "--plan"]}])
+        for argv in (("policy",), ("policy", "--ro", "--rw")):
+            code, out, err = local(*argv, "--json")
+            self.assertEqual((code, out), (1, ""))
+            self.assertIn("Exactly one of --ro, --rw, --plan must be given.", json.loads(err)["error"]["message"])
+        self.assertEqual(local("policy", "--rw")[0], 0)
+        code, _, err = local("policy", "--ro", "--trace", "--quiet", "--json")
+        self.assertIn("At most one of --trace, --quiet may be given.", json.loads(err)["error"]["message"])
+        code, _, err = local("policy", "--ro", "--trace", "--json")
+        self.assertIn("Option --trace requires --plan.", json.loads(err)["error"]["message"])
+        self.assertEqual(local("policy", "--plan", "p", "--trace")[0], 0)
+        # One declaration per rule: all-or-none is group=, never a constraint;
+        # a rule names at least two distinct options of the command.
+        with self.assertRaises(ValueError):
+            cli.constraint("all-or-none", "--ro", "--rw")
+        with self.assertRaises(ValueError):
+            cli.constraint("exactly-one", "--ro")
+        with self.assertRaises(ValueError):
+            cli.constraint("exactly-one", "--ro", "--ro")
+        with self.assertRaises(ValueError):
+            cli.constraint("sometimes", "--ro", "--rw")
+        with self.assertRaises(ValueError):
+            cli.Program("p", "P", "0", [cli.read("x", "x", "X.", policy, options=[cli.flag("--a", "A.")],
+                                                 constraints=[cli.constraint("exactly-one", "--a", "--b")])])
+
     def test_describe_forms(self) -> None:
         code, out, _ = run("describe", "--json")
         catalog = json.loads(out)["data"]

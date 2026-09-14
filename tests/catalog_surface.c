@@ -85,6 +85,18 @@ static const maelys_cli_operand_t one_operand[] = {
     {MAELYS_CLI_OPERAND("TARGET", "A required operand.")},
 };
 
+/* The rules a command states itself (spec 2.5): the three kinds the
+ * declaration accepts. all-or-none is declared by .group above, and the
+ * catalog validation refuses it here. */
+static const char *const exactly[] = {"plain", "text", "file", NULL};
+static const char *const at_most[] = {"strict", "lenient", "combined", NULL};
+static const char *const chain[] = {"named", "count", "offset", NULL};
+static const maelys_cli_constraint_t surface_constraints[] = {
+    {MAELYS_CLI_CONSTRAINT(MAELYS_CLI_CONSTRAINT_EXACTLY_ONE, exactly)},
+    {MAELYS_CLI_CONSTRAINT(MAELYS_CLI_CONSTRAINT_AT_MOST_ONE, at_most)},
+    {MAELYS_CLI_CONSTRAINT(MAELYS_CLI_CONSTRAINT_REQUIRES, chain)},
+};
+
 static const char surface_schema[] =
     "{\"type\":\"object\",\"additionalProperties\":false}";
 
@@ -95,7 +107,7 @@ static const maelys_cli_command_t commands[] = {
     {MAELYS_CLI_READ("read", "read", "A read with the whole option surface.",
      reply),
      MAELYS_CLI_OPERANDS(surface_operands), MAELYS_CLI_OPTIONS(surface_options),
-     MAELYS_CLI_SCHEMA(surface_schema)},
+     MAELYS_CLI_CONSTRAINTS(surface_constraints), MAELYS_CLI_SCHEMA(surface_schema)},
     {MAELYS_CLI_RECORDS("records", "records", "A records command.", reply),
      MAELYS_CLI_SCHEMA(surface_schema)},
     {MAELYS_CLI_TRANSACTION("plan.apply", "plan apply",

@@ -97,6 +97,31 @@ static uint64_t mirror_retries;
 static size_t mirror_mode;
 static int mirror_retries_delivered;
 
+/* The rules a command states itself (spec 2.5). policy is maelys-warden's
+ * case: five sources of policy, exactly one of them. */
+static const maelys_cli_option_t policy_options[] = {
+    {MAELYS_CLI_FLAG("ro", "Read-only policy.")},
+    {MAELYS_CLI_FLAG("rw", "Read-write policy.")},
+    {MAELYS_CLI_PATH("plan", "FILE", "Policy from a plan file.")},
+    {MAELYS_CLI_FLAG("trace", "Trace the decision.")},
+    {MAELYS_CLI_FLAG("verbose-trace", "Trace every step.")},
+    {MAELYS_CLI_FLAG("quiet", "Say nothing.")},
+};
+static const char *const policy_sources[] = {"ro", "rw", "plan", NULL};
+/* at-most-one must not name what the requires chain below demands: a
+ * fixture whose rules contradict each other tests nothing. */
+static const char *const policy_traces[] = {"trace", "quiet", NULL};
+static const char *const policy_chain[] = {"verbose-trace", "trace", "plan", NULL};
+static const maelys_cli_constraint_t policy_constraints[] = {
+    {MAELYS_CLI_CONSTRAINT(MAELYS_CLI_CONSTRAINT_EXACTLY_ONE, policy_sources)},
+    {MAELYS_CLI_CONSTRAINT(MAELYS_CLI_CONSTRAINT_AT_MOST_ONE, policy_traces)},
+    {MAELYS_CLI_CONSTRAINT(MAELYS_CLI_CONSTRAINT_REQUIRES, policy_chain)},
+};
+
+static int command_policy(maelys_cli_context_t *context) {
+    return maelys_cli_succeed(context, "{}", "policy", MAELYS_CLI_EXIT_OK);
+}
+
 static int command_mirror(maelys_cli_context_t *context) {
     mirror_retries = 99u;
     mirror_retries_delivered = maelys_cli_option_unsigned(context, "retries", &mirror_retries);
@@ -185,6 +210,8 @@ static const maelys_cli_command_t commands[] = {
      MAELYS_CLI_OPERANDS(typed_operands)},
     {MAELYS_CLI_TRANSACTION("mirror", "mirror", "Mirror.", command_mirror),
      MAELYS_CLI_OPTIONS(mirror_options)},
+    {MAELYS_CLI_READ("policy", "policy", "Policy.", command_policy),
+     MAELYS_CLI_OPTIONS(policy_options), MAELYS_CLI_CONSTRAINTS(policy_constraints)},
     {MAELYS_CLI_READ("trusted", "trusted", "Trusted output.", command_trusted),
      MAELYS_CLI_OPTIONS(trusted_options), .hidden = 1},
     {MAELYS_CLI_RECORDS("trusted-records", "trusted-records", "Trusted records.",
@@ -683,7 +710,10 @@ static int test_groups_defaults_unavailable(void) {
     release(&result);
     result = RUNV("describe", "mirror", "--json", "--compact");
     CHECK(result.code == 0);
-    CHECK(strstr(result.out, "\"kind\":\"all-or-none\",\"group\":\"preconditions\",\"options\":[\"--source-oid\",\"--target-oid\"]"));
+    /* No name on the entry (spec 2.5): its options are the whole rule, and
+     * the name stays on each option's `group`. */
+    CHECK(strstr(result.out, "\"kind\":\"all-or-none\",\"options\":[\"--source-oid\",\"--target-oid\"]"));
+    CHECK(!strstr(result.out, "\"kind\":\"all-or-none\",\"group\""));
     CHECK(strstr(result.out, "\"long\":\"--apply\"") && strstr(result.out, "\"requires\":[\"--source-oid\",\"--target-oid\"]"));
     CHECK(strstr(result.out, "\"group\":\"preconditions\"}"));
     CHECK(strstr(result.out, "\"usage\":\"mirror [--attempts N] [--source-oid OID] [--target-oid OID] [--retries N] [--mode low|high] [--apply]\""));
@@ -740,6 +770,89 @@ static int test_environment_format(void) {
     return 1;
 }
 
+/* Runs one broken catalog through maelys_cli_run and returns 1 when it is
+ * refused at startup with an [UNEXPECTED] naming `detail`. */
+static int refused_at_startup(const maelys_cli_command_t *broken, const char *detail) {
+    maelys_cli_app_t bad = app;
+    bad.commands = broken;
+    bad.command_count = 1u;
+    char *out = NULL;
+    char *err = NULL;
+    size_t out_size = 0u;
+    size_t err_size = 0u;
+    FILE *out_stream = open_memstream(&out, &out_size);
+    FILE *err_stream = open_memstream(&err, &err_size);
+    int code = maelys_cli_run(&bad, 0, NULL, out_stream, err_stream);
+    (void)fclose(out_stream);
+    (void)fclose(err_stream);
+    int refused = code == 1 && !out[0] && strstr(err, "[UNEXPECTED]") && strstr(err, detail);
+    free(out);
+    free(err);
+    return refused;
+}
+
+static int test_constraints(void) {
+    /* describe states the three rules after the derived entries, in the
+     * contract's shape and without a name. */
+    run_result_t result = RUNV("describe", "policy", "--json", "--compact");
+    CHECK(result.code == 0);
+    CHECK(strstr(result.out, "\"kind\":\"exactly-one\",\"options\":[\"--ro\",\"--rw\",\"--plan\"]"));
+    CHECK(strstr(result.out, "\"kind\":\"at-most-one\",\"options\":[\"--trace\",\"--quiet\"]"));
+    CHECK(strstr(result.out, "\"kind\":\"requires\",\"options\":[\"--verbose-trace\",\"--trace\",\"--plan\"]"));
+    release(&result);
+
+    /* exactly-one refuses zero as it refuses two; one passes. */
+    result = RUNV("policy");
+    CHECK(expect_failure(&result, "[VALIDATION_FAILED]",
+        "Exactly one of --ro, --rw, --plan must be given."));
+    result = RUNV("policy", "--ro", "--rw");
+    CHECK(expect_failure(&result, "[VALIDATION_FAILED]",
+        "Exactly one of --ro, --rw, --plan must be given."));
+    result = RUNV("policy", "--rw");
+    CHECK(result.code == 0);
+    release(&result);
+    /* at-most-one accepts one and none, refuses two. */
+    result = RUNV("policy", "--ro", "--quiet");
+    CHECK(result.code == 0);
+    release(&result);
+    result = RUNV("policy", "--ro", "--trace", "--quiet");
+    CHECK(expect_failure(&result, "[VALIDATION_FAILED]",
+        "At most one of --trace, --quiet may be given."));
+    /* requires: the first option requires every other. */
+    result = RUNV("policy", "--plan", "p", "--verbose-trace");
+    CHECK(expect_failure(&result, "[VALIDATION_FAILED]",
+        "--verbose-trace requires --trace."));
+    result = RUNV("policy", "--plan", "p", "--verbose-trace", "--trace");
+    CHECK(result.code == 0);
+    release(&result);
+    /* The stated rule is refused in the causal slot of the dependencies:
+     * before a missing required option would be, after a bad value. */
+    result = RUNV("policy", "--plan", "");
+    CHECK(expect_failure(&result, "[VALIDATION_FAILED]", "--plan"));
+
+    /* The catalog validation holds the declaration to one form per rule
+     * and to the command's own options. */
+    static const char *const one[] = {"ro", NULL};
+    static const char *const stranger[] = {"ro", "elsewhere", NULL};
+    static const char *const twice[] = {"ro", "ro", NULL};
+    maelys_cli_constraint_t rule = {MAELYS_CLI_CONSTRAINT(
+        MAELYS_CLI_CONSTRAINT_ALL_OR_NONE, policy_sources)};
+    maelys_cli_command_t broken = commands[0];
+    for (size_t i = 0u; i < MAELYS_CLI_COUNT(commands); ++i)
+        if (!strcmp(commands[i].id, "policy")) broken = commands[i];
+    broken.constraints = &rule;
+    broken.constraint_count = 1u;
+    CHECK(refused_at_startup(&broken, "declare .group on its options instead"));
+    rule.kind = MAELYS_CLI_CONSTRAINT_EXACTLY_ONE;
+    rule.options = one;
+    CHECK(refused_at_startup(&broken, "fewer than two options"));
+    rule.options = stranger;
+    CHECK(refused_at_startup(&broken, "names unknown option --elsewhere"));
+    rule.options = twice;
+    CHECK(refused_at_startup(&broken, "names --ro twice"));
+    return 1;
+}
+
 static int test_invalid_catalog(void) {
     maelys_cli_command_t broken = commands[0];
     broken.id = "Broken Id";
@@ -771,6 +884,7 @@ int main(void) {
     RUN(test_field);
     RUN(test_typed_operands_and_completion);
     RUN(test_groups_defaults_unavailable);
+    RUN(test_constraints);
     RUN(test_environment_format);
     RUN(test_invalid_catalog);
     return failures ? 1 : 0;
