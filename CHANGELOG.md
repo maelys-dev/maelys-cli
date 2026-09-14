@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- `maelys-cli-embed` writes a byte above 127 as `(char)N`. It wrote every
+  byte as a bare integer into a `const char[]`, and 226 fits no signed
+  `char` while -30 fits no unsigned one, so a UTF-8 byte in an embedded
+  text or schema description failed `-Werror=conversion` on x86 Linux and
+  passed on arm64 Linux and macOS, where `char` is unsigned. CI found it
+  twice in three days on an em dash in the agent texts; the cast is an
+  implementation-defined conversion on both signednesses, with no
+  diagnostic. Applied after every `--define` substitution ran on the bare
+  values, so a pattern matches the same stream as before. The embed test
+  now embeds UTF-8 and compiles it under `-Wconversion -Werror` with both
+  `-fsigned-char` and `-funsigned-char`, reading it back byte for byte. The
+  installed agent texts stay ASCII by habit, no longer by necessity.
 - agent-cli-spec pinned at v2.6.0 (from v2.5.0). 2.6.0 lets an operand
   declare `digits`, `algorithms` and `pattern`, which only an option's
   argument could carry: an operand describes its value exactly as an

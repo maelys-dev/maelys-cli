@@ -5,6 +5,8 @@
 # usage: maelys-cli-embed [--header] [--define NAME=VALUE]... SYMBOL=FILE...
 #
 # Without --header, prints definitions:  const char SYMBOL[] = { ..., 0 };
+# Bytes above 127 are written as (char)N so that UTF-8 in a schema or a
+# text compiles under -Wconversion whatever the signedness of char.
 # With --header, prints declarations:    extern const char SYMBOL[];
 # --define replaces every literal @NAME@ occurrence before embedding.
 set -eu
@@ -123,8 +125,13 @@ for pair in "$@"; do
                     delete next_bytes[i]
                 }
             }
+            # A byte above 127 is cast, after every substitution ran on the
+            # bare values: as a bare int it fits neither a signed char (x86)
+            # nor, negated, an unsigned one (arm64, macOS), and
+            # -Werror=conversion refuses one or the other; (char)226 is an
+            # implementation-defined conversion on both, with no diagnostic.
             for (i = 1; i <= byte_count; i++) {
-                printf "%s,", bytes[i]
+                printf "%s,", (bytes[i] > 127 ? "(char)" bytes[i] : bytes[i])
                 if (i % 20 == 0) printf "\n"
             }
             printf "0 };\n\n"
