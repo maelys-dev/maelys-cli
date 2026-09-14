@@ -169,6 +169,7 @@ static maelys_cli_option_t operand_as_option(const maelys_cli_operand_t *operand
     option.signed_maximum = operand->signed_maximum;
     option.hex_digits = operand->hex_digits;
     option.hex_digits_alternative = operand->hex_digits_alternative;
+    option.pattern = operand->pattern;
     return option;
 }
 

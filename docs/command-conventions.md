@@ -36,7 +36,11 @@ kind expresses.
 Operands may be typed like option values (`MAELYS_CLI_OPERAND_CHOICE`,
 `MAELYS_CLI_OPERAND_KIND`, or `MAELYS_CLI_OPERAND_OPTIONAL` plus `.kind`);
 handlers read them through `maelys_cli_operand_choice()`,
-`maelys_cli_operand_unsigned()` and `maelys_cli_operand_integer()`.
+`maelys_cli_operand_unsigned()` and `maelys_cli_operand_integer()`. An
+operand describes its value exactly as an option's argument does (spec 2.6):
+`.hex_digits` and `.hex_digits_alternative` are its `digits`, a digest's
+`.choices` its `algorithms`, and `.pattern` — on a string or path kind,
+compiled at startup, enforced by the parser — its `pattern`.
 
 Option constraints: `depends_on` (one option), `depends_on_all` (every
 listed option), `conflicts_with` (an option, or an operand named by its

@@ -68,8 +68,10 @@ and never completed. `hidden=True` keeps it out of `help` and the completion.
 ## Operands, options and value kinds
 
 `cli.operand(name, summary, required=True, variadic=False, kind=None,
-choices=None, minimum=None, maximum=None)`; at most one operand is
-variadic, and it is the last one. `cli.option(long, summary, argument=None,
+choices=None, minimum=None, maximum=None, algorithms=None, pattern=None)`;
+an operand describes its value exactly as an argument does (spec 2.6), and
+`pattern` is refused on a kind that is not `string` or `path`; at most one
+operand is variadic, and it is the last one. `cli.option(long, summary, argument=None,
 default=None, required=False, repeatable=False, requires=(),
 conflicts_with=(), group=None)`; `cli.flag(long, summary, ...)` is an
 option without argument. Explicit flags accept `true/false`, `yes/no`,

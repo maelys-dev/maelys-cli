@@ -122,6 +122,19 @@ static int command_policy(maelys_cli_context_t *context) {
     return maelys_cli_succeed(context, "{}", "policy", MAELYS_CLI_EXIT_OK);
 }
 
+/* An operand describes its value exactly as an argument does (spec 2.6):
+ * a pattern, enforced by the parser and stated by describe. */
+static const maelys_cli_operand_t named_operands[] = {
+    {MAELYS_CLI_OPERAND("LABEL", "A matched label."),
+     .kind = MAELYS_CLI_VALUE_STRING, .pattern = "^[a-z][a-z0-9-]*$"},
+    {MAELYS_CLI_OPERAND_OPTIONAL("SUM", "A fixed-width hex sum."),
+     .kind = MAELYS_CLI_VALUE_HEX, .hex_digits = 8},
+};
+
+static int command_named(maelys_cli_context_t *context) {
+    return maelys_cli_succeed(context, "{}", "named", MAELYS_CLI_EXIT_OK);
+}
+
 static int command_mirror(maelys_cli_context_t *context) {
     mirror_retries = 99u;
     mirror_retries_delivered = maelys_cli_option_unsigned(context, "retries", &mirror_retries);
@@ -212,6 +225,8 @@ static const maelys_cli_command_t commands[] = {
      MAELYS_CLI_OPTIONS(mirror_options)},
     {MAELYS_CLI_READ("policy", "policy", "Policy.", command_policy),
      MAELYS_CLI_OPTIONS(policy_options), MAELYS_CLI_CONSTRAINTS(policy_constraints)},
+    {MAELYS_CLI_READ("named", "named", "Named.", command_named),
+     MAELYS_CLI_OPERANDS(named_operands)},
     {MAELYS_CLI_READ("trusted", "trusted", "Trusted output.", command_trusted),
      MAELYS_CLI_OPTIONS(trusted_options), .hidden = 1},
     {MAELYS_CLI_RECORDS("trusted-records", "trusted-records", "Trusted records.",
@@ -791,6 +806,41 @@ static int refused_at_startup(const maelys_cli_command_t *broken, const char *de
     return refused;
 }
 
+static int test_operand_pattern(void) {
+    /* describe states the operand's value as it states an argument's. */
+    run_result_t result = RUNV("describe", "named", "--json", "--compact");
+    CHECK(result.code == 0);
+    CHECK(strstr(result.out, "\"name\":\"LABEL\",\"required\":true,\"variadic\":false,\"summary\":\"A matched label.\",\"type\":\"string\",\"pattern\":\"^[a-z][a-z0-9-]*$\""));
+    CHECK(strstr(result.out, "\"name\":\"SUM\",\"required\":false,\"variadic\":false,\"summary\":\"A fixed-width hex sum.\",\"type\":\"hex\",\"digits\":8"));
+    release(&result);
+    /* The parser enforces it as it enforces an option's, in the operand's
+     * own wording. */
+    result = RUNV("named", "Label-1");
+    CHECK(expect_failure(&result, "[VALIDATION_FAILED]", "Operand LABEL expects"));
+    result = RUNV("named", "label-1");
+    CHECK(result.code == 0);
+    release(&result);
+    result = RUNV("named", "label-1", "deadbeef");
+    CHECK(result.code == 0);
+    release(&result);
+    result = RUNV("named", "label-1", "dead");
+    CHECK(expect_failure(&result, "[VALIDATION_FAILED]", "Operand SUM expects"));
+    /* Refused at startup as an option's would be: a pattern on a kind that
+     * is not string or path, and a pattern that does not compile. */
+    maelys_cli_operand_t operands[2];
+    memcpy(operands, named_operands, sizeof(operands));
+    maelys_cli_command_t broken = commands[0];
+    for (size_t i = 0u; i < MAELYS_CLI_COUNT(commands); ++i)
+        if (!strcmp(commands[i].id, "named")) broken = commands[i];
+    broken.operands = operands;
+    operands[1].pattern = "^[0-9a-f]+$";
+    CHECK(refused_at_startup(&broken, "operand SUM declares a pattern on a kind"));
+    operands[1].pattern = NULL;
+    operands[0].pattern = "^[a-z";
+    CHECK(refused_at_startup(&broken, "operand LABEL declares a pattern that is not"));
+    return 1;
+}
+
 static int test_constraints(void) {
     /* describe states the three rules after the derived entries, in the
      * contract's shape and without a name. */
@@ -885,6 +935,7 @@ int main(void) {
     RUN(test_typed_operands_and_completion);
     RUN(test_groups_defaults_unavailable);
     RUN(test_constraints);
+    RUN(test_operand_pattern);
     RUN(test_environment_format);
     RUN(test_invalid_catalog);
     return failures ? 1 : 0;

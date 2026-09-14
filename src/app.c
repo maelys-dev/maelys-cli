@@ -243,6 +243,28 @@ static int validate_command(
         }
         if (!operand->required) seen_optional = 1;
         if (operand->variadic) seen_variadic = 1;
+        /* As for an option's pattern (spec 2.6: an operand describes its
+         * value exactly as an argument does). */
+        if (operand->pattern && operand->kind != MAELYS_CLI_VALUE_STRING &&
+            operand->kind != MAELYS_CLI_VALUE_PATH) {
+            maelys_cli_error_set(error, MAELYS_CLI_CODE_UNEXPECTED, hint,
+                "Catalog command '%s' operand %s declares a pattern on a "
+                "kind that is not string or path.", id, operand->name);
+            return -1;
+        }
+        if (operand->pattern) {
+            regex_t compiled;
+            int compiled_result = maelys_cli_pattern_compile(operand->pattern,
+                &compiled);
+            if (compiled_result == 0) regfree(&compiled);
+            else {
+                maelys_cli_error_set(error, MAELYS_CLI_CODE_UNEXPECTED, hint,
+                    "Catalog command '%s' operand %s declares a pattern that "
+                    "is not a valid extended regular expression.", id,
+                    operand->name);
+                return -1;
+            }
+        }
         if (operand->kind > MAELYS_CLI_VALUE_DIGEST ||
             ((operand->kind == MAELYS_CLI_VALUE_CHOICE ||
               operand->kind == MAELYS_CLI_VALUE_DIGEST) &&
@@ -1967,6 +1989,7 @@ static int describe_command_body(
             spec.signed_maximum = operand->signed_maximum;
             spec.hex_digits = operand->hex_digits;
             spec.hex_digits_alternative = operand->hex_digits_alternative;
+            spec.pattern = operand->pattern;
             if (describe_value_type(writer, &spec) != 0) return -1;
         }
         if (maelys_cli_json_end_object(writer) != 0) return -1;

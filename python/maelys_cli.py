@@ -181,7 +181,14 @@ def flag(long: str, summary: str, **keywords: Any) -> dict:
 
 
 def operand(name: str, summary: str, required: bool = True, variadic: bool = False, kind: Optional[str] = None,
-            choices: Optional[list] = None, minimum: Optional[int] = None, maximum: Optional[int] = None) -> dict:
+            choices: Optional[list] = None, minimum: Optional[int] = None, maximum: Optional[int] = None,
+            algorithms: Optional[list] = None, pattern: Optional[str] = None) -> dict:
+    """One operand; `kind` and its limits type it like an option's argument.
+    An operand describes its value exactly as an argument does (spec 2.6):
+    `algorithms` for a `digest`, `pattern` for a `string` or `path`, enforced
+    by the parser and exposed by describe."""
+    if pattern is not None and kind not in ("string", "path"):
+        raise ValueError(f"operand {name} declares a pattern on a kind that is not string or path")
     entry: dict = {"name": name, "required": required, "variadic": variadic, "summary": summary}
     if kind is not None or choices is not None:
         entry["type"] = kind or "choice"
@@ -191,6 +198,10 @@ def operand(name: str, summary: str, required: bool = True, variadic: bool = Fal
         entry["minimum"] = minimum
     if maximum is not None:
         entry["maximum"] = maximum
+    if algorithms is not None:
+        entry["algorithms"] = list(algorithms)
+    if pattern is not None:
+        entry["pattern"] = pattern
     return entry
 
 

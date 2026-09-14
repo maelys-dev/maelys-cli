@@ -191,7 +191,18 @@ a pin bump here.
 
 Since 2.5.0 a command also states the rules its option fields cannot say
 (`MAELYS_CLI_CONSTRAINTS`, `exactly-one` above all); the fixture declares
-them, so their shape is judged with the rest.
+them, so their shape is judged with the rest. Since 2.5.1 the contract's
+section 10 asks this of a framework in so many words, and asks one thing
+more: the kit itself, run against that same fixture, because a schema sees
+a document's shape and the kit sees behaviour — `describe COMMAND_ID`
+equality with the catalog, reference resolution, hidden-option refusal,
+completion. `make conformance-check` runs it on the fixture beside the
+three products.
+
+One divergence between the two reference implementations is recorded here
+rather than fixed by stealth: a hex width is `digits` in C and a length
+`minimum`/`maximum` in Python, both shapes the contract allows, so a
+product's `describe` differs by language for the same declaration.
 
 ## The branch rule, and the one door through it
 

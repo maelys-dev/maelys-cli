@@ -86,6 +86,17 @@ The only visible additions are `external`, `hidden`, `passthrough`,
   option with one of these spellings must have the trunk's shape and
   meaning, or be renamed.
 
+## Every consumer, at agent-cli-spec 2.6.0
+
+- A hex or digest operand is now described conformantly: `digits` and
+  `algorithms` on an operand, which the framework already emitted and the
+  2.5.x schema refused, are what the contract says since 2.6.0. A product
+  that avoided a typed operand for that reason may declare it.
+- An operand takes `.pattern` as an option does, on a string or path kind,
+  compiled at startup and enforced by the parser. A product that checked an
+  operand's shape in its handler moves the pattern into the catalog and
+  deletes the check.
+
 ## Every consumer, at agent-cli-spec 2.5.0
 
 - An all-or-none entry of `input.constraints` no longer carries a `group`
