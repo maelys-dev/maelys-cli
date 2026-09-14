@@ -74,6 +74,14 @@ default=None, required=False, repeatable=False, requires=(),
 conflicts_with=(), group=None)`; `cli.flag(long, summary, ...)` is an
 option without argument. Explicit flags accept `true/false`, `yes/no`,
 `on/off` and `1/0`; any other value is refused, including on `--apply`.
+`cli.constraint(kind, *options)`, passed to a command as `constraints=`,
+states a rule the option fields cannot say (spec 2.5): `exactly-one` —
+which has no option-level form, so `input.constraints` is its only site,
+and which refuses zero of the options as it refuses two — `at-most-one`
+over more than a pair, and `requires`, the first option requiring every
+other; at least two distinct options of the command, checked when the
+`Program` is built. `all-or-none` is refused there: it is declared with
+`group=`, its option-level form, so a rule has one declaration.
 `cli.argument(name,
 kind, choices, minimum, maximum, algorithms, pattern)` declares the value.
 A `pattern` on a `string` or `path` argument is enforced (spec 2.3): the
@@ -103,8 +111,9 @@ its own grammar and answers `VALIDATION_FAILED`).
 
 Errors are reported in the contract's causal order: unknown command;
 option spelling, support and duplication; value kind, range and choice;
-`requires`, `conflicts_with` and all-or-none `group`s; required options;
-operand arity and kinds; rendering constraints. Inside the handler, raise
+`requires`, `conflicts_with`, all-or-none `group`s and the stated
+`constraints`; required options; operand arity and kinds; rendering
+constraints. Inside the handler, raise
 `cli.Failure(code, message, hint)` with one of the eleven stable codes.
 
 ## Color
@@ -173,11 +182,12 @@ The public API of `python/maelys_cli.py` is a contract, vendored byte for
 byte by its consumers (maelys-release copies the file at the commit its
 `dependencies/maelys-cli.pin` names and checks its SHA-256): the declaration
 functions `read`, `records`, `transaction`, `execute`, `stream`,
-`external`, `operand`, `option`, `flag`, `argument`; `Program` and the
+`external`, `operand`, `option`, `flag`, `argument`, `constraint`;
+`Program` and the
 arguments of its constructor (`program`, `product`, `version`,
 `commands`, `guide=`, `text=`, `framework=`) and `Program.main(argv)`;
-the command keywords `operands=`, `options=`, `schema=`, `hidden=`,
-`unavailable=`, `synopsis=`, `protocol=`;
+the command keywords `operands=`, `options=`, `constraints=`, `schema=`,
+`hidden=`, `unavailable=`, `synopsis=`, `protocol=`;
 `Invocation` with `operands`, `raw_operands`, `options`, `option()`,
 `flag()`, `apply`, `format`, `compact`, `non_interactive`, `program`,
 `verbose`, `progress`, `pager`, `field`, `progress_wanted`, `detail()`,

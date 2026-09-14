@@ -206,8 +206,8 @@ doc-topics-check:
 # longer verified here: maelys-release regenerates and compares both,
 # locally with 'maelys-release check .' and in CI through check-product.yml.
 check: test cli-check embed-check commit-check header-check check-version api-doc-check agent-doc-check doc-topics-check python-doc-check
-	@if command -v python3 >/dev/null 2>&1; then $(MAKE) python-check conformance-check; \
-	else echo "python-check, conformance-check: skipped (python3 not found)"; fi
+	@if command -v python3 >/dev/null 2>&1; then $(MAKE) python-check conformance-check describe-schema-check; \
+	else echo "python-check, conformance-check, describe-schema-check: skipped (python3 not found)"; fi
 
 # The Python framework: python/maelys_cli.py, its reference product
 # python/examples/hello.py and its tests, run without writing bytecode so a

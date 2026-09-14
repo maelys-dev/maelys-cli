@@ -43,7 +43,23 @@ listed option), `conflicts_with` (an option, or an operand named by its
 UPPER_CASE placeholder, as `--prefix` conflicts with `COMMAND_ID`), and
 `group` (all-or-none). They are exposed as `requires`, `conflictsWith`,
 `group` and `input.constraints` entries of kind `requires`, `at-most-one`
-and `all-or-none`.
+and `all-or-none`; an all-or-none entry carries no name (spec 2.5), its
+options being the whole rule, and the kit checks that the entries and the
+`group`s of a command agree.
+
+A command states the rules its option fields cannot say through
+`MAELYS_CLI_CONSTRAINTS(array)` of `MAELYS_CLI_CONSTRAINT(kind, options)`
+entries, `options` a NULL-terminated list of at least two of its own option
+names: `MAELYS_CLI_CONSTRAINT_EXACTLY_ONE`, which has no option-level form
+and for which `input.constraints` is the only site — five sources of
+policy, exactly one of them, zero refused as two are;
+`MAELYS_CLI_CONSTRAINT_AT_MOST_ONE` over more than the pair
+`conflicts_with` expresses; `MAELYS_CLI_CONSTRAINT_REQUIRES`, the first
+option requiring every other. Each is validated at startup (known options,
+no duplicate, at least two) and enforced by the parser in the same causal
+slot as the dependencies. `MAELYS_CLI_CONSTRAINT_ALL_OR_NONE` is refused
+there: all-or-none is declared by `.group`, and a rule has one declaration
+so that `describe` and the parser cannot drift apart.
 
 `.pattern` is, as `argument.pattern`, the regular expression a string or
 path value must match (spec 2.3): the parser enforces it with POSIX ERE
@@ -84,8 +100,9 @@ a child without a named protocol and has no `protocol` member.
 2. option spelling, support by the command, duplication (unless
    `repeatable`);
 3. option value kind, range, choice;
-4. option dependencies (`depends_on`, `depends_on_all`, `group`) and
-   conflicts (`conflicts_with`);
+4. option dependencies (`depends_on`, `depends_on_all`, `group`),
+   conflicts (`conflicts_with`) and the command's stated constraints
+   (`exactly-one`, `at-most-one`, `requires`);
 5. required options;
 6. operand arity and typed operands;
 7. rendering constraints: stream commands refuse rendering options, `jsonl`

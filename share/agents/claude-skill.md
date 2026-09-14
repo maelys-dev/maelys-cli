@@ -33,7 +33,9 @@ normative; this skill is the executable checklist.
   `MAELYS_CLI_OPERAND*` including `_OPERAND_CHOICE`/`_OPERAND_KIND`,
   `MAELYS_CLI_FLAG`/`_STRING`/`_ABSOLUTE_PATH`/`_SIZE`/`_DIGEST`/...) and
   designated attributes (`.depends_on_all`, `.group`, `.default_text`,
-  `.unavailable`); derive nothing by hand. `help`, `describe`, completion,
+  `.unavailable`) and, for a rule the option fields cannot say such as
+  exactly one of several options, `MAELYS_CLI_CONSTRAINTS` on the
+  command; derive nothing by hand and validate no such rule in a handler. `help`, `describe`, completion,
   parsing and tests consume that entry.
 - Use a typed kind instead of validating a path, digest or choice in the
   handler; declare defaults once in `.default_text` and read them through

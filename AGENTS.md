@@ -177,19 +177,21 @@ refuses while a declaration macro of `catalog.h` is absent from the fixture,
 comments excluded, so a macro added later cannot escape by never being
 exercised.
 
-It found two members. One was ours: `MAELYS_CLI_HEX_OR` emitted a second
-length as `alternativeDigits` when the contract's `digits` already accepts
-an array, so the framework had invented a shape beside the conforming one
-— fixed, and the unit test that used to pin the wrong shape now pins
-`digits: [4, 8]`.
+It found two members, and both are closed. One was ours:
+`MAELYS_CLI_HEX_OR` emitted a second length as `alternativeDigits` when the
+contract's `digits` already accepts an array — fixed, and the unit test
+that used to pin the wrong shape now pins `digits: [4, 8]`. The other was
+the contract's to decide, and 2.5.0 decided it: an all-or-none entry
+carries no name, its options being the whole rule, and the kit checks that
+a command's entries and its `group`s agree. The target is in `make check`
+and must stay green; a red run means the framework emits a member the
+pinned contract refuses, and the repair is never a change of the `describe`
+shape here first — it is a pull request on agent-cli-spec, a tag there and
+a pin bump here.
 
-The other is **not ours to decide**: an all-or-none entry of
-`input.constraints` carries the `group` name, and the `constraint`
-definition is closed on `kind` and `options`. Each entry already lists its
-own options, so the rule is expressed without the name; whether the
-contract should carry it, an implementation drop it, or `x-group` hold it,
-belongs to agent-cli-spec. The target joins `make check` when that is
-settled — the shape of `describe` is never changed here first.
+Since 2.5.0 a command also states the rules its option fields cannot say
+(`MAELYS_CLI_CONSTRAINTS`, `exactly-one` above all); the fixture declares
+them, so their shape is judged with the rest.
 
 ## The branch rule, and the one door through it
 

@@ -194,11 +194,35 @@ def operand(name: str, summary: str, required: bool = True, variadic: bool = Fal
     return entry
 
 
+CONSTRAINT_KINDS = ("requires", "at-most-one", "exactly-one")
+
+
+def constraint(kind: str, *options: str) -> dict:
+    """One `input.constraints` entry the command states itself (spec 2.5):
+    `kind` among `requires` (the first option requires every other),
+    `at-most-one`, `exactly-one`, over at least two options of the command.
+    `exactly-one` has no option-level form, so this is its only site.
+    `all-or-none` is declared with `group=` on the options, its option-level
+    form, and is refused here so that a rule has one declaration."""
+    if kind == "all-or-none":
+        raise ValueError("an all-or-none rule is declared with group= on its options, not as a constraint")
+    if kind not in CONSTRAINT_KINDS:
+        raise ValueError(f"a constraint kind is one of {', '.join(CONSTRAINT_KINDS)}, not {kind!r}")
+    if len(options) < 2:
+        raise ValueError(f"a {kind} constraint names at least two options")
+    if len(set(options)) != len(options):
+        raise ValueError(f"a {kind} constraint names each option once")
+    for long in options:
+        if not long.startswith("--") or len(long) < 3:
+            raise ValueError(f"a constraint names options as --name, not {long!r}")
+    return {"kind": kind, "options": list(options)}
+
+
 def _command(identifier: str, pattern: str, purpose: str, handler: Optional[Handler], effect: Any,
              operands: tuple = (), options: tuple = (), schema: Optional[dict] = None, mode: str = "json-envelope",
              protocol: Optional[str] = None, external: bool = False, hidden: bool = False,
              unavailable: Optional[str] = None, passthrough: bool = False,
-             synopsis: Optional[str] = None) -> dict:
+             synopsis: Optional[str] = None, constraints: tuple = ()) -> dict:
     if not IDENTIFIER.match(identifier):
         raise ValueError(f"a command identifier is [a-z][a-z0-9.-]*, not {identifier!r}")
     words = pattern.split()
@@ -226,6 +250,7 @@ def _command(identifier: str, pattern: str, purpose: str, handler: Optional[Hand
     return {"id": identifier, "pattern": words, "usage": synopsis, "purpose": purpose, "effect": effect,
             "outputMode": mode, "protocol": protocol, "external": external, "hidden": hidden,
             "unavailable": unavailable, "operands": operands, "options": options, "passthrough": passthrough,
+            "constraints": list(constraints),
             "outputSchema": schema or {"type": "object"}, "handler": handler}
 
 
@@ -816,6 +841,12 @@ class Program:
             for reference in item["conflictsWith"]:
                 if not (reference in names or (not reference.startswith("--") and reference in operands)):
                     raise ValueError(f"{command['id']}: {item['long']} conflicts with unknown {reference}")
+        # A stated rule names options of the command itself, as C does.
+        own = {item["long"] for item in command["options"]}
+        for rule in command["constraints"]:
+            for reference in rule["options"]:
+                if reference not in own:
+                    raise ValueError(f"{command['id']}: {rule['kind']} constraint names unknown option {reference}")
 
     # ---- catalog views ----
 
@@ -849,6 +880,9 @@ class Program:
             if "group" in item:
                 groups.setdefault(item["group"], []).append(item["long"])
         entries.extend({"kind": "all-or-none", "options": members} for members in groups.values())
+        # The rules the command states itself (spec 2.5), after the derived
+        # ones: exactly-one has no other site.
+        entries.extend({"kind": rule["kind"], "options": list(rule["options"])} for rule in command["constraints"])
         return entries
 
     def command_by_id(self, identifier: str) -> dict:
@@ -1166,6 +1200,21 @@ class Program:
             if present and len(present) != len(members):
                 raise Failure("VALIDATION_FAILED", f"Options {', '.join(members)} are given together or not at all.",
                               f"Use '{usage}'.")
+        # The rules the command states itself (spec 2.5), in the same causal
+        # slot as the dependencies they extend; exactly-one refuses zero as
+        # it refuses two.
+        for rule in command["constraints"]:
+            present = [name for name in rule["options"] if enabled(name)]
+            listed = ", ".join(rule["options"])
+            if rule["kind"] == "requires" and enabled(rule["options"][0]):
+                for other in rule["options"][1:]:
+                    if not enabled(other):
+                        raise Failure("VALIDATION_FAILED", f"Option {rule['options'][0]} requires {other}.",
+                                      f"Use '{usage}'.")
+            elif rule["kind"] == "at-most-one" and len(present) > 1:
+                raise Failure("VALIDATION_FAILED", f"At most one of {listed} may be given.", f"Use '{usage}'.")
+            elif rule["kind"] == "exactly-one" and len(present) != 1:
+                raise Failure("VALIDATION_FAILED", f"Exactly one of {listed} must be given.", f"Use '{usage}'.")
         for definition in command["options"]:
             if definition["required"] and definition["long"] not in options and not help_requested:
                 raise Failure("VALIDATION_FAILED", f"Option {definition['long']} is required by '{command['id']}'.",

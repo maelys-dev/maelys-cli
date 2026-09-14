@@ -86,6 +86,21 @@ The only visible additions are `external`, `hidden`, `passthrough`,
   option with one of these spellings must have the trunk's shape and
   meaning, or be renamed.
 
+## Every consumer, at agent-cli-spec 2.5.0
+
+- An all-or-none entry of `input.constraints` no longer carries a `group`
+  name; a test that compared the entry compares
+  `{"kind":"all-or-none","options":[...]}` now. The name stays on each
+  option's `group`, and the kit checks that a command's entries and its
+  groups agree, so a `group` without its entry — which cannot happen with
+  this framework, the entry being derived — fails the 2.5.0 kit.
+- A rule the option fields cannot say is declared on the command:
+  `MAELYS_CLI_CONSTRAINTS(array)` of `MAELYS_CLI_CONSTRAINT(kind, options)`
+  — `exactly-one` above all, which has no option-level form. A product that
+  enforced such a rule in its handler (two of five options given, none
+  given) moves the rule into the catalog and deletes the check: `describe`
+  states it and the parser refuses it before the handler runs.
+
 ## Every consumer, at agent-cli-spec 2.4.0
 
 - `--field NAME` exists on every command; a product option spelled
