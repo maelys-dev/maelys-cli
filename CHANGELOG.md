@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- `docs/architecture.md` moves to `maelys-dev/maelys-docs/maelys-cli/`
+  with its history, by `maelys-release migrate`: the one prose document
+  of `docs/` that the public `README.md` does not link. The seven it links
+  stay, as the socle's own note says, until maelys-cli has a destination
+  its readers can open — maelys-docs is private. Its row leaves
+  `docs/topics.tsv`, and `AGENTS.md` names the new path.
+
+## Unreleased
+
 - maelys-release adopted at v0.54.0 (from v0.51.1); the three managed files
   change and nothing else. 0.54.0 renames the legs of `check-product.yml`
   (`check (linux)`, `check (linux-arm64)`, `check (macos)`) so a required
