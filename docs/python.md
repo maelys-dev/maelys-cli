@@ -1,3 +1,4 @@
+<!-- VERIFIED by make python-doc-check against python/maelys_cli.py; edit with the code. -->
 # The Python framework: `python/maelys_cli.py`
 
 `python/maelys_cli.py` is the Python counterpart of `libmaelys_cli`: one
