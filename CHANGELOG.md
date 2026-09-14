@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+- maelys-release v0.51.1 adopted (from v0.40.1). The pinned dependencies now
+  live under one root, never beside this repository: `maelys-release.conf`
+  declares `[dependencies] apart`, `Makefile`, `CMakeLists.txt` and the two
+  check scripts derive `maelys-json` and `agent-cli-spec` from
+  `MAELYS_DEPENDENCIES_DIR`, and a build with no root fails on its own
+  message — naming `maelys-release dependencies . --apply`, which
+  materialises the pins under `~/.cache/maelys-release/dependencies/maelys-cli`
+  — instead of reading whatever sits beside the repository. The managed
+  `scripts/checkout-dependencies.sh` (plural) writes every pin under a root
+  and prints the variable; every CI job that builds runs it into
+  `$GITHUB_ENV`, and the `dependency_checkout` input, ignored by the socle
+  since 0.6.0, is gone from `ci.yml`. Workflow pins, the managed
+  `AGENTS.md`/`CLAUDE.md` block and the installed skill follow; `docs/cli.md`
+  and `docs/cli-contract.json` are unchanged. Two stale Makefile comments
+  fixed on the way: the maelys-json pin was quoted as `v0.1.0`, and the
+  property test was still said to be outside `check`.
 - agent-cli-spec pinned at v2.5.0. `input.constraints` states the
   cross-option rules rather than repeating them, and an all-or-none entry
   carries no name: its options are the whole rule, the name stays on each
