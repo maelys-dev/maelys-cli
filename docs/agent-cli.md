@@ -49,7 +49,8 @@ command by `id`; never replay a `PRECONDITION_FAILED` blindly; prefer
   using it.
 - `describe COMMAND_ID` is minimal: no `globalOptions`, `output` or
   `invariants`; those come with `describe` and `describe --summary`.
-  Operands carry `type`, `choices` and limits like option arguments;
+  Operands describe their value exactly as option arguments do — `type`,
+  `choices`, limits, `digits`, `algorithms`, `pattern` (spec 2.6);
   `input.constraints` states the cross-option rules — `requires`,
   `at-most-one`, `exactly-one`, `all-or-none` — and an agent reads
   `exactly-one` there or nowhere, the options carrying no form of it (spec

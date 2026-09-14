@@ -210,6 +210,47 @@ class Contract(unittest.TestCase):
             cli.Program("p", "P", "0", [cli.read("x", "x", "X.", policy, options=[cli.flag("--a", "A.")],
                                                  constraints=[cli.constraint("exactly-one", "--a", "--b")])])
 
+    def test_operand_value_members(self) -> None:
+        """An operand describes its value exactly as an argument does (spec
+        2.6): algorithms for a digest, a pattern for a string, stated by
+        describe and enforced by the parser."""
+        def named(invocation: cli.Invocation):
+            return {}, cli.EXIT_OK
+        program = cli.Program("named-py", "Named", "0.0.1", [
+            cli.read("named", "named", "A matched label and a digest.", named,
+                     operands=[cli.operand("LABEL", "A matched label.", kind="string",
+                                           pattern="^[a-z][a-z0-9-]*$"),
+                               cli.operand("REF", "A digest.", required=False, kind="digest",
+                                           algorithms=["sha256"])]),
+        ])
+
+        def local(*argv: str) -> tuple[int, str, str]:
+            out, err = io.StringIO(), io.StringIO()
+            saved = dict(os.environ)
+            os.environ.pop("MAELYS_CLI_FORMAT", None)
+            os.environ["NO_COLOR"] = "1"
+            try:
+                with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                    code = program.main(list(argv))
+            finally:
+                os.environ.clear()
+                os.environ.update(saved)
+            return code, out.getvalue(), err.getvalue()
+
+        code, out, _ = local("describe", "named", "--json")
+        operands = json.loads(out)["data"]["commands"][0]["input"]["operands"]
+        self.assertEqual(operands[0]["pattern"], "^[a-z][a-z0-9-]*$")
+        self.assertEqual(operands[1]["algorithms"], ["sha256"])
+        code, out, err = local("named", "Label-1", "--json")
+        self.assertEqual((code, out), (1, ""))
+        self.assertEqual(json.loads(err)["error"]["code"], "VALIDATION_FAILED")
+        self.assertEqual(local("named", "label-1")[0], 0)
+        code, _, err = local("named", "label-1", "md5:" + "0" * 32, "--json")
+        self.assertEqual(json.loads(err)["error"]["code"], "VALIDATION_FAILED")
+        self.assertEqual(local("named", "label-1", "sha256:" + "0" * 64)[0], 0)
+        with self.assertRaises(ValueError):
+            cli.operand("N", "Not a string.", kind="unsigned", pattern="^[0-9]+$")
+
     def test_describe_forms(self) -> None:
         code, out, _ = run("describe", "--json")
         catalog = json.loads(out)["data"]

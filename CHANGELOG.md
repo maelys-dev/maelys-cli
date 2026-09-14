@@ -1,5 +1,32 @@
 # Changelog
 
+## Unreleased
+
+- agent-cli-spec pinned at v2.6.0 (from v2.5.0). 2.6.0 lets an operand
+  declare `digits`, `algorithms` and `pattern`, which only an option's
+  argument could carry: an operand describes its value exactly as an
+  argument does. The framework already emitted `digits` and `algorithms`
+  on a typed operand, through the argument writer, so a hex operand was
+  described in a shape the 2.5.x schema refused — what maelys-git-core
+  read against the 2.4.0 schema, and what the property test could not see
+  because its one typed operand was a path. Conformant since 2.6.0 without
+  a change; the fixture now declares a fixed-width hex, a two-width hex, a
+  digest and a patterned string operand, so the property test judges them.
+- `maelys_cli_operand_t.pattern`: an operand takes a pattern as an option
+  does — on a string or path kind, compiled at startup, refused otherwise —
+  and the parser enforces it through the same synthetic descriptor that
+  types the operand, in the operand's own wording. `python/maelys_cli.py`:
+  `cli.operand(..., algorithms=, pattern=)`, the same refusal at
+  declaration, enforced by `parse_value` as for an argument.
+- 2.5.1 makes normative what this repository already did, and asks one
+  thing more of a framework: the kit run against a program declaring every
+  form it offers, not only a document validated against the schema.
+  `make conformance-check` now runs the kit on `tests/catalog_surface`
+  beside the three products (352 passed at 2.6.0). Reported in #69.
+- Recorded, not changed: a hex width is `digits` in C and a length
+  `minimum`/`maximum` in Python, both allowed by the contract, so the two
+  reference implementations describe the same declaration differently.
+
 ## 0.5.27 - 2026-09-14
 
 - maelys-release v0.51.1 adopted (from v0.40.1). The pinned dependencies now

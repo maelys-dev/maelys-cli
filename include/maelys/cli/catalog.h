@@ -58,6 +58,11 @@ typedef struct maelys_cli_operand {
     int64_t signed_maximum;
     size_t hex_digits;              /* HEX */
     size_t hex_digits_alternative;
+    const char *pattern;            /* STRING/PATH: as an option's .pattern,
+                                       enforced by the parser and exposed as
+                                       `pattern` on the operand (spec 2.6: an
+                                       operand describes its value exactly as
+                                       an argument does) */
 } maelys_cli_operand_t;
 
 /* A cross-option rule stated in input.constraints (spec 2.5): what the

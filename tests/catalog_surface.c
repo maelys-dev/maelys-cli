@@ -71,6 +71,16 @@ static const maelys_cli_operand_t surface_operands[] = {
     {MAELYS_CLI_OPERAND_KIND("PATH", "A required operand of a value kind.",
      MAELYS_CLI_VALUE_ABSOLUTE_PATH)},
     {MAELYS_CLI_OPERAND_OPTIONAL("EXTRA", "An optional operand.")},
+    /* An operand describes its value exactly as an argument does (spec 2.6):
+     * a hex width, two widths, digest algorithms, a pattern. */
+    {MAELYS_CLI_OPERAND_OPTIONAL("SUM", "A fixed-width hex sum."),
+     .kind = MAELYS_CLI_VALUE_HEX, .hex_digits = 64},
+    {MAELYS_CLI_OPERAND_OPTIONAL("OID", "A hex id of either width."),
+     .kind = MAELYS_CLI_VALUE_HEX, .hex_digits = 40, .hex_digits_alternative = 64},
+    {MAELYS_CLI_OPERAND_OPTIONAL("REF", "An algorithm-prefixed digest."),
+     .kind = MAELYS_CLI_VALUE_DIGEST, .choices = algorithms},
+    {MAELYS_CLI_OPERAND_OPTIONAL("LABEL", "A matched label."),
+     .kind = MAELYS_CLI_VALUE_STRING, .pattern = "^[a-z][a-z0-9-]*$"},
     {MAELYS_CLI_OPERAND_REST("REST", "Every remaining operand.")},
 };
 

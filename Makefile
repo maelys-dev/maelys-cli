@@ -255,12 +255,14 @@ describe-schema-check: $(BUILD)/tests/catalog_surface
 		{ echo "describe-schema-check: no pinned agent-cli-spec at '$(AGENT_CLI_SPEC_DIR)': MAELYS_DEPENDENCIES_DIR must name the root 'maelys-release dependencies . --apply' materialised, or AGENT_CLI_SPEC_DIR its pinned checkout" >&2; exit 1; }
 	python3 scripts/describe-schema-check.py $(BUILD)/tests/catalog_surface $(AGENT_CLI_SPEC_DIR)
 
-conformance-check: $(DISPATCHER) $(EXAMPLE)
+conformance-check: $(DISPATCHER) $(EXAMPLE) $(BUILD)/tests/catalog_surface
 	@test -x $(AGENT_CLI_SPEC_DIR)/conformance/run.py || \
 		{ echo "conformance-check: no pinned agent-cli-spec at '$(AGENT_CLI_SPEC_DIR)': MAELYS_DEPENDENCIES_DIR must name the root 'maelys-release dependencies . --apply' materialised, or AGENT_CLI_SPEC_DIR its pinned checkout" >&2; exit 1; }
 	@test "$$(git -C $(AGENT_CLI_SPEC_DIR) rev-parse HEAD)" = "$$(sed -n 2p dependencies/agent-cli-spec.pin)" || \
 		{ echo "conformance-check: $(AGENT_CLI_SPEC_DIR) is not at dependencies/agent-cli-spec.pin" >&2; exit 1; }
-	@for program in "$(BUILD)/bin/maelys-hello" "$(BUILD)/bin/maelys" "$$(command -v python3) python/examples/hello.py"; do \
+	@# The products, and the catalog declaring every macro: a declaration no
+	@# product exercises is one the kit never judged (spec 2.5.1, section 10).
+	@for program in "$(BUILD)/bin/maelys-hello" "$(BUILD)/bin/maelys" "$$(command -v python3) python/examples/hello.py" "$(BUILD)/tests/catalog_surface"; do \
 		if MAELYS_COMMANDS_PATH=/nonexistent PYTHONDONTWRITEBYTECODE=1 \
 			python3 $(AGENT_CLI_SPEC_DIR)/conformance/run.py $$program > $(BUILD)/conformance.log 2>&1; then \
 			tail -1 $(BUILD)/conformance.log; \
