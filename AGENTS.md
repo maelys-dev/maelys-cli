@@ -136,7 +136,7 @@ skill `.claude/skills/maelys-cli-framework/SKILL.md` is its checklist form.
    by `scripts/api-doc-check.sh`), the installed agent texts in
    `share/agents/` (enforced by `scripts/agent-doc-check.sh` for macros
    and accessors), `docs/command-conventions.md`, `docs/agent-cli.md`,
-   `docs/architecture.md`, `share/templates/` and `README.md` where the
+   `maelys-docs/maelys-cli/architecture.md`, `share/templates/` and `README.md` where the
    feature is user-visible; `docs/python.md` for the Python port (enforced
    by `scripts/python-doc-check.sh`). Then add the feature's keyword to every
    document that must explain it in `docs/topics.tsv`: `make check` runs
