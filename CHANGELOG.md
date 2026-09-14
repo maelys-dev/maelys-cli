@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.29 - 2026-09-14
 
 - Python: a `hex` argument or operand states its width with `digits`, an
   integer or a pair such as `[40, 64]`, and `describe` emits it so — the
