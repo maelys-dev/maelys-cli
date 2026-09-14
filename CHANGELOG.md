@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- `make describe-schema-check` validates what the framework can serialize,
+  not only what the reference products declare. `tests/catalog_surface.c`
+  uses every declaration macro of `catalog.h` and every descriptor field,
+  and `scripts/describe-schema-check.py` validates its catalog-wide,
+  `--summary` and per-command `describe` against `schemas/describe.json` of
+  the pinned specification, through that specification's own validator. The
+  check also refuses while a declaration macro is missing from the fixture,
+  comments excluded, so a macro added later cannot escape by never being
+  exercised. It reports two members the 2.4 contract does not allow —
+  `argument.alternativeDigits` from `MAELYS_CLI_HEX_OR`, and
+  `constraints[].group` from all-or-none groups — which no product of this
+  repository declares and the conformance kit therefore never judged. It is
+  not in `make check` until a specification change accommodates them; the
+  shape of `describe` is never changed here first. Reported by maelys-git-core.
 - CI gains a `ci` job that succeeds only when `check`, `packaging`, `python`
   and `gcc` all did, and `main`'s branch rule requires that one status
   instead of the nine it required before. Those nine are named after a

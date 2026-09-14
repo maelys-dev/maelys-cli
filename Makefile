@@ -67,7 +67,7 @@ PC := $(BUILD)/pkgconfig/maelys-cli.pc
 EXTENSION_PC := $(BUILD)/pkgconfig/maelys-cli-extension.pc
 
 .PHONY: all check test header-check check-version cli-check embed-check commit-check api-doc-check agent-doc-check doc-topics-check python-check python-doc-check install \
-	install-check uninstall dist clean asan-ubsan analyze cmake-check \
+	install-check uninstall dist clean asan-ubsan analyze cmake-check describe-schema-check \
 	conformance-check agents-install
 
 all: $(LIB) $(EXTENSION_LIB) $(DISPATCHER) $(EXAMPLE) $(PC) $(EXTENSION_PC)
@@ -141,6 +141,12 @@ $(EXAMPLE): examples/hello/main.c $(HELLO_GENERATED) $(LIB) $(HEADERS)
 	@mkdir -p $(@D)
 	$(CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) -I$(BUILD)/generated $(CFLAGS) $(COMMON_CFLAGS) \
 		$< $(BUILD)/generated/hello_schemas.c $(LIB) $(LDFLAGS) -o $@
+
+# A product declaring every macro of catalog.h, so describe-schema-check can
+# validate what the framework serializes and not only what a product needs.
+$(BUILD)/tests/catalog_surface: tests/catalog_surface.c $(LIB) $(HEADERS)
+	@mkdir -p $(@D)
+	$(CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) $(CFLAGS) $(COMMON_CFLAGS) $< $(LIB) $(LDFLAGS) -o $@
 
 $(BUILD)/tests/test_extension: tests/test_extension.c $(EXTENSION_LIB) $(LIB) $(MAELYS_JSON_LIB) $(HEADERS)
 	@mkdir -p $(@D)
@@ -228,6 +234,18 @@ analyze: $(HELLO_GENERATED)
 # each binary from the outside. The checkout comes from
 # scripts/checkout-dependency.sh agent-cli-spec, as every pinned dependency.
 AGENT_CLI_SPEC_DIR ?= ../agent-cli-spec
+# The conformance kit judges the reference products; this judges the
+# framework's whole serializable surface against the same pinned schema. It
+# is not in `check` yet: it reports two members the 2.4 contract does not
+# allow, `argument.alternativeDigits` (MAELYS_CLI_HEX_OR) and
+# `constraints[].group` (all-or-none groups), and the repair is a pull
+# request on agent-cli-spec, then a pin bump, never a change of the shape
+# here first.
+describe-schema-check: $(BUILD)/tests/catalog_surface
+	@test -f $(AGENT_CLI_SPEC_DIR)/conformance/validate.py || \
+		{ echo "describe-schema-check: $(AGENT_CLI_SPEC_DIR) not found; run scripts/checkout-dependency.sh agent-cli-spec" >&2; exit 1; }
+	python3 scripts/describe-schema-check.py $(BUILD)/tests/catalog_surface $(AGENT_CLI_SPEC_DIR)
+
 conformance-check: $(DISPATCHER) $(EXAMPLE)
 	@test -x $(AGENT_CLI_SPEC_DIR)/conformance/run.py || \
 		{ echo "conformance-check: $(AGENT_CLI_SPEC_DIR) not found; run scripts/checkout-dependency.sh agent-cli-spec" >&2; exit 1; }
