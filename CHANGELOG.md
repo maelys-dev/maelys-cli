@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- `docs/api-reference.md` and `docs/python.md` open on a `VERIFIED by`
+  marker naming the check that holds them (`api-doc-check`,
+  `python-doc-check`): the "verified reference" of the documentation
+  policy (maelys-platform#95), a document `make check` reads and a public
+  library cannot move into a private repository its contributors cannot
+  open. `maelys-platform docs` classes them `verified`; they stay, with no
+  destination. The five other prose documents stay held by the public
+  README until a site documents maelys-cli.
+
+## Unreleased
+
 - `docs/architecture.md` moves to `maelys-dev/maelys-docs/maelys-cli/`
   with its history, by `maelys-release migrate`: the one prose document
   of `docs/` that the public `README.md` does not link. The seven it links

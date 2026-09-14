@@ -1,3 +1,4 @@
+<!-- VERIFIED by make api-doc-check against the public API; edit with the code. -->
 # libmaelys_cli API reference
 
 Every public function of `libmaelys_cli`, grouped by header. Conventions:
