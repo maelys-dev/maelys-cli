@@ -147,7 +147,7 @@ algorithms among `sha1`, `sha256`, `sha384`, `sha512`). A maximum of `0` means u
 `MAELYS_CLI_OPERAND_CHOICE(name, summary, choices)` and
 `MAELYS_CLI_OPERAND_KIND(name, summary, MAELYS_CLI_VALUE_...)` for typed
 required operands (an optional typed operand is `MAELYS_CLI_OPERAND_OPTIONAL`
-followed by `.kind` and its limits — `.hex_digits`, `.choices` for a digest's
+followed by `.kind` and its limits - `.hex_digits`, `.choices` for a digest's
 algorithms, `.pattern` on a string or path: an operand describes its value
 exactly as an argument does, spec 2.6) (read with `maelys_cli_operand_choice()`,
 `maelys_cli_operand_unsigned()`, `maelys_cli_operand_integer()`). Never
