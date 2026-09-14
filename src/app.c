@@ -1720,12 +1720,19 @@ static int describe_value_type(
                     return -1;
             if (maelys_cli_json_end_array(writer) != 0) return -1;
         }
+        /* An unsigned kind states a bound only when the declaration does: a
+         * minimum of 0 is the kind's own floor, and a maximum of 0 means
+         * unbounded, which an absent member says and UINT64_MAX — what this
+         * wrote until 0.5.29 — does not, in a number above 2^53 that a
+         * JavaScript reader cannot hold exactly. */
         if (option->kind == MAELYS_CLI_VALUE_UNSIGNED ||
             option->kind == MAELYS_CLI_VALUE_SIZE ||
             option->kind == MAELYS_CLI_VALUE_DURATION) {
-            if (maelys_cli_json_key_unsigned(writer, "minimum", option->minimum) != 0 ||
-                maelys_cli_json_key_unsigned(writer, "maximum",
-                    option->maximum ? option->maximum : UINT64_MAX) != 0)
+            if (option->minimum &&
+                maelys_cli_json_key_unsigned(writer, "minimum", option->minimum) != 0)
+                return -1;
+            if (option->maximum &&
+                maelys_cli_json_key_unsigned(writer, "maximum", option->maximum) != 0)
                 return -1;
         }
         if (option->kind == MAELYS_CLI_VALUE_INTEGER &&

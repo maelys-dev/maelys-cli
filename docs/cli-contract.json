@@ -1196,7 +1196,6 @@
             "options": [
               {
                 "argument": {
-                  "maximum": 18446744073709551615,
                   "minimum": 1,
                   "name": "BYTES",
                   "type": "size"
@@ -1211,8 +1210,6 @@
               },
               {
                 "argument": {
-                  "maximum": 18446744073709551615,
-                  "minimum": 0,
                   "name": "DURATION",
                   "type": "duration"
                 },
@@ -1477,7 +1474,6 @@
               {
                 "argument": {
                   "maximum": 1000,
-                  "minimum": 0,
                   "name": "N",
                   "type": "unsigned"
                 },

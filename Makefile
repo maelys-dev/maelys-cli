@@ -75,7 +75,7 @@ HEADER_CPP := $(BUILD)/tests/header_cpp
 PC := $(BUILD)/pkgconfig/maelys-cli.pc
 EXTENSION_PC := $(BUILD)/pkgconfig/maelys-cli-extension.pc
 
-.PHONY: all check test header-check check-version cli-check embed-check commit-check api-doc-check agent-doc-check doc-topics-check python-check python-doc-check install \
+.PHONY: all check test header-check check-version cli-check embed-check commit-check api-doc-check agent-doc-check doc-topics-check python-check hello-parity-check python-doc-check install \
 	install-check uninstall dist clean asan-ubsan analyze cmake-check describe-schema-check \
 	conformance-check agents-install
 
@@ -217,8 +217,8 @@ doc-topics-check:
 # longer verified here: maelys-release regenerates and compares both,
 # locally with 'maelys-release check .' and in CI through check-product.yml.
 check: test cli-check embed-check commit-check header-check check-version api-doc-check agent-doc-check doc-topics-check python-doc-check
-	@if command -v python3 >/dev/null 2>&1; then $(MAKE) python-check conformance-check describe-schema-check; \
-	else echo "python-check, conformance-check, describe-schema-check: skipped (python3 not found)"; fi
+	@if command -v python3 >/dev/null 2>&1; then $(MAKE) python-check hello-parity-check conformance-check describe-schema-check; \
+	else echo "python-check, hello-parity-check, conformance-check, describe-schema-check: skipped (python3 not found)"; fi
 
 # The Python framework: python/maelys_cli.py, its reference product
 # python/examples/hello.py and its tests, run without writing bytecode so a
@@ -226,6 +226,12 @@ check: test cli-check embed-check commit-check header-check check-version api-do
 # reference product in conformance-check.
 python-check:
 	PYTHONDONTWRITEBYTECODE=1 python3 -B -W error -m unittest discover -s python/tests
+
+# The two reference products describe the same declaration in the same
+# shape: the value members of every option and operand of `limits` that
+# both hellos declare must be equal, the C one being the reference.
+hello-parity-check: $(EXAMPLE)
+	python3 scripts/hello-parity-check.py $(EXAMPLE) python/examples/hello.py
 
 # Every public name of python/maelys_cli.py is documented in docs/python.md.
 python-doc-check:

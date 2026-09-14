@@ -75,7 +75,7 @@ def check(invocation: cli.Invocation):
     return {"valid": not violations, "violations": violations}, (cli.EXIT_VIOLATIONS if violations else cli.EXIT_OK)
 
 
-LEVELS = ["quiet", "normal", "verbose"]
+LEVELS = ["low", "high"]
 PROGRAM = cli.Program("maelys-hello-py", "Maelys Hello (Python)", VERSION, [
     cli.read("greet", "greet", "Greet someone.", greet,
              operands=[cli.operand("NAME", "Person or system to greet.")],
@@ -89,9 +89,9 @@ PROGRAM = cli.Program("maelys-hello-py", "Maelys Hello (Python)", VERSION, [
     cli.read("limits", "limits", "Echo typed option values.", limits,
              options=[cli.option("--memory", "Memory ceiling; K/M/G accepted.", cli.argument("BYTES", "size", minimum=1)),
                       cli.option("--wall-time", "Wall-clock budget with its unit.", cli.argument("DURATION", "duration")),
-                      cli.option("--level", "Verbosity level.", cli.argument("LEVEL", "choice", LEVELS), default="normal"),
+                      cli.option("--level", "Verbosity level.", cli.argument("LEVEL", "choice", LEVELS), default="low"),
                       cli.option("--offset", "Signed adjustment.", cli.argument("N", "integer", minimum=-100, maximum=100)),
-                      cli.option("--digest", "Expected SHA-256 digest.", cli.argument("HEX", "hex", minimum=64, maximum=64)),
+                      cli.option("--digest", "Expected SHA-256 digest.", cli.argument("HEX", "hex", digits=64)),
                       cli.option("--tag", "Free label; repeatable.", cli.argument("TEXT", "string"), repeatable=True),
                       cli.flag("--strict", "Refuse defaults.", requires=("--level",)),
                       cli.flag("--lenient", "Accept defaults.", conflicts_with=("--strict",))],

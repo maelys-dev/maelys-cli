@@ -204,7 +204,8 @@ typedef struct maelys_cli_command {
     .name = (name_), .summary = (summary_), .required = 1, .kind = (kind_)
 
 /* Options: name, value placeholder, summary, then kind-specific limits.
- * A maximum of 0 means unbounded. */
+ * A maximum of 0 means unbounded; describe then states no `maximum`, and
+ * no `minimum` for a minimum of 0, the floor of every unsigned kind. */
 #define MAELYS_CLI_FLAG(name_, summary_) \
     .name = (name_), .kind = MAELYS_CLI_VALUE_NONE, .summary = (summary_)
 #define MAELYS_CLI_STRING(name_, value_, summary_) \

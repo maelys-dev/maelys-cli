@@ -41,7 +41,7 @@ import stat
 import subprocess
 import sys
 import tempfile
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, Union
 
 CONTRACT = "agent-cli/v2"
 SCHEMA_VERSION = 2
@@ -137,20 +137,49 @@ class Failure(Exception):
 
 # ---- declarations ------------------------------------------------------------------
 
-def argument(name: str, kind: str = "string", choices: Optional[list] = None, minimum: Optional[int] = None,
-             maximum: Optional[int] = None, algorithms: Optional[list] = None, pattern: Optional[str] = None) -> dict:
-    entry: dict = {"name": name, "type": kind}
+def _describe_value(entry: dict, where: str, kind: Optional[str], choices: Optional[list], minimum: Optional[int],
+                    maximum: Optional[int], algorithms: Optional[list], pattern: Optional[str],
+                    digits: Union[int, list, None]) -> dict:
+    """The value members an argument and an operand share (spec 2.6), in the
+    shape the C reference emits: a hex value states its width as `digits`, an
+    integer or a pair of widths, never a length range."""
+    if pattern is not None and kind not in ("string", "path"):
+        raise ValueError(f"{where} declares a pattern on a kind that is not string or path")
+    if kind == "hex":
+        if minimum is not None or maximum is not None:
+            raise ValueError(f"{where} bounds a hex value with minimum/maximum; a hex width is digits")
+        if digits is None:
+            raise ValueError(f"{where} is a hex value without digits")
+        widths = [digits] if isinstance(digits, int) else list(digits)
+        if not widths or len(widths) > 2 or any(not isinstance(w, int) or w < 1 for w in widths) \
+                or len(set(widths)) != len(widths):
+            raise ValueError(f"{where} digits must be a positive width or two distinct widths, not {digits!r}")
+    elif digits is not None:
+        raise ValueError(f"{where} declares digits on a kind that is not hex")
     if choices is not None:
         entry["choices"] = list(choices)
-    if minimum is not None:
+    # An unsigned kind's floor is 0 whether declared or not; describe states
+    # a bound only when the declaration does, as the C reference does.
+    if minimum is not None and not (minimum == 0 and kind in ("unsigned", "size", "duration")):
         entry["minimum"] = minimum
     if maximum is not None:
         entry["maximum"] = maximum
     if algorithms is not None:
         entry["algorithms"] = list(algorithms)
+    if digits is not None:
+        entry["digits"] = digits if isinstance(digits, int) else list(digits)
     if pattern is not None:
         entry["pattern"] = pattern
     return entry
+
+
+def argument(name: str, kind: str = "string", choices: Optional[list] = None, minimum: Optional[int] = None,
+             maximum: Optional[int] = None, algorithms: Optional[list] = None, pattern: Optional[str] = None,
+             digits: Union[int, list, None] = None) -> dict:
+    """One option argument. A `hex` states its width with `digits`, an integer
+    or a pair such as `[40, 64]`, as MAELYS_CLI_HEX and MAELYS_CLI_HEX_OR do."""
+    return _describe_value({"name": name, "type": kind}, f"argument {name}", kind, choices, minimum, maximum,
+                           algorithms, pattern, digits)
 
 
 def option(long: str, summary: str, argument: Optional[dict] = None, default: Optional[str] = None,
@@ -182,27 +211,16 @@ def flag(long: str, summary: str, **keywords: Any) -> dict:
 
 def operand(name: str, summary: str, required: bool = True, variadic: bool = False, kind: Optional[str] = None,
             choices: Optional[list] = None, minimum: Optional[int] = None, maximum: Optional[int] = None,
-            algorithms: Optional[list] = None, pattern: Optional[str] = None) -> dict:
+            algorithms: Optional[list] = None, pattern: Optional[str] = None,
+            digits: Union[int, list, None] = None) -> dict:
     """One operand; `kind` and its limits type it like an option's argument.
     An operand describes its value exactly as an argument does (spec 2.6):
-    `algorithms` for a `digest`, `pattern` for a `string` or `path`, enforced
-    by the parser and exposed by describe."""
-    if pattern is not None and kind not in ("string", "path"):
-        raise ValueError(f"operand {name} declares a pattern on a kind that is not string or path")
+    `digits` for a `hex`, `algorithms` for a `digest`, `pattern` for a
+    `string` or `path`, enforced by the parser and exposed by describe."""
     entry: dict = {"name": name, "required": required, "variadic": variadic, "summary": summary}
     if kind is not None or choices is not None:
         entry["type"] = kind or "choice"
-    if choices is not None:
-        entry["choices"] = list(choices)
-    if minimum is not None:
-        entry["minimum"] = minimum
-    if maximum is not None:
-        entry["maximum"] = maximum
-    if algorithms is not None:
-        entry["algorithms"] = list(algorithms)
-    if pattern is not None:
-        entry["pattern"] = pattern
-    return entry
+    return _describe_value(entry, f"operand {name}", kind, choices, minimum, maximum, algorithms, pattern, digits)
 
 
 CONSTRAINT_KINDS = ("requires", "at-most-one", "exactly-one")
@@ -372,9 +390,10 @@ def parse_value(kind: str, text: str, spec: dict, where: str, usage: str) -> Any
             raise refuse(", ".join(spec.get("choices", [])))
         return text
     elif kind == "hex":
-        if not re.fullmatch(r"[0-9a-f]+", text) or ("minimum" in spec and len(text) < spec["minimum"]) \
-                or ("maximum" in spec and len(text) > spec["maximum"]):
-            raise refuse("lowercase hexadecimal" + (f" of {spec['minimum']} characters" if spec.get("minimum") == spec.get("maximum") and "minimum" in spec else ""))
+        # The width is `digits`, one or two, as the C parser reads it.
+        widths = spec["digits"] if isinstance(spec["digits"], list) else [spec["digits"]]
+        if not re.fullmatch(r"[0-9a-f]+", text) or len(text) not in widths:
+            raise refuse(" or ".join(str(w) for w in widths) + " lowercase hexadecimal digits")
         return text
     elif kind == "sha256":
         if not re.fullmatch(r"[0-9a-f]{64}", text):

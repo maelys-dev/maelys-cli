@@ -72,7 +72,7 @@ class Contract(unittest.TestCase):
         self.assertIn("twice", error["message"])
         self.assertEqual(failure("greet", "x", "--times", "0")[1]["message"], "Option --times must be between 1 and 10, not 0.")
         self.assertEqual(failure("limits", "--strict")[1]["message"], "Option --strict requires --level.")
-        self.assertIn("conflicts with --strict", failure("limits", "--level", "quiet", "--strict", "--lenient")[1]["message"])
+        self.assertIn("conflicts with --strict", failure("limits", "--level", "low", "--strict", "--lenient")[1]["message"])
         self.assertIn("required", failure("note", "write", "f")[1]["message"])
         self.assertIn("Operands do not match", failure("greet")[1]["message"])
         code, out, err = run("greet", "x", "--format", "jsonl")
@@ -80,20 +80,47 @@ class Contract(unittest.TestCase):
         self.assertIn("jsonl", err)
 
     def test_value_kinds(self) -> None:
-        code, out, _ = run("limits", "--memory", "4K", "--wall-time", "2m", "--level", "verbose", "--offset", "-5",
+        code, out, _ = run("limits", "--memory", "4K", "--wall-time", "2m", "--level", "high", "--offset", "-5",
                            "--digest", "a" * 64, "--tag", "x", "--tag", "y", "--json")
         data = json.loads(out)["data"]
-        self.assertEqual((data["memory"], data["wallTimeMs"], data["level"], data["offset"]), (4096, 120000, "verbose", -5))
+        self.assertEqual((data["memory"], data["wallTimeMs"], data["level"], data["offset"]), (4096, 120000, "high", -5))
         self.assertEqual(data["tags"], ["x", "y"])
         for argv in (("limits", "--memory", "4X"), ("limits", "--wall-time", "5"), ("limits", "--level", "loud"),
-                     ("limits", "--offset", "101"), ("limits", "--digest", "zz")):
+                     ("limits", "--offset", "101"), ("limits", "--digest", "zz"), ("limits", "--digest", "a" * 63)):
             self.assertEqual(failure(*argv)[1]["code"], "VALIDATION_FAILED", argv)
+
+    def test_hex_digits(self) -> None:
+        """A hex value states its width as `digits`, the shape the C reference
+        emits: --digest of hello.py is described as maelys-hello describes
+        its own, a pair of widths accepts either, and a hex declared without
+        a width, with a length range, or digits on another kind, is refused
+        when the catalog is built."""
+        limits = hello.PROGRAM.command_by_id("limits")
+        digest = next(o for o in hello.PROGRAM.descriptor(limits)["input"]["options"] if o["long"] == "--digest")
+        self.assertEqual(digest["argument"], {"name": "HEX", "type": "hex", "digits": 64})
+        program = cli.Program("p", "P", "0", [cli.read("x", "x", "X.", lambda i: ({}, 0),
+                                                       operands=[cli.operand("OID", "Either width.", kind="hex",
+                                                                             digits=[40, 64])])])
+        self.assertEqual(program.descriptor(program.command_by_id("x"))["input"]["operands"][0]["digits"], [40, 64])
+        for width in (40, 64):
+            self.assertEqual(program.parse(["x", "b" * width])[0].operands[0], "b" * width)
+        with self.assertRaises(cli.Failure) as refused:
+            program.parse(["x", "b" * 63])
+        self.assertIn("40 or 64 lowercase hexadecimal digits", refused.exception.message)
+        for keywords in ({}, {"minimum": 64, "maximum": 64}, {"digits": 0}, {"digits": [64, 64]},
+                         {"digits": [1, 2, 3]}, {"digits": "64"}):
+            with self.assertRaises(ValueError, msg=keywords):
+                cli.argument("HEX", "hex", **keywords)
+            with self.assertRaises(ValueError, msg=keywords):
+                cli.operand("HEX", "H.", kind="hex", **keywords)
+        with self.assertRaises(ValueError):
+            cli.argument("N", "unsigned", digits=4)
 
     def test_defaults_come_from_the_catalog(self) -> None:
         code, out, _ = run("greet", "x", "--json")
         self.assertEqual(json.loads(out)["data"]["times"], 1)
         code, out, _ = run("limits", "--json")
-        self.assertEqual(json.loads(out)["data"]["level"], "normal")
+        self.assertEqual(json.loads(out)["data"]["level"], "low")
 
     def test_transaction_plans_then_applies(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -525,7 +552,7 @@ class Contract(unittest.TestCase):
     def test_synopsis_override(self) -> None:
         program = cli.Program("p", "P", "1", [cli.read("adopt", "adopt", "x", lambda i: ({}, 0),
                                                    operands=[cli.operand("DIR", "d")],
-                                                   options=[cli.flag("--apply", "a"), cli.option("--socle-sha", "trial", cli.argument("SHA", "hex"))],
+                                                   options=[cli.flag("--apply", "a"), cli.option("--socle-sha", "trial", cli.argument("SHA", "hex", digits=2))],
                                                    synopsis="adopt DIR [--apply]")])
         command = program.command_by_id("adopt")
         self.assertEqual(command["usage"], "adopt DIR [--apply]")
