@@ -163,8 +163,8 @@ and, on the command, `MAELYS_CLI_CONSTRAINTS(array)` of
 `MAELYS_CLI_CONSTRAINT(kind, options)` entries for the rules the option
 fields cannot say (spec 2.5): `MAELYS_CLI_CONSTRAINT_EXACTLY_ONE`, the
 `exactly-one` rule of the contract, over a
-NULL-terminated list of option names — five sources of policy, exactly one
-of them — plus `_AT_MOST_ONE` and `_REQUIRES` (the first option requires
+NULL-terminated list of option names (five sources of policy, exactly one
+of them), plus `_AT_MOST_ONE` and `_REQUIRES` (the first option requires
 every other) over more than two options. Declared once, validated at
 startup, enforced by the parser with the dependencies, stated by `describe`
 in `input.constraints`; never validate such a rule in the handler. All-or-none

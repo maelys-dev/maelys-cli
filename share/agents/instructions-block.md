@@ -35,7 +35,7 @@ that must hold for every change.
   A descriptor with `available: false` names a command this build cannot
   run (`unavailableReason`). Operands may carry `type` and `choices` like
   options; `input.constraints` states `requires`, `at-most-one`,
-  `exactly-one` and `all-or-none` rules — `exactly-one` has no other site.
+  `exactly-one` and `all-or-none` rules; `exactly-one` has no other site.
 - `PROGRAM completion bash|zsh|fish` prints the shell completion generated
   from the catalog.
 - Unknown, duplicated or foreign options are refused. Fix the invocation
