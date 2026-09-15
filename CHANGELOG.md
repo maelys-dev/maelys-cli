@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- maelys-release adopted at v0.57.0 (from v0.56.0): workflow pins and the
+  managed prose. `adopt` now says whether anything since the pin asks this
+  product a gesture — nothing did: the adoption is by choice, and the socle
+  says so in its JSON (`current: true`), as this repository had asked.
+  0.57.0 also spells the changelog heading it asks for as the entries spell
+  it, and reports the pre-0.54.0 leg names as aliases so a rename never
+  narrows a protection; neither touches a ruleset that requires `ci` alone.
+  The socle now documents its own command line through this framework's
+  generator, and holds itself to `check .` in its CI.
+
+## Unreleased
+
 - maelys-release adopted at v0.56.0 (from v0.54.0): the workflow pins and
   the managed prose of `AGENTS.md`, `CLAUDE.md` and the release skill, which
   now open on the rules every repository shares and name the rename order
