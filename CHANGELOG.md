@@ -37,13 +37,13 @@
   that does not name a dependency whose pin moved since the last tag.
 - maelys-release adopted at v0.57.1, through v0.57.0 (from v0.56.0):
   workflow pins and the managed prose. `adopt` now says whether anything
-  since the pin asks this product a gesture — nothing did: the adoption is by choice, and the socle
-  says so in its JSON (`current: true`), as this repository had asked.
-  0.57.0 also spells the changelog heading it asks for as the entries spell
-  it, and reports the pre-0.54.0 leg names as aliases so a rename never
-  narrows a protection; neither touches a ruleset that requires `ci` alone.
-  The socle now documents its own command line through this framework's
-  generator, and holds itself to `check .` in its CI.
+  since the pin asks this product a gesture — nothing did: the adoption is
+  by choice, and the socle says so in its JSON (`current: true`), as this
+  repository had asked. 0.57.0 also spells the changelog heading it asks for
+  as the entries spell it, and reports the pre-0.54.0 leg names as aliases
+  so a rename never narrows a protection; neither touches a ruleset that
+  requires `ci` alone. The socle now documents its own command line through
+  this framework's generator, and holds itself to `check .` in its CI.
   0.57.1 only corrects `protect`, which runs at the checkout and was never
   run here: it moves the two workflow pins and nothing else.
 
