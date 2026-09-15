@@ -75,7 +75,7 @@ HEADER_CPP := $(BUILD)/tests/header_cpp
 PC := $(BUILD)/pkgconfig/maelys-cli.pc
 EXTENSION_PC := $(BUILD)/pkgconfig/maelys-cli-extension.pc
 
-.PHONY: all check test header-check check-version cli-check embed-check commit-check api-doc-check agent-doc-check doc-topics-check python-check hello-parity-check python-doc-check install \
+.PHONY: all check test fuzz fuzz-smoke header-check check-version cli-check embed-check commit-check api-doc-check agent-doc-check doc-topics-check python-check hello-parity-check python-doc-check install \
 	install-check uninstall dist clean asan-ubsan analyze cmake-check describe-schema-check \
 	conformance-check agents-install
 
@@ -159,6 +159,47 @@ $(BUILD)/tests/catalog_surface: tests/catalog_surface.c $(LIB) $(HEADERS)
 	@mkdir -p $(@D)
 	$(CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) $(CFLAGS) $(COMMON_CFLAGS) $< $(LIB) $(LDFLAGS) -o $@
 
+# Fuzzing, as maelys-release's conventions name it. Each harness of
+# tests/fuzz is built twice. With -DMAELYS_CLI_FUZZ_REPLAY it is a plain
+# program replaying tests/fuzz/corpus/NAME, every truncation and single-byte
+# mutation of each file included: `make fuzz-smoke`, seconds long, any
+# compiler, part of `check` and therefore of `asan-ubsan`. With
+# -fsanitize=fuzzer it is the libFuzzer binary of `make fuzz`, bounded by
+# FUZZ_TIME seconds per harness, which writes what it finds under
+# $(FUZZ_BUILD)/corpus and never into the committed corpus. Apple clang ships
+# no libFuzzer: on macOS, FUZZ_CC names a clang that does.
+FUZZ_NAMES := fuzz_run fuzz_values fuzz_json fuzz_manifest
+FUZZ_REPLAYS := $(addprefix $(BUILD)/fuzz/,$(FUZZ_NAMES))
+FUZZ_CC ?= clang
+FUZZ_TIME ?= 30
+FUZZ_BUILD := build/fuzz
+
+$(BUILD)/fuzz/fuzz_manifest: tests/fuzz/fuzz_manifest.c tests/fuzz/replay.h $(EXTENSION_LIB) $(LIB) $(MAELYS_JSON_LIB) $(HEADERS)
+	@mkdir -p $(@D)
+	$(CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) $(CFLAGS) $(COMMON_CFLAGS) -DMAELYS_CLI_FUZZ_REPLAY $< $(EXTENSION_LIB) $(LIB) $(MAELYS_JSON_LIBS) $(LDFLAGS) -o $@
+
+$(BUILD)/fuzz/%: tests/fuzz/%.c tests/fuzz/replay.h tests/catalog_surface.c $(LIB) $(HEADERS)
+	@mkdir -p $(@D)
+	$(CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) $(CFLAGS) $(COMMON_CFLAGS) -DMAELYS_CLI_FUZZ_REPLAY $< $(LIB) $(LDFLAGS) -o $@
+
+fuzz-smoke: $(FUZZ_REPLAYS)
+	@for name in $(FUZZ_NAMES); do \
+		$(BUILD)/fuzz/$$name tests/fuzz/corpus/$${name#fuzz_} || exit 1; \
+	done
+
+fuzz: $(MAELYS_JSON_LIB)
+	@mkdir -p $(FUZZ_BUILD)/bin
+	@for name in $(FUZZ_NAMES); do \
+		extra=; case $$name in fuzz_manifest) extra="$(MAELYS_JSON_CFLAGS) $(EXTENSION_SOURCES) $(MAELYS_JSON_LIBS)";; esac; \
+		$(FUZZ_CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) -std=c11 -O1 -g \
+			-fsanitize=fuzzer,address,undefined -fno-sanitize-recover=undefined \
+			tests/fuzz/$$name.c $(SOURCES) $$extra -o $(FUZZ_BUILD)/bin/$$name || exit 1; \
+		rm -rf $(FUZZ_BUILD)/corpus/$$name && mkdir -p $(FUZZ_BUILD)/corpus/$$name && \
+		cp tests/fuzz/corpus/$${name#fuzz_}/* $(FUZZ_BUILD)/corpus/$$name/ && \
+		$(FUZZ_BUILD)/bin/$$name -max_total_time=$(FUZZ_TIME) -timeout=5 -max_len=4096 \
+			-artifact_prefix=$(FUZZ_BUILD)/ $(FUZZ_BUILD)/corpus/$$name || exit 1; \
+	done
+
 $(BUILD)/tests/test_extension: tests/test_extension.c $(EXTENSION_LIB) $(LIB) $(MAELYS_JSON_LIB) $(HEADERS)
 	@mkdir -p $(@D)
 	$(CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) $(CFLAGS) $(COMMON_CFLAGS) $< $(EXTENSION_LIB) $(LIB) $(MAELYS_JSON_LIBS) $(LDFLAGS) -o $@
@@ -216,7 +257,7 @@ doc-topics-check:
 # The generated reference (docs/cli.md, docs/cli-contract.json) is no
 # longer verified here: maelys-release regenerates and compares both,
 # locally with 'maelys-release check .' and in CI through check-product.yml.
-check: test cli-check embed-check commit-check header-check check-version api-doc-check agent-doc-check doc-topics-check python-doc-check
+check: test fuzz-smoke cli-check embed-check commit-check header-check check-version api-doc-check agent-doc-check doc-topics-check python-doc-check
 	@if command -v python3 >/dev/null 2>&1; then $(MAKE) python-check hello-parity-check conformance-check describe-schema-check; \
 	else echo "python-check, hello-parity-check, conformance-check, describe-schema-check: skipped (python3 not found)"; fi
 
