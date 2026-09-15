@@ -2,49 +2,6 @@
 
 ## Unreleased
 
-- maelys-release adopted at v0.57.0 (from v0.56.0): workflow pins and the
-  managed prose. `adopt` now says whether anything since the pin asks this
-  product a gesture — nothing did: the adoption is by choice, and the socle
-  says so in its JSON (`current: true`), as this repository had asked.
-  0.57.0 also spells the changelog heading it asks for as the entries spell
-  it, and reports the pre-0.54.0 leg names as aliases so a rename never
-  narrows a protection; neither touches a ruleset that requires `ci` alone.
-  The socle now documents its own command line through this framework's
-  generator, and holds itself to `check .` in its CI.
-
-## Unreleased
-
-- maelys-release adopted at v0.56.0 (from v0.54.0): the workflow pins and
-  the managed prose of `AGENTS.md`, `CLAUDE.md` and the release skill, which
-  now open on the rules every repository shares and name the rename order
-  with its missing word — narrow, adopt, *merge*, widen — that 0.55.0
-  restored. 0.56.0 sorts `docs/` on maelys-platform's conditions: the two
-  verified references are `ok` rather than noted, and the five prose pages
-  the public README links are named as held. `cut` now refuses an entry
-  that does not name a dependency whose pin moved since the last tag.
-
-## Unreleased
-
-- `docs/api-reference.md` and `docs/python.md` open on a `VERIFIED by`
-  marker naming the check that holds them (`api-doc-check`,
-  `python-doc-check`): the "verified reference" of the documentation
-  policy (maelys-platform#95), a document `make check` reads and a public
-  library cannot move into a private repository its contributors cannot
-  open. `maelys-platform docs` classes them `verified`; they stay, with no
-  destination. The five other prose documents stay held by the public
-  README until a site documents maelys-cli.
-
-## Unreleased
-
-- `docs/architecture.md` moves to `maelys-dev/maelys-docs/maelys-cli/`
-  with its history, by `maelys-release migrate`: the one prose document
-  of `docs/` that the public `README.md` does not link. The seven it links
-  stay, as the socle's own note says, until maelys-cli has a destination
-  its readers can open — maelys-docs is private. Its row leaves
-  `docs/topics.tsv`, and `AGENTS.md` names the new path.
-
-## Unreleased
-
 - maelys-release adopted at v0.54.0 (from v0.51.1); the three managed files
   change and nothing else. 0.54.0 renames the legs of `check-product.yml`
   (`check (linux)`, `check (linux-arm64)`, `check (macos)`) so a required
@@ -56,6 +13,39 @@
   under `$MAELYS_DEPENDENCIES_DIR/maelys-release` from the `uses:` line,
   which `scripts/checkout-dependencies.sh` now does, attempted and never
   required. 0.52.0 announces a coming rule a version early through `check`.
+- `docs/architecture.md` moves to `maelys-dev/maelys-docs/maelys-cli/`
+  with its history, by `maelys-release migrate`: the one prose document
+  of `docs/` that the public `README.md` does not link. The seven it links
+  stay, as the socle's own note says, until maelys-cli has a destination
+  its readers can open — maelys-docs is private. Its row leaves
+  `docs/topics.tsv`, and `AGENTS.md` names the new path.
+- `docs/api-reference.md` and `docs/python.md` open on a `VERIFIED by`
+  marker naming the check that holds them (`api-doc-check`,
+  `python-doc-check`): the "verified reference" of the documentation
+  policy (maelys-platform#95), a document `make check` reads and a public
+  library cannot move into a private repository its contributors cannot
+  open. `maelys-platform docs` classes them `verified`; they stay, with no
+  destination. The five other prose documents stay held by the public
+  README until a site documents maelys-cli.
+- maelys-release adopted at v0.56.0 (from v0.54.0): the workflow pins and
+  the managed prose of `AGENTS.md`, `CLAUDE.md` and the release skill, which
+  now open on the rules every repository shares and name the rename order
+  with its missing word — narrow, adopt, *merge*, widen — that 0.55.0
+  restored. 0.56.0 sorts `docs/` on maelys-platform's conditions: the two
+  verified references are `ok` rather than noted, and the five prose pages
+  the public README links are named as held. `cut` now refuses an entry
+  that does not name a dependency whose pin moved since the last tag.
+- maelys-release adopted at v0.57.1, through v0.57.0 (from v0.56.0):
+  workflow pins and the managed prose. `adopt` now says whether anything
+  since the pin asks this product a gesture — nothing did: the adoption is
+  by choice, and the socle says so in its JSON (`current: true`), as this
+  repository had asked. 0.57.0 also spells the changelog heading it asks for
+  as the entries spell it, and reports the pre-0.54.0 leg names as aliases
+  so a rename never narrows a protection; neither touches a ruleset that
+  requires `ci` alone. The socle now documents its own command line through
+  this framework's generator, and holds itself to `check .` in its CI.
+  0.57.1 only corrects `protect`, which runs at the checkout and was never
+  run here: it moves the two workflow pins and nothing else.
 
 ## 0.5.29 - 2026-09-14
 
