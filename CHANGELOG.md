@@ -46,6 +46,22 @@
   this framework's generator, and holds itself to `check .` in its CI.
   0.57.1 only corrects `protect`, which runs at the checkout and was never
   run here: it moves the two workflow pins and nothing else.
+- Fuzzing, which this repository did not have: the shared CI's fuzz job had
+  been skipped on every pull request, for want of a command to run. Four
+  harnesses under `tests/fuzz/`: `maelys_cli_run` on the catalog of
+  `tests/catalog_surface.c`, which declares every form, so parsing, help,
+  `describe`, completion and `__complete` read words an agent could type;
+  every parser of `values.h`, whose accepted values must lie within the
+  bounds given; the core's JSON validator and formatter, and the writer,
+  whose output must validate whatever string it was handed; and
+  `maelys_cli_extension_load` on arbitrary manifests. `make fuzz-smoke`
+  replays the committed corpus, with every truncation and single-byte
+  mutation of each seed, as plain programs: part of `make check`, so of
+  every leg and of `make asan-ubsan`. `make fuzz` runs libFuzzer itself,
+  bounded by `FUZZ_TIME`, and is the CI's `fuzz_command`.
+  `tests/catalog_surface.c` keeps its catalog at file scope and its `main`
+  behind `CATALOG_SURFACE_NO_MAIN`, so the harness drives the same catalog
+  the property test and the conformance kit judge.
 
 ## 0.5.29 - 2026-09-14
 

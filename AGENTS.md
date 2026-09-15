@@ -19,6 +19,8 @@ public contract is stricter than in a product repository.
   executable.
 - Linux and macOS must expose the same observable behavior.
 - Every primitive ships with positive and adversarial tests in `tests/`.
+  A primitive that reads what another program wrote is also reached by a
+  harness of `tests/fuzz/`, whose corpus `make check` replays.
 - Public headers compile as C11 and C++17 (`tests/header_cpp.cpp`).
 
 ## Licensing boundary

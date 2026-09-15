@@ -142,14 +142,19 @@ static const maelys_cli_command_t commands[] = {
      .unavailable = "built without the surface backend"},
 };
 
+static const maelys_cli_app_t surface_app = {
+    .program = "catalog-surface",
+    .product = "Catalog surface",
+    .version = "0.0.0",
+    .summary = "every declaration the framework can serialize",
+    .commands = commands,
+    .command_count = MAELYS_CLI_COUNT(commands),
+};
+
+/* tests/fuzz/fuzz_run.c includes this file for the catalog alone: the
+ * fuzzer drives every declaration form through maelys_cli_run. */
+#ifndef CATALOG_SURFACE_NO_MAIN
 int main(int argc, char **argv) {
-    static const maelys_cli_app_t app = {
-        .program = "catalog-surface",
-        .product = "Catalog surface",
-        .version = "0.0.0",
-        .summary = "every declaration the framework can serialize",
-        .commands = commands,
-        .command_count = MAELYS_CLI_COUNT(commands),
-    };
-    return maelys_cli_main(&app, argc, argv);
+    return maelys_cli_main(&surface_app, argc, argv);
 }
+#endif
