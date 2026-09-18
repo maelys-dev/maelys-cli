@@ -138,7 +138,7 @@ skill `.claude/skills/maelys-cli-framework/SKILL.md` is its checklist form.
    by `scripts/api-doc-check.sh`), the installed agent texts in
    `share/agents/` (enforced by `scripts/agent-doc-check.sh` for macros
    and accessors), `docs/command-conventions.md`, `docs/agent-cli.md`,
-   `maelys-docs/maelys-cli/architecture.md`, `share/templates/` and `README.md` where the
+   `share/templates/` and `README.md` where the
    feature is user-visible; `docs/python.md` for the Python port (enforced
    by `scripts/python-doc-check.sh`). Then add the feature's keyword to every
    document that must explain it in `docs/topics.tsv`: `make check` runs
@@ -328,14 +328,11 @@ when it has what they name.
   socle that tag pinned; when the socle is at fault, the remedy is a new patch
   release carrying the corrected pin. A tag is never moved or recreated.
 - Never commit a secret or a key.
-- The prose of this repository lives in `maelys-dev/maelys-docs`, directory
-  `maelys-cli/`, with a neighbouring checkout at `../maelys-docs`.
-  Documenting means opening a pull request there, not writing in `docs/`
-  here, which carries what a machine writes and what this repository engages
-  publicly. An agent that finds prose in `docs/` moves it rather than
-  enriching it, and `maelys-release migrate` moves it with its history.
-  **That repository is private: never name it from a public README.** The
-  reader of this block has access to it; the reader of a README may not.
+- `docs/` carries what a machine writes and what this repository engages
+  publicly, and no other prose. Where the prose lives is not named from this
+  repository's files, which a public reader may see: do not name a
+  documentation repository here. A private repository that wants the name
+  declares `[docs] named` in `maelys-release.conf`.
 - The workflow verifies the tag through the GitHub API, builds on Linux
   x86_64, Linux arm64 and macOS arm64 with `scripts/package-release.sh
   TARGET` — or on the targets `[targets]` names, packaging only on those

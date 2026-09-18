@@ -13,12 +13,11 @@
   under `$MAELYS_DEPENDENCIES_DIR/maelys-release` from the `uses:` line,
   which `scripts/checkout-dependencies.sh` now does, attempted and never
   required. 0.52.0 announces a coming rule a version early through `check`.
-- `docs/architecture.md` moves to `maelys-dev/maelys-docs/maelys-cli/`
-  with its history, by `maelys-release migrate`: the one prose document
-  of `docs/` that the public `README.md` does not link. The seven it links
-  stay, as the socle's own note says, until maelys-cli has a destination
-  its readers can open — maelys-docs is private. Its row leaves
-  `docs/topics.tsv`, and `AGENTS.md` names the new path.
+- `docs/architecture.md` leaves this repository with its history, by
+  `maelys-release migrate`, for the product's private documentation: the one
+  prose document of `docs/` that the public `README.md` does not link. The
+  five others stay, as the socle's own note says, until maelys-cli has a
+  destination its readers can open. Its row leaves `docs/topics.tsv`.
 - `docs/api-reference.md` and `docs/python.md` open on a `VERIFIED by`
   marker naming the check that holds them (`api-doc-check`,
   `python-doc-check`): the "verified reference" of the documentation
@@ -62,6 +61,21 @@
   `tests/catalog_surface.c` keeps its catalog at file scope and its `main`
   behind `CATALOG_SURFACE_NO_MAIN`, so the harness drives the same catalog
   the property test and the conformance kit judge.
+- maelys-release adopted at v0.60.0 (from v0.57.1): workflow pins and the
+  managed prose. Two versions since ask this repository a gesture. 0.58.0,
+  as a public one: the managed blocks of `AGENTS.md` and `CLAUDE.md` stop
+  naming the private documentation repository, and so does the rest of this
+  repository's unreleased text — the pointer `migrate` had
+  written into `AGENTS.md` for the moved architecture document, and the
+  entry above. Entries of published versions are left as they were tagged.
+  0.58.0 also refuses a changelog title present twice and makes `protect
+  --apply` refuse from a withdrawn version, two of the three points this
+  repository sent after 0.57.1; the third, that `migrate` wrote the private
+  documentation repository into the `AGENTS.md` of a public product, is
+  fixed in 0.59.2, which names this repository's pull request. 0.60.0
+  removes the pre-0.54.0 leg aliases, three jobs fewer on every pull
+  request; this ruleset requires `ci` alone and required no alias, which
+  `protect .` confirms.
 
 ## 0.5.29 - 2026-09-14
 
