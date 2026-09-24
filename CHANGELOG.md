@@ -87,9 +87,9 @@
   rather than through a stamp every rule depends on: the make of macOS is
   3.81, which compares modification times to the second, so an object
   written in the same second as the stamp reads as up to date and is kept.
-  Nothing is written on `make clean` or under `make -n`. Asked by maelys-
-  warden, which compares its own flags and had found the equivalent defect
-  at home.
+  Nothing is written on `make clean` or under `make -n`. Asked by
+  maelys-warden, which compares its own flags and had found the equivalent
+  defect at home.
 
 ## 0.5.29 - 2026-09-14
 
