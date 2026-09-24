@@ -75,6 +75,35 @@ HEADER_CPP := $(BUILD)/tests/header_cpp
 PC := $(BUILD)/pkgconfig/maelys-cli.pc
 EXTENSION_PC := $(BUILD)/pkgconfig/maelys-cli-extension.pc
 
+# A build directory remembers the command line it was made with, and drops
+# what it holds when that line changes. Each variant already has its own
+# directory; this is for the flags a hand passes inside one: `make check
+# CC=gcc` after a build with cc used to relink the objects of cc without
+# recompiling one of them, which is how a diagnostic only one compiler emits
+# stays invisible until CI. maelys-json compares its flags this way too, and
+# maelys-warden asked what this repository did; the answer was nothing.
+#
+# The comparison is made while the makefile is read, and the stale objects
+# are removed there, rather than through a stamp every rule depends on: the
+# make of macOS is 3.81, which compares modification times to the second, so
+# an object written in the same second as the stamp reads as up to date and
+# is silently kept.
+CFLAGS_STAMP := $(BUILD)/cflags.stamp
+BUILD_COMMAND_LINE := CC=$(CC) CXX=$(CXX) CPPFLAGS=$(CPPFLAGS) $(COMMON_CPPFLAGS) $(MAELYS_JSON_CFLAGS) CFLAGS=$(CFLAGS) $(COMMON_CFLAGS) CXXFLAGS=$(CXXFLAGS) $(COMMON_CXXFLAGS) LDFLAGS=$(LDFLAGS)
+# Neither on `make clean`, nor on a dry run: `make -n` prints what a build
+# would do and must write nothing.
+DRY_RUN := $(findstring n,$(firstword -$(MAKEFLAGS)))
+ifeq ($(filter clean uninstall,$(MAKECMDGOALS))$(DRY_RUN),)
+BUILD_FLAGS_CHANGED := $(shell mkdir -p $(BUILD) && \
+	{ printf '%s\n' '$(BUILD_COMMAND_LINE)' | cmp -s - $(CFLAGS_STAMP) 2>/dev/null || \
+	  { printf '%s\n' '$(BUILD_COMMAND_LINE)' > $(CFLAGS_STAMP); echo changed; }; })
+ifeq ($(BUILD_FLAGS_CHANGED),changed)
+$(info $(BUILD): built with another command line; its objects and binaries are removed)
+$(shell rm -rf $(BUILD)/src $(BUILD)/cli $(BUILD)/lib $(BUILD)/bin $(BUILD)/tests \
+	$(BUILD)/fuzz $(BUILD)/generated $(BUILD)/maelys-json)
+endif
+endif
+
 .PHONY: all check test fuzz fuzz-smoke header-check check-version cli-check embed-check commit-check api-doc-check agent-doc-check doc-topics-check python-check hello-parity-check python-doc-check install \
 	install-check uninstall dist clean asan-ubsan analyze cmake-check describe-schema-check \
 	conformance-check agents-install

@@ -76,6 +76,20 @@
   removes the pre-0.54.0 leg aliases, three jobs fewer on every pull
   request; this ruleset requires `ci` alone and required no alias, which
   `protect .` confirms.
+- A build directory remembers the command line it was made with and drops
+  what it holds when that line changes. Each variant has its own directory,
+  so the sanitizers were never at risk; a flag passed by hand inside one
+  was: `make check CC=gcc` after a build with cc relinked the objects of cc
+  without recompiling a single source, which is how a diagnostic only one
+  compiler emits stays invisible until CI — the signed-`char` defect of
+  0.5.28 was found twice by the x86 leg and never here. The comparison
+  happens while the makefile is read, and removes the stale objects there,
+  rather than through a stamp every rule depends on: the make of macOS is
+  3.81, which compares modification times to the second, so an object
+  written in the same second as the stamp reads as up to date and is kept.
+  Nothing is written on `make clean` or under `make -n`. Asked by
+  maelys-warden, which compares its own flags and had found the equivalent
+  defect at home.
 
 ## 0.5.29 - 2026-09-14
 
