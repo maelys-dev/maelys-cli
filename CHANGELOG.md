@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.30 - 2026-09-24
 
 - maelys-release adopted at v0.54.0 (from v0.51.1); the three managed files
   change and nothing else. 0.54.0 renames the legs of `check-product.yml`
