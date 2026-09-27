@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+- maelys-release adopted at v0.62.1 (from v0.60.0), with `adopt . --product
+  maelys-cli --apply`: the workflow pins and `scripts/checkout-
+  dependency.sh`, the managed script. 0.61.0 is the one version since that
+  asks this repository a gesture, and it asks it as a product that pins: the
+  script clones from a git bundle when `MAELYS_DEPENDENCY_BUNDLES` names
+  one, so a runner that may not read a private pin can be fed by a machine
+  that may. Nothing else changes here — both pins of this repository are
+  public, so no carry job and no `carried_dependencies` line are added to
+  `ci.yml`, which the socle leaves to the product. 0.61.0 also makes `check`
+  note a product with no fuzzing it can see, the third of the three points
+  this repository sent after 0.57.1 and the last one open; this repository
+  reads `ok tests/fuzz/: the socle's fuzz job runs it`. 0.62.0 verifies a
+  release tag's signature against a list of allowed signers the socle
+  publishes, read at the commit the product pinned, and asks nothing of a
+  product signing with the key the fleet already uses.
+
 ## 0.5.30 - 2026-09-24
 
 - maelys-release adopted at v0.54.0 (from v0.51.1); the three managed files
