@@ -34,8 +34,8 @@
   computed over the binary as installed.
 
 - maelys-release adopted at v0.62.1 (from v0.60.0), with `adopt . --product
-  maelys-cli --apply`: the workflow pins and `scripts/checkout-
-  dependency.sh`, the managed script. 0.61.0 is the one version since that
+  maelys-cli --apply`: the workflow pins and the managed
+  `scripts/checkout-dependency.sh`. 0.61.0 is the one version since that
   asks this repository a gesture, and it asks it as a product that pins: the
   script clones from a git bundle when `MAELYS_DEPENDENCY_BUNDLES` names
   one, so a runner that may not read a private pin can be fed by a machine
@@ -48,6 +48,45 @@
   release tag's signature against a list of allowed signers the socle
   publishes, read at the commit the product pinned, and asks nothing of a
   product signing with the key the fleet already uses.
+- `maelys_cli_process_start()`, `_signal()`, `_wait()` and `_release()`: a
+  program started with descriptors it inherits, signalled while it runs and
+  waited for separately. `run` had neither — it inherits 0, 1 and 2, closes
+  everything else at `exec` and blocks until the end — so a product needing
+  either had to write the `fork`/`exec` the framework exists to keep out of
+  products. `options->inherit` maps a descriptor of the caller onto the
+  number the program expects, and the mapping is applied as a whole: every
+  source first moves above the highest target, then each target is installed
+  by `dup2`, which clears the close-on-exec flag it would otherwise keep.
+  That order is what makes `3 -> 4` beside `4 -> 3` work, one source reach
+  two targets, and a target equal to its own source arrive open; it also
+  moves the three descriptors the child still needs — the error pipe, the
+  held executable and its directory — out of the way of a target that would
+  otherwise land on one of them and start the program without its
+  descriptor, silently. Refused before the `fork`: a target below 3, two
+  entries naming one target, a source that is not open, more entries than
+  `MAELYS_CLI_PROCESS_MAX_INHERIT`.
+- The handle holds the program's process id reserved until `release`: `wait`
+  learns the status through `waitid` with `WNOWAIT` and reaps nothing, so
+  `signal` from another thread can never reach a stranger that inherited the
+  number — the race a product cannot close from outside. `signal` after
+  `wait` is `ESRCH` and sends nothing; a second `wait` reports what the
+  first noted. `run` is now `start` + `wait` + `release`, one
+  implementation, its behaviour unchanged. Asked by maelys-egress for
+  `channel exec`, which hands a mediated-connection socket to a program on a
+  declared descriptor and relays signals to it from its `sigwait` thread;
+  the three ways a target could have started the program without its
+  descriptor are theirs, read in this repository's code before any of this
+  was written.
+- `maelys_cli_environment_to_envp_inherited()`: the caller's own environment
+  with an overlay applied over it, the overlay winning on a name already
+  carried. `maelys_cli_environment_to_envp()` builds the overlay alone,
+  which is what a product wants when it replaces an environment and not what
+  it wants when it adds two variables to one.
+- No Python counterpart: `python/maelys_cli.py` has never carried the
+  process primitives — the pager is its only `subprocess` call — so this
+  adds nothing to a parity it does not have. A product written in Python
+  that needs this reaches for `subprocess` with `pass_fds`, which is the
+  same mapping with the same hazards and none of the refusals.
 
 ## 0.5.30 - 2026-09-24
 
