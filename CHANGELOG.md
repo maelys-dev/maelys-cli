@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- `docs/extensions.md` says how to isolate a faulty extension. A manifest
+  the dispatcher cannot trust or understand still stops it entirely, which
+  leaves an operator with no command to run — not even `maelys --version` —
+  and the way out was folklore: maelys-egress found `MAELYS_COMMANDS_PATH`
+  pointed at an empty directory on its own. The document now names both
+  ways, in order: move the offending file aside, which the diagnostic
+  identifies, or replace the search list for the single command that must
+  run. It also says what the second one costs — every working extension
+  hidden with the broken one — and that it belongs on one command line and
+  never in a profile.
+
 ## 0.5.32 - 2026-10-01
 
 - The flag `maelys_cli_process_signal` reads and `maelys_cli_process_wait`

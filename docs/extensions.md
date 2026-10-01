@@ -155,6 +155,42 @@ where it would name nothing, and when a key on its path carries a terminal
 control — the metadata check above never ran for a document that did not
 parse, so the pointer is held to the same rule as `version` and `summary`.
 
+## Isolating a faulty extension
+
+A manifest the dispatcher reads but cannot clear leaves its command declared
+and unavailable, so the catalog stays usable; `commands list` names the
+reason and the code, and that is where to start:
+
+```sh
+maelys commands list --format json | jq '.data.records[] | select(.available == false)'
+```
+
+A manifest the dispatcher cannot trust or understand, on the other hand,
+stops it entirely — that is on purpose, and it leaves an operator with no
+command to run, not even `maelys --version`. Two ways through it, in order
+of preference:
+
+- **Move the offending file aside.** The diagnostic names the path that was
+  discovered, and the file it resolves to when that differs; removing or
+  renaming it (it is a `*.json` of one of the directories above) restores
+  the catalog without hiding anything else.
+- **Replace the search list for one command.** `MAELYS_COMMANDS_PATH` takes
+  absolute directories and replaces the defaults, so naming an empty
+  directory discovers nothing and runs the dispatcher's own commands alone:
+
+  ```sh
+  mkdir -p /tmp/no-extensions
+  MAELYS_COMMANDS_PATH=/tmp/no-extensions maelys agents install .
+  ```
+
+  This is a way out of a blocked machine, not a fix: it hides every
+  extension, including the ones that work, and an agent reading that catalog
+  sees commands it would otherwise find. Set it for the single command that
+  needs to run, never in a profile.
+
+Either way the manifest is the thing to repair, and whoever published it is
+the one to tell: the dispatcher refuses exactly what it was asked to refuse.
+
 ## Linking a dispatcher
 
 Manifest discovery is `libmaelys_cli_extension.a`, separate from the core so
