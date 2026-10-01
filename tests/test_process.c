@@ -4,6 +4,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <signal.h>
 #include <limits.h>
 #include <stdlib.h>
 #include <string.h>
@@ -163,11 +164,185 @@ static int test_resolve_and_directory(void) {
     return 1;
 }
 
+/* The mapping is applied as a whole: a program started with descriptors on
+ * 4 and 5 reads what the caller put in them, including when the mapping
+ * exchanges two numbers the caller already holds, and when one source reaches
+ * two targets. The shell reads each target and prints what it found. */
+static int write_temporary(const char *text) {
+    char path[] = "/tmp/maelys-cli-inherit.XXXXXX";
+    int descriptor = mkstemp(path);
+    if (descriptor < 0) return -1;
+    (void)unlink(path);
+    size_t length = strlen(text);
+    if (write(descriptor, text, length) != (ssize_t)length ||
+        lseek(descriptor, 0, SEEK_SET) != 0) {
+        (void)close(descriptor);
+        return -1;
+    }
+    return descriptor;
+}
+
+static int read_through_shell(
+    const maelys_cli_process_inherit_t *inherit, size_t count,
+    const char *script, char *out, size_t out_size) {
+    int output[2];
+    if (pipe(output) != 0) return -1;
+    maelys_cli_process_inherit_t mapping[MAELYS_CLI_PROCESS_MAX_INHERIT + 1];
+    for (size_t i = 0u; i < count; ++i) mapping[i] = inherit[i];
+    /* The program writes on 3, which this mapping installs like any other. */
+    mapping[count].source = output[1];
+    mapping[count].target = 3;
+    maelys_cli_process_options_t options;
+    memset(&options, 0, sizeof(options));
+    options.inherit = mapping;
+    options.inherit_count = count + 1u;
+    char *argv[] = {(char *)"sh", (char *)"-c", (char *)script, NULL};
+    maelys_cli_process_t *process = NULL;
+    if (maelys_cli_process_start(shell_path(), argv, NULL, &options,
+            &process) != 0) {
+        (void)close(output[0]);
+        (void)close(output[1]);
+        return -1;
+    }
+    (void)close(output[1]);
+    maelys_cli_process_status_t status;
+    int waited = maelys_cli_process_wait(process, &status);
+    maelys_cli_process_release(process);
+    ssize_t amount = read(output[0], out, out_size - 1u);
+    (void)close(output[0]);
+    if (waited != 0 || amount < 0) return -1;
+    out[amount] = '\0';
+    return status.exited ? status.exit_code : -1;
+}
+
+static int test_inherited_descriptors(void) {
+    int first = write_temporary("alpha");
+    int second = write_temporary("beta");
+    CHECK(first >= 0 && second >= 0);
+    char out[128];
+
+    /* One source, one target above 2. */
+    maelys_cli_process_inherit_t one[] = {{first, 4}};
+    CHECK(read_through_shell(one, 1u,
+        "head -c 5 <&4 >&3", out, sizeof(out)) == 0);
+    CHECK(strcmp(out, "alpha") == 0);
+
+    /* Two sources exchanged: 4 -> 5 and 5 -> 4, which installing one target
+     * after the other would have collapsed. */
+    CHECK(lseek(first, 0, SEEK_SET) == 0 && lseek(second, 0, SEEK_SET) == 0);
+    /* Forced onto 4 and 5, so the mapping below really exchanges two numbers
+     * the caller holds; 3 is left to the output pipe of the helper above.
+     * `second` is duplicated first: it may itself sit on 4, which the other
+     * dup2 would then close under it. */
+    int high = dup2(second, 5);
+    int low = dup2(first, 4);
+    CHECK(low == 4 && high == 5);
+    maelys_cli_process_inherit_t swap[] = {{low, 5}, {high, 4}};
+    CHECK(read_through_shell(swap, 2u,
+        "{ head -c 4 <&4; head -c 5 <&5; } >&3", out, sizeof(out)) == 0);
+    CHECK(strcmp(out, "betaalpha") == 0);
+
+    /* One source, two targets. */
+    CHECK(lseek(low, 0, SEEK_SET) == 0);
+    maelys_cli_process_inherit_t twice[] = {{low, 4}, {low, 5}};
+    CHECK(read_through_shell(twice, 2u,
+        "head -c 2 <&4 >&3; head -c 3 <&5 >&3", out, sizeof(out)) == 0);
+    /* Two targets of one source share its offset, as two dups of a
+     * descriptor always do: the second read continues the first. */
+    CHECK(strcmp(out, "alpha") == 0);
+
+    /* A target equal to its own source keeps nothing of close-on-exec. */
+    CHECK(lseek(low, 0, SEEK_SET) == 0);
+    maelys_cli_process_inherit_t same[] = {{low, low}};
+    CHECK(fcntl(low, F_SETFD, FD_CLOEXEC) == 0);
+    CHECK(read_through_shell(same, 1u, "head -c 5 <&4 >&3", out,
+        sizeof(out)) == 0);
+    CHECK(strcmp(out, "alpha") == 0);
+
+    (void)close(low);
+    (void)close(high);
+    (void)close(first);
+    (void)close(second);
+    return 1;
+}
+
+static int test_inherited_refusals(void) {
+    maelys_cli_process_t *process = NULL;
+    char *argv[] = {(char *)"sh", (char *)"-c", (char *)"exit 0", NULL};
+    maelys_cli_process_options_t options;
+    memset(&options, 0, sizeof(options));
+
+    /* A target below 3 is refused: 0, 1 and 2 are the program's own. */
+    maelys_cli_process_inherit_t low_target[] = {{0, 2}};
+    options.inherit = low_target;
+    options.inherit_count = 1u;
+    CHECK(maelys_cli_process_start(shell_path(), argv, NULL, &options,
+        &process) != 0 && errno == EINVAL && process == NULL);
+
+    /* Two entries naming one target. */
+    maelys_cli_process_inherit_t duplicate[] = {{0, 4}, {1, 4}};
+    options.inherit = duplicate;
+    options.inherit_count = 2u;
+    CHECK(maelys_cli_process_start(shell_path(), argv, NULL, &options,
+        &process) != 0 && errno == EINVAL);
+
+    /* A source nothing holds open. */
+    maelys_cli_process_inherit_t closed[] = {{4096, 4}};
+    options.inherit = closed;
+    options.inherit_count = 1u;
+    CHECK(maelys_cli_process_start(shell_path(), argv, NULL, &options,
+        &process) != 0 && errno == EBADF);
+
+    /* More entries than the contract accepts. */
+    maelys_cli_process_inherit_t many[MAELYS_CLI_PROCESS_MAX_INHERIT + 1];
+    for (size_t i = 0u; i < sizeof(many) / sizeof(many[0]); ++i) {
+        many[i].source = 0;
+        many[i].target = (int)(3u + i);
+    }
+    options.inherit = many;
+    options.inherit_count = sizeof(many) / sizeof(many[0]);
+    CHECK(maelys_cli_process_start(shell_path(), argv, NULL, &options,
+        &process) != 0 && errno == EINVAL);
+    return 1;
+}
+
+static int test_signal_and_wait(void) {
+    char *argv[] = {(char *)"sh", (char *)"-c", (char *)"sleep 30", NULL};
+    maelys_cli_process_t *process = NULL;
+    CHECK(maelys_cli_process_start(shell_path(), argv, NULL, NULL,
+        &process) == 0 && process != NULL);
+    CHECK(maelys_cli_process_signal(process, SIGTERM) == 0);
+    maelys_cli_process_status_t status;
+    CHECK(maelys_cli_process_wait(process, &status) == 0);
+    CHECK(status.signaled && status.term_signal == SIGTERM);
+    /* Waited again, the handle reports what it noted and waits for nothing. */
+    maelys_cli_process_status_t again;
+    CHECK(maelys_cli_process_wait(process, &again) == 0);
+    CHECK(again.signaled && again.term_signal == SIGTERM);
+    /* The program is gone and its id is still held: nothing is sent. */
+    CHECK(maelys_cli_process_signal(process, SIGTERM) != 0 && errno == ESRCH);
+    maelys_cli_process_release(process);
+
+    /* An exec that never happened owns nothing: no handle, and no child left
+     * for the caller to reap. */
+    char *missing[] = {(char *)"maelys-bin", NULL};
+    maelys_cli_process_t *refused = (maelys_cli_process_t *)(void *)&status;
+    CHECK(maelys_cli_process_start("/nonexistent/maelys-bin", missing, NULL,
+        NULL, &refused) != 0);
+    CHECK(refused == NULL);
+    CHECK(maelys_cli_process_signal(NULL, SIGTERM) != 0 && errno == EINVAL);
+    maelys_cli_process_release(NULL);
+    return 1;
+}
+
 int main(void) {
     int failures = 0;
     RUN(test_check_executable);
     RUN(test_run_keeps_working_directory);
     RUN(test_run);
+    RUN(test_inherited_descriptors);
+    RUN(test_inherited_refusals);
+    RUN(test_signal_and_wait);
     RUN(test_resolve_and_directory);
     return failures ? 1 : 0;
 }

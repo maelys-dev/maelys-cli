@@ -31,6 +31,12 @@ void maelys_cli_environment_clear(maelys_cli_environment_t *environment);
  * owned by the caller and released with maelys_cli_envp_free(). */
 int maelys_cli_environment_to_envp(
     const maelys_cli_environment_t *environment, char ***out_envp);
+/* The caller's own environment with these entries applied over it: a name
+ * the caller already carries takes the value declared here, a name it does
+ * not carry is added. For a program that must keep the environment it was
+ * given plus what the product decides. */
+int maelys_cli_environment_to_envp_inherited(
+    const maelys_cli_environment_t *environment, char ***out_envp);
 void maelys_cli_envp_free(char **envp);
 
 #ifdef __cplusplus

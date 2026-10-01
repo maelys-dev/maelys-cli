@@ -372,6 +372,27 @@ static int test_environment(void) {
     CHECK(strcmp(envp[0], "EXPLICIT=value=with=equals") == 0);
     CHECK(strcmp(envp[1], "MAELYS_CLI_TEST_VALUE=imported") == 0 && envp[2] == NULL);
     maelys_cli_envp_free(envp);
+
+    /* The inherited form keeps what the caller carries and lets the overlay
+     * win on a name it already has: MAELYS_CLI_TEST_VALUE is in both, and the
+     * overlay's value is the one the program would read. */
+    CHECK(setenv("MAELYS_CLI_TEST_KEPT", "kept", 1) == 0);
+    /* The live variable is changed after the overlay imported it, so the two
+     * values differ and the winner is visible. */
+    CHECK(setenv("MAELYS_CLI_TEST_VALUE", "inherited", 1) == 0);
+    CHECK(maelys_cli_environment_to_envp_inherited(&environment, &envp) == 0);
+    int saw_kept = 0;
+    int saw_overlay = 0;
+    int saw_inherited_value = 0;
+    for (size_t i = 0u; envp[i]; ++i) {
+        if (!strcmp(envp[i], "MAELYS_CLI_TEST_KEPT=kept")) ++saw_kept;
+        if (!strcmp(envp[i], "MAELYS_CLI_TEST_VALUE=imported")) ++saw_overlay;
+        if (!strcmp(envp[i], "MAELYS_CLI_TEST_VALUE=inherited")) ++saw_inherited_value;
+    }
+    CHECK(saw_kept == 1 && saw_overlay == 1 && saw_inherited_value == 0);
+    maelys_cli_envp_free(envp);
+    (void)unsetenv("MAELYS_CLI_TEST_KEPT");
+
     maelys_cli_environment_clear(&environment);
     CHECK(environment.entries == NULL && environment.count == 0u);
     (void)unsetenv("MAELYS_CLI_TEST_VALUE");
