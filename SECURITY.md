@@ -38,8 +38,13 @@ starts external programs on behalf of a product CLI. Its security claims are:
 - the `maelys` dispatcher accepts external commands only from manifests in
   fixed directories that satisfy the same ownership and mode rules, with an
   optional SHA-256 pin of the executable, and refuses duplicates and
-  unsupported `cliApi` values; an executable alias is canonicalized before
-  checking, hashing and storing it. Manifest metadata shown in text output
+  unsupported `cliApi` values; a manifest alias, like an executable alias, is
+  canonicalized before being checked, and the directory it resolves to must
+  itself be owned by root or the caller and closed to group and world, since
+  the modes of a file say who may write it and only its directory says who
+  may replace it (`MAELYS_CLI_FILE_TRUSTED_DIRECTORY`, `docs/extensions.md`).
+  A prefix owned by the user who installed it, as a package manager's is, is
+  therefore trusted for that user and not for root; Manifest metadata shown in text output
   refuses terminal control characters. Manifests are parsed by maelys-json
   under a 64 KiB, depth 8, 1024-token budget, with duplicate members and
   invalid UTF-8 rejected;

@@ -374,7 +374,7 @@ with the framework under `PREFIX/share/maelys-cli/docs/` (source:
 | --- | --- |
 | `maelys/cli/values.h` | `parse_u64_decimal`, `parse_u32_decimal`, `parse_i64_decimal`, `parse_byte_size`, `parse_duration_ms`, `parse_boolean`, `parse_choice`, `parse_hex`, borrowed string lists |
 | `maelys/cli/environment.h` | `NAME=VALUE` / imported overlays, `to_envp` for `execve` |
-| `maelys/cli/files.h` | trusted open and read judged on the descriptor (`maelys_cli_open_trusted`, `maelys_cli_read_trusted_file`, bounded by the bytes read, never blocking on a FIFO), bounded regular-file read, bounded descriptor read, atomic write with explicit policy, trust checks (`REGULAR`, `NO_SYMLINK`, `OWNER_TRUSTED`, `OWNER_CALLER`, `NOT_WRITABLE_BY_OTHERS`, `PRIVATE`, `SINGLE_LINK`, `EXECUTABLE`), `maelys_cli_zero` for secrets, `maelys_cli_file_error_code` from errno |
+| `maelys/cli/files.h` | trusted open and read judged on the descriptor (`maelys_cli_open_trusted`, `maelys_cli_read_trusted_file`, bounded by the bytes read, never blocking on a FIFO), bounded regular-file read, bounded descriptor read, atomic write with explicit policy, trust checks (`REGULAR`, `NO_SYMLINK`, `OWNER_TRUSTED`, `OWNER_CALLER`, `NOT_WRITABLE_BY_OTHERS`, `PRIVATE`, `SINGLE_LINK`, `EXECUTABLE`, `MAELYS_CLI_FILE_TRUSTED_DIRECTORY` for who may replace a file rather than who may write it), `maelys_cli_zero` for secrets, `maelys_cli_file_error_code` from errno |
 | `maelys/cli/digest.h` | SHA-256 of buffers and files |
 | `maelys/cli/json.h` | incremental JSON writer, strict validator, formatter, top-level member lookup |
 | `maelys/cli/terminal.h` | tty and color detection honoring `--color`, `NO_COLOR`, `CLICOLOR_FORCE`, `TERM=dumb` |
@@ -399,9 +399,15 @@ with the framework under `PREFIX/share/maelys-cli/docs/` (source:
 
 Manifests live in `PREFIX/share/maelys/commands/` (plus
 `/opt/homebrew/share/maelys/commands`, `/usr/local/share/maelys/commands`,
-`/usr/share/maelys/commands`). The dispatcher refuses symlinked, foreign-owned
-or group/world-writable manifests and executables, unsupported `cliApi`,
-duplicate command names and digest mismatches. There is no PATH search and no
+`/usr/share/maelys/commands`). A manifest is trusted exactly as the
+executable it declares: a symbolic link is followed — a package manager
+links what it installs from its store into its prefix — and the file it
+resolves to must be a regular file owned by root or the caller, not writable
+by group or world, in a directory owned by root or the caller and not
+writable by group or world (`MAELYS_CLI_FILE_TRUSTED_DIRECTORY`). The
+dispatcher refuses foreign-owned or group/world-writable manifests and
+executables, a manifest whose directory is open to others, unsupported
+`cliApi`, duplicate command names and digest mismatches. There is no PATH search and no
 `dlopen`. Shell completion of `maelys COMMAND ...` is forwarded to the
 external command's own `__complete`, so an extension built on the
 framework completes for free.

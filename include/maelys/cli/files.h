@@ -46,8 +46,26 @@ enum {
     MAELYS_CLI_FILE_PRIVATE = 1u << 4,        /* no g/o bits at all */
     MAELYS_CLI_FILE_EXECUTABLE = 1u << 5,     /* owner execute bit set */
     MAELYS_CLI_FILE_SINGLE_LINK = 1u << 6,    /* exactly one hard link */
-    MAELYS_CLI_FILE_OWNER_CALLER = 1u << 7    /* owned by the caller only */
+    MAELYS_CLI_FILE_OWNER_CALLER = 1u << 7,   /* owned by the caller only */
+    MAELYS_CLI_FILE_TRUSTED_DIRECTORY = 1u << 8 /* resolved parent trusted */
 };
+
+/* MAELYS_CLI_FILE_TRUSTED_DIRECTORY judges the directory that holds the file
+ * once symbolic links are resolved: it must be owned by root or the caller,
+ * closed to group and world, and still hold the very object that was judged.
+ * It answers the question the modes of a file cannot: who may replace it.
+ * MAELYS_CLI_FILE_NOT_WRITABLE_BY_OTHERS says that nobody else may write
+ * these bytes, and says nothing about who may put other bytes at that path;
+ * a trusted directory says that only root or the caller can, which is also
+ * what makes following a symbolic link as trustworthy as refusing one. It
+ * fails with EPERM, or with the errno of a resolution that did not succeed.
+ * The same rule guards an executable (maelys_cli_process_check_executable)
+ * and every extension manifest (docs/extensions.md). It judges the resolved
+ * parent only: an ancestor a third party may write is not refused on its
+ * own, since whatever directory that party substitutes must still itself be
+ * owned by root or the caller and closed to group and world. It is not a
+ * boundary against root, nor against a caller who opens their own
+ * directories to others. */
 
 /* Judges the path by lstat()/stat() without opening it, for files that are
  * not read here (an executable, a directory entry). Returns 0 when every
@@ -64,8 +82,9 @@ int maelys_cli_check_file(
  * The open never blocks: a FIFO or a device at the path is refused as not
  * regular (MAELYS_CLI_FILE_REGULAR is implied). MAELYS_CLI_FILE_NO_SYMLINK
  * opens with O_NOFOLLOW (ELOOP on a link); without it links are followed and
- * the target is judged. The descriptor is O_CLOEXEC, blocking and at offset
- * zero. Errors and out_error follow maelys_cli_check_file(). */
+ * the target is judged, and MAELYS_CLI_FILE_TRUSTED_DIRECTORY then says
+ * where the target may lie. The descriptor is O_CLOEXEC, blocking and at
+ * offset zero. Errors and out_error follow maelys_cli_check_file(). */
 int maelys_cli_open_trusted(
     const char *path, unsigned int requirements, int *out_descriptor,
     const char **out_error);

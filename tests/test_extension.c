@@ -156,13 +156,50 @@ static int test_rejections(void) {
     CHECK(strcmp(error.code, "ACCESS_DENIED") == 0 && strstr(error.message, "writable"));
     CHECK(unlink(path) == 0);
 
+    /* A symbolic link is followed, as a package manager that links what it
+     * installs from its cellar into its prefix needs: the manifest judged is
+     * the file it resolves to, in the trusted directory that holds it. */
     char link_path[512];
     (void)snprintf(link_path, sizeof(link_path), "%s/link.json", directory);
     char target[512];
     (void)snprintf(target, sizeof(target), "%s/oci.json", directory);
     CHECK(symlink(target, link_path) == 0);
+    CHECK(maelys_cli_extension_load(link_path, &extension, &error) == 0);
+    CHECK(strcmp(extension.command, "oci") == 0);
+    /* The manifest member keeps the path discovery walked, not the target:
+     * a diagnostic names the file an operator installed. */
+    CHECK(strcmp(extension.manifest, link_path) == 0);
+    /* The modes of the resolved file are what counts, not the link's. */
+    CHECK(chmod(target, 0666) == 0);
     CHECK(maelys_cli_extension_load(link_path, &extension, &error) != 0);
-    CHECK(strcmp(error.code, "ACCESS_DENIED") == 0 && strstr(error.message, "symbolic"));
+    CHECK(strcmp(error.code, "ACCESS_DENIED") == 0 && strstr(error.message, "writable"));
+    CHECK(chmod(target, 0644) == 0);
+    /* A target whose own directory is open to group or world is refused:
+     * modes on the file say who may write these bytes, the directory says
+     * who may put other bytes at that path. */
+    char elsewhere[512];
+    char far_target[512];
+    (void)snprintf(elsewhere, sizeof(elsewhere), "%s/untrusted", directory);
+    (void)snprintf(far_target, sizeof(far_target), "%s/untrusted/oci.json",
+        directory);
+    CHECK(mkdir(elsewhere, 0755) == 0);
+    CHECK(write_manifest("untrusted/oci.json", "oci", NULL));
+    CHECK(unlink(link_path) == 0 && symlink(far_target, link_path) == 0);
+    CHECK(maelys_cli_extension_load(link_path, &extension, &error) == 0);
+    CHECK(chmod(elsewhere, 0777) == 0);
+    CHECK(maelys_cli_extension_load(link_path, &extension, &error) != 0);
+    CHECK(strcmp(error.code, "ACCESS_DENIED") == 0 &&
+        strstr(error.message, "directory"));
+    /* The same refusal reaches a manifest that is no link at all. */
+    CHECK(maelys_cli_extension_load(far_target, &extension, &error) != 0);
+    CHECK(strcmp(error.code, "ACCESS_DENIED") == 0 &&
+        strstr(error.message, "directory"));
+    CHECK(chmod(elsewhere, 0755) == 0);
+    CHECK(unlink(far_target) == 0 && rmdir(elsewhere) == 0);
+    /* A dangling link is a missing manifest, not a trusted one. */
+    CHECK(unlink(link_path) == 0);
+    CHECK(symlink("/nonexistent/maelys.json", link_path) == 0);
+    CHECK(maelys_cli_extension_load(link_path, &extension, &error) != 0);
     CHECK(unlink(link_path) == 0);
 
     CHECK(maelys_cli_extension_load("relative.json", &extension, &error) != 0);

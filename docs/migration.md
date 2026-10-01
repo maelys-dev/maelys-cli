@@ -73,6 +73,44 @@ The envelope, `describe` shape, error codes and exit codes are preserved, so
 The only visible additions are `external`, `hidden`, `passthrough`,
 `framework` and `cliApi` in `describe`, and richer `argument` metadata.
 
+## Every extension publisher, at the trusted-manifest rule
+
+This concerns the repositories that install a manifest under
+`PREFIX/share/maelys/commands/` — maelys-oci and maelys-egress today — and
+asks them for nothing, which is the point of recording it.
+
+The dispatcher used to pass `MAELYS_CLI_FILE_NO_SYMLINK` when reading a
+manifest and so refused one that was a symbolic link. Homebrew links
+everything it installs from its cellar into the prefix, so every
+brew-installed manifest was refused and `maelys` would not start at all on a
+machine that had one: `[ACCESS_DENIED] Manifest
+/opt/homebrew/share/maelys/commands/egress.json is untrusted: path is a
+symbolic link`. The requirement is now
+`MAELYS_CLI_FILE_TRUSTED_DIRECTORY`: the link is followed, and the file it
+resolves to must be a regular file owned by root or the caller, not writable
+by group or world, in a directory owned by root or the caller and not
+writable by group or world. `docs/extensions.md` states the rule and what it
+protects.
+
+A formula needs no change. Two things are worth checking on the publishing
+side, because the dispatcher refuses the whole catalog rather than one
+command when either is wrong:
+
+- the directory holding the real manifest inside the package's own store is
+  closed to group and world (`0755`, as Homebrew creates it);
+- the `sha256` of the executable is computed over the binary as installed,
+  not as built. Homebrew rewrites paths inside a Mach-O binary and signs it
+  again afterwards, which changes its bytes; `codesign -dv` shows
+  `flags=0x2(adhoc)` with a hash-suffixed identifier on a binary it touched,
+  against the linker's own `flags=0x20002(adhoc,linker-signed)` on one it did
+  not. A digest taken before that step makes `maelys` refuse the extension,
+  and the whole catalog with it. This is observable today: of the two
+  extensions installed from the tap, `maelys-egress` 0.20.0 matches its
+  digest and `maelys-oci` 0.6.6 does not, because only the latter was
+  relocated. Compute the digest after relocation, or declare no `sha256` —
+  the member is optional and the executable's ownership and modes are checked
+  either way.
+
 ## Every consumer, at agent-cli-spec 2.3.0 (maelys-cli 0.5.18)
 
 - `.pattern` is now enforced by the parser: a product that declared a

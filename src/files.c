@@ -3,6 +3,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -124,8 +125,9 @@ fail:
     return -1;
 }
 
-/* Applies the requirements that a status can answer. NO_SYMLINK is judged by
- * the caller, on lstat() or on O_NOFOLLOW. */
+/* Applies the requirements that a status alone can answer. NO_SYMLINK is
+ * judged by the caller, on lstat() or on O_NOFOLLOW, and TRUSTED_DIRECTORY
+ * needs the path, hence judge_resolved_directory() below. */
 static const char *judge_status(
     const struct stat *status, unsigned int requirements, int *out_errno) {
     if ((requirements & MAELYS_CLI_FILE_REGULAR) && !S_ISREG(status->st_mode)) {
@@ -164,6 +166,65 @@ static const char *judge_status(
     return NULL;
 }
 
+/* Applies MAELYS_CLI_FILE_TRUSTED_DIRECTORY to the directory that holds the
+ * file once symbolic links are resolved, the status given being that of the
+ * object judged. The directory must be owned by root or the caller and
+ * closed to group and world, and must still hold that very object, reached
+ * as a directory entry without following a link: a file whose directory a
+ * third party may write can be replaced whatever its own modes say, and a
+ * link whose resolution only root or the caller can change is worth as much
+ * as no link at all. open_trusted_executable() of process.c guards an
+ * executable by the same rule, on its own resolved parent. */
+static const char *judge_resolved_directory(
+    const char *path, const struct stat *status, int *out_errno) {
+    char resolved[PATH_MAX];
+    if (faulted("realpath") || !realpath(path, resolved)) {
+        *out_errno = errno;
+        return "path does not resolve to an existing file";
+    }
+    char *slash = strrchr(resolved, '/');
+    if (!slash || !slash[1]) {
+        *out_errno = EINVAL;
+        return "resolved path has no file name";
+    }
+    const char *name = slash + 1;
+    char parent[PATH_MAX];
+    size_t parent_length = slash == resolved ? 1u : (size_t)(slash - resolved);
+    memcpy(parent, resolved, parent_length);
+    parent[parent_length] = '\0';
+    int directory = faulted("diropen") ? -1 :
+        open(parent, O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
+    if (directory < 0) {
+        *out_errno = errno;
+        return "directory of the file is not accessible";
+    }
+    const char *explanation = NULL;
+    int saved = 0;
+    struct stat directory_status;
+    struct stat entry;
+    if (faulted("dirstat") || fstat(directory, &directory_status) != 0) {
+        saved = errno;
+        explanation = "directory status of the file is not accessible";
+    } else if (!S_ISDIR(directory_status.st_mode) ||
+               (directory_status.st_uid != 0u &&
+                directory_status.st_uid != geteuid()) ||
+               (directory_status.st_mode & (S_IWGRP | S_IWOTH))) {
+        saved = EPERM;
+        explanation = "file is in a directory owned or writable by an "
+            "untrusted user";
+    } else if (fstatat(directory, name, &entry, AT_SYMLINK_NOFOLLOW) != 0) {
+        saved = errno;
+        explanation = "file is not an entry of the directory it resolves to";
+    } else if (entry.st_dev != status->st_dev ||
+               entry.st_ino != status->st_ino) {
+        saved = EPERM;
+        explanation = "file changed while its directory was judged";
+    }
+    (void)close(directory);
+    if (explanation) *out_errno = saved;
+    return explanation;
+}
+
 static int open_trusted_status(
     const char *path, unsigned int requirements, int *out_descriptor,
     struct stat *out_status, const char **out_error) {
@@ -189,6 +250,10 @@ static int open_trusted_status(
         } else {
             explanation = judge_status(out_status,
                 requirements | MAELYS_CLI_FILE_REGULAR, &saved);
+            if (!explanation &&
+                (requirements & MAELYS_CLI_FILE_TRUSTED_DIRECTORY))
+                explanation = judge_resolved_directory(path, out_status,
+                    &saved);
             if (!explanation) {
                 int current = faulted("fcntl") ? -1 : fcntl(descriptor, F_GETFL);
                 if (current < 0 ||
@@ -377,6 +442,9 @@ int maelys_cli_check_file(
             explanation = "symbolic link target is not accessible";
         } else {
             explanation = judge_status(&status, requirements, &saved);
+            if (!explanation &&
+                (requirements & MAELYS_CLI_FILE_TRUSTED_DIRECTORY))
+                explanation = judge_resolved_directory(path, &status, &saved);
         }
     }
     if (out_error) *out_error = explanation;

@@ -437,6 +437,7 @@ FILE_PRIVATE = 1 << 4
 FILE_EXECUTABLE = 1 << 5
 FILE_SINGLE_LINK = 1 << 6
 FILE_OWNER_CALLER = 1 << 7
+FILE_TRUSTED_DIRECTORY = 1 << 8
 
 WRITE_REPLACE = "replace"
 WRITE_NO_REPLACE = "no-replace"
@@ -492,6 +493,44 @@ def _judge(status: os.stat_result, requirements: int) -> Optional["tuple[int, st
     return None
 
 
+def _judge_resolved_directory(path: str, status: os.stat_result) -> Optional["tuple[int, str]"]:
+    """The directory that holds the file once symbolic links are resolved must be
+    owned by root or the caller, closed to group and world, and still hold that
+    very object (judge_resolved_directory of src/files.c). It answers who may
+    replace a file, which its own modes do not, and is what makes following a
+    link worth as much as refusing one."""
+    resolved = os.path.realpath(path)
+    try:
+        os.lstat(resolved)
+    except OSError as error:
+        return error.errno or errno.ENOENT, "path does not resolve to an existing file"
+    parent, name = os.path.split(resolved)
+    if not name:
+        return errno.EINVAL, "resolved path has no file name"
+    try:
+        directory = os.open(parent or "/", os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW)
+    except OSError as error:
+        return error.errno, "directory of the file is not accessible"
+    try:
+        try:
+            directory_status = os.fstat(directory)
+        except OSError as error:
+            return error.errno, "directory status of the file is not accessible"
+        if not stat.S_ISDIR(directory_status.st_mode) or \
+                directory_status.st_uid not in (0, os.geteuid()) or \
+                directory_status.st_mode & (stat.S_IWGRP | stat.S_IWOTH):
+            return errno.EPERM, "file is in a directory owned or writable by an untrusted user"
+        try:
+            entry = os.stat(name, dir_fd=directory, follow_symlinks=False)
+        except OSError as error:
+            return error.errno, "file is not an entry of the directory it resolves to"
+        if (entry.st_dev, entry.st_ino) != (status.st_dev, status.st_ino):
+            return errno.EPERM, "file changed while its directory was judged"
+    finally:
+        os.close(directory)
+    return None
+
+
 def check_file(path: str, requirements: int) -> None:
     """Judges the path by lstat/stat without opening it (maelys_cli_check_file);
     for a file that is not read here. Raises FileError."""
@@ -509,6 +548,8 @@ def check_file(path: str, requirements: int) -> None:
         except OSError as error:
             raise FileError(error.errno, "symbolic link target is not accessible", path) from None
     verdict = _judge(status, requirements)
+    if not verdict and requirements & FILE_TRUSTED_DIRECTORY:
+        verdict = _judge_resolved_directory(path, status)
     if verdict:
         raise FileError(verdict[0], verdict[1], path)
 
@@ -532,6 +573,8 @@ def _open_trusted(path: str, requirements: int) -> "tuple[int, os.stat_result]":
         except OSError as error:
             raise FileError(error.errno, "file status is not accessible", path) from None
         verdict = _judge(status, requirements | FILE_REGULAR)
+        if not verdict and requirements & FILE_TRUSTED_DIRECTORY:
+            verdict = _judge_resolved_directory(path, status)
         if verdict:
             raise FileError(verdict[0], verdict[1], path)
         try:
@@ -548,8 +591,9 @@ def open_trusted(path: str, requirements: int) -> int:
     """Opens one regular file read-only and applies the requirements to the
     descriptor opened (maelys_cli_open_trusted): the open never blocks, a FIFO or
     a device is refused as not regular, FILE_NO_SYMLINK opens with O_NOFOLLOW,
-    otherwise a link is followed and its target judged. The descriptor is
-    close-on-exec, blocking, at offset zero."""
+    otherwise a link is followed and its target judged, FILE_TRUSTED_DIRECTORY
+    saying where that target may lie. The descriptor is close-on-exec,
+    blocking, at offset zero."""
     return _open_trusted(path, requirements)[0]
 
 
