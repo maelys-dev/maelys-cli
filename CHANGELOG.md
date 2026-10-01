@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.32 - 2026-10-01
 
 - The flag `maelys_cli_process_signal` reads and `maelys_cli_process_wait`
   writes is an atomic. It was a plain `int`, which made the very thing
