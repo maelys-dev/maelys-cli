@@ -326,6 +326,16 @@ Handler rules:
   executable and its immediate parent must have trusted ownership and modes;
   the framework holds both open through `exec`; scripts use a direct absolute
   interpreter not named `env` because relative and `env` shebangs are refused.
+  A program that must receive a descriptor, a signal, or both, is started
+  with `maelys_cli_process_start()`: `options->inherit` maps a descriptor of
+  the caller onto the number the program expects, the whole mapping at once;
+  `maelys_cli_process_signal()` reaches it from any thread while
+  `maelys_cli_process_wait()` waits in another, because the handle holds its
+  process id reserved until `maelys_cli_process_release()`. Never write the
+  `fork`/`exec` by hand to pass a descriptor;
+- hand a program the environment it was given plus what the product decides
+  with `maelys_cli_environment_to_envp_inherited()`, where
+  `maelys_cli_environment_to_envp()` carries the overlay alone.
 
 ### Test it
 

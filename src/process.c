@@ -286,19 +286,116 @@ static int execute_trusted(
     return -1;
 }
 
-int maelys_cli_process_run(
-    const char *path, char *const argv[], char *const envp[],
-    maelys_cli_process_status_t *out_status) {
-    if (!path || !argv || !out_status) {
+
+/* A descriptor the child still needs, moved out of the way of every target:
+ * the error pipe that reports a failed exec, the executable held open and its
+ * directory. Installing a target over one of them would start the program
+ * without its descriptor, or without the exec it was checked for, and say
+ * nothing. */
+static int relocate_above(int *descriptor, int floor) {
+    if (*descriptor > floor) return 0;
+    int moved = fcntl(*descriptor, F_DUPFD, floor + 1);
+    if (moved < 0) return -1;
+    (void)close(*descriptor);
+    *descriptor = moved;
+    return 0;
+}
+
+/* The mapping is applied as a whole, in two steps the child runs around the
+ * close-on-exec pass. First every source moves above the highest target --
+ * installing a target in place would overwrite a source a later entry still
+ * needs (3 -> 4 beside 4 -> 3) -- and so does every descriptor the child
+ * still needs. Then, once everything above 2 is close-on-exec, each target is
+ * installed with dup2, which clears that flag on the descriptor it makes:
+ * that is also what makes a target equal to its own source work. */
+static int inherit_floor(const maelys_cli_process_options_t *options) {
+    int floor = 2;
+    for (size_t i = 0u; i < options->inherit_count; ++i)
+        if (options->inherit[i].target > floor) floor = options->inherit[i].target;
+    return floor;
+}
+
+static int relocate_sources(
+    const maelys_cli_process_options_t *options, int *kept, size_t kept_count,
+    int *moved) {
+    int floor = inherit_floor(options);
+    for (size_t i = 0u; i < kept_count; ++i)
+        if (relocate_above(&kept[i], floor) != 0) return -1;
+    for (size_t i = 0u; i < options->inherit_count; ++i)
+        moved[i] = options->inherit[i].source;
+    for (size_t i = 0u; i < options->inherit_count; ++i) {
+        if (moved[i] > floor) continue;
+        int source = moved[i];
+        int copy = fcntl(source, F_DUPFD, floor + 1);
+        if (copy < 0) return -1;
+        /* The original stays open: it carries close-on-exec like everything
+         * above 2, and one source may reach several targets. */
+        for (size_t j = i; j < options->inherit_count; ++j)
+            if (moved[j] == source) moved[j] = copy;
+    }
+    return 0;
+}
+
+static int install_targets(
+    const maelys_cli_process_options_t *options, const int *moved) {
+    for (size_t i = 0u; i < options->inherit_count; ++i)
+        if (dup2(moved[i], options->inherit[i].target) < 0) return -1;
+    return 0;
+}
+
+static int check_inherited(const maelys_cli_process_options_t *options) {
+    if (!options || options->inherit_count == 0u) return 0;
+    if (!options->inherit ||
+        options->inherit_count > MAELYS_CLI_PROCESS_MAX_INHERIT) {
         errno = EINVAL;
         return -1;
     }
-    memset(out_status, 0, sizeof(*out_status));
+    for (size_t i = 0u; i < options->inherit_count; ++i) {
+        if (options->inherit[i].target < 3 || options->inherit[i].source < 0) {
+            errno = EINVAL;
+            return -1;
+        }
+        for (size_t j = 0u; j < i; ++j)
+            if (options->inherit[j].target == options->inherit[i].target) {
+                errno = EINVAL;
+                return -1;
+            }
+        if (fcntl(options->inherit[i].source, F_GETFD) < 0) return -1;
+    }
+    return 0;
+}
+
+struct maelys_cli_process {
+    pid_t pid;
+    int exited;  /* the status below is the program's own */
+    maelys_cli_process_status_t status;
+};
+
+int maelys_cli_process_start(
+    const char *path, char *const argv[], char *const envp[],
+    const maelys_cli_process_options_t *options,
+    maelys_cli_process_t **out_process) {
+    if (!path || !argv || !out_process) {
+        errno = EINVAL;
+        return -1;
+    }
+    *out_process = NULL;
+    if (check_inherited(options) != 0) return -1;
+    maelys_cli_process_t *process = calloc(1u, sizeof(*process));
+    if (!process) return -1;
     trusted_executable_t executable;
-    if (open_trusted_executable(path, &executable, NULL) != 0) return -1;
+    if (open_trusted_executable(path, &executable, NULL) != 0) {
+        int saved = errno;
+        free(process);
+        errno = saved;
+        return -1;
+    }
     int error_pipe[2];
     if (pipe(error_pipe) != 0) {
+        int saved = errno;
         close_trusted_executable(&executable);
+        free(process);
+        errno = saved;
         return -1;
     }
     if (fcntl(error_pipe[0], F_SETFD, FD_CLOEXEC) != 0 ||
@@ -307,6 +404,7 @@ int maelys_cli_process_run(
         (void)close(error_pipe[0]);
         (void)close(error_pipe[1]);
         close_trusted_executable(&executable);
+        free(process);
         errno = saved;
         return -1;
     }
@@ -318,14 +416,29 @@ int maelys_cli_process_run(
         (void)close(error_pipe[0]);
         (void)close(error_pipe[1]);
         close_trusted_executable(&executable);
+        free(process);
         errno = saved;
         return -1;
     }
     if (child == 0) {
         (void)close(error_pipe[0]);
         reset_signals();
+        int installed = 0;
+        int moved[MAELYS_CLI_PROCESS_MAX_INHERIT];
+        if (options && options->inherit_count > 0u) {
+            int kept[3];
+            kept[0] = error_pipe[1];
+            kept[1] = executable.descriptor;
+            kept[2] = executable.directory;
+            installed = relocate_sources(options, kept, 3u, moved);
+            error_pipe[1] = kept[0];
+            executable.descriptor = kept[1];
+            executable.directory = kept[2];
+        }
         cloexec_inherited_descriptors();
-        (void)execute_trusted(&executable, argv, envp);
+        if (installed == 0 && options && options->inherit_count > 0u)
+            installed = install_targets(options, moved);
+        if (installed == 0) (void)execute_trusted(&executable, argv, envp);
         int saved = errno;
         ssize_t reported;
         do {
@@ -342,32 +455,101 @@ int maelys_cli_process_run(
     } while (amount < 0 && errno == EINTR);
     int read_error = amount < 0 ? errno : 0;
     (void)close(error_pipe[0]);
+    if (read_error || amount != 0) {
+        /* The exec never happened: reap the child here, so a caller that
+         * reads -1 owns nothing. */
+        int status = 0;
+        pid_t waited;
+        do {
+            waited = waitpid(child, &status, 0);
+        } while (waited < 0 && errno == EINTR);
+        free(process);
+        if (read_error) {
+            errno = read_error;
+        } else if (amount == (ssize_t)sizeof(failure)) {
+            errno = failure;
+        } else {
+            errno = EIO;
+        }
+        return -1;
+    }
+    process->pid = child;
+    *out_process = process;
+    return 0;
+}
+
+int maelys_cli_process_signal(
+    maelys_cli_process_t *process, int signal_number) {
+    if (!process) {
+        errno = EINVAL;
+        return -1;
+    }
+    /* The program is gone and its status is known: nothing is sent. Until
+     * release, its process id is still held by this handle, so a signal that
+     * crosses an exit reaches the program's own remains and no stranger. */
+    if (process->exited) {
+        errno = ESRCH;
+        return -1;
+    }
+    return kill(process->pid, signal_number);
+}
+
+int maelys_cli_process_wait(
+    maelys_cli_process_t *process, maelys_cli_process_status_t *out_status) {
+    if (!process || !out_status) {
+        errno = EINVAL;
+        return -1;
+    }
+    if (!process->exited) {
+        siginfo_t info;
+        int waited;
+        do {
+            memset(&info, 0, sizeof(info));
+            waited = waitid(P_PID, (id_t)process->pid, &info,
+                WEXITED | WNOWAIT);
+        } while (waited < 0 && errno == EINTR);
+        if (waited < 0) return -1;
+        if (info.si_code == CLD_EXITED) {
+            process->status.exited = 1;
+            process->status.exit_code = info.si_status;
+        } else {
+            process->status.signaled = 1;
+            process->status.term_signal = info.si_status;
+        }
+        /* WNOWAIT left the program unreaped on purpose: the id stays this
+         * handle's until release, and signal keeps its promise. */
+        process->exited = 1;
+    }
+    *out_status = process->status;
+    return 0;
+}
+
+void maelys_cli_process_release(maelys_cli_process_t *process) {
+    if (!process) return;
     int status = 0;
     pid_t waited;
     do {
-        waited = waitpid(child, &status, 0);
+        waited = waitpid(process->pid, &status, process->exited ? 0 : WNOHANG);
     } while (waited < 0 && errno == EINTR);
-    if (waited < 0) return -1;
-    if (read_error) {
-        errno = read_error;
+    free(process);
+}
+
+int maelys_cli_process_run(
+    const char *path, char *const argv[], char *const envp[],
+    maelys_cli_process_status_t *out_status) {
+    if (!path || !argv || !out_status) {
+        errno = EINVAL;
         return -1;
     }
-    if (amount != 0 && amount != (ssize_t)sizeof(failure)) {
-        errno = EIO;
+    memset(out_status, 0, sizeof(*out_status));
+    maelys_cli_process_t *process = NULL;
+    if (maelys_cli_process_start(path, argv, envp, NULL, &process) != 0)
         return -1;
-    }
-    if (amount == (ssize_t)sizeof(failure)) {
-        errno = failure;
-        return -1;
-    }
-    if (WIFEXITED(status)) {
-        out_status->exited = 1;
-        out_status->exit_code = WEXITSTATUS(status);
-    } else if (WIFSIGNALED(status)) {
-        out_status->signaled = 1;
-        out_status->term_signal = WTERMSIG(status);
-    }
-    return 0;
+    int waited = maelys_cli_process_wait(process, out_status);
+    int saved = errno;
+    maelys_cli_process_release(process);
+    errno = saved;
+    return waited;
 }
 
 int maelys_cli_process_replace(

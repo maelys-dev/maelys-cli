@@ -4,6 +4,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* The caller's own environment, for the inherited builder below. */
+extern char **environ;
+
 static int valid_name(const char *value, size_t length) {
     if (!value || length == 0u) return 0;
     for (size_t i = 0u; i < length; ++i) {
@@ -98,6 +101,68 @@ int maelys_cli_environment_to_envp(
         memcpy(joined + name_length + 1u, environment->entries[i].value,
             value_length + 1u);
         envp[i] = joined;
+    }
+    *out_envp = envp;
+    return 0;
+}
+
+/* True when the overlay carries the name this NAME=VALUE entry names. */
+static int overlay_declares(
+    const maelys_cli_environment_t *overlay, const char *entry) {
+    for (size_t i = 0u; i < overlay->count; ++i) {
+        size_t length = strlen(overlay->entries[i].name);
+        if (!strncmp(entry, overlay->entries[i].name, length) &&
+            entry[length] == '=')
+            return 1;
+    }
+    return 0;
+}
+
+static char *join_assignment(const char *name, const char *value) {
+    size_t name_length = strlen(name);
+    size_t value_length = strlen(value);
+    if (name_length > SIZE_MAX - value_length - 2u) return NULL;
+    char *joined = malloc(name_length + value_length + 2u);
+    if (!joined) return NULL;
+    memcpy(joined, name, name_length);
+    joined[name_length] = '=';
+    memcpy(joined + name_length + 1u, value, value_length + 1u);
+    return joined;
+}
+
+/* The caller's environment with the declared entries applied over it. The
+ * overlay wins on a name the caller already carries, whatever its position,
+ * so a product adds two variables to the environment it was given without
+ * rebuilding the rest. */
+int maelys_cli_environment_to_envp_inherited(
+    const maelys_cli_environment_t *environment, char ***out_envp) {
+    if (!environment || !out_envp) return -1;
+    size_t kept = 0u;
+    for (char **entry = environ; entry && *entry; ++entry)
+        if (strchr(*entry, '=') && !overlay_declares(environment, *entry)) ++kept;
+    if (kept > SIZE_MAX / sizeof(char *) - environment->count - 1u) return -1;
+    char **envp = calloc(kept + environment->count + 1u, sizeof(*envp));
+    if (!envp) return -1;
+    size_t written = 0u;
+    for (char **entry = environ; entry && *entry; ++entry) {
+        if (!strchr(*entry, '=') || overlay_declares(environment, *entry)) continue;
+        size_t length = strlen(*entry);
+        char *copy = malloc(length + 1u);
+        if (!copy) {
+            maelys_cli_envp_free(envp);
+            return -1;
+        }
+        memcpy(copy, *entry, length + 1u);
+        envp[written++] = copy;
+    }
+    for (size_t i = 0u; i < environment->count; ++i) {
+        char *joined = join_assignment(environment->entries[i].name,
+            environment->entries[i].value);
+        if (!joined) {
+            maelys_cli_envp_free(envp);
+            return -1;
+        }
+        envp[written++] = joined;
     }
     *out_envp = envp;
     return 0;
