@@ -1,5 +1,27 @@
 # Changelog
 
+## Unreleased
+
+- The flag `maelys_cli_process_signal` reads and `maelys_cli_process_wait`
+  writes is an atomic. It was a plain `int`, which made the very thing
+  `process.h` promises -- signal from one thread while wait blocks in
+  another -- a data race in the C11 sense: undefined whatever it does in
+  practice, and reported by ThreadSanitizer. Found by maelys-egress on its
+  own TSan job, with the trace of its `channel exec` coordinator and its
+  `sigwait` thread, against 0.5.31; its pull request could not pass that
+  gate, and it could not work around it without serialising the signalling
+  it needs. The store is a release after the status it guards and the loads
+  are acquires, so a thread that sees the flag sees the status. No lock, no
+  pthread dependency, and the guarantee is unchanged: nothing is reaped
+  before `release`, so no signal reaches a stranger.
+- `make tsan-check`, in `make check`: the one test that really runs signal
+  and wait in two threads, built with `-fsanitize=thread` in its own build
+  directory, since TSan and the address sanitizers cannot share a binary.
+  Skipped with a word where the compiler has no ThreadSanitizer. Verified
+  both ways: it reports the race on the flag as it was, naming the same two
+  functions maelys-egress named, and passes on the atomic. The behaviour of
+  those two threads is tested without a sanitizer too, in `make test`.
+
 ## 0.5.31 - 2026-10-01
 
 - A refused manifest names the file that was judged. With a link — what

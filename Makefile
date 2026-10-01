@@ -104,7 +104,7 @@ $(shell rm -rf $(BUILD)/src $(BUILD)/cli $(BUILD)/lib $(BUILD)/bin $(BUILD)/test
 endif
 endif
 
-.PHONY: all check test fuzz fuzz-smoke header-check check-version cli-check embed-check commit-check api-doc-check agent-doc-check doc-topics-check python-check hello-parity-check python-doc-check install \
+.PHONY: all check test fuzz fuzz-smoke tsan-check header-check check-version cli-check embed-check commit-check api-doc-check agent-doc-check doc-topics-check python-check hello-parity-check python-doc-check install \
 	install-check uninstall dist clean asan-ubsan analyze cmake-check describe-schema-check \
 	conformance-check agents-install
 
@@ -286,7 +286,7 @@ doc-topics-check:
 # The generated reference (docs/cli.md, docs/cli-contract.json) is no
 # longer verified here: maelys-release regenerates and compares both,
 # locally with 'maelys-release check .' and in CI through check-product.yml.
-check: test fuzz-smoke cli-check embed-check commit-check header-check check-version api-doc-check agent-doc-check doc-topics-check python-doc-check
+check: test fuzz-smoke tsan-check cli-check embed-check commit-check header-check check-version api-doc-check agent-doc-check doc-topics-check python-doc-check
 	@if command -v python3 >/dev/null 2>&1; then $(MAKE) python-check hello-parity-check conformance-check describe-schema-check; \
 	else echo "python-check, hello-parity-check, conformance-check, describe-schema-check: skipped (python3 not found)"; fi
 
@@ -306,6 +306,24 @@ hello-parity-check: $(EXAMPLE)
 # Every public name of python/maelys_cli.py is documented in docs/python.md.
 python-doc-check:
 	./scripts/python-doc-check.sh
+
+# ThreadSanitizer on the one test that uses two threads: signal in one while
+# wait blocks in the other, which process.h promises and maelys-egress does.
+# A flag that is not atomic is a data race there, undefined and reported --
+# this gate exists because 0.5.31 shipped one. TSan and ASan cannot share a
+# binary, so this is its own build, seconds long. Skipped, with a word, where
+# the compiler has no ThreadSanitizer.
+TSAN_BUILD := build/tsan
+tsan-check:
+	@mkdir -p $(TSAN_BUILD)
+	@if ! printf 'int main(void){return 0;}' | \
+		$(CC) -fsanitize=thread -xc - -o $(TSAN_BUILD)/probe >/dev/null 2>&1; then \
+		echo "tsan-check: skipped ($(CC) has no ThreadSanitizer)"; exit 0; \
+	fi; \
+	$(CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) -std=c11 -O1 -g -fsanitize=thread \
+		tests/test_process.c $(SOURCES) -o $(TSAN_BUILD)/test_process || exit 1; \
+	TSAN_OPTIONS=halt_on_error=1 $(TSAN_BUILD)/test_process || exit 1; \
+	echo "tsan-check: ok"
 
 asan-ubsan:
 	$(MAKE) check BUILD=build/asan-ubsan CFLAGS='-O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer' LDFLAGS='-fsanitize=address,undefined'

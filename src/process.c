@@ -9,6 +9,7 @@
 #include <fcntl.h>
 #include <limits.h>
 #include <signal.h>
+#include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -367,8 +368,15 @@ static int check_inherited(const maelys_cli_process_options_t *options) {
 
 struct maelys_cli_process {
     pid_t pid;
-    int exited;  /* the status below is the program's own */
-    maelys_cli_process_status_t status;
+    /* Read by maelys_cli_process_signal in one thread while
+     * maelys_cli_process_wait writes it in another, which this module's
+     * contract explicitly allows: a plain int here is a data race in the C11
+     * sense -- undefined whatever it does in practice, and reported by
+     * ThreadSanitizer, which is a gate every product of this fleet passes.
+     * Written last, after the status it guards, and read before any signal
+     * leaves. Found by maelys-egress on its own TSan job, on 0.5.31. */
+    atomic_int exited;
+    maelys_cli_process_status_t status;  /* the program's own, once exited */
 };
 
 int maelys_cli_process_start(
@@ -383,6 +391,7 @@ int maelys_cli_process_start(
     if (check_inherited(options) != 0) return -1;
     maelys_cli_process_t *process = calloc(1u, sizeof(*process));
     if (!process) return -1;
+    atomic_init(&process->exited, 0);
     trusted_executable_t executable;
     if (open_trusted_executable(path, &executable, NULL) != 0) {
         int saved = errno;
@@ -487,7 +496,7 @@ int maelys_cli_process_signal(
     /* The program is gone and its status is known: nothing is sent. Until
      * release, its process id is still held by this handle, so a signal that
      * crosses an exit reaches the program's own remains and no stranger. */
-    if (process->exited) {
+    if (atomic_load_explicit(&process->exited, memory_order_acquire)) {
         errno = ESRCH;
         return -1;
     }
@@ -500,7 +509,7 @@ int maelys_cli_process_wait(
         errno = EINVAL;
         return -1;
     }
-    if (!process->exited) {
+    if (!atomic_load_explicit(&process->exited, memory_order_acquire)) {
         siginfo_t info;
         int waited;
         do {
@@ -517,8 +526,9 @@ int maelys_cli_process_wait(
             process->status.term_signal = info.si_status;
         }
         /* WNOWAIT left the program unreaped on purpose: the id stays this
-         * handle's until release, and signal keeps its promise. */
-        process->exited = 1;
+         * handle's until release, and signal keeps its promise. Released
+         * last, so a thread that sees it also sees the status above. */
+        atomic_store_explicit(&process->exited, 1, memory_order_release);
     }
     *out_status = process->status;
     return 0;
@@ -529,7 +539,9 @@ void maelys_cli_process_release(maelys_cli_process_t *process) {
     int status = 0;
     pid_t waited;
     do {
-        waited = waitpid(process->pid, &status, process->exited ? 0 : WNOHANG);
+        waited = waitpid(process->pid, &status,
+            atomic_load_explicit(&process->exited, memory_order_acquire) ? 0 :
+                WNOHANG);
     } while (waited < 0 && errno == EINTR);
     free(process);
 }
