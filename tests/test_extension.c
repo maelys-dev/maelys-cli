@@ -190,10 +190,18 @@ static int test_rejections(void) {
     CHECK(maelys_cli_extension_load(link_path, &extension, &error) != 0);
     CHECK(strcmp(error.code, "ACCESS_DENIED") == 0 &&
         strstr(error.message, "directory"));
-    /* The same refusal reaches a manifest that is no link at all. */
+    /* The fault is at the other end of the link, so the diagnostic names
+     * both: the path installed, and the file actually judged. Without it an
+     * operator reads a refusal about a directory that is irreproachable. */
+    CHECK(strstr(error.message, link_path) && strstr(error.message, far_target));
+    CHECK(strstr(error.message, "resolves into a directory"));
+    /* The same refusal reaches a manifest that is no link at all, and then
+     * names one path and the plain wording. */
     CHECK(maelys_cli_extension_load(far_target, &extension, &error) != 0);
     CHECK(strcmp(error.code, "ACCESS_DENIED") == 0 &&
         strstr(error.message, "directory"));
+    CHECK(!strstr(error.message, "resolved to") &&
+        strstr(error.message, "is in a directory"));
     CHECK(chmod(elsewhere, 0755) == 0);
     CHECK(unlink(far_target) == 0 && rmdir(elsewhere) == 0);
     /* A dangling link is a missing manifest, not a trusted one. */

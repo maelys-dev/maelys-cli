@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 
 static const char *const default_directories[] = {
 #ifdef MAELYS_CLI_COMMANDS_DIR
@@ -116,11 +117,23 @@ int maelys_cli_extension_load(
             maelys_cli_error_from_errno(error, MAELYS_CLI_CODE_IO_FAILED,
                 saved, manifest_path);
         } else {
+            /* The path an operator installed, and -- when it leads
+             * elsewhere, which is what every package manager installs -- the
+             * file that was actually judged, since that is where the fault
+             * is and the named path looks irreproachable without it. */
+            char resolved[PATH_MAX];
+            char at[PATH_MAX + 16];
+            struct stat entry_status;
+            at[0] = '\0';
+            if (lstat(manifest_path, &entry_status) == 0 &&
+                S_ISLNK(entry_status.st_mode) &&
+                realpath(manifest_path, resolved))
+                (void)snprintf(at, sizeof(at), ", resolved to %s", resolved);
             maelys_cli_error_set(error, MAELYS_CLI_CODE_ACCESS_DENIED,
                 "Install manifests as regular files owned by root or the "
                 "current user, not writable by group or world, in a "
                 "directory only root or that user may write.",
-                "Manifest %s is untrusted: %s.", manifest_path,
+                "Manifest %s%s is untrusted: %s.", manifest_path, at,
                 explanation ? explanation : strerror(saved));
         }
         return -1;

@@ -62,7 +62,10 @@ manifest is:
 - not a regular file;
 - owned by another user than root or the caller;
 - writable by group or world;
-- held in a directory owned or writable by an untrusted user;
+- held in a directory owned or writable by an untrusted user, which for a
+  link is the directory at the other end: the diagnostic then names the
+  path installed and the file it resolves to, since the first looks
+  irreproachable on its own;
 - larger than 64 KiB, not valid JSON or not an object;
 - of another schema or another `cliApi`;
 - carrying line, ANSI or bidirectional controls in `version` or `summary`;
