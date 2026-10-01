@@ -101,7 +101,10 @@ framework; validation errors in causal order (command, options, values,
 dependencies, operands, files, syntax, schema, state); configuration,
 manifests and secrets read with `maelys_cli_read_trusted_file` (trust judged
 on the descriptor read, bounded by the bytes read) and failures reported
-with `maelys_cli_fail_file`; explicit
+with `maelys_cli_fail_file`; a file whose path a third party may redirect is
+read with `MAELYS_CLI_FILE_TRUSTED_DIRECTORY`, which judges the directory it
+resolves to, rather than with `MAELYS_CLI_FILE_NO_SYMLINK`, which only
+refuses the shape of the entry; explicit
 `MAELYS_CLI_WRITE_REPLACE` / `MAELYS_CLI_WRITE_NO_REPLACE` on every file
 write; external programs started with absolute paths and `execve`, never a
 shell or PATH lookup, with a trusted immediate parent held open through exec;

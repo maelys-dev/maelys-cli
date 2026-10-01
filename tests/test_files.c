@@ -87,6 +87,28 @@ static int test_check_file(void) {
     CHECK(symlink(path, link_path) == 0);
     CHECK(maelys_cli_check_file(link_path, MAELYS_CLI_FILE_REGULAR, NULL) == 0);
     CHECK(maelys_cli_check_file(link_path, MAELYS_CLI_FILE_NO_SYMLINK, NULL) != 0 && errno == ELOOP);
+    /* TRUSTED_DIRECTORY judges the directory the path resolves to, through a
+     * link or not, and says nothing about the modes of the file itself: the
+     * temporary directory is the caller's and private, the file is 0666. */
+    CHECK(maelys_cli_check_file(link_path, MAELYS_CLI_FILE_TRUSTED_DIRECTORY,
+        &explanation) == 0 && explanation == NULL);
+    CHECK(maelys_cli_check_file(path, MAELYS_CLI_FILE_TRUSTED_DIRECTORY,
+        NULL) == 0);
+    CHECK(chmod(directory, 0777) == 0);
+    errno = 0;
+    CHECK(maelys_cli_check_file(link_path, MAELYS_CLI_FILE_TRUSTED_DIRECTORY,
+        &explanation) != 0);
+    CHECK(errno == EPERM && strstr(explanation, "directory") != NULL);
+    CHECK(chmod(directory, 0700) == 0);
+    CHECK(maelys_cli_check_file(link_path, MAELYS_CLI_FILE_TRUSTED_DIRECTORY,
+        NULL) == 0);
+    /* A dangling link resolves to nothing. */
+    CHECK(unlink(link_path) == 0);
+    CHECK(symlink("/nonexistent/maelys", link_path) == 0);
+    CHECK(maelys_cli_check_file(link_path, MAELYS_CLI_FILE_TRUSTED_DIRECTORY,
+        &explanation) != 0 && explanation != NULL);
+    CHECK(unlink(link_path) == 0);
+    CHECK(symlink(path, link_path) == 0);
     CHECK(maelys_cli_check_file(directory, MAELYS_CLI_FILE_REGULAR, NULL) != 0);
     CHECK(maelys_cli_check_file("/nonexistent/maelys", MAELYS_CLI_FILE_REGULAR, NULL) != 0);
     CHECK(errno == ENOENT);
@@ -159,6 +181,35 @@ static int test_open_trusted(void) {
     CHECK(maelys_cli_open_trusted(link_path, MAELYS_CLI_FILE_PRIVATE,
         &descriptor, &explanation) == 0);
     CHECK(close(descriptor) == 0);
+    /* Followed and judged in its resolved directory: the file read is the
+     * entry of a directory only the caller may write. */
+    CHECK(maelys_cli_open_trusted(link_path, MAELYS_CLI_FILE_PRIVATE |
+        MAELYS_CLI_FILE_TRUSTED_DIRECTORY, &descriptor, &explanation) == 0);
+    CHECK(descriptor >= 0 && explanation == NULL && close(descriptor) == 0);
+    CHECK(chmod(directory, 0775) == 0);
+    errno = 0;
+    CHECK(maelys_cli_open_trusted(link_path, MAELYS_CLI_FILE_TRUSTED_DIRECTORY,
+        &descriptor, &explanation) != 0);
+    CHECK(errno == EPERM && descriptor == -1 &&
+        strstr(explanation, "directory") != NULL);
+    CHECK(chmod(directory, 0700) == 0);
+    /* Each system call of the resolution has its fault point. */
+    inject("realpath", ENOENT);
+    errno = 0;
+    CHECK(maelys_cli_open_trusted(link_path, MAELYS_CLI_FILE_TRUSTED_DIRECTORY,
+        &descriptor, &explanation) != 0);
+    CHECK(errno == ENOENT && strstr(explanation, "resolve") != NULL);
+    inject("diropen", EACCES);
+    errno = 0;
+    CHECK(maelys_cli_open_trusted(link_path, MAELYS_CLI_FILE_TRUSTED_DIRECTORY,
+        &descriptor, &explanation) != 0);
+    CHECK(errno == EACCES && strstr(explanation, "not accessible") != NULL);
+    inject("dirstat", EIO);
+    errno = 0;
+    CHECK(maelys_cli_open_trusted(link_path, MAELYS_CLI_FILE_TRUSTED_DIRECTORY,
+        &descriptor, &explanation) != 0);
+    CHECK(errno == EIO && strstr(explanation, "status") != NULL);
+    CHECK(fault_point == NULL);
     CHECK(unlink(link_path) == 0);
     /* Permissions are judged on the descriptor. */
     CHECK(chmod(path, 0644) == 0);
@@ -213,6 +264,28 @@ static int test_read_trusted_file(void) {
     CHECK(size == 7u && memcmp(bytes, "hunter2", 7u) == 0 && explanation == NULL);
     maelys_cli_zero(bytes, size);
     free(bytes);
+    /* A read through a link, judged in the directory it resolves to: what
+     * the extension loader asks of every manifest. */
+    char manifest_link[512];
+    (void)snprintf(manifest_link, sizeof(manifest_link), "%s/secret-link",
+        directory);
+    CHECK(symlink(path, manifest_link) == 0);
+    CHECK(maelys_cli_read_trusted_file(manifest_link, MAELYS_CLI_FILE_REGULAR |
+        MAELYS_CLI_FILE_OWNER_TRUSTED | MAELYS_CLI_FILE_NOT_WRITABLE_BY_OTHERS |
+        MAELYS_CLI_FILE_TRUSTED_DIRECTORY, 1u, 64u, &bytes, &size,
+        &explanation) == 0);
+    CHECK(size == 7u && explanation == NULL);
+    maelys_cli_zero(bytes, size);
+    free(bytes);
+    CHECK(chmod(directory, 0707) == 0);
+    errno = 0;
+    CHECK(maelys_cli_read_trusted_file(manifest_link,
+        MAELYS_CLI_FILE_TRUSTED_DIRECTORY, 1u, 64u, &bytes, &size,
+        &explanation) != 0);
+    CHECK(errno == EPERM && bytes == NULL &&
+        strstr(explanation, "directory") != NULL);
+    CHECK(chmod(directory, 0700) == 0);
+    CHECK(unlink(manifest_link) == 0);
     /* Exact maximum accepted, one byte less refused before any read. */
     CHECK(maelys_cli_read_trusted_file(path, 0u, 7u, 7u, &bytes, &size, NULL) == 0);
     CHECK(size == 7u);

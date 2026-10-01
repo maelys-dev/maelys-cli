@@ -25,7 +25,7 @@ plugin ABI is loaded.
 | --- | --- | --- |
 | `schema` | yes | exactly `maelys.cli-extension/v1` |
 | `command` | yes | `[a-z][a-z0-9-]*`, at most 63 characters, not `help`, `version` or `describe` |
-| `executable` | yes | absolute path of a regular file, owned by root or the caller, not writable by group or world, owner-executable |
+| `executable` | yes | absolute path, canonicalized, of a regular file owned by root or the caller, not writable by group or world, owner-executable, in a trusted directory |
 | `cliApi` | yes | unsigned integer equal to the dispatcher's `MAELYS_CLI_API` (1) |
 | `version` | yes | one line without terminal control characters, reported by `commands list` |
 | `summary` | no | one line without terminal control characters, shown by `help` |
@@ -45,23 +45,80 @@ PREFIX/share/maelys/commands/          (compile-time PREFIX)
 `MAELYS_COMMANDS_PATH=/dir1:/dir2` replaces this list for development and
 tests. Directories must be absolute; missing directories are skipped.
 
+A manifest in one of these directories may be a symbolic link. Package
+managers install that way — Homebrew keeps the files of a package in its
+cellar and links them into the prefix, so
+`/opt/homebrew/share/maelys/commands/oci.json` is a link to
+`/opt/homebrew/Cellar/maelys-oci/VERSION/share/maelys/commands/oci.json` —
+and the dispatcher follows it. See "Trust and symbolic links" below for what
+is required of the file it resolves to.
+
 ## Verification
 
 The dispatcher refuses to start, with an `ACCESS_DENIED`, `PROTOCOL_FAILED`,
 `UNSUPPORTED` or `VALIDATION_FAILED` diagnostic naming the file, when any
 manifest is:
 
-- not a regular file or reachable through a symbolic link;
+- not a regular file;
 - owned by another user than root or the caller;
 - writable by group or world;
+- held in a directory owned or writable by an untrusted user;
 - larger than 64 KiB, not valid JSON or not an object;
 - of another schema or another `cliApi`;
 - carrying line, ANSI or bidirectional controls in `version` or `summary`;
 - pointing to an unusable executable or to a digest mismatch;
 - declaring a command already declared by an earlier manifest.
 
+Every one of these is judged on the file the path resolves to; the
+diagnostic names the path that was discovered, which is the one an operator
+installed, and `commands list` reports it as `manifest`.
+
 A single invalid manifest blocks the whole dispatcher on purpose: a partial
 catalog would let an agent believe a command is absent.
+
+## Trust and symbolic links
+
+The rule is: **a manifest is trusted exactly as the executable it declares.**
+A symbolic link is followed, and the file it resolves to must be a regular
+file owned by root or the caller, not writable by group or world, held in a
+directory owned by root or the caller and not writable by group or world.
+That last requirement is `MAELYS_CLI_FILE_TRUSTED_DIRECTORY` of
+`maelys/cli/files.h`; the directory is judged by the descriptor the file was
+reached through, and the file read must still be an entry of it.
+
+Until this rule existed the loader passed `MAELYS_CLI_FILE_NO_SYMLINK` and
+refused a linked manifest outright. What that refusal was protecting against
+is a link rewritten by whoever controls the directory it sits in — point the
+name at content of their choosing and the dispatcher executes what they
+name. The refusal is not what defeats that, and never was: someone who can
+write that directory can replace a regular manifest just as easily. What
+defeats it is knowing who may write the directory the path resolves to, and
+that question has an answer for a link and for a plain file alike. So the
+requirement moved from the shape of the entry to the trust of its directory,
+which is strictly more than was asked before — a manifest whose own modes
+are safe but whose directory is group-writable used to be accepted and is
+now refused — and the dispatcher stopped refusing the one installation
+layout every package manager uses.
+
+Two consequences are worth stating plainly.
+
+A manifest installed by Homebrew is trusted because the prefix belongs to
+the user who runs `brew`. `/opt/homebrew` and the cellar under it are owned
+by that user, so `maelys` run by that same user accepts them, and `maelys`
+run as root or as another account does not: root must not trust a tree its
+owner may rewrite. This is not new to manifests — the executable check has
+always worked this way — and `sudo maelys oci` is refused for the same
+reason `sudo` would refuse to run a binary out of a user-writable prefix.
+
+The rule judges the resolved parent directory, not every ancestor. On macOS
+`/opt/homebrew/Cellar` is group-writable (`drwxrwxr-x`, group `admin`), so
+walking the ancestry would refuse Homebrew entirely while adding little: a
+directory a third party substitutes must itself be owned by root or the
+caller and closed to group and world before anything inside it is read.
+What remains is the residue the framework has always carried and
+`SECURITY.md` names — the dispatcher is not a privilege boundary against
+the invoking user, and a caller who opens their own directories to others
+has decided who they trust.
 
 A manifest that does not parse is reported with the position of the failing
 value twice over: its RFC 6901 JSON Pointer for a machine (`Manifest /path
@@ -89,8 +146,20 @@ It receives the arguments after the command word verbatim, including
 `--format` and `--help`, and owns its stdout and exit code.
 
 Install the binary under `PREFIX/libexec/maelys/commands/` and the manifest
-under `PREFIX/share/maelys/commands/COMMAND.json` with mode `0644`. Packages
-compute `sha256` at build time. A script uses a direct absolute interpreter
+under `PREFIX/share/maelys/commands/COMMAND.json` with mode `0644`. A
+package manager that links the manifest there from its own store needs no
+special handling, as long as the directory holding the real file is owned by
+root or by the user who will run `maelys` and is closed to group and world.
+Packages compute `sha256` over the binary as it will be installed, not as
+it was built. A packager that rewrites a path inside a Mach-O binary signs
+it again afterwards — Homebrew does, which is visible as `flags=0x2(adhoc)`
+and a hash-suffixed identifier under `codesign -dv`, where a binary it left
+alone still carries the linker's own `flags=0x20002(adhoc,linker-signed)` —
+and those bytes are not the bytes the build hashed. A digest taken too early
+makes the dispatcher refuse the extension with `ACCESS_DENIED`, and refuse
+the whole catalog with it. Compute the digest in the step that installs the
+manifest, after any relocation, or declare no `sha256`: the member is
+optional and the executable's ownership and modes are checked either way. A script uses a direct absolute interpreter
 in its shebang; relative interpreters and `#!/usr/bin/env ...` are refused
 because they perform implicit current-directory or `PATH` lookup.
 

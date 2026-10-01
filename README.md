@@ -213,10 +213,12 @@ maelys-oci
 Manifests are read from `PREFIX/share/maelys/commands/`,
 `/opt/homebrew/share/maelys/commands/`, `/usr/local/share/maelys/commands/`
 and `/usr/share/maelys/commands/`. The dispatcher verifies that the manifest
-is a regular non-symlink file with a trusted owner and safe modes, that the
-executable is absolute, regular, trusted and executable, that `cliApi`
-matches, that the optional digest matches and that no command is declared
-twice. `maelys commands list` shows what was accepted.
+is a regular file with a trusted owner and safe modes, in a directory only
+root or the caller may write; a symbolic link is followed and the file it
+resolves to is what is judged, so a manifest linked into a prefix from a
+package manager's store is discovered. It verifies that the executable is
+absolute, regular, trusted and executable, that `cliApi` matches, that the
+optional digest matches and that no command is declared twice. `maelys commands list` shows what was accepted.
 
 ## Agent instructions for consumer projects
 

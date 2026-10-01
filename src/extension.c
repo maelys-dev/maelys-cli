@@ -95,8 +95,18 @@ int maelys_cli_extension_load(
     const char *explanation = NULL;
     unsigned char *bytes = NULL;
     size_t size = 0u;
+    /* A manifest is trusted exactly as the executable it declares: a
+     * symbolic link is followed, and the file it resolves to must be a
+     * regular file owned by root or the caller, closed to group and world,
+     * in a directory only root or the caller may write. This loader refused
+     * the link itself until MAELYS_CLI_FILE_TRUSTED_DIRECTORY existed, and
+     * that refusal bought nothing a trusted directory does not buy better
+     * — it is the directory, not the link, that says who may change what a
+     * path resolves to — while making every package manager that links what
+     * it installs from a cellar into its prefix, Homebrew above all,
+     * undiscoverable. docs/extensions.md states the rule. */
     if (maelys_cli_read_trusted_file(manifest_path,
-            MAELYS_CLI_FILE_REGULAR | MAELYS_CLI_FILE_NO_SYMLINK |
+            MAELYS_CLI_FILE_REGULAR | MAELYS_CLI_FILE_TRUSTED_DIRECTORY |
             MAELYS_CLI_FILE_OWNER_TRUSTED |
             MAELYS_CLI_FILE_NOT_WRITABLE_BY_OTHERS, 2u,
             MAELYS_CLI_EXTENSION_MAX_MANIFEST_BYTES, &bytes, &size,
@@ -108,7 +118,8 @@ int maelys_cli_extension_load(
         } else {
             maelys_cli_error_set(error, MAELYS_CLI_CODE_ACCESS_DENIED,
                 "Install manifests as regular files owned by root or the "
-                "current user, not writable by group or world.",
+                "current user, not writable by group or world, in a "
+                "directory only root or that user may write.",
                 "Manifest %s is untrusted: %s.", manifest_path,
                 explanation ? explanation : strerror(saved));
         }

@@ -2,6 +2,37 @@
 
 ## Unreleased
 
+- `maelys/cli/files.h` gains the requirement `MAELYS_CLI_FILE_TRUSTED_DIRECTORY`:
+  the directory holding a file once symbolic links are resolved must be owned
+  by root or the caller, closed to group and world, and still hold that very
+  object, judged on the descriptor the directory was opened through.
+  `MAELYS_CLI_FILE_NOT_WRITABLE_BY_OTHERS` says who may write a file's bytes
+  and says nothing about who may put other bytes at its path; this says only
+  root or the caller may, which is also what lets a link be followed as
+  safely as refused. `python/maelys_cli.py` gains `FILE_TRUSTED_DIRECTORY`
+  with the same rule, explanations and errno.
+- The `maelys` dispatcher reads a manifest with that requirement instead of
+  `MAELYS_CLI_FILE_NO_SYMLINK`, so a manifest is now trusted exactly as the
+  executable it declares — canonicalized, then judged with its directory.
+  Homebrew links everything it installs from its cellar into the prefix, so
+  every brew-installed manifest was refused (`Manifest
+  /opt/homebrew/share/maelys/commands/egress.json is untrusted: path is a
+  symbolic link`) and the dispatcher would not start at all on a machine
+  carrying one, which is also why `make install-check` could not pass there.
+  Refusing the link was never what protected against a link being rewritten
+  by whoever controls its directory — someone who can write that directory
+  can replace a plain manifest just as easily — and the directory rule is
+  strictly more than was asked before: a manifest whose own modes are safe
+  but whose directory is group-writable used to be accepted and is now
+  refused. `docs/extensions.md` states the rule, what it protects, and the
+  two consequences (a package manager's prefix is trusted for its owner and
+  not for root; the resolved parent is judged, not every ancestor, since
+  `/opt/homebrew/Cellar` is group-writable and an ancestor walk would refuse
+  Homebrew while adding little). `docs/migration.md` records what this asks
+  of maelys-oci and maelys-egress, whose manifests are the ones that were
+  refused: nothing, beyond a store directory closed to others and a `sha256`
+  computed over the binary as installed.
+
 - maelys-release adopted at v0.62.1 (from v0.60.0), with `adopt . --product
   maelys-cli --apply`: the workflow pins and `scripts/checkout-
   dependency.sh`, the managed script. 0.61.0 is the one version since that

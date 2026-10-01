@@ -196,8 +196,8 @@ Framework diagnostics escape control bytes from arguments as `\\n`, `\\r`,
 escaping. Products use `maelys_cli_warn()` for the same terminal-safe behavior.
 
 `ACCESS_DENIED` also covers an untrusted file or binary (ownership, modes,
-symlink, digest), and `PROTOCOL_FAILED` a manifest that violates
-`maelys.cli-extension/v1`. `UNEXPECTED` is what a handler that never
+the trust of the directory it resolves to, digest), and `PROTOCOL_FAILED` a
+manifest that violates `maelys.cli-extension/v1`. `UNEXPECTED` is what a handler that never
 replies, or replies with invalid JSON, produces.
 
 Administrative paths are absolute when they become durable configuration.

@@ -209,6 +209,27 @@ check "dispatcher lists extensions" '[ "$code" = 0 ] && printf "%s" "$out" | gre
 run d-help "$maelys" help
 check "dispatcher help shows extension" 'printf "%s" "$out" | grep -q "hello \[ARGUMENTS...\]"'
 
+# A manifest a package manager linked into its prefix: the link is followed
+# and the file it resolves to is judged, in the directory that holds it. This
+# is how every Homebrew-installed extension is discovered.
+cellar="$work/cellar/share/maelys/commands"
+mkdir -p "$cellar"
+cp "$commands/hello.json" "$cellar/linked.json"
+sed -i.bak 's/"command":"hello"/"command":"linked"/' "$cellar/linked.json"
+rm -f "$cellar/linked.json.bak"
+ln -s "$cellar/linked.json" "$commands/linked.json"
+run d-linked "$maelys" commands list --json --compact
+check "dispatcher follows a symlinked manifest" '[ "$code" = 0 ] && printf "%s" "$out" | grep -q "\"command\":\"linked\",\"executable\":\"$hello\"" && printf "%s" "$out" | grep -q "\"manifest\":\"$commands/linked.json\""'
+
+# The directory the link resolves to is what says who may replace the file.
+chmod 0777 "$cellar"
+run d-linked-open "$maelys" commands list
+check "dispatcher refuses a manifest in a world-writable directory" '[ "$code" = 1 ] && printf "%s" "$err" | grep -q "\[ACCESS_DENIED\]" && printf "%s" "$err" | grep -q "directory"'
+chmod 0755 "$cellar"
+run d-linked-again "$maelys" commands list --json --compact
+check "dispatcher accepts it again once the directory is closed" '[ "$code" = 0 ]'
+rm -f "$commands/linked.json"
+
 cat >"$commands/unsafe.json" <<MANIFEST
 {"schema":"maelys.cli-extension/v1","command":"unsafe","executable":"$hello","cliApi":1,"version":"1.0.0","summary":"clear\\u001b[2J"}
 MANIFEST

@@ -499,6 +499,29 @@ class Contract(unittest.TestCase):
             self.assertEqual(bytes(cli.read_trusted_file(link, cli.FILE_PRIVATE, 0, 64)), b"hunter2")
             with self.assertRaises(cli.FileError):
                 cli.check_file(link, cli.FILE_NO_SYMLINK)
+            # FILE_TRUSTED_DIRECTORY: the link is followed and the directory it
+            # resolves to must be the caller's and closed to group and world.
+            # What the extension loader asks of a manifest a package manager
+            # linked into its prefix.
+            manifest = cli.FILE_REGULAR | cli.FILE_OWNER_TRUSTED | \
+                cli.FILE_NOT_WRITABLE_BY_OTHERS | cli.FILE_TRUSTED_DIRECTORY
+            self.assertEqual(bytes(cli.read_trusted_file(link, manifest, 0, 64)), b"hunter2")
+            cli.check_file(link, cli.FILE_TRUSTED_DIRECTORY)
+            cli.check_file(path, cli.FILE_TRUSTED_DIRECTORY)
+            os.chmod(directory, 0o777)
+            for judge in (lambda: cli.read_trusted_file(link, manifest, 0, 64),
+                          lambda: cli.check_file(link, cli.FILE_TRUSTED_DIRECTORY),
+                          lambda: cli.check_file(path, cli.FILE_TRUSTED_DIRECTORY)):
+                with self.assertRaises(cli.FileError) as caught:
+                    judge()
+                self.assertEqual(caught.exception.errno, errno.EPERM)
+                self.assertIn("directory", caught.exception.explanation)
+            os.chmod(directory, 0o700)
+            os.unlink(link)
+            # A dangling link resolves to nothing, whatever is asked of it.
+            os.symlink(os.path.join(directory, "absent"), link)
+            with self.assertRaises(cli.FileError):
+                cli.check_file(link, cli.FILE_TRUSTED_DIRECTORY)
             os.unlink(link)
             # Hard link, permissions, FIFO, directory, missing, empty path.
             alias = os.path.join(directory, "alias")
