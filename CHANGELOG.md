@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.31 - 2026-10-01
 
 - A refused manifest names the file that was judged. With a link — what
   every package manager installs — the directory at fault is the one at the
