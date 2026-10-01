@@ -63,7 +63,14 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     maelys_cli_extension_t extension;
     maelys_cli_error_t error;
     if (maelys_cli_extension_load(path, &extension, &error) == 0) {
-        if (!terminated(extension.command, sizeof(extension.command)) ||
+        /* An accepted manifest may still name a command this machine cannot
+         * run: then the reason and the code are set, and the fields hold the
+         * same promises. The executable is absolute either way -- a relative
+         * one is refused before any unavailable cause, which is what the
+         * input relative-executable-other-api of the corpus holds. */
+        if (extension.unavailable[0] && !extension.unavailable_code) abort();
+        if (!extension.unavailable[0] && extension.unavailable_code) abort();
+        if (!terminated(extension.unavailable, sizeof(extension.unavailable)) ||
             !terminated(extension.executable, sizeof(extension.executable)) ||
             !terminated(extension.manifest, sizeof(extension.manifest)) ||
             !terminated(extension.version, sizeof(extension.version)) ||

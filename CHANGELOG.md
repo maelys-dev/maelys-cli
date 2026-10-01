@@ -38,6 +38,16 @@
   than -1 — the behaviour of a public function, changed deliberately: the
   dispatcher is its only consumer in the fleet, and `discover` reports what
   it found rather than refusing a directory over one entry.
+- Found by the fuzzer on the first run of this change, in CI: a manifest
+  declaring another `cliApi` came back unavailable while carrying the
+  relative executable it declared, because the `cliApi` verdict preceded the
+  path check. A relative executable is now refused before any cause that
+  only makes a command unavailable, so every extension the loader returns
+  carries an absolute path whether it can run or not; the input is in the
+  corpus as `relative-executable-other-api`. The `executable` member is also
+  held to the terminal-safety rule its neighbours already had: `commands
+  list` prints it, and an unusable extension is listed now, so a path
+  nothing resolved reaches a terminal.
 
 ## 0.5.31 - 2026-10-01
 

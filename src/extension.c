@@ -218,12 +218,29 @@ int maelys_cli_extension_load(
         copy_string_field(document, root, "sha256", 0, out->sha256,
             sizeof(out->sha256), manifest_path, error) != 0)
         goto done;
+    /* The executable is printed by `commands list` beside the version and the
+     * summary, and since an unusable extension is now listed too, its path
+     * reaches a terminal without ever having been resolved: it is held to the
+     * same rule as the text around it. */
     if (!maelys_cli_text_is_terminal_safe(out->version) ||
-        !maelys_cli_text_is_terminal_safe(out->summary)) {
+        !maelys_cli_text_is_terminal_safe(out->summary) ||
+        !maelys_cli_text_is_terminal_safe(out->executable)) {
         maelys_cli_error_set(error, MAELYS_CLI_CODE_PROTOCOL_FAILED,
             "Use one line of text without terminal control characters.",
-            "Manifest %s has an unsafe 'version' or 'summary' member.",
-            manifest_path);
+            "Manifest %s has an unsafe 'version', 'summary' or 'executable' "
+            "member.", manifest_path);
+        goto done;
+    }
+    /* A relative executable is refused here, before any cause that only makes
+     * the command unavailable: every extension this loader returns carries an
+     * absolute path, whether it can run or not. The fuzzer found the hole --
+     * a manifest with another cliApi and a relative executable came back
+     * unavailable, carrying "sh". */
+    if (out->executable[0] != '/') {
+        maelys_cli_error_set(error, MAELYS_CLI_CODE_ACCESS_DENIED,
+            "Install the executable as an absolute, regular, trusted binary.",
+            "Executable %s of manifest %s is unusable: executable path must "
+            "be absolute.", out->executable, manifest_path);
         goto done;
     }
     if (!valid_command_name(out->command)) {
@@ -251,23 +268,11 @@ int maelys_cli_extension_load(
     char canonical_executable[PATH_MAX];
     const char *canonical_error = NULL;
     int canonical_missing = 0;
-    if (out->executable[0] != '/') {
-        canonical_error = "executable path must be absolute";
-    } else if (!realpath(out->executable, canonical_executable)) {
+    if (!realpath(out->executable, canonical_executable)) {
         canonical_error = strerror(errno);
         canonical_missing = errno == ENOENT || errno == ENOTDIR;
     } else if (strlen(canonical_executable) >= sizeof(out->executable)) {
         canonical_error = "canonical executable path is too long";
-    }
-    if (out->executable[0] != '/') {
-        /* A relative executable is a manifest that is wrong, not a machine
-         * that cannot run it: no state of this machine makes it work, so it
-         * is refused like any malformed declaration. */
-        maelys_cli_error_set(error, MAELYS_CLI_CODE_ACCESS_DENIED,
-            "Install the executable as an absolute, regular, trusted binary.",
-            "Executable %s of manifest %s is unusable: %s.", out->executable,
-            manifest_path, canonical_error);
-        goto done;
     }
     if (canonical_error) {
         /* Gone is not the same as refused: an agent retries an install on
