@@ -4,6 +4,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <pthread.h>
 #include <signal.h>
 #include <limits.h>
 #include <stdlib.h>
@@ -335,6 +336,51 @@ static int test_signal_and_wait(void) {
     return 1;
 }
 
+/* signal in one thread while wait blocks in another, which is what the
+ * contract promises and what maelys-egress does from its sigwait thread. Run
+ * under ThreadSanitizer by `make tsan-check`, where a plain int flag was a
+ * data race; run here for the behaviour: the program dies of the signal, the
+ * waiter reports it, and every signal after the exit is refused. */
+typedef struct signaller {
+    maelys_cli_process_t *process;
+    int refused_after_exit;
+    int sent;
+} signaller_t;
+
+static void *signal_until_refused(void *argument) {
+    signaller_t *state = argument;
+    /* The first one ends the program; the rest race the waiter's store. */
+    if (maelys_cli_process_signal(state->process, SIGTERM) == 0) state->sent = 1;
+    for (int i = 0; i < 2000; ++i) {
+        if (maelys_cli_process_signal(state->process, 0) != 0) {
+            state->refused_after_exit = errno == ESRCH;
+            break;
+        }
+    }
+    return NULL;
+}
+
+static int test_signal_while_waiting(void) {
+    char *argv[] = {(char *)"sh", (char *)"-c", (char *)"sleep 30", NULL};
+    maelys_cli_process_t *process = NULL;
+    CHECK(maelys_cli_process_start(shell_path(), argv, NULL, NULL,
+        &process) == 0);
+    signaller_t state;
+    memset(&state, 0, sizeof(state));
+    state.process = process;
+    pthread_t thread;
+    CHECK(pthread_create(&thread, NULL, signal_until_refused, &state) == 0);
+    maelys_cli_process_status_t status;
+    CHECK(maelys_cli_process_wait(process, &status) == 0);
+    CHECK(pthread_join(thread, NULL) == 0);
+    CHECK(state.sent && status.signaled && status.term_signal == SIGTERM);
+    /* The signaller either stopped on ESRCH or exhausted its loop while the
+     * program was still dying; both are the contract, neither is a race. */
+    CHECK(maelys_cli_process_signal(process, 0) != 0 && errno == ESRCH);
+    maelys_cli_process_release(process);
+    return 1;
+}
+
 int main(void) {
     int failures = 0;
     RUN(test_check_executable);
@@ -343,6 +389,7 @@ int main(void) {
     RUN(test_inherited_descriptors);
     RUN(test_inherited_refusals);
     RUN(test_signal_and_wait);
+    RUN(test_signal_while_waiting);
     RUN(test_resolve_and_directory);
     return failures ? 1 : 0;
 }
