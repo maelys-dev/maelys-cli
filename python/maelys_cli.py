@@ -519,7 +519,13 @@ def _judge_resolved_directory(path: str, status: os.stat_result) -> Optional["tu
         if not stat.S_ISDIR(directory_status.st_mode) or \
                 directory_status.st_uid not in (0, os.geteuid()) or \
                 directory_status.st_mode & (stat.S_IWGRP | stat.S_IWOTH):
-            return errno.EPERM, "file is in a directory owned or writable by an untrusted user"
+            # Which directory, in the words an operator can act on: when the
+            # path itself is a link, the directory at fault is the one at the
+            # other end. The question is the last component, not whether
+            # realpath() moved: an ancestor that is a link moves it too.
+            return errno.EPERM, ("file resolves into a directory owned or writable by an untrusted user"
+                                 if os.path.islink(path) else
+                                 "file is in a directory owned or writable by an untrusted user")
         try:
             entry = os.stat(name, dir_fd=directory, follow_symlinks=False)
         except OSError as error:

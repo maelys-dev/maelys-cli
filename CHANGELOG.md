@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- A refused manifest names the file that was judged. With a link — what
+  every package manager installs — the directory at fault is the one at the
+  other end, and the path an operator was given looks irreproachable: the
+  diagnostic now carries `, resolved to PATH` and says the file *resolves
+  into* an untrusted directory rather than *is in* one. Measured on a cellar
+  layout before and after: the first wording sent a reader to a directory
+  that was correct.
 - `maelys/cli/files.h` gains the requirement `MAELYS_CLI_FILE_TRUSTED_DIRECTORY`:
   the directory holding a file once symbolic links are resolved must be owned
   by root or the caller, closed to group and world, and still hold that very
