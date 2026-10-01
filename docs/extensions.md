@@ -76,8 +76,32 @@ Every one of these is judged on the file the path resolves to; the
 diagnostic names the path that was discovered, which is the one an operator
 installed, and `commands list` reports it as `manifest`.
 
-A single invalid manifest blocks the whole dispatcher on purpose: a partial
-catalog would let an agent believe a command is absent.
+A manifest that cannot be trusted or understood blocks the whole dispatcher
+on purpose — an untrusted file, invalid JSON, an unknown schema or `cliApi`
+member, an invalid command name, a command declared twice: none of those can
+build a catalog anyone should rely on, and skipping them with a warning would
+be too easy to miss.
+
+A manifest that is sound but declares a command **this machine cannot run**
+is different, and costs nothing beyond that command. Its executable is gone,
+or untrusted, or of another `cliApi`, or does not match the declared digest:
+the command is declared, `describe` reports `available: false` with the
+reason, `commands list` carries `available`, `unavailableReason` and
+`unavailableCode`, completion never offers it, and invoking it answers the
+code that names the cause — `NOT_FOUND` for an executable that is gone,
+`ACCESS_DENIED` for a refusal of trust or a digest that does not match,
+`UNSUPPORTED` for a `cliApi` this dispatcher does not provide. The
+dispatcher declares those commands with `.unavailable` and
+`.unavailable_code` of `maelys/cli/catalog.h`, which is how any product
+says the same thing. Every other
+command, including every built-in of the dispatcher, keeps working.
+
+Until 0.5.32 any of those stopped the dispatcher entirely, `maelys --version`
+included: one extension installed by a package manager whose digest no longer
+matched its binary took the whole tool down. The worry that rule answered — an
+agent must not believe a command is absent when it is merely broken — is
+answered better by declaring the command and saying why it cannot run, which
+is what `available: false` exists for.
 
 ## Trust and symbolic links
 

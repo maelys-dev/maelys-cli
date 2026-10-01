@@ -140,6 +140,11 @@ static const maelys_cli_command_t commands[] = {
     /* An unavailable command names its reason and carries no handler. */
     {MAELYS_CLI_READ("absent", "absent", "Declared, not built here.", NULL),
      .unavailable = "built without the surface backend"},
+    /* And it may name the code that fits its cause, where UNSUPPORTED would
+     * say absence: a refusal of trust is ACCESS_DENIED. */
+    {MAELYS_CLI_READ("refused", "refused", "Declared, refused here.", NULL),
+     .unavailable = "the backend binary does not match its declared digest",
+     .unavailable_code = MAELYS_CLI_CODE_ACCESS_DENIED},
 };
 
 static const maelys_cli_app_t surface_app = {

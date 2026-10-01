@@ -10,6 +10,7 @@
 #include <dirent.h>
 #include <errno.h>
 #include <limits.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -74,6 +75,28 @@ static int copy_string_field(
     memcpy(out, view.data, view.size);
     out[view.size] = '\0';
     return 0;
+}
+
+/* A manifest that is sound but names a command this machine cannot run: the
+ * command is declared and described unavailable rather than taking the whole
+ * catalog down with it, and the code says which kind of cause it is -- an
+ * agent must tell a version incompatibility from a refusal of trust without
+ * reading a sentence. */
+static void declare_unavailable(
+    maelys_cli_extension_t *out, const char *code, const char *format, ...)
+#if defined(__GNUC__) || defined(__clang__)
+    __attribute__((format(printf, 3, 4)))
+#endif
+    ;
+static void declare_unavailable(
+    maelys_cli_extension_t *out, const char *code, const char *format, ...) {
+    va_list arguments;
+    va_start(arguments, format);
+    (void)vsnprintf(out->unavailable, sizeof(out->unavailable), format,
+        arguments);
+    va_end(arguments);
+    out->unavailable_code = code;
+    out->digest_verified = 0;
 }
 
 int maelys_cli_extension_load(
@@ -217,36 +240,54 @@ int maelys_cli_extension_load(
             "Manifest %s lacks a valid 'cliApi'.", manifest_path);
         goto done;
     }
+    out->cli_api = (unsigned int)api;
     if (api != MAELYS_CLI_API) {
-        maelys_cli_error_set(error, MAELYS_CLI_CODE_UNSUPPORTED,
-            "Reinstall the extension for this dispatcher version.",
-            "Manifest %s requires cliApi %llu; this dispatcher provides %d.",
+        declare_unavailable(out, MAELYS_CLI_CODE_UNSUPPORTED,
+            "manifest %s requires cliApi %llu; this dispatcher provides %d",
             manifest_path, (unsigned long long)api, MAELYS_CLI_API);
+        result = 0;
         goto done;
     }
-    out->cli_api = (unsigned int)api;
     char canonical_executable[PATH_MAX];
     const char *canonical_error = NULL;
+    int canonical_missing = 0;
     if (out->executable[0] != '/') {
         canonical_error = "executable path must be absolute";
     } else if (!realpath(out->executable, canonical_executable)) {
         canonical_error = strerror(errno);
+        canonical_missing = errno == ENOENT || errno == ENOTDIR;
     } else if (strlen(canonical_executable) >= sizeof(out->executable)) {
         canonical_error = "canonical executable path is too long";
     }
-    if (canonical_error) {
+    if (out->executable[0] != '/') {
+        /* A relative executable is a manifest that is wrong, not a machine
+         * that cannot run it: no state of this machine makes it work, so it
+         * is refused like any malformed declaration. */
         maelys_cli_error_set(error, MAELYS_CLI_CODE_ACCESS_DENIED,
             "Install the executable as an absolute, regular, trusted binary.",
             "Executable %s of manifest %s is unusable: %s.", out->executable,
             manifest_path, canonical_error);
         goto done;
     }
+    if (canonical_error) {
+        /* Gone is not the same as refused: an agent retries an install on
+         * NOT_FOUND and never on ACCESS_DENIED. */
+        declare_unavailable(out,
+            canonical_missing ? MAELYS_CLI_CODE_NOT_FOUND :
+                MAELYS_CLI_CODE_ACCESS_DENIED,
+            "executable %s of manifest %s is unusable: %s", out->executable,
+            manifest_path, canonical_error);
+        result = 0;
+        goto done;
+    }
     if (maelys_cli_process_check_executable(canonical_executable,
             &explanation) != 0) {
-        maelys_cli_error_set(error, MAELYS_CLI_CODE_ACCESS_DENIED,
-            "Install the executable as an absolute, regular, trusted binary.",
-            "Executable %s of manifest %s is unusable: %s.", out->executable,
+        declare_unavailable(out,
+            errno == ENOENT ? MAELYS_CLI_CODE_NOT_FOUND :
+                MAELYS_CLI_CODE_ACCESS_DENIED,
+            "executable %s of manifest %s is unusable: %s", out->executable,
             manifest_path, explanation ? explanation : strerror(errno));
+        result = 0;
         goto done;
     }
     memcpy(out->executable, canonical_executable,
@@ -257,11 +298,10 @@ int maelys_cli_extension_load(
             maelys_cli_sha256_file(out->executable,
                 MAELYS_CLI_EXTENSION_MAX_EXECUTABLE_BYTES, actual) != 0 ||
             strcmp(actual, out->sha256) != 0) {
-            maelys_cli_error_set(error, MAELYS_CLI_CODE_ACCESS_DENIED,
-                "Reinstall the extension; its binary does not match the "
-                "manifest digest.",
-                "Executable %s does not match the sha256 declared in %s.",
+            declare_unavailable(out, MAELYS_CLI_CODE_ACCESS_DENIED,
+                "executable %s does not match the sha256 declared in %s",
                 out->executable, manifest_path);
+            result = 0;
             goto done;
         }
         out->digest_verified = 1;

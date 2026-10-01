@@ -234,6 +234,11 @@ static const maelys_cli_command_t commands[] = {
     {.id = "cloud", .pattern = "cloud", .purpose = "Cloud sync.",
      .effect = MAELYS_CLI_EFFECT_EXECUTE, .output = MAELYS_CLI_OUTPUT_ENVELOPE,
      .unavailable = "built without the Cloud agent"},
+    /* An unavailable command may name the code that fits its cause: a
+     * refusal of trust is not an absence, and an agent reads the code. */
+    {MAELYS_CLI_READ("sealed", "sealed", "Sealed component.", NULL),
+     .unavailable = "the component does not match its declared digest",
+     .unavailable_code = MAELYS_CLI_CODE_ACCESS_DENIED},
     {MAELYS_CLI_READ("delegating", "delegating", "Delegating.", command_delegating),
      MAELYS_CLI_OPTIONS(delegating_options), .hidden = 1},
     {MAELYS_CLI_READ("fail", "fail", "Fail.", command_fail), .hidden = 1},
@@ -751,6 +756,16 @@ static int test_groups_defaults_unavailable(void) {
     result = RUNV("help");
     CHECK(strstr(result.out, "Cloud sync. (unavailable in this build)"));
     release(&result);
+    /* The declared code answers instead of UNSUPPORTED, which would have
+     * said absence where the cause is a refusal of trust. */
+    result = RUNV("sealed");
+    CHECK(result.code == 1 && strstr(result.err, "[ACCESS_DENIED]") &&
+        strstr(result.err, "does not match its declared digest"));
+    release(&result);
+    result = RUNV("describe", "sealed", "--json", "--compact");
+    CHECK(result.code == 0 &&
+        strstr(result.out, "\"available\":false,\"unavailableReason\":\"the component"));
+    release(&result);
     result = RUNV("trusted", "--json", "--compact");
     CHECK(result.code == 0 && strstr(result.out, ",\"data\":{\"trusted\":true}}\n"));
     release(&result);
@@ -843,6 +858,19 @@ static int test_operand_pattern(void) {
     operands[1].pattern = NULL;
     operands[0].pattern = "^[a-z";
     CHECK(refused_at_startup(&broken, "operand LABEL declares a pattern that is not"));
+
+    /* An unavailable code must be one of the stable codes, and needs a
+     * reason: a catalog cannot invent a code an agent would read. */
+    maelys_cli_command_t invented[] = {
+        {MAELYS_CLI_READ("sealed", "sealed", "Sealed.", NULL),
+         .unavailable = "refused", .unavailable_code = "DIGEST_MISMATCH"},
+    };
+    CHECK(refused_at_startup(invented, "is not one of the stable codes"));
+    maelys_cli_command_t codeless[] = {
+        {MAELYS_CLI_READ("sealed", "sealed", "Sealed.", command_report),
+         .unavailable_code = MAELYS_CLI_CODE_ACCESS_DENIED},
+    };
+    CHECK(refused_at_startup(codeless, "names an unavailable code without an"));
     return 1;
 }
 

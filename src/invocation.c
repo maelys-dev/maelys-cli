@@ -692,7 +692,12 @@ int maelys_cli_parse(
         parsed->descriptor = NULL;
         parsed->boolean_value = 1;
     }
+    /* A stream owns stdout, so rendering flags are refused -- unless the
+     * command cannot run at all: an agent that asks for an envelope then
+     * deserves the one naming why the command is unavailable, not a
+     * complaint about a flag. */
     if (out->command->output == MAELYS_CLI_OUTPUT_STREAM &&
+        !out->command->unavailable &&
         (out->rendering_requested || out->pager_requested || out->field)) {
         maelys_cli_error_set(error, MAELYS_CLI_CODE_VALIDATION_FAILED,
             "Remove rendering flags; stdout is reserved for the declared "

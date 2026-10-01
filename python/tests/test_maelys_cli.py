@@ -89,6 +89,34 @@ class Contract(unittest.TestCase):
                      ("limits", "--offset", "101"), ("limits", "--digest", "zz"), ("limits", "--digest", "a" * 63)):
             self.assertEqual(failure(*argv)[1]["code"], "VALIDATION_FAILED", argv)
 
+    def test_unavailable_code(self) -> None:
+        """An unavailable command answers the code that fits its cause, since
+        UNSUPPORTED says absence; the declaration refuses an invented code and
+        a code without a reason, as the C catalog validation does."""
+        program = cli.Program("p", "P", "0", [
+            cli.read("absent", "absent", "Absent.", lambda i: ({}, 0),
+                     unavailable="built without the backend"),
+            cli.read("sealed", "sealed", "Sealed.", lambda i: ({}, 0),
+                     unavailable="the component does not match its declared digest",
+                     unavailable_code="ACCESS_DENIED"),
+        ])
+        with self.assertRaises(cli.Failure) as absent:
+            program.parse(["absent"])
+        self.assertEqual(absent.exception.code, "UNSUPPORTED")
+        with self.assertRaises(cli.Failure) as sealed:
+            program.parse(["sealed"])
+        self.assertEqual(sealed.exception.code, "ACCESS_DENIED")
+        self.assertIn("declared digest", sealed.exception.message)
+        described = program.descriptor(program.command_by_id("sealed"))
+        self.assertEqual(described["available"], False)
+        self.assertIn("declared digest", described["unavailableReason"])
+        with self.assertRaises(ValueError):
+            cli.read("x", "x", "X.", lambda i: ({}, 0), unavailable="r",
+                     unavailable_code="DIGEST_MISMATCH")
+        with self.assertRaises(ValueError):
+            cli.read("x", "x", "X.", lambda i: ({}, 0),
+                     unavailable_code="ACCESS_DENIED")
+
     def test_hex_digits(self) -> None:
         """A hex value states its width as `digits`, the shape the C reference
         emits: --digest of hello.py is described as maelys-hello describes

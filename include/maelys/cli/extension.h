@@ -32,6 +32,7 @@ extern "C" {
 #define MAELYS_CLI_EXTENSION_MAX_PATH 1024u
 #define MAELYS_CLI_EXTENSION_MAX_VERSION 64u
 #define MAELYS_CLI_EXTENSION_MAX_SUMMARY 256u
+#define MAELYS_CLI_EXTENSION_MAX_REASON 256u
 #define MAELYS_CLI_EXTENSION_MAX_MANIFEST_BYTES 65536u
 #define MAELYS_CLI_EXTENSION_MAX_EXECUTABLE_BYTES (256u * 1024u * 1024u)
 
@@ -44,6 +45,15 @@ typedef struct maelys_cli_extension {
     char sha256[65];
     unsigned int cli_api;
     int digest_verified;
+    /* A manifest the loader read and understood, declaring a command it
+     * cannot run: the executable is gone, untrusted, of another cliApi, or
+     * does not match the declared digest. The command is declared and
+     * described `available: false` with this reason, and answers
+     * unavailable_code when invoked -- what one broken extension used to
+     * cost was the whole catalog, this dispatcher included. Empty and NULL
+     * when the command is usable; appended last, as every field is. */
+    char unavailable[MAELYS_CLI_EXTENSION_MAX_REASON];
+    const char *unavailable_code;
 } maelys_cli_extension_t;
 
 typedef struct maelys_cli_extension_set {
@@ -54,10 +64,18 @@ typedef struct maelys_cli_extension_set {
 /* Directories consulted by default, in precedence order. */
 const char *const *maelys_cli_extension_default_directories(size_t *out_count);
 
-/* Loads and verifies one manifest: regular non-symlink file with trusted
- * owner and modes, valid schema and cliApi, terminal-safe single-line version
- * and summary, absolute regular trusted executable (stored as its canonical
- * absolute path), optional digest match. */
+/* Loads and verifies one manifest: regular file with a trusted owner and
+ * modes in a trusted directory (a symbolic link is followed, see
+ * docs/extensions.md), valid schema, terminal-safe single-line version and
+ * summary, absolute regular trusted executable stored as its canonical
+ * absolute path, optional digest match.
+ *
+ * Returns -1 for a manifest that cannot be trusted or understood -- an
+ * untrusted file, invalid JSON, an unknown schema, an invalid command name --
+ * because none of those can build a catalog anyone should rely on. A manifest
+ * that is sound but declares a command this machine cannot run returns 0 with
+ * `unavailable` and `unavailable_code` set: the command is declared,
+ * described unavailable, and refused with that code when invoked. */
 int maelys_cli_extension_load(
     const char *manifest_path, maelys_cli_extension_t *out,
     maelys_cli_error_t *error);

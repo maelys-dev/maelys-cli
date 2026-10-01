@@ -151,6 +151,23 @@ static int valid_pattern(const char *pattern) {
     return 1;
 }
 
+/* The eleven stable codes of the contract, so a catalog cannot invent one.
+ * An unavailable command names the code that fits its cause; anything else
+ * would reach an agent as a code it cannot act on. */
+static int code_is_stable(const char *code) {
+    static const char *const codes[] = {
+        MAELYS_CLI_CODE_INVALID_COMMAND, MAELYS_CLI_CODE_VALIDATION_FAILED,
+        MAELYS_CLI_CODE_PRECONDITION_FAILED, MAELYS_CLI_CODE_POLICY_FAILED,
+        MAELYS_CLI_CODE_ACCESS_DENIED, MAELYS_CLI_CODE_NOT_FOUND,
+        MAELYS_CLI_CODE_IO_FAILED, MAELYS_CLI_CODE_PROCESS_FAILED,
+        MAELYS_CLI_CODE_PROTOCOL_FAILED, MAELYS_CLI_CODE_UNSUPPORTED,
+        MAELYS_CLI_CODE_UNEXPECTED,
+    };
+    for (size_t i = 0u; i < sizeof(codes) / sizeof(codes[0]); ++i)
+        if (!strcmp(code, codes[i])) return 1;
+    return 0;
+}
+
 static int validate_command(
     const maelys_cli_app_t *app, const maelys_cli_command_t *command,
     maelys_cli_error_t *error) {
@@ -209,6 +226,19 @@ static int validate_command(
                 "and have neither handler nor delegate.", id);
             return -1;
         }
+        if (command->unavailable_code &&
+            !code_is_stable(command->unavailable_code)) {
+            maelys_cli_error_set(error, MAELYS_CLI_CODE_UNEXPECTED, hint,
+                "Catalog command '%s' names '%s' as its unavailable code, "
+                "which is not one of the stable codes.", id,
+                command->unavailable_code);
+            return -1;
+        }
+    } else if (command->unavailable_code) {
+        maelys_cli_error_set(error, MAELYS_CLI_CODE_UNEXPECTED, hint,
+            "Catalog command '%s' names an unavailable code without an "
+            "'unavailable' reason.", id);
+        return -1;
     } else if ((command->handler == NULL) == (command->delegate == NULL)) {
         maelys_cli_error_set(error, MAELYS_CLI_CODE_UNEXPECTED, hint,
             "Catalog command '%s' needs exactly one of handler or delegate, "
@@ -2861,7 +2891,11 @@ int maelys_cli_run(
     } else if (command->delegate) {
         result = delegate_command(&context, command);
     } else if (!command->handler) {
-        result = maelys_cli_fail(&context, MAELYS_CLI_CODE_UNSUPPORTED,
+        /* The code says why, since UNSUPPORTED means absence and a command
+         * can be unavailable for a cause that is not absence. */
+        result = maelys_cli_fail(&context,
+            command->unavailable_code ? command->unavailable_code :
+                MAELYS_CLI_CODE_UNSUPPORTED,
             "Use another command or install the component providing it.",
             "'%s' is not available in this build: %s", command->id,
             command->unavailable ? command->unavailable : "no implementation");

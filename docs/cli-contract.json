@@ -331,6 +331,9 @@
                 "items": {
                   "additionalProperties": false,
                   "properties": {
+                    "available": {
+                      "type": "boolean"
+                    },
                     "cliApi": {
                       "type": "integer"
                     },
@@ -349,6 +352,12 @@
                     "summary": {
                       "type": "string"
                     },
+                    "unavailableCode": {
+                      "type": "string"
+                    },
+                    "unavailableReason": {
+                      "type": "string"
+                    },
                     "version": {
                       "type": "string"
                     }
@@ -360,7 +369,8 @@
                     "version",
                     "summary",
                     "cliApi",
-                    "digestVerified"
+                    "digestVerified",
+                    "available"
                   ],
                   "type": "object"
                 },

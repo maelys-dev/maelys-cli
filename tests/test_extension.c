@@ -57,10 +57,16 @@ static int test_valid_manifest(void) {
     (void)snprintf(digest_extra, sizeof(digest_extra), ",\"sha256\":\"%s\"", hex);
     CHECK(write_manifest("oci.json", "oci", digest_extra));
     CHECK(maelys_cli_extension_load(path, &extension, &error) == 0 && extension.digest_verified);
+    /* A digest that does not match is a command declared and unusable, not a
+     * manifest the loader refuses: one stale extension cost the whole
+     * catalog, this dispatcher included, until 0.5.32. */
     CHECK(write_manifest("oci.json", "oci",
         ",\"sha256\":\"0000000000000000000000000000000000000000000000000000000000000000\""));
-    CHECK(maelys_cli_extension_load(path, &extension, &error) != 0);
-    CHECK(strcmp(error.code, "ACCESS_DENIED") == 0 && strstr(error.message, "sha256"));
+    CHECK(maelys_cli_extension_load(path, &extension, &error) == 0);
+    CHECK(!extension.digest_verified && extension.unavailable[0] &&
+        strstr(extension.unavailable, "sha256") &&
+        extension.unavailable_code &&
+        strcmp(extension.unavailable_code, "ACCESS_DENIED") == 0);
     CHECK(write_manifest("oci.json", "oci", NULL));
     return 1;
 }
@@ -79,10 +85,22 @@ static int test_rejections(void) {
     CHECK(write_manifest("bad.json", "x", ",\"cliApi\":2"));
     /* Duplicate key: last one wins in our lookup? No: first match wins. Use a
      * distinct manifest instead. */
+    /* Another cliApi is a command this dispatcher cannot run, declared with
+     * UNSUPPORTED: that one really is an absence of function. */
     CHECK(write_text(path, "{\"schema\":\"maelys.cli-extension/v1\",\"command\":\"x\","
         "\"executable\":\"/bin/sh\",\"cliApi\":2,\"version\":\"1\"}", 0644));
-    CHECK(maelys_cli_extension_load(path, &extension, &error) != 0);
-    CHECK(strcmp(error.code, "UNSUPPORTED") == 0 && strstr(error.message, "cliApi 2"));
+    CHECK(maelys_cli_extension_load(path, &extension, &error) == 0);
+    CHECK(extension.unavailable_code &&
+        strcmp(extension.unavailable_code, "UNSUPPORTED") == 0 &&
+        strstr(extension.unavailable, "cliApi 2"));
+
+    /* An executable that is gone is NOT_FOUND, which an agent may retry. */
+    CHECK(write_text(path, "{\"schema\":\"maelys.cli-extension/v1\",\"command\":\"x\","
+        "\"executable\":\"/nonexistent/maelys-x\",\"cliApi\":1,\"version\":\"1\"}",
+        0644));
+    CHECK(maelys_cli_extension_load(path, &extension, &error) == 0);
+    CHECK(extension.unavailable_code &&
+        strcmp(extension.unavailable_code, "NOT_FOUND") == 0);
 
     CHECK(write_text(path, "{\"schema\":\"maelys.cli-extension/v1\",\"command\":\"help\","
         "\"executable\":\"/bin/sh\",\"cliApi\":1,\"version\":\"1\"}", 0644));
@@ -94,10 +112,8 @@ static int test_rejections(void) {
     CHECK(maelys_cli_extension_load(path, &extension, &error) != 0);
     CHECK(strcmp(error.code, "ACCESS_DENIED") == 0 && strstr(error.message, "absolute"));
 
-    CHECK(write_text(path, "{\"schema\":\"maelys.cli-extension/v1\",\"command\":\"x\","
-        "\"executable\":\"/nonexistent/maelys-x\",\"cliApi\":1,\"version\":\"1\"}", 0644));
-    CHECK(maelys_cli_extension_load(path, &extension, &error) != 0);
-    CHECK(strcmp(error.code, "ACCESS_DENIED") == 0);
+    /* A relative executable stays a refusal: no state of this machine makes
+     * that manifest work, and the one above already covers an absent one. */
 
     CHECK(write_text(path, "{\"schema\":\"maelys.cli-extension/v1\",\"command\":\"x\","
         "\"executable\":\"/bin/sh\",\"version\":\"1\"}", 0644));
@@ -224,11 +240,26 @@ static int test_discover(void) {
     char ignored[512];
     (void)snprintf(ignored, sizeof(ignored), "%s/README.txt", directory);
     CHECK(write_text(ignored, "ignored", 0644));
+    /* A manifest for a command this machine cannot run is discovered too,
+     * declared and marked unavailable: hiding it would send an agent to find
+     * it by invoking it. */
+    char stale[512];
+    (void)snprintf(stale, sizeof(stale), "%s/stale.json", directory);
+    CHECK(write_text(stale, "{\"schema\":\"maelys.cli-extension/v1\","
+        "\"command\":\"stale\",\"executable\":\"/bin/sh\",\"cliApi\":2,"
+        "\"version\":\"1\"}", 0644));
     CHECK(maelys_cli_extension_discover(directories, 2u, &set, &error) == 0);
-    CHECK(set.count == 3u);
+    CHECK(set.count == 4u);
     CHECK(strcmp(set.items[0].command, "alpha") == 0);
     CHECK(strcmp(set.items[1].command, "oci") == 0);
-    CHECK(strcmp(set.items[2].command, "zeta") == 0);
+    CHECK(strcmp(set.items[2].command, "stale") == 0 &&
+        set.items[2].unavailable[0] && set.items[2].unavailable_code &&
+        strcmp(set.items[2].unavailable_code, "UNSUPPORTED") == 0);
+    CHECK(strcmp(set.items[3].command, "zeta") == 0);
+    CHECK(unlink(stale) == 0);
+    maelys_cli_extension_set_clear(&set);
+    CHECK(maelys_cli_extension_discover(directories, 2u, &set, &error) == 0);
+    CHECK(set.count == 3u);
     CHECK(maelys_cli_extension_find(&set, "oci") == &set.items[1]);
     CHECK(maelys_cli_extension_find(&set, "nope") == NULL);
     maelys_cli_extension_set_clear(&set);
