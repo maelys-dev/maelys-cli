@@ -24,11 +24,13 @@ static const maelys_cli_operand_t passthrough_operands[] = {
     "\"type\":\"integer\",\"minimum\":0},\"records\":{\"type\":\"array\"," \
     "\"items\":{\"type\":\"object\",\"additionalProperties\":false,\"required\":" \
     "[\"command\",\"executable\",\"manifest\",\"version\",\"summary\"," \
-    "\"cliApi\",\"digestVerified\"],\"properties\":{\"command\":{\"type\":" \
+    "\"cliApi\",\"digestVerified\",\"available\"],\"properties\":{\"command\":{\"type\":" \
     "\"string\"},\"executable\":{\"type\":\"string\"},\"manifest\":{\"type\":" \
     "\"string\"},\"version\":{\"type\":\"string\"},\"summary\":{\"type\":" \
     "\"string\"},\"cliApi\":{\"type\":\"integer\"},\"digestVerified\":{" \
-    "\"type\":\"boolean\"}}}}}}"
+    "\"type\":\"boolean\"},\"available\":{\"type\":\"boolean\"}," \
+    "\"unavailableReason\":{\"type\":\"string\"},\"unavailableCode\":{" \
+    "\"type\":\"string\"}}}}}}"
 
 static const maelys_cli_command_t builtin_commands[] = {
     {MAELYS_CLI_RECORDS("commands.list", "commands list",
@@ -73,6 +75,16 @@ static int commands_list(maelys_cli_context_t *context) {
             maelys_cli_json_key_unsigned(&writer, "cliApi", extension->cli_api) == 0 &&
             maelys_cli_json_key_boolean(&writer, "digestVerified",
                 extension->digest_verified) == 0 &&
+            /* An inventory that hides an unusable command would send an
+               agent to discover it by invoking it. */
+            maelys_cli_json_key_boolean(&writer, "available",
+                extension->unavailable[0] == '\0') == 0 &&
+            (extension->unavailable[0] == '\0' ||
+             (maelys_cli_json_key_string(&writer, "unavailableReason",
+                  extension->unavailable) == 0 &&
+              maelys_cli_json_key_string(&writer, "unavailableCode",
+                  extension->unavailable_code ? extension->unavailable_code :
+                      MAELYS_CLI_CODE_UNSUPPORTED) == 0)) &&
             maelys_cli_json_end_object(&writer) == 0;
         char *record = built ? maelys_cli_json_finish(&writer) : NULL;
         if (!record) {
@@ -81,8 +93,9 @@ static int commands_list(maelys_cli_context_t *context) {
                 "Could not serialize command '%s'.", extension->command);
         }
         char line[512];
-        (void)snprintf(line, sizeof(line), "%-16s %-10s %s", extension->command,
-            extension->version, extension->summary);
+        (void)snprintf(line, sizeof(line), "%-16s %-10s %s%s", extension->command,
+            extension->version, extension->unavailable[0] ? "(unavailable) " : "",
+            extension->summary);
         int emitted = maelys_cli_emit_record(context, record, line);
         free(record);
         if (emitted != 0)
@@ -154,7 +167,18 @@ static int build_catalog(maelys_cli_error_t *error) {
         command->output = MAELYS_CLI_OUTPUT_STREAM;
         command->operands = passthrough_operands;
         command->operand_count = MAELYS_CLI_COUNT(passthrough_operands);
-        command->delegate = extension->executable;
+        /* A manifest the loader read but could not clear -- a digest that
+         * does not match, an executable gone or untrusted, another cliApi --
+         * declares its command unavailable instead of taking this dispatcher
+         * down with it. Its own commands, help and describe keep working, and
+         * the extension is described `available: false` with the reason and
+         * refused with the code that names the cause. */
+        if (extension->unavailable[0]) {
+            command->unavailable = extension->unavailable;
+            command->unavailable_code = extension->unavailable_code;
+        } else {
+            command->delegate = extension->executable;
+        }
     }
     maelys_cli_catalog_part_t parts[] = {
         MAELYS_CLI_CATALOG_PART(builtin_commands),

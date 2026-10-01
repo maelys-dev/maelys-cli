@@ -21,6 +21,52 @@
   both ways: it reports the race on the flag as it was, naming the same two
   functions maelys-egress named, and passes on the atomic. The behaviour of
   those two threads is tested without a sanitizer too, in `make test`.
+- One broken extension no longer costs the dispatcher. A manifest that is
+  sound but declares a command this machine cannot run — its executable gone
+  or untrusted, another `cliApi`, a digest that does not match — declares
+  that command unavailable instead of stopping everything: `describe`
+  reports `available: false` with the reason, `commands list` carries
+  `available`, `unavailableReason` and `unavailableCode`, completion never
+  offers it, and every other command keeps working, the dispatcher's own
+  built-ins included. Until here, `maelys --version` died on a stale third-
+  party digest: maelys-egress measured it on maelys-oci 0.6.6, whose brew-
+  installed binary no longer matches the digest its manifest declares, and
+  had to point `MAELYS_COMMANDS_PATH` at an empty directory to run anything
+  at all. The worry the old rule answered — an agent must not believe a
+  command is absent when it is merely broken — is answered better by
+  declaring the command and saying why.
+- What still stops the dispatcher: a manifest nothing can trust, invalid
+  JSON, an unknown schema, a missing or invalid `cliApi` member, an invalid
+  or reserved command name, a relative executable, a command declared twice.
+  None of those can build a catalog anyone should rely on, and a relative
+  executable is a manifest that is wrong rather than a machine that cannot
+  run it.
+- `maelys_cli_command_t.unavailable_code`, and `unavailable_code=` in
+  `python/maelys_cli.py`: the code an unavailable command answers.
+  `UNSUPPORTED` says "absent from this build or version" and is wrong for a
+  cause that is not absence, so a digest that does not match answers
+  `ACCESS_DENIED`, an executable that is gone `NOT_FOUND`, and a `cliApi`
+  this dispatcher does not provide keeps `UNSUPPORTED`. An agent tells an
+  incompatibility from a refusal of trust by the code and never by reading a
+  sentence. One of the eleven stable codes, refused at startup otherwise,
+  and refused without the reason beside it. A rendering flag no longer
+  preempts the refusal of an unavailable stream command: asking `--format
+  json` of one now answers the envelope that says why.
+- `maelys_cli_extension_t` carries `unavailable` and `unavailable_code`, and
+  `maelys_cli_extension_load` returns 0 for the four causes above rather
+  than -1 — the behaviour of a public function, changed deliberately: the
+  dispatcher is its only consumer in the fleet, and `discover` reports what
+  it found rather than refusing a directory over one entry.
+- Found by the fuzzer on the first run of this change, in CI: a manifest
+  declaring another `cliApi` came back unavailable while carrying the
+  relative executable it declared, because the `cliApi` verdict preceded the
+  path check. A relative executable is now refused before any cause that
+  only makes a command unavailable, so every extension the loader returns
+  carries an absolute path whether it can run or not; the input is in the
+  corpus as `relative-executable-other-api`. The `executable` member is also
+  held to the terminal-safety rule its neighbours already had: `commands
+  list` prints it, and an unusable extension is listed now, so a path
+  nothing resolved reaches a terminal.
 
 ## 0.5.31 - 2026-10-01
 

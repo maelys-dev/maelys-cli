@@ -64,7 +64,10 @@ still declares every option, `describe` still lists them all and
 
 A command this build cannot run declares `unavailable="reason"`: it is
 listed by `describe` with `available: false`, refused with `UNSUPPORTED`,
-and never completed. `hidden=True` keeps it out of `help` and the completion.
+and never completed. `unavailable_code="ACCESS_DENIED"` names the code it
+answers instead, for a cause that is not absence (as `.unavailable_code`
+does in C); it must be one of the stable codes and needs the reason beside
+it. `hidden=True` keeps it out of `help` and the completion.
 
 ## Operands, options and value kinds
 
@@ -198,7 +201,7 @@ functions `read`, `records`, `transaction`, `execute`, `stream`,
 arguments of its constructor (`program`, `product`, `version`,
 `commands`, `guide=`, `text=`, `framework=`) and `Program.main(argv)`;
 the command keywords `operands=`, `options=`, `constraints=`, `schema=`,
-`hidden=`, `unavailable=`, `synopsis=`, `protocol=`;
+`hidden=`, `unavailable=`, `unavailable_code=`, `synopsis=`, `protocol=`;
 `Invocation` with `operands`, `raw_operands`, `options`, `option()`,
 `flag()`, `apply`, `format`, `compact`, `non_interactive`, `program`,
 `verbose`, `progress`, `pager`, `field`, `progress_wanted`, `detail()`,

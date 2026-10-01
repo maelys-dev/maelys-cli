@@ -88,7 +88,12 @@ takes it from a constant of the product library.
 
 A command that a build cannot provide declares `.unavailable = "reason"`
 instead of a failing handler: it stays in `describe` with
-`available: false` and fails with `UNSUPPORTED`. A product with build
+`available: false` and fails with `UNSUPPORTED`, or with
+`.unavailable_code` when absence is not the cause — a component that does
+not match its declared digest is `ACCESS_DENIED`, one that is gone is
+`NOT_FOUND`. The code must be one of the stable eleven, and needs the
+reason beside it; an agent reads the cause from the code and never from the
+sentence. A product with build
 variants composes its catalog at startup with
 `maelys_cli_catalog_concat()`: a later part may replace an `.unavailable`
 descriptor of the same identifier in place, and nothing else (`EEXIST`).

@@ -188,6 +188,11 @@ Command attributes: `.synopsis` (override), `.hidden`, `.protocol` (stream
 commands) and `.unavailable = "reason"` for a command this build cannot
 provide: no handler, still described (`available: false`), fails with
 `UNSUPPORTED`.
+  A command declared unavailable answers `UNSUPPORTED`, or
+  `.unavailable_code` when absence is not the cause: a component that
+  does not match its declared digest is `MAELYS_CLI_CODE_ACCESS_DENIED`,
+  one that is gone is `MAELYS_CLI_CODE_NOT_FOUND`. One of the stable
+  codes, and never without the reason.
 
 Value kinds: `NONE` (flag, accepts `--flag=false`), `STRING`, `INTEGER`,
 `UNSIGNED`, `SIZE` (K/M/G/T), `DURATION` (unit required: ms, s, m, h, d;

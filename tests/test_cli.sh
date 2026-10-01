@@ -230,6 +230,27 @@ run d-linked-again "$maelys" commands list --json --compact
 check "dispatcher accepts it again once the directory is closed" '[ "$code" = 0 ]'
 rm -f "$commands/linked.json"
 
+# One extension this machine cannot run does not cost the dispatcher: the
+# command is declared, described unavailable with the code that names the
+# cause, and every built-in keeps working. A digest that does not match is a
+# refusal of trust (ACCESS_DENIED), not an absence (UNSUPPORTED).
+cat >"$commands/stale.json" <<MANIFEST
+{"schema":"maelys.cli-extension/v1","command":"stale","executable":"$hello","cliApi":1,"version":"0.1.0","summary":"Stale digest","sha256":"0000000000000000000000000000000000000000000000000000000000000000"}
+MANIFEST
+run d-stale-version "$maelys" --version
+check "a stale extension does not stop the dispatcher" '[ "$code" = 0 ] && [ -z "$err" ]'
+run d-stale-list "$maelys" commands list --json --compact
+check "an unusable extension is listed as unavailable" '[ "$code" = 0 ] && printf "%s" "$out" | grep -q "\"command\":\"stale\"" && printf "%s" "$out" | grep -q "\"available\":false" && printf "%s" "$out" | grep -q "\"unavailableCode\":\"ACCESS_DENIED\""'
+run d-stale-describe "$maelys" describe stale --json --compact
+check "describe names it unavailable with its reason" '[ "$code" = 0 ] && printf "%s" "$out" | grep -q "\"available\":false" && printf "%s" "$out" | grep -q "does not match the sha256"'
+run d-stale-run "$maelys" stale --format json --compact
+check "invoking it answers the code of its cause" '[ "$code" = 1 ] && printf "%s" "$err" | grep -q "\"code\":\"ACCESS_DENIED\""'
+run d-stale-complete "$maelys" __complete -- st
+check "completion never offers an unavailable command" '[ "$code" = 0 ] && ! printf "%s\n" "$out" | grep -qx "stale"'
+rm -f "$commands/stale.json"
+
+# A manifest that cannot be trusted or understood still stops everything: no
+# catalog can be built from it, and ignoring it would be too easy to miss.
 cat >"$commands/unsafe.json" <<MANIFEST
 {"schema":"maelys.cli-extension/v1","command":"unsafe","executable":"$hello","cliApi":1,"version":"1.0.0","summary":"clear\\u001b[2J"}
 MANIFEST
@@ -306,9 +327,23 @@ check "agents install refuses symbolic-link parents" '[ "$code" = 1 ] && [ ! -e 
 run a-missing "$maelys" agents install "$work/absent" --json --compact
 check "missing project directory" '[ "$code" = 1 ] && printf "%s" "$err" | grep -q "\"code\":\"NOT_FOUND\""'
 
+# An executable that is gone is an unavailable command, not a dead dispatcher,
+# and NOT_FOUND rather than a refusal of trust: an agent retries an install on
+# the first and never on the second.
 printf '{"schema":"maelys.cli-extension/v1","command":"bad","executable":"/nonexistent/x","cliApi":1,"version":"1"}\n' >"$commands/bad.json"
 run d-bad "$maelys" help
-check "dispatcher refuses to start with an invalid manifest" '[ "$code" = 1 ] && printf "%s" "$err" | grep -q "\[ACCESS_DENIED\]"'
+check "a manifest whose executable is gone leaves the dispatcher running" '[ "$code" = 0 ] && printf "%s" "$out" | grep -q "bad"'
+run d-bad-run "$maelys" bad --format json --compact
+check "and its command answers NOT_FOUND" '[ "$code" = 1 ] && printf "%s" "$err" | grep -q "\"code\":\"NOT_FOUND\""'
+rm -f "$commands/bad.json"
+
+# A manifest nothing can trust still stops everything: no catalog can be built
+# from it, and skipping it with a warning would be too easy to miss.
+printf '{"schema":"maelys.cli-extension/v1","command":"untrusted","executable":"%s","cliApi":1,"version":"1"}\n' "$hello" >"$commands/untrusted.json"
+chmod 0666 "$commands/untrusted.json"
+run d-untrusted "$maelys" help
+check "an untrusted manifest stops the dispatcher" '[ "$code" = 1 ] && printf "%s" "$err" | grep -q "\[ACCESS_DENIED\]"'
+rm -f "$commands/untrusted.json" 
 rm -f "$commands/bad.json"
 
 if [ "$failures" -ne 0 ]; then

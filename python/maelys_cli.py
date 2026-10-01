@@ -250,10 +250,19 @@ def constraint(kind: str, *options: str) -> dict:
 def _command(identifier: str, pattern: str, purpose: str, handler: Optional[Handler], effect: Any,
              operands: tuple = (), options: tuple = (), schema: Optional[dict] = None, mode: str = "json-envelope",
              protocol: Optional[str] = None, external: bool = False, hidden: bool = False,
-             unavailable: Optional[str] = None, passthrough: bool = False,
+             unavailable: Optional[str] = None, unavailable_code: Optional[str] = None,
+             passthrough: bool = False,
              synopsis: Optional[str] = None, constraints: tuple = ()) -> dict:
     if not IDENTIFIER.match(identifier):
         raise ValueError(f"a command identifier is [a-z][a-z0-9.-]*, not {identifier!r}")
+    # The code an unavailable command answers: UNSUPPORTED says "absent from
+    # this build or version" and is wrong for a cause that is not absence,
+    # so the declaration names the one that fits (C: .unavailable_code).
+    if unavailable_code is not None:
+        if unavailable is None:
+            raise ValueError(f"{identifier}: an unavailable code needs an unavailable reason")
+        if unavailable_code not in STABLE_CODES:
+            raise ValueError(f"{identifier}: {unavailable_code!r} is not one of the stable codes")
     words = pattern.split()
     operands = list(operands)
     options = list(options)
@@ -278,7 +287,8 @@ def _command(identifier: str, pattern: str, purpose: str, handler: Optional[Hand
         raise ValueError(f"{identifier}: a synopsis starts with the pattern {pattern!r}, not {synopsis!r}")
     return {"id": identifier, "pattern": words, "usage": synopsis, "purpose": purpose, "effect": effect,
             "outputMode": mode, "protocol": protocol, "external": external, "hidden": hidden,
-            "unavailable": unavailable, "operands": operands, "options": options, "passthrough": passthrough,
+            "unavailable": unavailable, "unavailableCode": unavailable_code,
+            "operands": operands, "options": options, "passthrough": passthrough,
             "constraints": list(constraints),
             "outputSchema": schema or {"type": "object"}, "handler": handler}
 
@@ -1180,7 +1190,8 @@ class Program:
         # A failure envelope names the resolved command from here on (section 7).
         self.resolved_command_id = command["id"]
         if command["unavailable"] is not None:
-            raise Failure("UNSUPPORTED", f"Command '{command['id']}' is not available in this build: {command['unavailable']}",
+            raise Failure(command.get("unavailableCode") or "UNSUPPORTED",
+                          f"Command '{command['id']}' is not available in this build: {command['unavailable']}",
                           "Use another build of the product, or another command.")
         raw_operands = words[consumed:] + passthrough
         usage = command["usage"]

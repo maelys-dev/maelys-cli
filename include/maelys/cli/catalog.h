@@ -148,12 +148,21 @@ typedef struct maelys_cli_command {
     const char *unavailable;          /* reason when this build has neither
                                          handler nor delegate; the command
                                          stays described and fails with
-                                         UNSUPPORTED */
+                                         UNSUPPORTED, or with
+                                         unavailable_code below */
     /* Cross-option rules stated in input.constraints (spec 2.5), validated
      * at startup and enforced by the parser with the option dependencies.
      * Zero means none; appended last, as every field is. */
     const maelys_cli_constraint_t *constraints;
     size_t constraint_count;
+    /* The code an unavailable command answers, one of the stable codes of
+     * invocation.h. NULL is UNSUPPORTED, which says "absent from this build
+     * or version" and is wrong for a cause that is not absence: a digest
+     * that does not match is MAELYS_CLI_CODE_ACCESS_DENIED, an executable
+     * that is gone is MAELYS_CLI_CODE_NOT_FOUND. An agent reads the cause
+     * from the code and never from the sentence. Refused without
+     * `unavailable`. */
+    const char *unavailable_code;
 } maelys_cli_command_t;
 
 /* Upper bound of a derived synopsis; the catalog validation names the
