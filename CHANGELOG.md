@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.33 - 2026-10-02
 
 - `maelys_cli_process_options_t.exec_by_path`: execute the verified object
   through its own pathname rather than the descriptor held open across the
