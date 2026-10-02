@@ -360,6 +360,54 @@ static void *signal_until_refused(void *argument) {
     return NULL;
 }
 
+/* The pathname exec, for a program the descriptor exec cannot run: a
+ * multi-call binary reads its applet from AT_EXECFN, which execveat leaves as
+ * /dev/fd/N. Here the program is an ordinary one -- both execs must run it,
+ * and the option must change nothing observable. The case that needs the
+ * option is measured on a uutils system, which this machine is not; the
+ * comment of options.exec_by_path carries that measurement. */
+static int test_exec_by_path(void) {
+    char *argv[] = {(char *)"sh", (char *)"-c", (char *)"exit 9", NULL};
+    maelys_cli_process_options_t options;
+    memset(&options, 0, sizeof(options));
+    options.exec_by_path = 1;
+    maelys_cli_process_t *process = NULL;
+    CHECK(maelys_cli_process_start(shell_path(), argv, NULL, &options,
+        &process) == 0);
+    maelys_cli_process_status_t status;
+    CHECK(maelys_cli_process_wait(process, &status) == 0);
+    CHECK(status.exited && status.exit_code == 9);
+    maelys_cli_process_release(process);
+
+    /* An inherited descriptor arrives the same way under either exec. */
+    int pipes[2];
+    CHECK(pipe(pipes) == 0);
+    maelys_cli_process_inherit_t inherit[] = {{pipes[1], 4}};
+    options.inherit = inherit;
+    options.inherit_count = 1u;
+    char *writer[] = {(char *)"sh", (char *)"-c", (char *)"printf path >&4",
+        NULL};
+    CHECK(maelys_cli_process_start(shell_path(), writer, NULL, &options,
+        &process) == 0);
+    CHECK(maelys_cli_process_wait(process, &status) == 0);
+    maelys_cli_process_release(process);
+    (void)close(pipes[1]);
+    char read_back[8] = "";
+    CHECK(read(pipes[0], read_back, sizeof(read_back) - 1u) == 4);
+    (void)close(pipes[0]);
+    CHECK(strcmp(read_back, "path") == 0);
+
+    /* The trust checks are the same ones: a program nothing trusts is
+     * refused before any exec, whichever one was asked for. */
+    char *missing[] = {(char *)"maelys-bin", NULL};
+    maelys_cli_process_t *refused = NULL;
+    memset(&options, 0, sizeof(options));
+    options.exec_by_path = 1;
+    CHECK(maelys_cli_process_start("/nonexistent/maelys-bin", missing, NULL,
+        &options, &refused) != 0 && refused == NULL);
+    return 1;
+}
+
 static int test_signal_while_waiting(void) {
     char *argv[] = {(char *)"sh", (char *)"-c", (char *)"sleep 30", NULL};
     maelys_cli_process_t *process = NULL;
@@ -389,6 +437,7 @@ int main(void) {
     RUN(test_inherited_descriptors);
     RUN(test_inherited_refusals);
     RUN(test_signal_and_wait);
+    RUN(test_exec_by_path);
     RUN(test_signal_while_waiting);
     RUN(test_resolve_and_directory);
     return failures ? 1 : 0;
