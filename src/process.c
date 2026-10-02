@@ -262,14 +262,26 @@ static void reset_signals(void) {
 
 static int execute_trusted(
     const trusted_executable_t *executable, char *const argv[],
-    char *const envp[]) {
+    char *const envp[], int by_path) {
 #if defined(__linux__) && defined(SYS_execveat)
-    (void)syscall(SYS_execveat, executable->descriptor, "", argv,
-        envp ? envp : environ, AT_EMPTY_PATH);
-    /* A script whose held descriptor is close-on-exec returns ENOENT because
-     * its interpreter cannot reopen that descriptor. The anchored pathname
-     * fallback below executes it without leaking a descriptor. */
-    if (errno != ENOENT && errno != ENOSYS && errno != EINVAL) return -1;
+    /* The descriptor exec is the default: the object executed is the object
+     * that was checked, with no window between the two. A caller that asked
+     * for the pathname exec skips it entirely rather than trying it first,
+     * because a program it cannot run starts wrong rather than not at all --
+     * execveat leaves AT_EXECFN as /dev/fd/N, and a multi-call binary that
+     * reads its applet from that name refuses (uutils coreutils, measured on
+     * Ubuntu: "Security violation: Requested utility `3`"). */
+    if (!by_path) {
+        (void)syscall(SYS_execveat, executable->descriptor, "", argv,
+            envp ? envp : environ, AT_EMPTY_PATH);
+        /* A script whose held descriptor is close-on-exec returns ENOENT
+         * because its interpreter cannot reopen that descriptor. The
+         * anchored pathname exec below runs it without leaking a
+         * descriptor. */
+        if (errno != ENOENT && errno != ENOSYS && errno != EINVAL) return -1;
+    }
+#else
+    (void)by_path;
 #endif
     struct stat current;
     if (fstatat(executable->directory, executable->name, &current,
@@ -447,7 +459,9 @@ int maelys_cli_process_start(
         cloexec_inherited_descriptors();
         if (installed == 0 && options && options->inherit_count > 0u)
             installed = install_targets(options, moved);
-        if (installed == 0) (void)execute_trusted(&executable, argv, envp);
+        if (installed == 0)
+            (void)execute_trusted(&executable, argv, envp,
+                options ? options->exec_by_path : 0);
         int saved = errno;
         ssize_t reported;
         do {
@@ -575,7 +589,7 @@ int maelys_cli_process_replace(
     (void)fflush(stdout);
     (void)fflush(stderr);
     cloexec_inherited_descriptors();
-    (void)execute_trusted(&executable, argv, envp);
+    (void)execute_trusted(&executable, argv, envp, 0);
     int saved = errno;
     close_trusted_executable(&executable);
     errno = saved;

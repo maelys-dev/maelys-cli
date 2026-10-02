@@ -52,6 +52,26 @@ typedef struct maelys_cli_process_inherit {
 typedef struct maelys_cli_process_options {
     const maelys_cli_process_inherit_t *inherit;
     size_t inherit_count;
+    /* Execute the verified object through its own pathname rather than
+     * through the descriptor held open across the check, which is what this
+     * module does by default. Zero keeps the default.
+     *
+     * The default is the stronger guarantee: the object executed is the
+     * object that was checked, with no window between the two. The pathname
+     * exec re-checks the device and inode against the trusted directory held
+     * open, immediately before the exec, which leaves a window that the
+     * trusted parent's modes bound -- it is the same exec this module
+     * already uses for a script, whose interpreter cannot reopen a
+     * close-on-exec descriptor.
+     *
+     * Ask for it only for a program that cannot run the other way, and a
+     * multi-call binary is the case that exists: `execveat(fd, "",
+     * AT_EMPTY_PATH)` leaves AT_EXECFN as `/dev/fd/N`, measured, and a
+     * binary that picks its applet from that name rather than from argv[0]
+     * refuses -- uutils coreutils, the default of recent Ubuntu, answers
+     * "Security violation: Requested utility `3`". Reported by
+     * maelys-egress, whose `channel exec` runs a program the user names. */
+    int exec_by_path;
 } maelys_cli_process_options_t;
 
 /* A started program: its identity, and the status once waited for. Opaque

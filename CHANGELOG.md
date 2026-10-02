@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+- `maelys_cli_process_options_t.exec_by_path`: execute the verified object
+  through its own pathname rather than the descriptor held open across the
+  check. The default is unchanged and is the stronger guarantee — the object
+  executed is the object checked, with no window — and this is the exec the
+  module already used for a script, re-checking device and inode against the
+  trusted directory immediately before it. It exists for the one program the
+  descriptor exec cannot run: `execveat(fd, "", AT_EMPTY_PATH)` leaves
+  `AT_EXECFN` as `/dev/fd/N`, and a multi-call binary that reads its applet
+  from that name refuses rather than guessing. Reported by maelys-egress,
+  whose `channel exec` runs a program the user names, and measured here in a
+  container: on Ubuntu's uutils coreutils 0.10.0, `/bin/sleep` answers
+  "Security violation: Requested utility `4`" and exits 1 under the default,
+  and runs to completion under the option — `argv[0]` and `/proc/self/exe`
+  are intact, `AT_EXECFN` is what differs, so no choice of `argv[0]` fixes
+  it. Recent Ubuntu ships uutils as its coreutils, so any product running a
+  system tool through this API meets it.
 - `docs/extensions.md` says how to isolate a faulty extension. A manifest
   the dispatcher cannot trust or understand still stops it entirely, which
   leaves an operator with no command to run — not even `maelys --version` —
