@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- maelys-release adopted at v0.62.2 (from v0.62.1): the two workflow pins,
+  nothing else. Its own Impact line says `[asks: nothing]`, and this
+  repository adopts anyway for the other half of the line, `[writes: cut,
+  migrate, tap]`: those three commands now read back what they pushed
+  instead of taking the exit status of a `git push` for a publication —
+  `cut` never compared which commit the tag it signed actually names on the
+  remote. That is the class of defect that costs a version when it happens
+  during a release, and the socle's own conventions name a version marked
+  `writes` as one of the two reasons to adopt between releases.
+
 ## 0.5.33 - 2026-10-02
 
 - `maelys_cli_process_options_t.exec_by_path`: execute the verified object
