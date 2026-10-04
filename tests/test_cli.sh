@@ -136,6 +136,21 @@ run completion "$hello" completion bash
 check "bash completion shim" '[ "$code" = 0 ] && printf "%s" "$out" | grep -q "complete -o filenames -F _maelys_hello_complete maelys-hello"'
 run complete-words "$hello" __complete -- note ""
 check "completion of command words" '[ "$out" = "write" ]'
+run complete-free "$hello" __complete -- greet ""
+check "a free-text operand completes to nothing, so the shell offers files" '[ "$code" = 0 ] && [ -z "$out" ]'
+# After a delegate's pattern the words are the delegate's own, the same in
+# every format; a word carrying a control byte is dropped, not relayed.
+printf '#!/bin/sh\n[ "$1" = __complete ] || exit 9\nshift\nprintf "%%s\\n" "inspect" "" "list" "$*"\nprintf "bad\\033[2J\\n"\n' >"$helper"
+chmod 0755 "$helper"
+run delegate-complete "$hello" __complete -- image in
+check "completion after a delegate is the delegate's, asked in text" '[ "$code" = 0 ] && [ "$out" = "inspect
+list
+--format text -- in" ]'
+run delegate-complete-json "$hello" __complete --format json --compact -- image in
+check "and the same words in JSON" '[ "$code" = 0 ] && printf "%s" "$out" | grep -q "\"count\":3,\"records\":\[{\"word\":\"inspect\"},{\"word\":\"list\"},{\"word\":\"--format text -- in\"}\]"'
+rm -f "$helper"
+run delegate-complete-missing "$hello" __complete -- image in
+check "none, silently, when the delegate is not installed" '[ "$code" = 0 ] && [ -z "$out" ] && [ -z "$err" ]'
 run complete-option "$hello" __complete -- limits --level ""
 check "completion of choices" '[ "$out" = "low
 high" ]'
@@ -273,6 +288,10 @@ check "dispatcher propagates exit code" '[ "$code" = 4 ]'
 
 run d-complete "$maelys" __complete -- hello no
 check "dispatcher forwards completion to the extension" '[ "$code" = 0 ] && [ "$out" = "note" ]'
+run d-complete-json "$maelys" __complete --format json --compact -- hello no
+check "in JSON as in text" '[ "$code" = 0 ] && printf "%s" "$out" | grep -q "\"records\":\[{\"word\":\"note\"}\]"'
+run d-complete-once "$maelys" __complete -- ag
+check "a word two commands start with is offered once" '[ "$code" = 0 ] && [ "$out" = "agents" ]'
 run d-complete-top "$maelys" __complete -- hel
 check "dispatcher completes extension names" '[ "$out" = "help
 hello" ]'

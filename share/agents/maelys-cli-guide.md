@@ -417,8 +417,8 @@ dispatcher refuses foreign-owned or group/world-writable manifests and
 executables, a manifest whose directory is open to others, unsupported
 `cliApi`, duplicate command names and digest mismatches. There is no PATH search and no
 `dlopen`. Shell completion of `maelys COMMAND ...` is forwarded to the
-external command's own `__complete`, so an extension built on the
-framework completes for free.
+external command's own `__complete`, whose words come back in every format,
+so an extension built on the framework completes for free.
 
 ## Python products
 

@@ -662,6 +662,22 @@ static int test_typed_operands_and_completion(void) {
     result = RUNV("completion", "bash");
     CHECK(result.code == 0 && strstr(result.out, "complete -o filenames -F _prog_complete prog"));
     CHECK(strstr(result.out, "\"prog\" __complete --"));
+    /* bash 3.2 joins the slice into one word once IFS is a newline: the
+     * words are taken first. */
+    const char *slice = strstr(result.out, "words=(\"${COMP_WORDS[@]:1:COMP_CWORD}\")");
+    const char *separator = strstr(result.out, "local IFS=$'\\n'");
+    CHECK(slice && separator && slice < separator);
+    release(&result);
+    result = RUNV("completion", "zsh");
+    /* zsh reads ${words[@]:1:CURRENT-1} as the modifier `C`; an empty
+     * answer is an empty array; the file loads sourced or from fpath. */
+    CHECK(result.code == 0 && strstr(result.out, "\"${(@)words[2,CURRENT]}\""));
+    CHECK(!strstr(result.out, ":1:CURRENT") && strstr(result.out, "candidates=(${(f)\"$("));
+    CHECK(strstr(result.out, "if [[ ${funcstack[1]} == _prog ]]; then"));
+    release(&result);
+    result = RUNV("completion", "fish");
+    CHECK(result.code == 0 && strstr(result.out, "$words[2..-1] \"$current\""));
+    CHECK(strstr(result.out, "__fish_complete_path \"$current\""));
     release(&result);
     result = RUNV("completion", "fish", "--json", "--compact");
     CHECK(result.code == 0 && strstr(result.out, "\"shell\":\"fish\",\"script\":\"# fish completion"));
@@ -691,8 +707,25 @@ static int test_typed_operands_and_completion(void) {
     CHECK(result.code == 0 && strcmp(result.out, "thing.make\n") == 0);
     release(&result);
     result = RUNV("__complete", "--", "describe", "");
+    /* Neither a hidden nor an unavailable command is offered, as a pattern
+     * word or as an identifier. */
     CHECK(result.code == 0 && strstr(result.out, "complete.candidates") == NULL &&
-        strstr(result.out, "cloud\n") != NULL);
+        strstr(result.out, "cloud\n") == NULL && strstr(result.out, "sealed\n") == NULL &&
+        strstr(result.out, "thing.make\n") != NULL);
+    release(&result);
+    /* An operand declared without a kind is free text: no word, so the
+     * shell offers files. Its kind reads as the flag's and is no boolean. */
+    result = RUNV("__complete", "--", "thing", "make", "");
+    CHECK(result.code == 0 && result.out[0] == '\0');
+    release(&result);
+    /* After a delegate's pattern the words are the delegate's: none when it
+     * is not installed, in every format, and never a failure. */
+    result = RUNV("__complete", "--", "missing", "");
+    CHECK(result.code == 0 && result.out[0] == '\0' && result.err[0] == '\0');
+    release(&result);
+    result = RUNV("__complete", "--format", "json", "--compact", "--", "missing", "--");
+    CHECK(result.code == 0 && result.err[0] == '\0' &&
+        strstr(result.out, "\"ok\":true") && strstr(result.out, "\"count\":0,\"records\":[]"));
     release(&result);
     result = RUNV("__complete", "--", "clo");
     CHECK(result.code == 0 && result.out[0] == '\0'); /* unavailable: not offered */

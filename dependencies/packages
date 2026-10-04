@@ -1,0 +1,9 @@
+# System packages the checks need on the CI and release runners, read by
+# maelys-release adopt (apt names under [linux], brew names under [macos]).
+# The conformance kit and make completion-check drive the completion scripts
+# in every shell that is installed and skip the others: the Linux runners
+# install the two they lack, so the three shells are exercised there. macOS
+# brings zsh and bash, the latter at 3.2, which is the one worth having.
+[linux]
+zsh
+fish

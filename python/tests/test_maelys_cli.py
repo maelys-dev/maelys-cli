@@ -346,6 +346,60 @@ class Contract(unittest.TestCase):
         self.assertIn("__complete", out)
         self.assertEqual(failure("completion", "ksh")[1]["code"], "VALIDATION_FAILED")
 
+    def test_completion_scripts(self) -> None:
+        """The three scripts print what src/app.c prints (make hello-parity-check compares them whole, and
+        make completion-check drives them in their shell); each line here is one 0.5.33 got wrong."""
+        bash = run("completion", "bash")[1]
+        # bash 3.2 joins the slice into one word once IFS is a newline: the words are taken first.
+        self.assertLess(bash.index('words=("${COMP_WORDS[@]:1:COMP_CWORD}")'), bash.index("local IFS=$'\\n'"))
+        self.assertIn("complete -o filenames -F _maelys_hello_py_complete maelys-hello-py", bash)
+        zsh = run("completion", "zsh")[1]
+        # An empty answer is an empty array, so _files is reached; the words stop at the cursor.
+        self.assertIn('candidates=(${(f)"$("maelys-hello-py" __complete -- "${(@)words[2,CURRENT]}" 2>/dev/null)"})', zsh)
+        self.assertNotIn("(@f)", zsh)
+        # Sourced after compinit or autoloaded from fpath under the name of its #compdef line.
+        self.assertIn("if [[ ${funcstack[1]} == _maelys-hello-py ]]; then", zsh)
+        fish = run("completion", "fish")[1]
+        self.assertIn('$words[2..-1] "$current"', fish)
+        self.assertIn('__fish_complete_path "$current"', fish)
+
+    def test_completion_candidates(self) -> None:
+        """__complete follows builtin_complete of src/app.c: the same words in the same order."""
+        def words(*given: str) -> list:
+            return run("__complete", "--", *given)[1].split()
+        self.assertEqual(words("greet", ""), [])                       # free text: the shell offers files
+        self.assertEqual(words("greet", "-"), [])                      # options are offered after --
+        self.assertEqual(words("greet", "--sh"), ["--shout"])
+        self.assertEqual(words("limits", "--level", ""), ["low", "high"])
+        self.assertEqual(words("limits", "--level=h"), ["--level=high"])
+        self.assertEqual(words("greet", "--format", "j"), ["json", "jsonl"])
+        self.assertEqual(words("completion", ""), ["bash", "zsh", "fish"])
+        self.assertEqual(words("help", "no"), ["note.write"])
+        self.assertEqual(words("limits", "--tag", "a", "--ta"), ["--tag"])     # repeatable: offered again
+        self.assertEqual(words("limits", "--level", "low", "--lev"), [])       # given once: not again
+        program = cli.Program("p", "P", "0", [
+            cli.read("pair.one", "pair one", "One.", lambda i: ({}, 0)),
+            cli.read("pair.two", "pair two", "Two.", lambda i: ({}, 0)),
+            cli.read("absent", "absent", "Absent.", lambda i: ({}, 0), unavailable="built without it"),
+            cli.external("tool", "tool", "A delegate.", lambda i: 0),
+            cli.stream("pipe", "pipe", "A stream.", lambda i: 0, operands=[cli.operand("TARGET", "Target.")]),
+        ])
+
+        def offered(*given: str) -> list:
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                self.assertEqual(program.main(["__complete", "--", *given]), 0)
+            return out.getvalue().split()
+        self.assertEqual(offered("pa"), ["pair"])                      # one word for two commands
+        self.assertEqual(offered("pair", ""), ["one", "two"])
+        self.assertNotIn("absent", offered(""))
+        self.assertNotIn("absent", offered("help", ""))                # nor as an identifier
+        self.assertIn("pair.one", offered("help", ""))
+        # After a delegate's pattern the words are the delegate's: none here, never this program's options.
+        self.assertEqual(offered("tool", ""), [])
+        self.assertEqual(offered("tool", "--"), [])
+        self.assertEqual(offered("pipe", "x", "--"), [])               # a stream takes no rendering option
+
     def test_text_failure_and_format_environment(self) -> None:
         code, out, err = run("greet")
         self.assertEqual(code, 1)

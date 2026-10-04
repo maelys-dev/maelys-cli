@@ -1075,15 +1075,19 @@ class Program:
         return data, EXIT_OK
 
     def _completion(self, invocation: Invocation) -> "tuple[dict, int]":
+        # The three scripts are renderings of __complete (agent-cli/v2, section 6): they offer its words
+        # and no others, and fall back to the shell's file completion when it returns none. src/app.c
+        # prints the same text, where each line is explained; a line that differs is a defect.
         shell = invocation.operands[0]
         program = self.program
-        function = f"_{program.replace('-', '_')}_complete"
+        function = "_" + re.sub(r"[^A-Za-z0-9]", "_", program) + "_complete"
         if shell == "bash":
             script = "\n".join([
                 f"# bash completion for {program}, generated from its catalog",
                 f"{function}() {{",
+                "    local -a words",
+                '    words=("${COMP_WORDS[@]:1:COMP_CWORD}")',
                 "    local IFS=$'\\n'",
-                '    local words=("${COMP_WORDS[@]:1:COMP_CWORD}")',
                 f'    COMPREPLY=($("{program}" __complete -- "${{words[@]}}" 2>/dev/null))',
                 "    if [ ${#COMPREPLY[@]} -eq 0 ]; then",
                 '        COMPREPLY=($(compgen -f -- "${COMP_WORDS[COMP_CWORD]}"))',
@@ -1094,51 +1098,115 @@ class Program:
         elif shell == "zsh":
             script = "\n".join([
                 f"#compdef {program}",
+                f"# zsh completion for {program}, generated from its catalog",
                 f"{function}() {{",
                 "    local -a candidates",
-                f'    candidates=("${{(@f)$("{program}" __complete -- "${{words[@]:1}}" 2>/dev/null)}}")',
-                "    if (( ${#candidates} )); then compadd -- $candidates; else _files; fi",
+                f'    candidates=(${{(f)"$("{program}" __complete -- "${{(@)words[2,CURRENT]}}" 2>/dev/null)"}})',
+                "    if (( ${#candidates} )); then",
+                '        compadd -- "${candidates[@]}"',
+                "    else",
+                "        _files",
+                "    fi",
                 "}",
-                f"compdef {function} {program}",
+                f"if [[ ${{funcstack[1]}} == _{program} ]]; then",
+                f'    {function} "$@"',
+                "else",
+                f"    compdef {function} {program}",
+                "fi",
             ]) + "\n"
         else:
             script = "\n".join([
                 f"# fish completion for {program}, generated from its catalog",
-                f"complete -c {program} -f -a '({program} __complete -- (commandline -opc)[2..-1] (commandline -ct))'",
+                f"function _{function}",
+                "    set -l words (commandline -opc)",
+                "    set -l current (commandline -ct)",
+                f'    set -l candidates ("{program}" __complete -- $words[2..-1] "$current" 2>/dev/null)',
+                "    if test (count $candidates) -gt 0",
+                "        printf '%s\\n' $candidates",
+                "    else",
+                '        __fish_complete_path "$current"',
+                "    end",
+                "end",
+                f"complete -c {program} -f -a '(_{function})'",
             ]) + "\n"
         return {"shell": shell, "script": script}, EXIT_OK
 
     def _complete(self, invocation: Invocation) -> "tuple[dict, int]":
+        # The oracle of the completion scripts (agent-cli/v2, section 6). It follows builtin_complete of
+        # src/app.c step by step and returns the same words in the same order: a difference is a defect.
         words = list(invocation.raw_operands)
         current = words[-1] if words else ""
         previous = words[:-1]
+        shown = [item for item in self.catalog if not item["hidden"] and item["unavailable"] is None]
+        command = None
+        for other in shown:
+            pattern = other["pattern"]
+            if previous[:len(pattern)] == pattern and (command is None or len(pattern) > len(command["pattern"])):
+                command = other
         candidates: list = []
-        command, consumed = self.resolve(previous)
-        for other in self.catalog:
-            if other["hidden"] or other["unavailable"] is not None or len(other["pattern"]) <= len(previous):
-                continue
-            if other["pattern"][:len(previous)] == previous:
-                candidates.append(other["pattern"][len(previous)])
-        if command is not None and command["unavailable"] is None:
-            given = {word.split("=", 1)[0] for word in previous[consumed:] if word.startswith("--")}
-            if previous[consumed:] and previous[-1] == "--format":
-                candidates = list(FORMATS)
-            elif previous[consumed:] and previous[-1] == "--color":
-                candidates = list(COLORS)
-            elif previous[consumed:] and previous[-1] in ("--progress", "--pager"):
-                candidates = list(TRISTATE)
-            else:
-                if current.startswith("-") or not current:
-                    candidates.extend(item["long"] for item in command["options"] + GLOBAL_OPTIONS
-                                      if item["long"] not in given and not item.get("hidden"))
-                position = len(previous) - consumed
-                if command["id"] in ("help", "describe") and position == 0:
-                    candidates.extend(other["id"] for other in self.catalog
-                                      if not other["hidden"] and other["unavailable"] is None)
-                elif position < len(command["operands"]) and command["operands"][position].get("choices"):
-                    candidates.extend(command["operands"][position]["choices"])
-        matching = sorted({word for word in candidates if word.startswith(current)})
+        if command is None:
+            # The next pattern word of every command that starts with the words given so far.
+            candidates = [other["pattern"][len(previous)] for other in shown
+                          if len(other["pattern"]) > len(previous) and other["pattern"][:len(previous)] == previous]
+        elif command["external"]:
+            # The words after a delegate's pattern are the delegate's, which this catalog does not hold:
+            # none, and never this program's own options (section 9).
+            pass
+        else:
+            after = previous[len(command["pattern"]):]
+            shared = [] if command["outputMode"] == "protocol-stream" else GLOBAL_OPTIONS
+            expecting = None
+            if after and after[-1].startswith("--") and "=" not in after[-1]:
+                expecting = next((item for item in command["options"] + GLOBAL_OPTIONS
+                                  if item["long"] == after[-1] and "argument" in item), None)
+            if expecting is not None:
+                candidates = self._value_candidates(expecting["argument"])
+            elif current.startswith("--") and "=" in current:
+                # --option=VALUE: the value is completed with the option spelled.
+                name = current.split("=", 1)[0]
+                for item in command["options"]:
+                    if item["long"] == name and not item.get("hidden") and item.get("argument", {}).get("type") == "choice":
+                        candidates.extend(f"{name}={choice}" for choice in item["argument"].get("choices", []))
+            elif current.startswith("--"):
+                given = {word.split("=", 1)[0] for word in after if word.startswith("--")}
+                candidates = [item["long"] for item in command["options"] + shared
+                              if not item.get("hidden") and (item["repeatable"] or item["long"] not in given)]
+            elif command["id"] in ("help", "describe") and not after:
+                candidates = [other["id"] for other in shown]
+            elif command["operands"]:
+                position = self._operand_position(command, after)
+                operands = command["operands"]
+                if position < len(operands) or operands[-1]["variadic"]:
+                    candidates = self._value_candidates(operands[min(position, len(operands) - 1)])
+        matching = [word for word in dict.fromkeys(candidates) if word.startswith(current)]
         return {"count": len(matching), "records": [{"word": word} for word in matching]}, EXIT_OK
+
+    @staticmethod
+    def _value_candidates(value: dict) -> list:
+        """The words a typed value can be completed with; paths and free values fall back to files."""
+        if value.get("type") == "choice":
+            return list(value.get("choices", []))
+        if value.get("type") == "digest":
+            return [f"{algorithm}:" for algorithm in value.get("algorithms", [])]
+        return []
+
+    @staticmethod
+    def _operand_position(command: dict, after: list) -> int:
+        """How many operands the complete words after the pattern already give."""
+        position = 0
+        index = 0
+        while index < len(after):
+            word = after[index]
+            index += 1
+            if word == "--":
+                return position + len(after) - index
+            if word.startswith("--") and len(word) > 2:
+                definition = next((item for item in command["options"] + GLOBAL_OPTIONS if item["long"] == word), None)
+                if definition is not None and "argument" in definition:
+                    index += 1
+                continue
+            position += 1
+        return position
 
     # ---- parsing ----
 
