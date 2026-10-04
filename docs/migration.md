@@ -124,6 +124,27 @@ command when either is wrong:
   option with one of these spellings must have the trunk's shape and
   meaning, or be renamed.
 
+## Every consumer, at agent-cli-spec 2.7.0
+
+- Nothing to change in a catalog. The completion scripts the framework
+  prints were wrong in ways every product inherited: under bash 3.2, which
+  is `/bin/bash` on macOS, none completed anything; under zsh the script of
+  a C product failed on its first line of work, and the script of a Python
+  product never fell back to files. A product receives the corrections by
+  moving its pin; **a script already installed is a copy of the old text**
+  and is regenerated — by the package at its next build, or by whoever
+  wrote `PROGRAM completion SHELL` into a file by hand.
+- `__complete` after an operand declared without a kind returns nothing
+  where a C product returned `true` and `false`; a Python product no longer
+  offers options on an empty word, only after `--`, as a C product always
+  did. A test that compared those words compares the new ones.
+- `__complete` after a delegate's pattern returns the delegate's words in
+  JSON as in text, and no longer writes the delegate's absence on stderr.
+- A dependency on the kit: 2.7.0 drives the scripts in bash, zsh and fish
+  where they are installed, from a directory of its own, so it is given the
+  program by an absolute path. A product that wants the three shells judged
+  in CI declares `zsh` and `fish` under `[linux]` of `dependencies/packages`.
+
 ## Every consumer, at agent-cli-spec 2.6.0
 
 - A hex or digest operand is now described conformantly: `digits` and

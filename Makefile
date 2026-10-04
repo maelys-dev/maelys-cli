@@ -104,7 +104,7 @@ $(shell rm -rf $(BUILD)/src $(BUILD)/cli $(BUILD)/lib $(BUILD)/bin $(BUILD)/test
 endif
 endif
 
-.PHONY: all check test fuzz fuzz-smoke tsan-check header-check check-version cli-check embed-check commit-check api-doc-check agent-doc-check doc-topics-check python-check hello-parity-check python-doc-check install \
+.PHONY: all check test fuzz fuzz-smoke tsan-check header-check check-version cli-check embed-check commit-check api-doc-check agent-doc-check doc-topics-check python-check hello-parity-check completion-check python-doc-check install \
 	install-check uninstall dist clean asan-ubsan analyze cmake-check describe-schema-check \
 	conformance-check agents-install
 
@@ -287,8 +287,8 @@ doc-topics-check:
 # longer verified here: maelys-release regenerates and compares both,
 # locally with 'maelys-release check .' and in CI through check-product.yml.
 check: test fuzz-smoke tsan-check cli-check embed-check commit-check header-check check-version api-doc-check agent-doc-check doc-topics-check python-doc-check
-	@if command -v python3 >/dev/null 2>&1; then $(MAKE) python-check hello-parity-check conformance-check describe-schema-check; \
-	else echo "python-check, hello-parity-check, conformance-check, describe-schema-check: skipped (python3 not found)"; fi
+	@if command -v python3 >/dev/null 2>&1; then $(MAKE) python-check hello-parity-check completion-check conformance-check describe-schema-check; \
+	else echo "python-check, hello-parity-check, completion-check, conformance-check, describe-schema-check: skipped (python3 not found)"; fi
 
 # The Python framework: python/maelys_cli.py, its reference product
 # python/examples/hello.py and its tests, run without writing bytecode so a
@@ -298,10 +298,20 @@ python-check:
 	PYTHONDONTWRITEBYTECODE=1 python3 -B -W error -m unittest discover -s python/tests
 
 # The two reference products describe the same declaration in the same
-# shape: the value members of every option and operand of `limits` that
-# both hellos declare must be equal, the C one being the reference.
+# shape and complete it with the same words: the value members of every
+# option and operand of `limits` that both hellos declare, what `__complete`
+# returns for the same word lists, and the three completion scripts, must be
+# equal, the C one being the reference.
 hello-parity-check: $(EXAMPLE)
 	python3 scripts/hello-parity-check.py $(EXAMPLE) python/examples/hello.py
+
+# The completion scripts of both reference products, driven in every shell
+# that is installed: each offers the words `__complete` returns and falls
+# back to files when it returns none. Every bash found is driven, /bin/bash
+# included -- macOS keeps 3.2 there, where 0.5.33 and earlier completed
+# nothing -- and zsh both sourced and autoloaded from fpath.
+completion-check: $(EXAMPLE)
+	python3 scripts/completion-check.py $(EXAMPLE) python/examples/hello.py
 
 # Every public name of python/maelys_cli.py is documented in docs/python.md.
 python-doc-check:
@@ -356,7 +366,9 @@ conformance-check: $(DISPATCHER) $(EXAMPLE) $(BUILD)/tests/catalog_surface
 		{ echo "conformance-check: $(AGENT_CLI_SPEC_DIR) is not at dependencies/agent-cli-spec.pin" >&2; exit 1; }
 	@# The products, and the catalog declaring every macro: a declaration no
 	@# product exercises is one the kit never judged (spec 2.5.1, section 10).
-	@for program in "$(BUILD)/bin/maelys-hello" "$(BUILD)/bin/maelys" "$$(command -v python3) python/examples/hello.py" "$(BUILD)/tests/catalog_surface"; do \
+	@# Absolute paths: the kit of 2.7.0 drives the completion scripts from a
+	@# directory of its own.
+	@for program in "$(abspath $(BUILD)/bin/maelys-hello)" "$(abspath $(BUILD)/bin/maelys)" "$$(command -v python3) $(abspath python/examples/hello.py)" "$(abspath $(BUILD)/tests/catalog_surface)"; do \
 		if MAELYS_COMMANDS_PATH=/nonexistent PYTHONDONTWRITEBYTECODE=1 \
 			python3 $(AGENT_CLI_SPEC_DIR)/conformance/run.py $$program > $(BUILD)/conformance.log 2>&1; then \
 			tail -1 $(BUILD)/conformance.log; \

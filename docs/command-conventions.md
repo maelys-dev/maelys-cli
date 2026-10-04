@@ -213,15 +213,33 @@ target is never replaced implicitly.
 
 ## Shell completion
 
-`PROGRAM completion bash|zsh|fish` prints a shim that delegates to the
-hidden `PROGRAM __complete -- WORDS...` command. Candidates are derived from
-the catalog at every keystroke: command words, options not yet given,
-`--option=choice`, choice values, digest algorithm prefixes, typed operands,
-and command identifiers after `help` and `describe`. Path and free-text
-values fall back to the shell's file completion. Stream commands never offer
-rendering options; unavailable commands are never offered. A dispatcher
-forwards the completion of an external command to that command's own
-`__complete`.
+`PROGRAM completion bash|zsh|fish` prints a script that calls the hidden
+`PROGRAM __complete -- WORDS...` at every completion, and writes nothing.
+`__complete` is the oracle and the script a rendering of it (agent-cli/v2
+2.7, section 6): the script offers the words `__complete` returns, no
+others, and falls back to the shell's file completion when it returns none.
+
+Candidates are derived from the catalog, in catalog order: command words,
+each once; after `--`, the options not yet given, a repeatable one again;
+`--option=choice`; the choices of an option's argument or of a typed
+operand; digest algorithm prefixes; command identifiers after `help` and
+`describe`. A path, a free-text value and an operand declared without a kind
+return nothing, which is what sends the shell to the files. Stream commands
+never offer rendering options; a hidden or unavailable command is
+never offered, as a word or as an identifier.
+
+After the pattern of an external command the words are that command's own:
+the program forwards the words to its `__complete` and returns what it
+answers as records, the same in every format, and none when it is not
+installed. The Python module holds no delegate executable and returns none
+there.
+
+The C library and the Python module print the same three scripts and return
+the same words in the same order; `make hello-parity-check` compares both
+and `make completion-check` drives the scripts in every installed shell,
+`/bin/bash` included, which macOS keeps at 3.2. The zsh script works sourced
+after `compinit` (`source <(PROGRAM completion zsh)`) and autoloaded from
+`fpath` as `_PROGRAM`.
 
 ## Proof of implementation
 

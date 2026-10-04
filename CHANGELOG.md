@@ -2,6 +2,86 @@
 
 ## Unreleased
 
+- **The completion scripts did not complete, and every product built on the
+  framework ships them.** agent-cli-spec 2.7.0 makes the script a rendering
+  of `__complete` and its kit drives each script in its shell; maelys-cli#98
+  lists what it found here. Measured on 0.5.33, then corrected in the C
+  library and in the Python module, which now print the same three texts:
+  - **bash**: `local IFS=$'\n'` came before the slice
+    `"${COMP_WORDS[@]:1:COMP_CWORD}"`, and bash 3.2 — `/bin/bash` on macOS —
+    joins that slice into one word when IFS holds no space. `__complete`
+    received `'help '` as a single word, answered nothing, and the script
+    offered files, for every word list. The words are taken first.
+  - **zsh, C**: not in the issue, found by running its kit. The script read
+    `${words[@]:1:CURRENT-1}`, which zsh 5.9 refuses with `unrecognized
+    modifier 'C'`: the function failed at every Tab and nothing was ever
+    offered but files. It reads `"${(@)words[2,CURRENT]}"`.
+  - **zsh, Python**: `("${(@f)$(...)}")` is one empty element for an empty
+    answer, so `_files` was never reached; and the words were not cut at the
+    cursor.
+  - **zsh, both**: the file opens with `#compdef`, which is the mark of a
+    file to autoload from `fpath`, and worked only when sourced — autoloaded,
+    the first Tab defined the function and completed nothing. Its last lines
+    serve both.
+  - **fish, both**: `-f` silenced fish's file completion with nothing in its
+    place, and the C script passed `$current` unquoted, which drops an empty
+    current word and completes the word before it. The function now offers
+    the paths itself (`__fish_complete_path`) when `__complete` returns none.
+    **fish is not installed on the machine this was written on**: the text is
+    the one the specification's own fixture runs on its Linux runners, and
+    this repository's CI is where it is first driven.
+- **`__complete` after a delegate's pattern returns the delegate's words in
+  every format** (section 9 of 2.7.0). The C library forwarded to the
+  delegate in text mode by lending it its standard output, and returned
+  nothing in JSON; it now reads the delegate's answer and returns it as its
+  own records, drops a word carrying a control byte, and asks the delegate
+  for `--format text` whatever `MAELYS_CLI_FORMAT` says. A delegate that is
+  not installed is no longer reported on stderr at every Tab. The Python
+  module offered its own global options there; it holds no delegate
+  executable and returns none.
+- **`__complete` is one oracle, not two.** Comparing both implementations on
+  the word lists the two reference products share, 15 of 39 differed. The
+  Python `_complete` is rewritten on `builtin_complete` of `src/app.c` and
+  returns the same words in the same order:
+  - options are offered after `--`, no longer on an empty word, where they
+    hid the command words and the choices;
+  - the choices of an option's own argument (`--level ` returned the other
+    options) and the `--option=choice` spelling are completed;
+  - a stream command offers no rendering option; the order is the catalog's
+    rather than alphabetical.
+
+  And three corrections on the C side, the reference being wrong there:
+  - **an operand declared without a kind completed to `true` and `false`**
+    (`maelys-hello greet <Tab>`): its kind reads as the flag's. It returns
+    nothing, so the shell offers files;
+  - a word that starts two commands (`agents install`, `agents status`) was
+    returned twice;
+  - an unavailable command was offered as an identifier after `help` and
+    `describe`, which the Python module and this repository's conventions
+    exclude, and where section 6 says "never an unavailable command". The
+    test that asserted the contrary since 0.5.0 is reversed.
+- Three gates, so that none of this returns: `make completion-check` drives
+  the scripts of both reference products in every installed shell and
+  compares with `__complete` — every bash found, `/bin/bash` included, since
+  a newer bash on the PATH hides 3.2 from the kit, and zsh both sourced and
+  autoloaded; `make hello-parity-check` compares `__complete` over 52 word
+  lists and the three scripts between C and Python; `dependencies/packages`
+  declares `zsh` and `fish` for the Linux runners, so the kit and the check
+  judge the three shells there instead of skipping two. Run against 0.5.33
+  on macOS, `completion-check` reports 44 differences.
+- agent-cli-spec pinned at v2.7.0 (from v2.6.0). The kit drives the scripts
+  from a directory of its own, so `make conformance-check` hands it absolute
+  paths. Not in this release: the static script and `completion install` of
+  2.7.0, which are optional and come next.
+
+- maelys-release adopted at v0.62.3 (from v0.62.2): the three workflow pins,
+  nothing else; `[asks: nothing]`, `[writes: tap]`. This repository is one
+  the line is about: both formulas are bottled on `macos-15` and `macos-26`,
+  so at the next release the `test do` of `libmaelys-cli` and of `maelys`
+  runs on a poured bottle, and a test that fails there keeps the formula out
+  of the tap instead of shipping it. Both tests are a compile-and-run smoke
+  and two commands of the dispatcher; neither reads anything a bottle
+  relocates.
 - maelys-release adopted at v0.62.2 (from v0.62.1): the two workflow pins,
   nothing else. Its own Impact line says `[asks: nothing]`, and this
   repository adopts anyway for the other half of the line, `[writes: cut,
