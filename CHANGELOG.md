@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.34 - 2026-10-05
 
 - **The completion scripts did not complete, and every product built on the
   framework ships them.** agent-cli-spec 2.7.0 makes the script a rendering
