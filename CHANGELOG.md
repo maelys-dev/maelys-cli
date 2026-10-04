@@ -74,6 +74,14 @@
   paths. Not in this release: the static script and `completion install` of
   2.7.0, which are optional and come next.
 
+- maelys-release adopted at v0.62.3 (from v0.62.2): the three workflow pins,
+  nothing else; `[asks: nothing]`, `[writes: tap]`. This repository is one
+  the line is about: both formulas are bottled on `macos-15` and `macos-26`,
+  so at the next release the `test do` of `libmaelys-cli` and of `maelys`
+  runs on a poured bottle, and a test that fails there keeps the formula out
+  of the tap instead of shipping it. Both tests are a compile-and-run smoke
+  and two commands of the dispatcher; neither reads anything a bottle
+  relocates.
 - maelys-release adopted at v0.62.2 (from v0.62.1): the two workflow pins,
   nothing else. Its own Impact line says `[asks: nothing]`, and this
   repository adopts anyway for the other half of the line, `[writes: cut,
