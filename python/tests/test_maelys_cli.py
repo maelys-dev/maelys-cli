@@ -347,21 +347,68 @@ class Contract(unittest.TestCase):
         self.assertEqual(failure("completion", "ksh")[1]["code"], "VALIDATION_FAILED")
 
     def test_completion_scripts(self) -> None:
-        """The three scripts print what src/app.c prints (make hello-parity-check compares them whole, and
-        make completion-check drives them in their shell); each line here is one 0.5.33 got wrong."""
-        bash = run("completion", "bash")[1]
+        """The scripts that call __complete print what src/app.c prints (make hello-parity-check compares
+        them whole); each line here is one 0.5.33 got wrong."""
+        bash = hello.PROGRAM.completion_script("bash", static=False)
         # bash 3.2 joins the slice into one word once IFS is a newline: the words are taken first.
         self.assertLess(bash.index('words=("${COMP_WORDS[@]:1:COMP_CWORD}")'), bash.index("local IFS=$'\\n'"))
         self.assertIn("complete -o filenames -F _maelys_hello_py_complete maelys-hello-py", bash)
-        zsh = run("completion", "zsh")[1]
+        zsh = hello.PROGRAM.completion_script("zsh", static=False)
         # An empty answer is an empty array, so _files is reached; the words stop at the cursor.
         self.assertIn('candidates=(${(f)"$("maelys-hello-py" __complete -- "${(@)words[2,CURRENT]}" 2>/dev/null)"})', zsh)
         self.assertNotIn("(@f)", zsh)
         # Sourced after compinit or autoloaded from fpath under the name of its #compdef line.
         self.assertIn("if [[ ${funcstack[1]} == _maelys-hello-py ]]; then", zsh)
-        fish = run("completion", "fish")[1]
+        fish = hello.PROGRAM.completion_script("fish", static=False)
         self.assertIn('$words[2..-1] "$current"', fish)
         self.assertIn('__fish_complete_path "$current"', fish)
+
+    def test_static_completion(self) -> None:
+        """`completion SHELL` prints a script that carries the candidates of the catalog and its version,
+        and calls the program only after a delegate's pattern; make completion-check drives the three in
+        their shell against __complete. A catalog with a word that would not be inert in a shell, and a
+        program that asks for it, get the script that calls __complete."""
+        for shell in ("bash", "zsh", "fish"):
+            printed = run("completion", shell)[1]
+            self.assertEqual(printed, hello.PROGRAM.completion_script(shell))
+            self.assertIn(f"completion for maelys-hello-py {hello.VERSION}, generated from its catalog", printed)
+            self.assertIn("'C|6|note write|note.write|c'", printed)
+            self.assertIn("'O|5|--level|ae|low high'", printed)
+            self.assertIn("'O|5|--tag|ar|'", printed)
+            self.assertIn("'O|4|--trace|h|'", printed)             # hidden: carried, to be skipped
+            self.assertIn("'O|g|--format|ae|text json jsonl'", printed)
+            self.assertNotIn("|d'", printed)                       # no delegate here: nothing asks the program
+            self.assertNotIn("complete.candidates", printed)       # a hidden command is not carried
+            self.assertNotEqual(printed, hello.PROGRAM.completion_script(shell, static=False))
+        self.assertEqual(json.loads(run("completion", "zsh", "--json")[1])["data"]["script"],
+                         hello.PROGRAM.completion_script("zsh"))
+        with self.assertRaises(ValueError):
+            hello.PROGRAM.completion_script("ksh")
+
+        def program(**keywords: object) -> cli.Program:
+            return cli.Program("p", "P", "1.0", [
+                cli.external("tool", "tool", "A delegate.", lambda i: 0),
+                cli.stream("pipe", "pipe", "A stream.", lambda i: 0),
+                cli.read("absent", "absent", "Absent.", lambda i: ({}, 0), unavailable="built without it"),
+                cli.read("pick", "pick", "Pick.", lambda i: ({}, 0),
+                         operands=[cli.operand("REST", "Rest.", required=False, variadic=True,
+                                               choices=keywords.pop("choices", ["a", "b"]))]),
+            ], **keywords)
+        carried = program().completion_script("bash")
+        self.assertIn("'C|4|tool|tool|d'", carried)                # a delegate: the script asks __complete
+        self.assertIn('"p" __complete -- "${prev[@]}" "$cur"', carried)
+        self.assertIn("'C|5|pipe|pipe|s'", carried)                # a stream: no shared option
+        self.assertIn("'P|6|v|a b'", carried)
+        self.assertNotIn("absent", carried)
+        self.assertNotIn("|4|--", carried)                         # nothing of a delegate's is carried
+        # One word outside the inert set, and the whole script is the one that calls __complete.
+        for unsafe in ("it's", "a b", "$(x)", "a|b", "*", "\\"):
+            asked = program(choices=["a", unsafe]).completion_script("bash")
+            self.assertNotIn("_p_rows", asked, unsafe)
+            self.assertIn('COMPREPLY=($("p" __complete -- "${words[@]}" 2>/dev/null))', asked)
+        declined = program(static_completion=False)
+        self.assertEqual(declined.completion_script("fish"), declined.completion_script("fish", static=False))
+        self.assertIn("_p_rows", declined.completion_script("bash", static=True))
 
     def test_completion_candidates(self) -> None:
         """__complete follows builtin_complete of src/app.c: the same words in the same order."""

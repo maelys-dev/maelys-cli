@@ -47,6 +47,40 @@ the built-ins `help`, `version`, `describe`, `completion` and
 refuses a duplicate identifier. The catalog is the only source of the
 synopsis, the help, `describe` and the completion.
 
+## Completion
+
+`PROGRAM completion bash|zsh|fish` prints a script that **carries the
+candidates of the catalog** and launches no process at a Tab. A Python
+program pays its interpreter at every launch, about 90 ms for `hello.py`,
+which a completion that calls `__complete` pays at each Tab; the script that
+carries its candidates answers in about 5 ms under bash. It is `__complete`
+written in each shell over one table of the catalog: it offers the words
+`__complete` returns for every word list and falls back to files when there
+is none, which `make completion-check` proves in the three shells. After the
+pattern of a `cli.external` command, whose words the catalog does not hold,
+it calls `PROGRAM __complete`.
+
+The script names the catalog's `version` in its first line and is current
+while that catalog is unchanged. How an upgrade renews it depends on how it
+was installed, and the framework watches no file date:
+
+- `source <(PROGRAM completion bash)` in a startup file regenerates it at
+  every shell, for one launch per shell rather than one per Tab;
+- a package writes the file when it is built and replaces it with the
+  program;
+- a file someone wrote by hand is rewritten by hand after an upgrade, and
+  its first line says which version it carries.
+
+`Program(..., static_completion=False)` keeps the script that calls
+`__complete` at every completion. Declare it when the catalog depends on the
+machine the program runs on -- commands made `unavailable` by what is
+installed, say: a script generated where a package was built would carry
+that machine's catalog under the same version. A catalog holding a word the
+static form cannot carry (anything outside letters, digits and
+`._:/+@%,=-` in a pattern, an option, a choice or an algorithm) gets that
+script too, by itself. `program.completion_script(shell, static=None)`
+returns either text without running the command.
+
 | Declaration | Effect | What the handler returns |
 | --- | --- | --- |
 | `cli.read(id, pattern, purpose, handler, ...)` | `read` | `(data, EXIT_OK)` or `(report, EXIT_VIOLATIONS)` |

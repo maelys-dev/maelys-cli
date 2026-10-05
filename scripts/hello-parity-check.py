@@ -8,16 +8,24 @@ Runs `describe limits` on both, and compares the value members of every
 option and operand the two declare under the same name: type, choices,
 minimum, maximum, algorithms, digits, pattern. Then compares what
 `__complete` returns for the same word lists, in the same order, and the
-three completion scripts, which are one text in both implementations once
-the program's name is set aside. The C product is the reference; a member
+three completion scripts that call `__complete`, which are one text in both
+implementations once the program's name is set aside. Those are the scripts
+a C product prints; a Python product prints them when it asks for no static
+completion, and scripts that carry its candidates otherwise, which
+`make completion-check` drives. The C product is the reference; a member
 Python describes otherwise, a word it completes otherwise or a script line
 it prints otherwise is a defect of the Python framework or of hello.py,
 which exists to mirror maelys-hello. Exit 1 with one line per difference, 0
 when none differs.
 """
+import importlib.util
 import json
+import pathlib
 import subprocess
 import sys
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from hello_words import WORD_LISTS  # noqa: E402
 
 MEMBERS = ("type", "choices", "minimum", "maximum", "algorithms", "digits", "pattern")
 
@@ -35,24 +43,6 @@ def values(program: list) -> dict:
     return members
 
 
-# Word lists over what both hellos declare: command words, identifiers after
-# help and describe, options, option values in both spellings, operands.
-WORD_LISTS = [
-    [""], ["gr"], ["he"], ["-"], ["--"], ["nope", ""],
-    ["help", ""], ["help", "--"], ["help", "note", ""], ["describe", ""], ["describe", "n"], ["describe", "greet", ""],
-    ["completion", ""], ["completion", "b"], ["completion", "bash", ""], ["version", ""], ["version", "--"],
-    ["greet", ""], ["greet", "-"], ["greet", "--"], ["greet", "--sh"], ["greet", "x", "--"],
-    ["greet", "--shout", ""], ["greet", "--shout", "--"], ["greet", "--format", ""], ["greet", "--format=j"],
-    ["greet", "--color", ""], ["greet", "--progress", ""], ["greet", "--pager", ""], ["greet", "--field", ""],
-    ["limits", ""], ["limits", "--"], ["limits", "abc", ""], ["limits", "--", "--"],
-    ["limits", "--level", ""], ["limits", "--level", "--"], ["limits", "--level=l"], ["limits", "--level="],
-    ["limits", "--level", "low", "--"], ["limits", "--digest", ""], ["limits", "--digest", "sha"],
-    ["limits", "--tag", "a", "--"], ["limits", "--tag", "a", "--tag", "b", "--t"],
-    ["note", ""], ["note", "w"], ["note", "write", ""], ["note", "write", "--"],
-    ["list", ""], ["list", "--"], ["check", ""], ["check", "--"], ["__complete", ""],
-]
-
-
 def catalog(program: list) -> dict:
     out = subprocess.run([*program, "describe", "--summary", "--format", "json"],
                          check=True, capture_output=True, text=True).stdout
@@ -64,8 +54,7 @@ def candidates(program: list, words: list) -> list:
                           check=True, capture_output=True, text=True).stdout.split()
 
 
-def script(program: list, name: str, shell: str) -> str:
-    out = subprocess.run([*program, "completion", shell], check=True, capture_output=True, text=True).stdout
+def neutral(out: str, name: str) -> str:
     identifier = "".join(c if c.isascii() and c.isalnum() else "_" for c in name)
     return out.replace(name, "PROGRAM").replace(identifier, "PROGRAM")
 
@@ -97,9 +86,14 @@ def main(argv: list) -> int:
             unlike += 1
             print(f"hello-parity-check: __complete -- {' '.join(words)!r}: C returns {expected}, "
                   f"Python {offered}", file=sys.stderr)
+    spec = importlib.util.spec_from_file_location("hello", argv[2])
+    hello = importlib.util.module_from_spec(spec)
+    sys.path.insert(0, str(pathlib.Path(argv[2]).resolve().parent.parent))
+    spec.loader.exec_module(hello)
     for shell in ("bash", "zsh", "fish"):
-        expected = script(c_hello, c_catalog["program"], shell)
-        offered = script(python_hello, python_catalog["program"], shell)
+        printed = subprocess.run([*c_hello, "completion", shell], check=True, capture_output=True, text=True).stdout
+        expected = neutral(printed, c_catalog["program"])
+        offered = neutral(hello.PROGRAM.completion_script(shell, static=False), python_catalog["program"])
         if expected != offered:
             unlike += 1
             lines = [f"C {a!r}, Python {b!r}" for a, b in zip(expected.splitlines(), offered.splitlines()) if a != b]
