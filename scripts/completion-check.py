@@ -215,7 +215,10 @@ def check(label, command, cases, delegates, failures, skipped):
                 if expected and set(offered) != set(expected):
                     failures.append(f"{where}: {' '.join(words)!r}: __complete returns {expected}, "
                                     f"the script offers {sorted(offered)}")
-                elif not expected and set(offered) != set(files):
+                elif not expected and not (set(files) <= set(offered) <= set(FALLBACK) if shell == "fish"
+                                           else set(offered) == set(files)):
+                    # fish matches a file by any part of its name, so `a` finds zz-completion-alpha.txt:
+                    # there the script must offer the files that start with the word, and files only.
                     failures.append(f"{where}: {' '.join(words)!r}: __complete returns nothing and the script "
                                     f"offers {sorted(offered)} instead of the files {files}")
     return compared

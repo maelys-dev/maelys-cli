@@ -365,7 +365,9 @@ INVARIANTS = [
 #                                    h (hidden), r (repeatable), or - for none; VALUES space-separated
 #   P|INDEX|FLAG|VALUES              one operand of command INDEX, in order; FLAG is v when variadic
 # A word the user typed is compared behind an `x` in fish, whose test would read `!`, `(` or `-n` as an
-# operator; bash and zsh compare inside [[ ]], which reads none.
+# operator; bash and zsh compare inside [[ ]], which reads none. And fish 4 reads `?` in a pattern as
+# itself, not as one character: its script tests `--*` where the two others test `--?*`, the word `--`
+# having been taken just above.
 # Every word of a row matches _STATIC_WORD, so a row is inert inside single quotes in the three shells; a
 # catalog holding anything else gets the script that calls __complete, which is always exact.
 _STATIC_WORD = re.compile(r"^[A-Za-z0-9._:/+@%,=-]+$")
@@ -744,7 +746,7 @@ function __@ID@_complete
                     set pos (math $pos + $m - $i)
                     break
                 end
-                if string match -q -- '--?*' "$word"
+                if string match -q -- '--*' "$word"
                     set -l j 1
                     while test $j -le $no
                         if test "x$olong[$j]" = "x$word"
