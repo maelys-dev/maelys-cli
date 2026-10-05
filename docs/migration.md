@@ -135,6 +135,9 @@ command when either is wrong:
   or by hand. `source <(PROGRAM completion bash)` needs nothing.
 - A product whose catalog depends on the machine it runs on declares
   `static_completion=False`.
+- The product pins agent-cli-spec 2.8.1 or later: the kit of 2.8.0 fails on
+  macOS for a script of more than 4096 bytes whose line break falls on that
+  boundary, which a script carrying its candidates can be.
 - `shlex`, `subprocess` and `tempfile` are no longer imported with the
   module: a product that reached them as `maelys_cli.subprocess` imports
   them itself.

@@ -28,8 +28,10 @@
     word list after a delegate. 672 word lists locally, in bash 3.2, bash 5
     and zsh sourced and autoloaded. **fish is not installed on the machine
     this was written on**: its script is driven for the first time by this
-    repository's CI. The surface joins `make conformance-check`, where the
-    2.8.0 kit counts no launch and finds the version.
+    repository's CI, where its first run found that fish 4 reads `?` in
+    a pattern as itself: the script counted every option as an operand. The
+    surface joins `make conformance-check`, where the kit counts no launch
+    and finds the version.
   - Every word of the table matches `[A-Za-z0-9._:/+@%,=-]+`, so a row is
     inert inside single quotes in the three shells. A catalog holding
     anything else gets the script that calls `__complete`, whole.
@@ -44,6 +46,18 @@
   88 ms (medians of 60 interleaved launches; the bare interpreter is 52 ms).
   Every command gains it, a completion that still calls the program first.
 
+- agent-cli-spec pinned at v2.8.1 (from v2.8.0), for its kit. A script that
+  carries its candidates is 5 to 7 KB where one that calls `__complete` is
+  600 bytes, and the 2.8.0 kit, which compares what `completion SHELL`
+  prints on a pseudo-terminal with what it prints into a pipe, failed on
+  macOS for a text whose line break fell on the 4096th byte: the terminal
+  layer there emits `\r\r\n` at that boundary and the kit translated
+  `\r\n` only. Found on the first CI run of the scripts above, reproduced
+  60 times out of 60 for one of them and none for the others, reported with
+  the remedy; 2.8.1 turns output processing off on its pseudo-terminal and
+  compares byte for byte. Nothing else changes: a program that passed 2.8.0
+  passes 2.8.1. A Python product that takes the static completion pins
+  2.8.1 or later, or its macOS check fails at the whim of its catalog.
 - agent-cli-spec pinned at v2.8.0 (from v2.7.0): the pin, and nothing in the
   framework. 2.8.0 is the specification's answer to the five points this
   repository reported while fixing its completion (maelys-cli#98, #99), and
