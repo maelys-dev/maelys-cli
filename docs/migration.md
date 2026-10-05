@@ -124,6 +124,19 @@ command when either is wrong:
   option with one of these spellings must have the trunk's shape and
   meaning, or be renamed.
 
+## Every consumer, at agent-cli-spec 2.8.0
+
+- Nothing to change in a catalog or in a product built on 0.5.34 or later:
+  2.8.0 writes down what that release already does. A hidden or unavailable
+  command is offered neither as a word nor as an identifier after `help`
+  and `describe`, and the kit now checks the identifiers; after a delegate's
+  pattern the program adds no word of its own to the delegate's.
+- The kit drives every bash it finds, `/bin/bash` included, under a check
+  named after it: the bash 3.2 defect of 0.5.33 and earlier is reported on
+  macOS even where a newer bash on the PATH hid it from the 2.7.0 kit.
+- The kit takes a program named by a relative path again; the absolute
+  paths 2.7.0 needed are no longer.
+
 ## Every consumer, at agent-cli-spec 2.7.0
 
 - Nothing to change in a catalog. The completion scripts the framework
