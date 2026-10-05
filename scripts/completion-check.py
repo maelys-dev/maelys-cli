@@ -2,16 +2,16 @@
 # SPDX-License-Identifier: MPL-2.0
 """The completion scripts offer, in their own shell, the words `__complete` returns.
 
-Usage: completion-check.py C_HELLO PYTHON_HELLO
+Usage: completion-check.py C_HELLO PYTHON_HELLO PYTHON_SURFACE
 
-Drives `completion bash|zsh|fish` of both reference products in every shell
-that is installed, and compares what the script offers with the oracle,
-`PROGRAM __complete -- WORDS...` (agent-cli/v2, section 6): the same words
-for every word list, and the shell's file completion when the oracle returns
-none. The conformance kit of agent-cli-spec proves the same from the outside
-and, since 2.8.0, on every bash it finds; this is the repository's own proof,
-on word lists the kit does not ask (option values in both spellings) and on
-one way of loading it does not try:
+Drives `completion bash|zsh|fish` of the two reference products and of the
+Python completion surface in every shell that is installed, and compares
+what each script offers with the oracle, `PROGRAM __complete -- WORDS...`
+(agent-cli/v2, section 6): the same words for every word list, and the
+shell's file completion when the oracle returns none. The conformance kit of
+agent-cli-spec proves the same from the outside and, since 2.8.0, on every
+bash it finds; this is the repository's own proof, on word lists the kit
+does not ask and on one way of loading it does not try:
 
   bash   every bash found, /bin/bash included: macOS ships 3.2 there, which
          joins "${array[@]:offset:length}" into one word when IFS holds no
@@ -20,9 +20,16 @@ one way of loading it does not try:
          from fpath under the name its #compdef line gives it;
   fish   `complete --do-complete`, as the kit does.
 
+The scripts of a Python program carry their candidates: they are three
+implementations of `__complete` in three shell languages, so every word list
+of scripts/hello_words.py and of python/tests/completion_surface.py is
+driven, and the launches of the program are counted -- none at a Tab, one
+after a delegate's pattern, where the script has to ask.
+
 A shell that is not installed is skipped and named. Exit 1 with one line per
 difference, 0 when none differs.
 """
+import importlib.util
 import os
 import pathlib
 import shlex
@@ -153,15 +160,16 @@ def drive(shell, how, script, name, cases, env, work):
     return answers, ""
 
 
-def check(label, command, failures, skipped):
-    """Drive the three scripts of one product; returns the number of word lists compared."""
+def check(label, command, cases, delegates, failures, skipped):
+    """Drive the three scripts of one product over `cases`; returns the number of word lists compared.
+    `delegates` is how many of them fall after a delegate's pattern when the scripts are static, and
+    None for a product whose scripts call the program at every completion."""
     def program(*words):
         return subprocess.run([*command, *words], check=True, capture_output=True, text=True,
                               env={**os.environ, "MAELYS_COMMANDS_PATH": "/nonexistent"}).stdout
     name = program("describe", "--field", "program").strip()
-    cases = [[""], ["he"], ["help", ""], ["describe", ""], ["completion", ""], ["limits", "--level", ""],
-             ["limits", "--le"], ["limits", "--level=h"], ["note", ""], ["greet", "--sh"],
-             ["greet", "zz-completion-"], ["limits", "--tag", "zz-completion-"]]
+    cases = cases + [words for words in ([""], ["he"], ["help", ""], ["describe", ""], ["completion", ""])
+                     if words not in cases]
     oracle = [program("__complete", "--", *words).split() for words in cases]
     compared = 0
     with tempfile.TemporaryDirectory(prefix="maelys-cli-completion-") as directory:
@@ -170,8 +178,10 @@ def check(label, command, failures, skipped):
             (work / part).mkdir()
         for entry in FALLBACK:
             (work / "files" / entry).write_text("", encoding="utf-8")
+        log = work / "launches.log"
         wrapper = work / "bin" / name
-        wrapper.write_text(f"#!/bin/sh\nexec {shlex.join(command)} \"$@\"\n", encoding="utf-8")
+        wrapper.write_text(f"#!/bin/sh\nprintf '%s\\n' \"$*\" >> {shlex.quote(str(log))}\n"
+                           f"exec {shlex.join(command)} \"$@\"\n", encoding="utf-8")
         wrapper.chmod(0o755)
         env = {**os.environ, "PATH": str(work / "bin") + os.pathsep + os.environ.get("PATH", ""),
                "HOME": str(work / "home"), "ZDOTDIR": str(work / "home"),
@@ -186,31 +196,51 @@ def check(label, command, failures, skipped):
                 continue
             script = work / f"completion.{shell}"
             script.write_text(program("completion", shell), encoding="utf-8")
+            log.write_text("", encoding="utf-8")
             answers, note = drive(shell, how, script, name, cases, env, work)
+            launches = len(log.read_text(encoding="utf-8").splitlines())
             if answers is None and note.startswith("skip: "):
                 skipped.add(note[6:])
                 continue
             if answers is None or len(answers) != len(cases):
                 failures.append(f"{where}: {note or f'{len(answers)} answers for {len(cases)} word lists'}")
                 continue
+            if delegates is not None and launches != delegates:
+                failures.append(f"{where}: a script that carries its candidates launched the program "
+                                f"{launches} times over {len(cases)} word lists, {delegates} of them "
+                                f"after a delegate's pattern")
             for words, expected, offered in zip(cases, oracle, answers):
                 compared += 1
+                files = [entry for entry in FALLBACK if entry.startswith(words[-1])]
                 if expected and set(offered) != set(expected):
                     failures.append(f"{where}: {' '.join(words)!r}: __complete returns {expected}, "
                                     f"the script offers {sorted(offered)}")
-                elif not expected and not set(FALLBACK) <= set(offered):
+                elif not expected and set(offered) != set(files):
                     failures.append(f"{where}: {' '.join(words)!r}: __complete returns nothing and the script "
-                                    f"offers {sorted(offered)} instead of the files {FALLBACK}")
+                                    f"offers {sorted(offered)} instead of the files {files}")
     return compared
 
 
+def module(path, name):
+    spec = importlib.util.spec_from_file_location(name, path)
+    loaded = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(loaded)
+    return loaded
+
+
 def main(argv):
-    if len(argv) != 3:
+    if len(argv) != 4:
         print(__doc__.strip().splitlines()[2], file=sys.stderr)
         return 2
+    hello = module(pathlib.Path(__file__).with_name("hello_words.py"), "hello_words").WORD_LISTS
+    hello = hello + [["greet", "zz-completion-"], ["limits", "--tag", "zz-completion-"]]
+    surface = module(argv[3], "completion_surface")
+    delegated = sum(1 for words in surface.WORD_LISTS if words[0] == "tool" and len(words) > 1)
     failures, skipped = [], set()
-    compared = check("C", [os.path.abspath(argv[1])], failures, skipped)
-    compared += check("Python", [sys.executable, os.path.abspath(argv[2])], failures, skipped)
+    compared = check("C", [os.path.abspath(argv[1])], hello, None, failures, skipped)
+    compared += check("Python", [sys.executable, os.path.abspath(argv[2])], hello, 0, failures, skipped)
+    compared += check("Python surface", [sys.executable, os.path.abspath(argv[3])], surface.WORD_LISTS,
+                      delegated, failures, skipped)
     for line in failures:
         print(f"completion-check: {line}", file=sys.stderr)
     if not failures:

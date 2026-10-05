@@ -2,6 +2,48 @@
 
 ## Unreleased
 
+- **A Python program's completion launches no process at a Tab.**
+  `completion SHELL` of the Python module prints a script that carries the
+  candidates of the catalog, the first half of what agent-cli-spec 2.7.0
+  opened and maelys-cli#98 asked. Measured on this machine, same shell,
+  same word list (`limits --level low --`, 18 candidates): 97 ms per Tab
+  under bash 5 and 109 ms under bash 3.2 for the script that calls
+  `__complete`, 4.9 ms and 4.0 ms for the one that carries its candidates.
+  The C library is unchanged: its `__complete` answers in 8 ms.
+  - The script is `__complete` written in bash, zsh and fish over one table
+    of the catalog: commands, options not yet given and repeatable ones
+    again, `--option=choice`, choices of options and of typed operands,
+    digest prefixes, identifiers after `help` and `describe`; hidden and
+    unavailable commands and hidden options are not offered; a stream offers
+    no shared option; files when there is nothing. After a delegate's
+    pattern it calls `PROGRAM __complete`, the catalog not holding those
+    words. Its first line names the catalog's `version`.
+  - Three implementations of one algorithm are proved, not read:
+    `make completion-check` drives every word list of
+    `scripts/hello_words.py` and of a new Python completion surface
+    (`python/tests/completion_surface.py`: a delegate, a stream, a hidden
+    and an unavailable command, variadic and typed operands, a digest, a
+    repeatable and a hidden option) in each installed shell against
+    `__complete`, and counts the launches of the program: none, and one per
+    word list after a delegate. 672 word lists locally, in bash 3.2, bash 5
+    and zsh sourced and autoloaded. **fish is not installed on the machine
+    this was written on**: its script is driven for the first time by this
+    repository's CI. The surface joins `make conformance-check`, where the
+    2.8.0 kit counts no launch and finds the version.
+  - Every word of the table matches `[A-Za-z0-9._:/+@%,=-]+`, so a row is
+    inert inside single quotes in the three shells. A catalog holding
+    anything else gets the script that calls `__complete`, whole.
+  - `Program(..., static_completion=False)` declines it, for a catalog that
+    depends on the machine it runs on; `program.completion_script(shell,
+    static=None)` returns either text. No `completion install`: 2.7.0 makes
+    it optional, the parity rule would ask it of the C library too, and a
+    package installs its completion.
+- The Python module no longer imports `shlex`, `subprocess` and `tempfile`
+  with itself, but where a pager or an atomic write needs them: its import
+  goes from 67 ms to 25 ms, and one launch of `hello.py` from 133 ms to
+  88 ms (medians of 60 interleaved launches; the bare interpreter is 52 ms).
+  Every command gains it, a completion that still calls the program first.
+
 - agent-cli-spec pinned at v2.8.0 (from v2.7.0): the pin, and nothing in the
   framework. 2.8.0 is the specification's answer to the five points this
   repository reported while fixing its completion (maelys-cli#98, #99), and

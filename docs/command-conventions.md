@@ -234,12 +234,20 @@ answers as records, the same in every format, and none when it is not
 installed. The Python module holds no delegate executable and returns none
 there.
 
-The C library and the Python module print the same three scripts and return
-the same words in the same order; `make hello-parity-check` compares both
-and `make completion-check` drives the scripts in every installed shell,
-`/bin/bash` included, which macOS keeps at 3.2. The zsh script works sourced
-after `compinit` (`source <(PROGRAM completion zsh)`) and autoloaded from
-`fpath` as `_PROGRAM`.
+The C library and the Python module return the same words in the same
+order, and print the same three scripts when both call `__complete`;
+`make hello-parity-check` compares both and `make completion-check` drives
+the scripts in every installed shell, `/bin/bash` included, which macOS
+keeps at 3.2. The zsh script works sourced after `compinit`
+(`source <(PROGRAM completion zsh)`) and autoloaded from `fpath` as
+`_PROGRAM`.
+
+A Python program prints by default a script that carries the candidates of
+its catalog and its `version`, and launches no process at a Tab: its
+interpreter costs at every launch what a C program does not. A C program,
+which answers `__complete` in under 10 ms, keeps the script that calls it.
+`docs/python.md` says how such a script is renewed and when a program
+declines it.
 
 ## Proof of implementation
 

@@ -36,11 +36,8 @@ import fcntl
 import json
 import os
 import re
-import shlex
 import stat
-import subprocess
 import sys
-import tempfile
 from typing import Any, Callable, Optional, Union
 
 CONTRACT = "agent-cli/v2"
@@ -354,6 +351,435 @@ INVARIANTS = [
     "unknown or duplicated options are refused",
 ]
 
+
+
+# ---- completion scripts ---------------------------------------------------------------
+# A static script carries the candidates of the catalog it was generated from and launches no process
+# at a Tab (agent-cli/v2 2.7, section 6): a Python program pays its interpreter at every launch, which a
+# completion feels. Each of the three is builtin_complete of src/app.c, and _complete below, written in
+# its shell over one table of rows, `|`-separated:
+#   C|INDEX|PATTERN WORDS|ID|KIND    one shown, available command, in catalog order; KIND is c, s for a
+#                                    stream (no shared option) or d for a delegate (__complete is called)
+#   O|INDEX|--LONG|FLAGS|VALUES      one option of command INDEX, or of every command when INDEX is g;
+#                                    FLAGS among a (takes an argument), e (its argument is a choice),
+#                                    h (hidden), r (repeatable), or - for none; VALUES space-separated
+#   P|INDEX|FLAG|VALUES              one operand of command INDEX, in order; FLAG is v when variadic
+# Every word of a row matches _STATIC_WORD, so a row is inert inside single quotes in the three shells; a
+# catalog holding anything else gets the script that calls __complete, which is always exact.
+_STATIC_WORD = re.compile(r"^[A-Za-z0-9._:/+@%,=-]+$")
+
+_STATIC_BASH = r"""# bash completion for @PROG@ @VERSION@, generated from its catalog
+# Carries the candidates of that catalog: regenerate it when @PROG@ changes.
+_@ID@_rows=(
+@ROWS@
+)
+_@ID@_complete() {
+    local IFS=$' \t\n' cur="${COMP_WORDS[COMP_CWORD]}" row rest idx pat id kind word name flags
+    local best= bid= bkind= last= given=' ' found= len=0 n i k m pos np
+    local -a prev pw out after olong oflags ovals pflags pvals
+    COMPREPLY=()
+    (( COMP_CWORD > 0 )) || return 0
+    prev=("${COMP_WORDS[@]:1:COMP_CWORD-1}")
+    n=${#prev[@]}
+    for row in "${_@ID@_rows[@]}"; do
+        case $row in 'C|'*) ;; *) continue ;; esac
+        rest=${row#*|}; idx=${rest%%|*}; rest=${rest#*|}; pat=${rest%%|*}; rest=${rest#*|}
+        id=${rest%%|*}; kind=${rest#*|}
+        pw=($pat); k=${#pw[@]}
+        (( k <= n && k > len )) || continue
+        for (( i = 0; i < k; i++ )); do [[ ${prev[i]} == "${pw[i]}" ]] || continue 2; done
+        best=$idx; len=$k; bid=$id; bkind=$kind
+    done
+    if [[ -z $best ]]; then
+        for row in "${_@ID@_rows[@]}"; do
+            case $row in 'C|'*) ;; *) continue ;; esac
+            rest=${row#*|}; rest=${rest#*|}; pat=${rest%%|*}
+            pw=($pat)
+            (( ${#pw[@]} > n )) || continue
+            for (( i = 0; i < n; i++ )); do [[ ${prev[i]} == "${pw[i]}" ]] || continue 2; done
+            out[${#out[@]}]=${pw[n]}
+        done
+    elif [[ $bkind == d ]]; then
+        IFS=$'\n'
+        COMPREPLY=($("@PROG@" __complete -- "${prev[@]}" "$cur" 2>/dev/null))
+        if [ ${#COMPREPLY[@]} -eq 0 ]; then
+            COMPREPLY=($(compgen -f -- "$cur"))
+        fi
+        return 0
+    else
+        after=("${prev[@]:len}"); m=${#after[@]}
+        (( m > 0 )) && last=${after[m-1]}
+        for row in "${_@ID@_rows[@]}"; do
+            case $row in
+                "O|$best|"*|'O|g|'*)
+                    rest=${row#*|}; idx=${rest%%|*}; rest=${rest#*|}; name=${rest%%|*}; rest=${rest#*|}
+                    flags=${rest%%|*}; [[ $idx == g ]] && flags=${flags}g
+                    olong[${#olong[@]}]=$name; oflags[${#oflags[@]}]=$flags; ovals[${#ovals[@]}]=${rest#*|} ;;
+                "P|$best|"*)
+                    rest=${row#*|}; rest=${rest#*|}
+                    pflags[${#pflags[@]}]=${rest%%|*}; pvals[${#pvals[@]}]=${rest#*|} ;;
+            esac
+        done
+        if [[ $last == --* && $last != *=* ]]; then
+            for (( i = 0; i < ${#olong[@]}; i++ )); do
+                if [[ ${olong[i]} == "$last" && ${oflags[i]} == *a* ]]; then
+                    found=1; out=(${ovals[i]}); break
+                fi
+            done
+        fi
+        if [[ -n $found ]]; then
+            :
+        elif [[ $cur == --*=* ]]; then
+            name=${cur%%=*}
+            for (( i = 0; i < ${#olong[@]}; i++ )); do
+                [[ ${olong[i]} == "$name" && ${oflags[i]} == *e* && ${oflags[i]} != *[hg]* ]] || continue
+                for word in ${ovals[i]}; do out[${#out[@]}]="$name=$word"; done
+            done
+        elif [[ $cur == --* ]]; then
+            for (( i = 0; i < m; i++ )); do
+                [[ ${after[i]} == --* ]] && given="$given${after[i]%%=*} "
+            done
+            for (( i = 0; i < ${#olong[@]}; i++ )); do
+                [[ ${oflags[i]} == *h* ]] && continue
+                [[ ${oflags[i]} == *g* && $bkind == s ]] && continue
+                [[ ${oflags[i]} == *r* || $given != *" ${olong[i]} "* ]] && out[${#out[@]}]=${olong[i]}
+            done
+        elif [[ ( $bid == help || $bid == describe ) && $m -eq 0 ]]; then
+            for row in "${_@ID@_rows[@]}"; do
+                case $row in 'C|'*) ;; *) continue ;; esac
+                rest=${row#*|}; rest=${rest#*|}; rest=${rest#*|}
+                out[${#out[@]}]=${rest%%|*}
+            done
+        elif (( ${#pflags[@]} > 0 )); then
+            pos=0; np=${#pflags[@]}
+            for (( i = 0; i < m; i++ )); do
+                word=${after[i]}
+                if [[ $word == -- ]]; then pos=$(( pos + m - i - 1 )); break; fi
+                if [[ $word == --?* ]]; then
+                    for (( k = 0; k < ${#olong[@]}; k++ )); do
+                        [[ ${olong[k]} == "$word" ]] || continue
+                        [[ ${oflags[k]} == *a* ]] && i=$(( i + 1 ))
+                        break
+                    done
+                    continue
+                fi
+                pos=$(( pos + 1 ))
+            done
+            if (( pos < np )) || [[ ${pflags[np-1]} == v ]]; then
+                (( pos < np )) || pos=$(( np - 1 ))
+                out=(${pvals[pos]})
+            fi
+        fi
+    fi
+    for (( i = 0; i < ${#out[@]}; i++ )); do
+        word=${out[i]}
+        [[ $word == "$cur"* ]] || continue
+        for (( k = 0; k < ${#COMPREPLY[@]}; k++ )); do [[ ${COMPREPLY[k]} == "$word" ]] && continue 2; done
+        COMPREPLY[${#COMPREPLY[@]}]=$word
+    done
+    if [ ${#COMPREPLY[@]} -eq 0 ]; then
+        IFS=$'\n'
+        COMPREPLY=($(compgen -f -- "$cur"))
+    fi
+}
+complete -o filenames -F _@ID@_complete @PROG@
+"""
+
+_STATIC_ZSH = r"""#compdef @PROG@
+# zsh completion for @PROG@ @VERSION@, generated from its catalog
+# Carries the candidates of that catalog: regenerate it when @PROG@ changes.
+typeset -ga _@ID@_rows
+_@ID@_rows=(
+@ROWS@
+)
+_@ID@_complete() {
+    local cur=${words[CURRENT]} row word name best= bid= bkind= last= given=' ' found=
+    local -i len=0 n=0 i=0 k=0 m=0 pos=0 np=0
+    local -a prev f pw out after olong oflags ovals pflags pvals keep
+    (( CURRENT > 2 )) && prev=("${(@)words[2,CURRENT-1]}")
+    n=${#prev}
+    for row in "${_@ID@_rows[@]}"; do
+        [[ $row == 'C|'* ]] || continue
+        f=("${(@s:|:)row}"); pw=(${=f[3]}); k=${#pw}
+        (( k <= n && k > len )) || continue
+        for (( i = 1; i <= k; i++ )); do [[ ${prev[i]} == "${pw[i]}" ]] || continue 2; done
+        best=${f[2]}; len=$k; bid=${f[4]}; bkind=${f[5]}
+    done
+    if [[ -z $best ]]; then
+        for row in "${_@ID@_rows[@]}"; do
+            [[ $row == 'C|'* ]] || continue
+            f=("${(@s:|:)row}"); pw=(${=f[3]})
+            (( ${#pw} > n )) || continue
+            for (( i = 1; i <= n; i++ )); do [[ ${prev[i]} == "${pw[i]}" ]] || continue 2; done
+            out+=("${pw[n+1]}")
+        done
+    elif [[ $bkind == d ]]; then
+        out=(${(f)"$("@PROG@" __complete -- "${(@)words[2,CURRENT]}" 2>/dev/null)"})
+        if (( ${#out} )); then
+            compadd -- "${out[@]}"
+        else
+            _files
+        fi
+        return
+    else
+        (( len < n )) && after=("${(@)prev[len+1,n]}")
+        m=${#after}
+        (( m > 0 )) && last=${after[m]}
+        for row in "${_@ID@_rows[@]}"; do
+            case $row in
+                ("O|$best|"*|'O|g|'*)
+                    f=("${(@s:|:)row}")
+                    [[ ${f[2]} == g ]] && f[4]=${f[4]}g
+                    olong+=("${f[3]}"); oflags+=("${f[4]}"); ovals+=("${f[5]}") ;;
+                ("P|$best|"*)
+                    f=("${(@s:|:)row}")
+                    pflags+=("${f[3]}"); pvals+=("${f[4]}") ;;
+            esac
+        done
+        if [[ $last == --* && $last != *=* ]]; then
+            for (( i = 1; i <= ${#olong}; i++ )); do
+                if [[ ${olong[i]} == "$last" && ${oflags[i]} == *a* ]]; then
+                    found=1; out=(${=ovals[i]}); break
+                fi
+            done
+        fi
+        if [[ -n $found ]]; then
+            :
+        elif [[ $cur == --*=* ]]; then
+            name=${cur%%=*}
+            for (( i = 1; i <= ${#olong}; i++ )); do
+                [[ ${olong[i]} == "$name" && ${oflags[i]} == *e* && ${oflags[i]} != *[hg]* ]] || continue
+                for word in ${=ovals[i]}; do out+=("$name=$word"); done
+            done
+        elif [[ $cur == --* ]]; then
+            for (( i = 1; i <= m; i++ )); do
+                [[ ${after[i]} == --* ]] && given+="${after[i]%%=*} "
+            done
+            for (( i = 1; i <= ${#olong}; i++ )); do
+                [[ ${oflags[i]} == *h* ]] && continue
+                [[ ${oflags[i]} == *g* && $bkind == s ]] && continue
+                [[ ${oflags[i]} == *r* || $given != *" ${olong[i]} "* ]] && out+=("${olong[i]}")
+            done
+        elif [[ ( $bid == help || $bid == describe ) && $m -eq 0 ]]; then
+            for row in "${_@ID@_rows[@]}"; do
+                [[ $row == 'C|'* ]] || continue
+                f=("${(@s:|:)row}"); out+=("${f[4]}")
+            done
+        elif (( ${#pflags} > 0 )); then
+            np=${#pflags}
+            for (( i = 1; i <= m; i++ )); do
+                word=${after[i]}
+                if [[ $word == '--' ]]; then pos=$(( pos + m - i )); break; fi
+                if [[ $word == --?* ]]; then
+                    for (( k = 1; k <= ${#olong}; k++ )); do
+                        [[ ${olong[k]} == "$word" ]] || continue
+                        [[ ${oflags[k]} == *a* ]] && i=$(( i + 1 ))
+                        break
+                    done
+                    continue
+                fi
+                pos=$(( pos + 1 ))
+            done
+            if (( pos < np )) || [[ ${pflags[np]} == v ]]; then
+                (( pos < np )) || pos=$(( np - 1 ))
+                out=(${=pvals[pos+1]})
+            fi
+        fi
+    fi
+    for word in "${out[@]}"; do
+        [[ -n $word && $word == "$cur"* ]] || continue
+        (( ${keep[(Ie)$word]} )) && continue
+        keep+=("$word")
+    done
+    if (( ${#keep} )); then
+        compadd -- "${keep[@]}"
+    else
+        _files
+    fi
+}
+if [[ ${funcstack[1]} == _@PROG@ ]]; then
+    _@ID@_complete "$@"
+else
+    compdef _@ID@_complete @PROG@
+fi
+"""
+
+_STATIC_FISH = r"""# fish completion for @PROG@ @VERSION@, generated from its catalog
+# Carries the candidates of that catalog: regenerate it when @PROG@ changes.
+set -g __@ID@_rows \
+@ROWS@
+function __@ID@_complete
+    set -l tokens (commandline -opc)
+    set -l current (commandline -ct)
+    set -l cur "$current"
+    set -l prev $tokens[2..-1]
+    set -l n (count $prev)
+    set -l best ''
+    set -l len 0
+    set -l bid ''
+    set -l bkind ''
+    set -l out
+    for row in $__@ID@_rows
+        string match -q 'C|*' -- $row; or continue
+        set -l f (string split '|' -- $row)
+        set -l pw (string split ' ' -- $f[3])
+        set -l k (count $pw)
+        test $k -le $n -a $k -gt $len; or continue
+        set -l same 1
+        set -l i 1
+        while test $i -le $k
+            test "$prev[$i]" = "$pw[$i]"; or set same 0
+            set i (math $i + 1)
+        end
+        test $same -eq 1; or continue
+        set best $f[2]
+        set len $k
+        set bid $f[4]
+        set bkind $f[5]
+    end
+    if test -z "$best"
+        for row in $__@ID@_rows
+            string match -q 'C|*' -- $row; or continue
+            set -l f (string split '|' -- $row)
+            set -l pw (string split ' ' -- $f[3])
+            test (count $pw) -gt $n; or continue
+            set -l same 1
+            set -l i 1
+            while test $i -le $n
+                test "$prev[$i]" = "$pw[$i]"; or set same 0
+                set i (math $i + 1)
+            end
+            test $same -eq 1; and set -a out $pw[(math $n + 1)]
+        end
+    else if test "$bkind" = d
+        set out ("@PROG@" __complete -- $prev "$cur" 2>/dev/null)
+        if test (count $out) -gt 0
+            printf '%s\n' $out
+        else
+            __fish_complete_path "$cur"
+        end
+        return
+    else
+        set -l after
+        test $len -lt $n; and set after $prev[(math $len + 1)..$n]
+        set -l m (count $after)
+        set -l last ''
+        test $m -gt 0; and set last $after[$m]
+        set -l olong
+        set -l oflags
+        set -l ovals
+        set -l pflags
+        set -l pvals
+        for row in $__@ID@_rows
+            set -l f (string split '|' -- $row)
+            if test "$f[1]" = O; and test "$f[2]" = "$best" -o "$f[2]" = g
+                set -a olong $f[3]
+                if test "$f[2]" = g
+                    set -a oflags "$f[4]g"
+                else
+                    set -a oflags "$f[4]"
+                end
+                set -a ovals "$f[5]"
+            else if test "$f[1]" = P; and test "$f[2]" = "$best"
+                set -a pflags "$f[3]"
+                set -a pvals "$f[4]"
+            end
+        end
+        set -l no (count $olong)
+        set -l found 0
+        if string match -q -- '--*' "$last"; and not string match -q -- '*=*' "$last"
+            set -l i 1
+            while test $i -le $no
+                if test "$olong[$i]" = "$last"; and string match -q -- '*a*' "$oflags[$i]"
+                    set found 1
+                    set out (string split -n ' ' -- "$ovals[$i]")
+                    break
+                end
+                set i (math $i + 1)
+            end
+        end
+        if test $found -eq 1
+            true
+        else if string match -q -- '--*=*' "$cur"
+            set -l name (string replace -r '=.*$' '' -- "$cur")
+            set -l i 1
+            while test $i -le $no
+                if test "$olong[$i]" = "$name"; and string match -q -- '*e*' "$oflags[$i]"; and not string match -qr -- '[hg]' "$oflags[$i]"
+                    for word in (string split -n ' ' -- "$ovals[$i]")
+                        set -a out "$name=$word"
+                    end
+                end
+                set i (math $i + 1)
+            end
+        else if string match -q -- '--*' "$cur"
+            set -l given
+            for word in $after
+                string match -q -- '--*' "$word"; and set -a given (string replace -r '=.*$' '' -- "$word")
+            end
+            set -l i 1
+            while test $i -le $no
+                if string match -q -- '*h*' "$oflags[$i]"
+                    true
+                else if string match -q -- '*g*' "$oflags[$i]"; and test "$bkind" = s
+                    true
+                else if string match -q -- '*r*' "$oflags[$i]"; or not contains -- "$olong[$i]" $given
+                    set -a out $olong[$i]
+                end
+                set i (math $i + 1)
+            end
+        else if test "$bid" = help -o "$bid" = describe; and test $m -eq 0
+            for row in $__@ID@_rows
+                set -l f (string split '|' -- $row)
+                test "$f[1]" = C; and set -a out $f[4]
+            end
+        else if test (count $pflags) -gt 0
+            set -l pos 0
+            set -l np (count $pflags)
+            set -l i 1
+            while test $i -le $m
+                set -l word "$after[$i]"
+                if test "$word" = '--'
+                    set pos (math $pos + $m - $i)
+                    break
+                end
+                if string match -q -- '--?*' "$word"
+                    set -l j 1
+                    while test $j -le $no
+                        if test "$olong[$j]" = "$word"
+                            string match -q -- '*a*' "$oflags[$j]"; and set i (math $i + 1)
+                            break
+                        end
+                        set j (math $j + 1)
+                    end
+                else
+                    set pos (math $pos + 1)
+                end
+                set i (math $i + 1)
+            end
+            if test $pos -lt $np; or test "$pflags[$np]" = v
+                set -l slot $np
+                test $pos -lt $np; and set slot (math $pos + 1)
+                set out (string split -n ' ' -- "$pvals[$slot]")
+            end
+        end
+    end
+    set -l keep
+    set -l width (string length -- "$cur")
+    for word in $out
+        if test $width -gt 0
+            set -l head (string sub -l $width -- "$word")
+            test "$head" = "$cur"; or continue
+        end
+        contains -- "$word" $keep; or set -a keep $word
+    end
+    if test (count $keep) -gt 0
+        printf '%s\n' $keep
+    else
+        __fish_complete_path "$cur"
+    end
+end
+complete -c @PROG@ -f -a '(__@ID@_complete)'
+"""
 
 # ---- values ---------------------------------------------------------------------------
 
@@ -669,6 +1095,7 @@ def write_file_atomic(path: str, data: bytes, mode: int, policy: str) -> None:
         raise FileError(errno.EINVAL, "write arguments are invalid", path)
     if policy == WRITE_NO_REPLACE and os.path.lexists(path):
         raise FileError(errno.EEXIST, "path already exists", path)
+    import tempfile  # here, not at the top: no command but a write pays for it
     directory = os.path.dirname(path) or "."
     descriptor, temporary = tempfile.mkstemp(prefix=os.path.basename(path) + ".tmp.", dir=directory)
     published = False
@@ -754,6 +1181,7 @@ def pager_command() -> Optional[list]:
     setting = os.environ.get("PAGER")
     if setting is None:
         return ["less"]
+    import shlex  # here, not at the top: only a terminal with PAGER set pays for it
     try:
         words = shlex.split(setting)
     except ValueError:
@@ -777,6 +1205,7 @@ def page_text(text: str, invocation: "Invocation") -> bool:
     env = dict(os.environ)
     if "PAGER" not in env:
         env.setdefault("LESS", "FRX")
+    import subprocess  # here, not at the top: only a paged terminal pays for it
     sys.stdout.flush()
     try:
         subprocess.run(words, input=text, text=True, check=False, env=env)
@@ -874,11 +1303,15 @@ class Invocation:
 
 class Program:
     def __init__(self, program: str, product: str, version: str, commands: list, guide: str = "",
-                 text: Optional[dict] = None, framework: str = FRAMEWORK) -> None:
+                 text: Optional[dict] = None, framework: str = FRAMEWORK, static_completion: bool = True) -> None:
         self.program = program
         self.product = product
         self.version = version
         self.framework = framework
+        # False for a program whose catalog depends on the machine it runs on -- commands made
+        # unavailable by what is installed, say: a script generated where the package was built would
+        # carry that machine's catalog under the same version.
+        self.static_completion = static_completion
         self.guide_line = guide or product
         self.text = dict(text or {})
         self.catalog = [
@@ -1075,10 +1508,64 @@ class Program:
         return data, EXIT_OK
 
     def _completion(self, invocation: Invocation) -> "tuple[dict, int]":
+        shell = invocation.operands[0]
+        return {"shell": shell, "script": self.completion_script(shell)}, EXIT_OK
+
+    def completion_script(self, shell: str, static: Optional[bool] = None) -> str:
+        """The completion script `completion SHELL` prints, for bash, zsh or fish. Static by default: it
+        carries the candidates of this catalog and its version, launches no process at a Tab, and calls
+        `__complete` only after a delegate's pattern. `static=False`, or `static_completion=False` on the
+        program, gives the script that calls `__complete` at every completion, which is also what a
+        catalog with a word the static form cannot carry receives. Both offer the words `__complete`
+        returns."""
+        if shell not in SHELLS:
+            raise ValueError(f"a completion script is for one of {', '.join(SHELLS)}, not {shell!r}")
+        rows = self._static_rows() if (self.static_completion if static is None else static) else None
+        if rows is None:
+            return self._dynamic_script(shell)
+        template = {"bash": _STATIC_BASH, "zsh": _STATIC_ZSH, "fish": _STATIC_FISH}[shell]
+        quoted = [f"'{row}'" for row in rows]
+        table = " \\\n".join(quoted) if shell == "fish" else "\n".join(quoted)
+        identifier = re.sub(r"[^A-Za-z0-9]", "_", self.program)
+        return (template.replace("@ROWS@", table).replace("@ID@", identifier)
+                .replace("@PROG@", self.program).replace("@VERSION@", self.version))
+
+    def _static_rows(self) -> Optional[list]:
+        """The table a static script carries (see _STATIC_WORD), or None when a word of this catalog
+        would not be inert in a shell: the script that calls __complete is exact for any catalog."""
+        shown = [item for item in self.catalog if not item["hidden"] and item["unavailable"] is None]
+        rows, details, words = [], [], [self.program, self.version]
+
+        def option_rows(index: str, options: list) -> None:
+            for item in options:
+                value = item.get("argument")
+                flags = ("a" if value is not None else "") + ("e" if (value or {}).get("type") == "choice" else "") \
+                    + ("h" if item.get("hidden") else "") + ("r" if item["repeatable"] else "")
+                values = self._value_candidates(value) if value is not None else []
+                words.extend([item["long"], *values])
+                details.append(f"O|{index}|{item['long']}|{flags or '-'}|{' '.join(values)}")
+
+        for index, command in enumerate(shown):
+            kind = "d" if command["external"] else "s" if command["outputMode"] == "protocol-stream" else "c"
+            words.extend([command["id"], *command["pattern"]])
+            rows.append(f"C|{index}|{' '.join(command['pattern'])}|{command['id']}|{kind}")
+            if command["external"]:
+                continue
+            option_rows(str(index), command["options"])
+            for item in command["operands"]:
+                values = self._value_candidates(item)
+                words.extend(values)
+                details.append(f"P|{index}|{'v' if item['variadic'] else '-'}|{' '.join(values)}")
+        option_rows("g", GLOBAL_OPTIONS)
+        if not all(_STATIC_WORD.match(word) for word in words):
+            return None
+        return rows + details
+
+    def _dynamic_script(self, shell: str) -> str:
+        """The script that calls __complete at every completion."""
         # The three scripts are renderings of __complete (agent-cli/v2, section 6): they offer its words
         # and no others, and fall back to the shell's file completion when it returns none. src/app.c
         # prints the same text, where each line is explained; a line that differs is a defect.
-        shell = invocation.operands[0]
         program = self.program
         function = "_" + re.sub(r"[^A-Za-z0-9]", "_", program) + "_complete"
         if shell == "bash":
@@ -1129,7 +1616,7 @@ class Program:
                 "end",
                 f"complete -c {program} -f -a '(_{function})'",
             ]) + "\n"
-        return {"shell": shell, "script": script}, EXIT_OK
+        return script
 
     def _complete(self, invocation: Invocation) -> "tuple[dict, int]":
         # The oracle of the completion scripts (agent-cli/v2, section 6). It follows builtin_complete of

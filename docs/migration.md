@@ -124,6 +124,21 @@ command when either is wrong:
   option with one of these spellings must have the trunk's shape and
   meaning, or be renamed.
 
+## Python products, at the static completion
+
+- `PROGRAM completion SHELL` prints a script that carries the candidates of
+  the catalog instead of calling `__complete` at every Tab. Nothing to
+  declare; a product that pinned the text of the script in a test compares
+  the new one, or `program.completion_script(shell, static=False)`.
+- A script installed from a file is now a copy of the catalog as well as of
+  the text: it is regenerated when the program is upgraded, by the package
+  or by hand. `source <(PROGRAM completion bash)` needs nothing.
+- A product whose catalog depends on the machine it runs on declares
+  `static_completion=False`.
+- `shlex`, `subprocess` and `tempfile` are no longer imported with the
+  module: a product that reached them as `maelys_cli.subprocess` imports
+  them itself.
+
 ## Every consumer, at agent-cli-spec 2.8.0
 
 - Nothing to change in a catalog or in a product built on 0.5.34 or later:
