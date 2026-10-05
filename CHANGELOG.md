@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.35 - 2026-10-05
 
 - **A Python program's completion launches no process at a Tab.**
   `completion SHELL` of the Python module prints a script that carries the
