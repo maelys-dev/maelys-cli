@@ -364,6 +364,8 @@ INVARIANTS = [
 #                                    FLAGS among a (takes an argument), e (its argument is a choice),
 #                                    h (hidden), r (repeatable), or - for none; VALUES space-separated
 #   P|INDEX|FLAG|VALUES              one operand of command INDEX, in order; FLAG is v when variadic
+# A word the user typed is compared behind an `x` in fish, whose test would read `!`, `(` or `-n` as an
+# operator; bash and zsh compare inside [[ ]], which reads none.
 # Every word of a row matches _STATIC_WORD, so a row is inert inside single quotes in the three shells; a
 # catalog holding anything else gets the script that calls __complete, which is always exact.
 _STATIC_WORD = re.compile(r"^[A-Za-z0-9._:/+@%,=-]+$")
@@ -620,15 +622,15 @@ function __@ID@_complete
     set -l bkind ''
     set -l out
     for row in $__@ID@_rows
-        string match -q 'C|*' -- $row; or continue
-        set -l f (string split '|' -- $row)
-        set -l pw (string split ' ' -- $f[3])
+        string match -q -- 'C|*' $row; or continue
+        set -l f (string split -- '|' $row)
+        set -l pw (string split -- ' ' $f[3])
         set -l k (count $pw)
         test $k -le $n -a $k -gt $len; or continue
         set -l same 1
         set -l i 1
         while test $i -le $k
-            test "$prev[$i]" = "$pw[$i]"; or set same 0
+            test "x$prev[$i]" = "x$pw[$i]"; or set same 0
             set i (math $i + 1)
         end
         test $same -eq 1; or continue
@@ -639,14 +641,14 @@ function __@ID@_complete
     end
     if test -z "$best"
         for row in $__@ID@_rows
-            string match -q 'C|*' -- $row; or continue
-            set -l f (string split '|' -- $row)
-            set -l pw (string split ' ' -- $f[3])
+            string match -q -- 'C|*' $row; or continue
+            set -l f (string split -- '|' $row)
+            set -l pw (string split -- ' ' $f[3])
             test (count $pw) -gt $n; or continue
             set -l same 1
             set -l i 1
             while test $i -le $n
-                test "$prev[$i]" = "$pw[$i]"; or set same 0
+                test "x$prev[$i]" = "x$pw[$i]"; or set same 0
                 set i (math $i + 1)
             end
             test $same -eq 1; and set -a out $pw[(math $n + 1)]
@@ -671,7 +673,7 @@ function __@ID@_complete
         set -l pflags
         set -l pvals
         for row in $__@ID@_rows
-            set -l f (string split '|' -- $row)
+            set -l f (string split -- '|' $row)
             if test "$f[1]" = O; and test "$f[2]" = "$best" -o "$f[2]" = g
                 set -a olong $f[3]
                 if test "$f[2]" = g
@@ -690,9 +692,9 @@ function __@ID@_complete
         if string match -q -- '--*' "$last"; and not string match -q -- '*=*' "$last"
             set -l i 1
             while test $i -le $no
-                if test "$olong[$i]" = "$last"; and string match -q -- '*a*' "$oflags[$i]"
+                if test "x$olong[$i]" = "x$last"; and string match -q -- '*a*' "$oflags[$i]"
                     set found 1
-                    set out (string split -n ' ' -- "$ovals[$i]")
+                    set out (string split -n -- ' ' "$ovals[$i]")
                     break
                 end
                 set i (math $i + 1)
@@ -701,11 +703,11 @@ function __@ID@_complete
         if test $found -eq 1
             true
         else if string match -q -- '--*=*' "$cur"
-            set -l name (string replace -r '=.*$' '' -- "$cur")
+            set -l name (string replace -r -- '=.*$' '' "$cur")
             set -l i 1
             while test $i -le $no
-                if test "$olong[$i]" = "$name"; and string match -q -- '*e*' "$oflags[$i]"; and not string match -qr -- '[hg]' "$oflags[$i]"
-                    for word in (string split -n ' ' -- "$ovals[$i]")
+                if test "x$olong[$i]" = "x$name"; and string match -q -- '*e*' "$oflags[$i]"; and not string match -qr -- '[hg]' "$oflags[$i]"
+                    for word in (string split -n -- ' ' "$ovals[$i]")
                         set -a out "$name=$word"
                     end
                 end
@@ -714,7 +716,7 @@ function __@ID@_complete
         else if string match -q -- '--*' "$cur"
             set -l given
             for word in $after
-                string match -q -- '--*' "$word"; and set -a given (string replace -r '=.*$' '' -- "$word")
+                string match -q -- '--*' "$word"; and set -a given (string replace -r -- '=.*$' '' "$word")
             end
             set -l i 1
             while test $i -le $no
@@ -729,7 +731,7 @@ function __@ID@_complete
             end
         else if test "$bid" = help -o "$bid" = describe; and test $m -eq 0
             for row in $__@ID@_rows
-                set -l f (string split '|' -- $row)
+                set -l f (string split -- '|' $row)
                 test "$f[1]" = C; and set -a out $f[4]
             end
         else if test (count $pflags) -gt 0
@@ -738,14 +740,14 @@ function __@ID@_complete
             set -l i 1
             while test $i -le $m
                 set -l word "$after[$i]"
-                if test "$word" = '--'
+                if test "x$word" = x--
                     set pos (math $pos + $m - $i)
                     break
                 end
                 if string match -q -- '--?*' "$word"
                     set -l j 1
                     while test $j -le $no
-                        if test "$olong[$j]" = "$word"
+                        if test "x$olong[$j]" = "x$word"
                             string match -q -- '*a*' "$oflags[$j]"; and set i (math $i + 1)
                             break
                         end
@@ -759,7 +761,7 @@ function __@ID@_complete
             if test $pos -lt $np; or test "$pflags[$np]" = v
                 set -l slot $np
                 test $pos -lt $np; and set slot (math $pos + 1)
-                set out (string split -n ' ' -- "$pvals[$slot]")
+                set out (string split -n -- ' ' "$pvals[$slot]")
             end
         end
     end
@@ -768,7 +770,7 @@ function __@ID@_complete
     for word in $out
         if test $width -gt 0
             set -l head (string sub -l $width -- "$word")
-            test "$head" = "$cur"; or continue
+            test "x$head" = "x$cur"; or continue
         end
         contains -- "$word" $keep; or set -a keep $word
     end
