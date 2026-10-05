@@ -309,7 +309,9 @@ hello-parity-check: $(EXAMPLE)
 # that is installed: each offers the words `__complete` returns and falls
 # back to files when it returns none. Every bash found is driven, /bin/bash
 # included -- macOS keeps 3.2 there, where 0.5.33 and earlier completed
-# nothing -- and zsh both sourced and autoloaded from fpath.
+# nothing -- and zsh both sourced and autoloaded from fpath. The kit drives
+# every bash too since 2.8.0; the autoloaded zsh, and the word lists with an
+# option value, are judged here only.
 completion-check: $(EXAMPLE)
 	python3 scripts/completion-check.py $(EXAMPLE) python/examples/hello.py
 
@@ -366,9 +368,7 @@ conformance-check: $(DISPATCHER) $(EXAMPLE) $(BUILD)/tests/catalog_surface
 		{ echo "conformance-check: $(AGENT_CLI_SPEC_DIR) is not at dependencies/agent-cli-spec.pin" >&2; exit 1; }
 	@# The products, and the catalog declaring every macro: a declaration no
 	@# product exercises is one the kit never judged (spec 2.5.1, section 10).
-	@# Absolute paths: the kit of 2.7.0 drives the completion scripts from a
-	@# directory of its own.
-	@for program in "$(abspath $(BUILD)/bin/maelys-hello)" "$(abspath $(BUILD)/bin/maelys)" "$$(command -v python3) $(abspath python/examples/hello.py)" "$(abspath $(BUILD)/tests/catalog_surface)"; do \
+	@for program in "$(BUILD)/bin/maelys-hello" "$(BUILD)/bin/maelys" "$$(command -v python3) python/examples/hello.py" "$(BUILD)/tests/catalog_surface"; do \
 		if MAELYS_COMMANDS_PATH=/nonexistent PYTHONDONTWRITEBYTECODE=1 \
 			python3 $(AGENT_CLI_SPEC_DIR)/conformance/run.py $$program > $(BUILD)/conformance.log 2>&1; then \
 			tail -1 $(BUILD)/conformance.log; \

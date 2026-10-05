@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+- agent-cli-spec pinned at v2.8.0 (from v2.7.0): the pin, and nothing in the
+  framework. 2.8.0 is the specification's answer to the five points this
+  repository reported while fixing its completion (maelys-cli#98, #99), and
+  0.5.34 already does what it now says: a hidden or unavailable command is
+  offered neither as a word nor as an identifier after `help` and
+  `describe`, which its kit checks; after a delegate's pattern the program
+  adds no word of its own, where 2.7.0 compared option names and would have
+  failed a program relaying a delegate built on the same trunk; whether
+  options are offered before a `-` is typed is the implementation's choice.
+  Its kit drives every bash it finds, `/bin/bash` included, and takes a
+  program named by a relative path again, so `make conformance-check` drops
+  the absolute paths 2.7.0 required. Run at the tag on the four programs
+  before the pin moved: no failure.
+
 ## 0.5.34 - 2026-10-05
 
 - **The completion scripts did not complete, and every product built on the

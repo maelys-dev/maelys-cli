@@ -8,12 +8,14 @@ Drives `completion bash|zsh|fish` of both reference products in every shell
 that is installed, and compares what the script offers with the oracle,
 `PROGRAM __complete -- WORDS...` (agent-cli/v2, section 6): the same words
 for every word list, and the shell's file completion when the oracle returns
-none. The conformance kit of agent-cli-spec proves the same on the shell the
-PATH names; this adds what it does not drive:
+none. The conformance kit of agent-cli-spec proves the same from the outside
+and, since 2.8.0, on every bash it finds; this is the repository's own proof,
+on word lists the kit does not ask (option values in both spellings) and on
+one way of loading it does not try:
 
   bash   every bash found, /bin/bash included: macOS ships 3.2 there, which
          joins "${array[@]:offset:length}" into one word when IFS holds no
-         space, and a newer one on the PATH hides it from the kit;
+         space;
   zsh    the script sourced after compinit, and the same file autoloaded
          from fpath under the name its #compdef line gives it;
   fish   `complete --do-complete`, as the kit does.
