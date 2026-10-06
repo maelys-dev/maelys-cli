@@ -39,7 +39,10 @@ command by `id`; never replay a `PRECONDITION_FAILED` blindly; prefer
   json`/`--json` (`VALIDATION_FAILED`: a filtered envelope would not
   validate against `outputSchema`) and any name absent from `data`, so an
   agent that already asked for JSON should never add it; it is otherwise
-  compatible with `jsonl`, which `--field` accepts on any command.
+  compatible with `jsonl`, which `--field` accepts on any command. On a
+  command that can write (a transaction or an `execute`) only a name in the
+  `required` of its `outputSchema` is accepted, and the refusal comes before
+  the command runs (spec 2.9): read `required` in `describe` before asking.
 - A hidden option (spec 2.2) is listed by `describe` with `hidden: true`,
   absent from `usage`, `help` and the completion, and accepted by the
   parser; `--trace` of `maelys-hello greet` is the example.

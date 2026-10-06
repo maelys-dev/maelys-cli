@@ -2,11 +2,23 @@
 
 ## Unreleased
 
-Three defects a review of the contract found by reading, confirmed here by
-running them, and one sentence; agent-cli-spec 2.9.0, not yet tagged, writes
-the rules down and this release does not wait for it where 2.8.1 already
-forbids the behaviour.
+agent-cli-spec 2.9.0 writes down three rules a review of the contract found
+broken here by reading; each was run before anything was changed, in C and
+in Python. Its kit judges none of them on this repository's commands, the
+report says so, and its verdicts do not move at the pin: the tests named
+below are what holds them.
 
+- **`--field` on a command that can write is checked against the catalog,
+  before the command runs** (2.9.0, section 5). Until now the handler ran
+  and a name its data did not carry was refused afterwards: `note write F
+  --content hi --apply --field nosuch` wrote the file and answered
+  `VALIDATION_FAILED`, where a caller that reads that code concludes that
+  nothing changed. A transaction, with or without `--apply`, and an
+  `execute` now accept only a name listed in the top-level `required` of
+  their output schema. **What a product can see**: a writing command whose
+  schema requires nothing, or that declares none, no longer accepts any
+  `--field`, and a member its schema leaves optional is refused even when
+  the run would have carried it. A `read` still decides on its data.
 - **A `json-records` command that failed had already answered, in `jsonl`,
   in C.** `maelys_cli_emit_record()` wrote each line as it came, so a
   command that failed after two records left two lines on stdout and an
@@ -29,14 +41,13 @@ forbids the behaviour.
 - `docs/agent-cli.md` said that `describe --summary` carries
   `globalOptions`, `output` and `invariants`. It does not, in either
   implementation, and the specification forbids it; the sentence was wrong.
+- agent-cli-spec pinned at v2.9.0 (from v2.8.1). It also reserves `--expect
+  FINGERPRINT` and a required `fingerprint`, to bind a plan to its
+  application; optional, and nothing in the framework offers it yet.
 
-Not in this release: 2.9.0 also refuses, before a command that can write
-runs, a `--field` naming a member its `outputSchema` does not require. That
-is a new rule and waits for its tag. Until then `--apply --field nosuch`
-still writes and then refuses, in both implementations. And one case this
-release leaves as it is: on a terminal, in text, a `json-records` command
-shows each record's human line as it comes, so a failure can follow lines
-already shown.
+One case this release leaves as it is: on a terminal, in text, a
+`json-records` command shows each record's human line as it comes, so a
+failure can follow lines already shown.
 
 ## 0.5.35 - 2026-10-05
 

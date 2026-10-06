@@ -89,8 +89,10 @@ typedef struct maelys_cli_invocation {
      * refused together with a json format before the command runs, by the
      * parser when --format json is explicit and by maelys_cli_run() when
      * the format comes from MAELYS_CLI_FORMAT, which applies after parsing.
-     * A name absent from data is MAELYS_CLI_CODE_VALIDATION_FAILED,
-     * discovered only once the handler has produced data. */
+     * On a command that can write, a name the top-level `required` of its
+     * output schema does not list is refused there too (spec 2.9). On a
+     * read, a name absent from data is MAELYS_CLI_CODE_VALIDATION_FAILED,
+     * discovered once the handler has produced data. */
     const char *field;
     /* private */
     int format_requested;    /* --format or --json given: the environment's

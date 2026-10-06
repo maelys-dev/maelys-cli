@@ -357,11 +357,55 @@ class Contract(unittest.TestCase):
                 self.assertEqual((code, out), (1, ""))
                 self.assertIn("--field conflicts with --format json", err)
                 self.assertFalse(os.path.exists(target), "the note was written, then the rendering refused")
+            # A command that can write accepts for --field only a member its output schema requires,
+            # and says so before it runs (spec 2.9, section 5): the plan and the application alike.
+            for apply in ((), ("--apply",)):
+                code, out, err = run("note", "write", target, "--content", "hi", *apply, "--field", "no-such-member")
+                self.assertEqual((code, out), (1, ""))
+                self.assertIn("which 'note.write' does not always return", err)
+                self.assertFalse(os.path.exists(target))
+            # A read decides on data, as before.
+            self.assertIn("which 'describe' does not have", run("describe", "--field", "no-such-member")[2])
             # An explicit format overrides the environment's default, and the command runs.
             code, out, _ = run("note", "write", target, "--content", "hi", "--apply", "--field", "path",
                                "--format", "text", env={"MAELYS_CLI_FORMAT": "json"})
             self.assertEqual((code, out.strip()), (0, target))
             self.assertTrue(os.path.exists(target))
+
+    def test_field_on_a_command_that_can_write(self) -> None:
+        """What --field accepts on a transaction or an execute is read in the catalog: the top-level
+        `required` of the output schema, and nothing when it requires nothing. The handler has not run."""
+        ran = []
+
+        def handler(invocation: cli.Invocation) -> "tuple[dict, int]":
+            ran.append(invocation.command["id"])
+            return {"mode": "plan", "extra": 1}, cli.EXIT_OK
+        program = cli.Program("p", "P", "0", [
+            cli.transaction("strict", "strict", "Requires mode.", handler,
+                            schema={"type": "object", "required": ["mode"]}),
+            cli.transaction("loose", "loose", "Requires nothing.", handler),
+            cli.execute("act", "act", "Requires nothing.", handler),
+            cli.read("look", "look", "A read.", handler),
+        ])
+
+        def answer(*argv: str) -> "tuple[int, str, str]":
+            out, err = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                code = program.main(list(argv))
+            return code, out.getvalue(), err.getvalue()
+        self.assertEqual(answer("strict", "--field", "mode")[:2], (0, "plan\n"))
+        self.assertEqual(ran, ["strict"])
+        # `extra` is in data on every run of this handler, and is refused: the schema does not require it.
+        for argv in (("strict", "--field", "extra"), ("strict", "--apply", "--field", "extra")):
+            code, out, err = answer(*argv)
+            self.assertEqual((code, out), (1, ""))
+            self.assertIn("names 'extra', which 'strict' does not always return", err)
+        for command in ("loose", "act"):
+            code, out, err = answer(command, "--field", "mode")
+            self.assertEqual((code, out), (1, ""))
+            self.assertIn("its output schema requires no member", err)
+        self.assertEqual(ran, ["strict"])                 # none of the refused runs reached the handler
+        self.assertEqual(answer("look", "--field", "extra")[:2], (0, "1\n"))
 
     def test_completion_scripts(self) -> None:
         """The scripts that call __complete print what src/app.c prints (make hello-parity-check compares

@@ -1960,15 +1960,35 @@ class Program:
             if command["outputMode"] == "protocol-stream":
                 result = command["handler"](invocation)
                 return int(result[1] if isinstance(result, tuple) else result)
-            if invocation.field is not None and fmt == "json":
-                # Reached only via an environment MAELYS_CLI_FORMAT=json the
-                # parser could not see; an explicit --format json was already
-                # refused there. Refused here, before the handler: a rendering
-                # refusal never follows a write (C: maelys_cli_run).
-                raise Failure("VALIDATION_FAILED",
-                              "--field conflicts with --format json: a filtered envelope "
-                              "would not validate against the command's outputSchema.",
-                              "Use --format text or --format jsonl with --field.")
+            if invocation.field is not None:
+                # The refusals --field brings that the parser could not make,
+                # decided on the catalog and before the handler (spec 2.9,
+                # section 5; C: field_refused): a caller that reads
+                # VALIDATION_FAILED concludes that nothing changed.
+                if fmt == "json":
+                    # Reached only via an environment MAELYS_CLI_FORMAT=json;
+                    # an explicit --format json was refused by the parser.
+                    raise Failure("VALIDATION_FAILED",
+                                  "--field conflicts with --format json: a filtered envelope "
+                                  "would not validate against the command's outputSchema.",
+                                  "Use --format text or --format jsonl with --field.")
+                if command["effect"] != "read":
+                    # A command that can write -- a transaction, with or
+                    # without --apply, or an execute -- accepts only a member
+                    # its output schema requires: one it leaves optional is
+                    # refused even when this run would have carried it.
+                    required = command["outputSchema"].get("required")
+                    if not isinstance(required, list) or not required:
+                        raise Failure("VALIDATION_FAILED",
+                                      f"Option --field is not accepted by '{command_id}': the command can "
+                                      "write and its output schema requires no member.",
+                                      "Run the command without --field and read the member from its result.")
+                    if invocation.field not in required:
+                        raise Failure("VALIDATION_FAILED",
+                                      f"Option --field names '{invocation.field}', which '{command_id}' does "
+                                      "not always return: a command that can write accepts only a member "
+                                      "its output schema requires.",
+                                      "Use a member the command's output schema requires; describe lists them.")
             data, exit_code = command["handler"](invocation)
             invocation.progress_done()
             if invocation.field is not None:

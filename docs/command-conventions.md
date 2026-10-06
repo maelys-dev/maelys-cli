@@ -161,9 +161,16 @@ an explicit `--format json`/`--json` (a filtered envelope would not
 validate against `outputSchema`); the parser refuses the pair when both
 are explicit, and the same refusal comes before the command runs when
 `MAELYS_CLI_FORMAT=json` resolves the format after parsing: a rendering
-refusal never follows a write. A name absent from `data` is
-`VALIDATION_FAILED`, found only once the handler has produced `data`,
-unlike every other rendering refusal. `--field` also lifts the
+refusal never follows a write. For the same reason a command that can
+write -- a transaction, with or without `--apply`, or an `execute` --
+accepts only a name listed in the top-level `required` of its
+`outputSchema`, and refuses any other before it runs (spec 2.9): a member
+the schema leaves optional is refused even when this run would have
+carried it, and a schema that requires none accepts no `--field`. List in
+`required` the members a transaction always returns and that a caller may
+want to read. On a `read`, a name absent from `data` is
+`VALIDATION_FAILED`, found once the handler has produced `data`: a refusal
+costs nothing there. `--field` also lifts the
 records-only restriction on `jsonl`: combined with `--field`, `jsonl` is
 accepted on any command.
 

@@ -124,6 +124,25 @@ command when either is wrong:
   option with one of these spellings must have the trunk's shape and
   meaning, or be renamed.
 
+## Every consumer, at agent-cli-spec 2.9.0
+
+- **`--field` on a command that can write is checked against the catalog,
+  before the command runs.** A transaction, with or without `--apply`, and
+  an `execute` accept only a name listed in the top-level `required` of
+  their output schema. Until 0.5.35 the command ran, and a name its data
+  did not carry was refused afterwards: a caller read `VALIDATION_FAILED`
+  on a transaction that had been applied.
+- What it asks of a product: list in `required` of `MAELYS_CLI_SCHEMA` (C)
+  or `schema=` (Python) the members a writing command always returns. A
+  writing command declared without a schema, or whose schema requires
+  nothing, **no longer accepts any `--field`**; a member its schema leaves
+  optional is refused even when the run would have carried it. A `read` is
+  unchanged.
+- `--expect FINGERPRINT` and a required `fingerprint` are reserved by 2.9.0
+  for binding a plan to its application. Nothing in the framework offers
+  them yet; a product must not declare an `--expect` of another meaning on
+  a transaction.
+
 ## Every consumer, when a failure leaves stdout empty in `jsonl` too
 
 - A `json-records` command writes its `jsonl` lines once it has succeeded,

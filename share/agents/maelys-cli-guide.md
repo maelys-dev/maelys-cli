@@ -323,7 +323,10 @@ Handler rules:
   `--field NAME` (spec 2.4) also exists on every command without a
   declaration, rendering one top-level member of `data` instead of the
   whole result; it refuses an explicit `--format json`/`--json` and a name
-  `data` does not carry, needing no code from a handler either;
+  `data` does not carry, needing no code from a handler either. On a
+  transaction or an `execute` it accepts only a member the `required` of
+  the output schema lists, refused before the handler runs (spec 2.9): list
+  there what such a command always returns;
 - name every write policy: `MAELYS_CLI_WRITE_REPLACE` or
   `MAELYS_CLI_WRITE_NO_REPLACE`;
 - start external programs with `maelys_cli_process_run()` or

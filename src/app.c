@@ -1462,6 +1462,92 @@ static int match_member(
     return 0;
 }
 
+typedef struct required_state {
+    const char *quoted;
+    size_t length;
+    int found;
+} required_state_t;
+
+static int match_required(
+    void *state_ptr, const char *element, size_t element_length) {
+    required_state_t *state = state_ptr;
+    if (element_length == state->length &&
+        !memcmp(element, state->quoted, element_length))
+        state->found = 1;
+    return 0;
+}
+
+/* The top-level `required` array of the command's output schema, as its
+ * source span; 0 when the schema has none. */
+static int schema_required(
+    const maelys_cli_command_t *command, const char **out_array, size_t *out_length) {
+    const char *schema = command->output_schema_json;
+    if (!schema) return 0;
+    while (*schema == ' ' || *schema == '\t' || *schema == '\n' || *schema == '\r')
+        ++schema;
+    find_member_state_t required = {"required", NULL, 0u, 0};
+    if (visit_members(schema, strlen(schema), 0u, match_member, &required) != 0 ||
+        !required.found || required.length == 0u || required.value[0] != '[')
+        return 0;
+    *out_array = required.value;
+    *out_length = required.length;
+    return 1;
+}
+
+/* The refusals --field brings that the parser could not make, decided on the
+ * catalog and before the handler (agent-cli/v2 2.9, section 5): returns 1
+ * with the error. A caller that reads VALIDATION_FAILED concludes that
+ * nothing changed, so none of these may follow a write.
+ *  - the format MAELYS_CLI_FORMAT selected is json: the conflict the parser
+ *    refuses when --format json is explicit;
+ *  - the command may write -- a transaction, with or without --apply, or an
+ *    execute -- and the name is not in the top-level `required` of its
+ *    output schema. A member the schema leaves optional is refused even
+ *    when this run would have carried it, and a schema that requires none
+ *    accepts no --field. A read decides on data, in reply_field(). */
+static int field_refused(
+    const maelys_cli_invocation_t *invocation, maelys_cli_error_t *error) {
+    const maelys_cli_command_t *command = invocation->command;
+    if (!invocation->field || command->output == MAELYS_CLI_OUTPUT_STREAM)
+        return 0;
+    if (invocation->format == MAELYS_CLI_FORMAT_JSON) {
+        maelys_cli_error_set(error, MAELYS_CLI_CODE_VALIDATION_FAILED,
+            "Use --format text or --format jsonl with --field.",
+            "--field conflicts with --format json: a filtered envelope "
+            "would not validate against the command's outputSchema.");
+        return 1;
+    }
+    int may_write = command->apply_effect != MAELYS_CLI_EFFECT_NONE ||
+        command->effect == MAELYS_CLI_EFFECT_APPLY ||
+        command->effect == MAELYS_CLI_EFFECT_COMMIT ||
+        command->effect == MAELYS_CLI_EFFECT_EXECUTE;
+    if (!may_write) return 0;
+    const char *array = NULL;
+    size_t length = 0u;
+    if (!schema_required(command, &array, &length)) {
+        maelys_cli_error_set(error, MAELYS_CLI_CODE_VALIDATION_FAILED,
+            "Run the command without --field and read the member from its result.",
+            "Option --field is not accepted by '%s': the command can write and "
+            "its output schema requires no member.", command->id);
+        return 1;
+    }
+    maelys_cli_json_writer_t writer;
+    maelys_cli_json_writer_init(&writer);
+    char *quoted = maelys_cli_json_string(&writer, invocation->field) == 0 ?
+        maelys_cli_json_finish(&writer) : NULL;
+    if (!quoted) maelys_cli_json_writer_clear(&writer);
+    required_state_t state = {quoted, quoted ? strlen(quoted) : 0u, 0};
+    if (quoted) (void)iterate_array(array, length, match_required, &state);
+    free(quoted);
+    if (state.found) return 0;
+    maelys_cli_error_set(error, MAELYS_CLI_CODE_VALIDATION_FAILED,
+        "Use a member the command's output schema requires; describe lists them.",
+        "Option --field names '%s', which '%s' does not always return: a "
+        "command that can write accepts only a member its output schema "
+        "requires.", invocation->field, command->id);
+    return 1;
+}
+
 /* Applies --field NAME to a complete, valid JSON object `data`: renders the
  * named top-level member by the active format (text or jsonl; json was
  * refused earlier by the parser whenever the option was explicit) and
@@ -3027,17 +3113,6 @@ int maelys_cli_run(
     if (invocation.help_requested && !command->delegate) {
         /* Command-level help renders through the help builtin's contract. */
         result = help_for(&context, command);
-    } else if (invocation.field && invocation.format == MAELYS_CLI_FORMAT_JSON &&
-               command->output != MAELYS_CLI_OUTPUT_STREAM && !command->delegate) {
-        /* The format the environment selected conflicts with --field as an
-         * explicit one does, and is refused where the parser refuses that
-         * one: before the command runs. A rendering refusal never follows a
-         * write. */
-        maelys_cli_error_set(&error, MAELYS_CLI_CODE_VALIDATION_FAILED,
-            "Use --format text or --format jsonl with --field.",
-            "--field conflicts with --format json: a filtered envelope "
-            "would not validate against the command's outputSchema.");
-        result = maelys_cli_fail_error(&context, &error);
     } else if (command->delegate) {
         result = delegate_command(&context, command);
     } else if (!command->handler) {
@@ -3049,6 +3124,10 @@ int maelys_cli_run(
             "Use another command or install the component providing it.",
             "'%s' is not available in this build: %s", command->id,
             command->unavailable ? command->unavailable : "no implementation");
+    } else if (field_refused(&invocation, &error)) {
+        /* After an unavailable command has said why it cannot run, before
+         * the handler: a rendering refusal never follows a write. */
+        result = maelys_cli_fail_error(&context, &error);
     } else {
         result = command->handler(&context);
         if (!context.replied && command->output != MAELYS_CLI_OUTPUT_STREAM) {
