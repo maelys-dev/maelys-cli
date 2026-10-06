@@ -381,10 +381,12 @@ static void apply_transport(
     if (!strcmp(name, "format")) {
         out->format = (maelys_cli_format_t)parsed->choice_index;
         out->rendering_requested = 1;
+        out->format_requested = 1;
     } else if (!strcmp(name, "json")) {
         out->format = parsed->boolean_value ? MAELYS_CLI_FORMAT_JSON :
             MAELYS_CLI_FORMAT_TEXT;
         out->rendering_requested = 1;
+        out->format_requested = 1;
     } else if (!strcmp(name, "compact")) {
         out->compact = parsed->boolean_value;
         out->rendering_requested = 1;
@@ -719,8 +721,8 @@ int maelys_cli_parse(
     /* Explicit --field with an explicit --format json (or --json): data is
      * governed by outputSchema, and a filtered envelope would not validate
      * against it (spec 2.4). An environment MAELYS_CLI_FORMAT=json applies
-     * after parsing and cannot be caught here; the reply functions refuse
-     * it too, defensively, once the resolved format is known. */
+     * after parsing and cannot be caught here; maelys_cli_run() refuses it
+     * once the format is resolved, still before the command runs. */
     if (out->field && out->format == MAELYS_CLI_FORMAT_JSON &&
         out->rendering_requested) {
         maelys_cli_error_set(error, MAELYS_CLI_CODE_VALIDATION_FAILED,

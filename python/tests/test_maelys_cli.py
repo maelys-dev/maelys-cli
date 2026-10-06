@@ -346,6 +346,23 @@ class Contract(unittest.TestCase):
         self.assertIn("__complete", out)
         self.assertEqual(failure("completion", "ksh")[1]["code"], "VALIDATION_FAILED")
 
+    def test_rendering_refusal_precedes_the_run(self) -> None:
+        """--field against the format MAELYS_CLI_FORMAT selects is refused before the handler, as the
+        explicit --format json is by the parser: a transaction is not applied and then refused."""
+        with tempfile.TemporaryDirectory() as directory:
+            target = os.path.join(directory, "note.txt")
+            for extra in ((), ("--compact",)):
+                code, out, err = run("note", "write", target, "--content", "hi", "--apply", "--field", "path",
+                                     *extra, env={"MAELYS_CLI_FORMAT": "json"})
+                self.assertEqual((code, out), (1, ""))
+                self.assertIn("--field conflicts with --format json", err)
+                self.assertFalse(os.path.exists(target), "the note was written, then the rendering refused")
+            # An explicit format overrides the environment's default, and the command runs.
+            code, out, _ = run("note", "write", target, "--content", "hi", "--apply", "--field", "path",
+                               "--format", "text", env={"MAELYS_CLI_FORMAT": "json"})
+            self.assertEqual((code, out.strip()), (0, target))
+            self.assertTrue(os.path.exists(target))
+
     def test_completion_scripts(self) -> None:
         """The scripts that call __complete print what src/app.c prints (make hello-parity-check compares
         them whole); each line here is one 0.5.33 got wrong."""

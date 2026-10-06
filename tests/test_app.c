@@ -135,12 +135,24 @@ static int command_named(maelys_cli_context_t *context) {
     return maelys_cli_succeed(context, "{}", "named", MAELYS_CLI_EXIT_OK);
 }
 
+static int mirror_runs;
+
 static int command_mirror(maelys_cli_context_t *context) {
+    ++mirror_runs;
     mirror_retries = 99u;
     mirror_retries_delivered = maelys_cli_option_unsigned(context, "retries", &mirror_retries);
     (void)maelys_cli_option_choice(context, "mode", &mirror_mode);
     return maelys_cli_succeed(context, "{}", maelys_cli_option_or(context, "mode", "?"),
         MAELYS_CLI_EXIT_OK);
+}
+
+/* Two records, then the source breaks: nothing may have reached stdout. */
+static int command_broken(maelys_cli_context_t *context) {
+    if (maelys_cli_emit_record(context, "{\"i\":0}", "zero") != 0 ||
+        maelys_cli_emit_record_trusted(context, "{\"i\":1}", "one") != 0)
+        return 1;
+    return maelys_cli_fail(context, MAELYS_CLI_CODE_IO_FAILED, "Retry.",
+        "The source broke after two records.");
 }
 
 static int command_trusted(maelys_cli_context_t *context) {
@@ -218,6 +230,8 @@ static const maelys_cli_command_t commands[] = {
     {MAELYS_CLI_PROTOCOL_STREAM("exec", "exec", "Exec.", command_exec, "test-jsonl"),
      MAELYS_CLI_OPERANDS(rest_operands)},
     {MAELYS_CLI_RECORDS("records", "records", "Records.", command_records)},
+    {MAELYS_CLI_RECORDS("broken", "broken", "Records, then a failure.", command_broken),
+     .hidden = 1},
     {MAELYS_CLI_READ("report", "report", "Report.", command_report)},
     {MAELYS_CLI_READ("typed", "typed", "Typed operands.", command_typed),
      MAELYS_CLI_OPERANDS(typed_operands)},
@@ -811,6 +825,20 @@ static int test_groups_defaults_unavailable(void) {
     result = RUNV("trusted-records", "--json", "--compact");
     CHECK(result.code == 0 && strstr(result.out, "\"data\":{\"count\":2,\"records\":[{\"i\":0},{\"i\":1}]}"));
     release(&result);
+    /* A failure leaves stdout empty in every format (section 7): the jsonl
+     * lines are held until the command succeeds. 0.5.35 and earlier wrote
+     * each as it came, and a command that failed after two had answered
+     * two lines and an error. */
+    char *formats[] = {"jsonl", "json", "text"};
+    for (size_t i = 0u; i < 3u; ++i) {
+        result = RUNV("broken", "--format", formats[i]);
+        CHECK(result.code == 1 && result.out[0] == '\0' &&
+            strstr(result.err, "IO_FAILED") && strstr(result.err, "broke after two records"));
+        release(&result);
+    }
+    result = RUNV("records", "--format", "jsonl");
+    CHECK(result.code == 0 && strcmp(result.out, "{\"i\":0}\n{\"i\":1}\n") == 0);
+    release(&result);
     return 1;
 }
 
@@ -828,6 +856,26 @@ static int test_environment_format(void) {
     release(&result);
     result = RUNV("report", "--format", "text");
     CHECK(result.code == 2 && strcmp(result.out, "invalid\n") == 0);
+    release(&result);
+    /* The environment's format is a default: --compact selects none and
+     * leaves it in force, where 0.5.35 answered text. */
+    result = RUNV("report", "--compact");
+    CHECK(result.code == 2 && strstr(result.out, "\"command\":\"report\",\"ok\":true"));
+    release(&result);
+    /* --field against the format the environment selected is a rendering
+     * refusal like the explicit one, and comes before the command runs: a
+     * transaction is not applied and then refused. */
+    mirror_runs = 0;
+    result = RUNV("mirror", "--apply", "--source-oid", "abcd", "--target-oid", "ef01", "--field", "mode");
+    CHECK(result.code == 1 && mirror_runs == 0 && result.out[0] == '\0' &&
+        strstr(result.err, "--field conflicts with --format json"));
+    release(&result);
+    result = RUNV("mirror", "--apply", "--source-oid", "abcd", "--target-oid", "ef01", "--field", "mode", "--compact");
+    CHECK(result.code == 1 && mirror_runs == 0 &&
+        strstr(result.err, "\"code\":\"VALIDATION_FAILED\""));
+    release(&result);
+    result = RUNV("mirror", "--apply", "--source-oid", "abcd", "--target-oid", "ef01", "--field", "mode", "--format", "text");
+    CHECK(mirror_runs == 1); /* an explicit format overrides the environment */
     release(&result);
     CHECK(unsetenv("MAELYS_CLI_FORMAT") == 0);
     maelys_cli_json_writer_t writer;

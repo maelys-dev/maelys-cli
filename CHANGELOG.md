@@ -1,5 +1,43 @@
 # Changelog
 
+## Unreleased
+
+Three defects a review of the contract found by reading, confirmed here by
+running them, and one sentence; agent-cli-spec 2.9.0, not yet tagged, writes
+the rules down and this release does not wait for it where 2.8.1 already
+forbids the behaviour.
+
+- **A `json-records` command that failed had already answered, in `jsonl`,
+  in C.** `maelys_cli_emit_record()` wrote each line as it came, so a
+  command that failed after two records left two lines on stdout and an
+  error on stderr, where section 7 says a failure leaves stdout empty. The
+  lines are held and written by `maelys_cli_finish_records()`; a trusted
+  record is still written verbatim. Python already waited. The header
+  promised "written immediately": a consumer that read a long listing while
+  it ran now reads it at its end, and output that must flow is a protocol
+  stream.
+- **`--field` against a format from the environment was refused after the
+  command had run.** With `MAELYS_CLI_FORMAT=json`, `note write F --content
+  hi --apply --field path` wrote the file and then answered
+  `VALIDATION_FAILED`, in C and in Python. The refusal now comes where the
+  parser makes it for an explicit `--format json`: before the handler.
+- **`MAELYS_CLI_FORMAT` is the default format in C as in Python.** C applied
+  it only when no rendering option at all was given, so `--compact` beside
+  it answered text, and `--field` with it escaped the refusal above; Python
+  let only `--format` and `--json` override it, which is what "default
+  format" says. `maelys_cli_invocation_t` gains a private `format_requested`.
+- `docs/agent-cli.md` said that `describe --summary` carries
+  `globalOptions`, `output` and `invariants`. It does not, in either
+  implementation, and the specification forbids it; the sentence was wrong.
+
+Not in this release: 2.9.0 also refuses, before a command that can write
+runs, a `--field` naming a member its `outputSchema` does not require. That
+is a new rule and waits for its tag. Until then `--apply --field nosuch`
+still writes and then refuses, in both implementations. And one case this
+release leaves as it is: on a terminal, in text, a `json-records` command
+shows each record's human line as it comes, so a failure can follow lines
+already shown.
+
 ## 0.5.35 - 2026-10-05
 
 - **A Python program's completion launches no process at a Tab.**

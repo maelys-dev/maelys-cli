@@ -86,12 +86,15 @@ typedef struct maelys_cli_invocation {
     /* --field NAME of spec 2.4: renders one top-level member of data by the
      * section 7 pipe rules, instead of the whole result. NULL when absent.
      * A rendering option (refused by protocol streams, like --pager);
-     * refused together with --format json by the parser when both are
-     * explicit, and defensively at reply time otherwise (an environment
-     * MAELYS_CLI_FORMAT=json applies after parsing). A name absent from
-     * data is MAELYS_CLI_CODE_VALIDATION_FAILED, discovered only once the
-     * handler has produced data. */
+     * refused together with a json format before the command runs, by the
+     * parser when --format json is explicit and by maelys_cli_run() when
+     * the format comes from MAELYS_CLI_FORMAT, which applies after parsing.
+     * A name absent from data is MAELYS_CLI_CODE_VALIDATION_FAILED,
+     * discovered only once the handler has produced data. */
     const char *field;
+    /* private */
+    int format_requested;    /* --format or --json given: the environment's
+                              * MAELYS_CLI_FORMAT is a default and yields */
 } maelys_cli_invocation_t;
 
 /* auto | always | never, in the order of the trunk's choices. */

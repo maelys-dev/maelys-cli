@@ -124,6 +124,23 @@ command when either is wrong:
   option with one of these spellings must have the trunk's shape and
   meaning, or be renamed.
 
+## Every consumer, when a failure leaves stdout empty in `jsonl` too
+
+- A `json-records` command writes its `jsonl` lines once it has succeeded,
+  no longer as each record is emitted: a command that fails after emitting
+  some leaves stdout empty, as it always did in `json` and in text. A
+  consumer that read the lines of a long listing while it ran reads them at
+  its end; a command whose output must flow while the work goes on is a
+  protocol stream. Nothing to change in a handler.
+- `MAELYS_CLI_FORMAT` is the default format, in C as it already was in
+  Python: `--format` and `--json` override it, `--compact` and `--pretty`
+  leave it in force. A C product run with `MAELYS_CLI_FORMAT=json` and
+  `--compact` answers compact JSON where it answered text.
+- `--field` against a json format the environment selected is refused before
+  the command runs, as an explicit `--format json` already was. A caller
+  that relied on a transaction being applied and then refused relied on a
+  defect.
+
 ## Python products, at the static completion
 
 - `PROGRAM completion SHELL` prints a script that carries the candidates of

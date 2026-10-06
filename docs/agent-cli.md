@@ -47,8 +47,9 @@ command by `id`; never replay a `PRECONDITION_FAILED` blindly; prefer
   namespace (`PREFIX` itself and `PREFIX.*`) with a `filter` member; an
   agent checks that the `describe` descriptor declares `--prefix` before
   using it.
-- `describe COMMAND_ID` is minimal: no `globalOptions`, `output` or
-  `invariants`; those come with `describe` and `describe --summary`.
+- `describe COMMAND_ID` and `describe --summary` are minimal: no
+  `globalOptions`, `output` or `invariants`; those come with `describe`
+  alone, the complete catalog.
   Operands describe their value exactly as option arguments do — `type`,
   `choices`, limits, `digits`, `algorithms`, `pattern` (spec 2.6);
   `input.constraints` states the cross-option rules — `requires`,
