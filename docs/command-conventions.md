@@ -159,8 +159,9 @@ per line and anything else is exactly one line, so the rendering is total
 and never depends on what the handler returned. `--field` conflicts with
 an explicit `--format json`/`--json` (a filtered envelope would not
 validate against `outputSchema`); the parser refuses the pair when both
-are explicit, and the reply still refuses it when `MAELYS_CLI_FORMAT=json`
-resolves the format only after parsing. A name absent from `data` is
+are explicit, and the same refusal comes before the command runs when
+`MAELYS_CLI_FORMAT=json` resolves the format after parsing: a rendering
+refusal never follows a write. A name absent from `data` is
 `VALIDATION_FAILED`, found only once the handler has produced `data`,
 unlike every other rendering refusal. `--field` also lifts the
 records-only restriction on `jsonl`: combined with `--field`, `jsonl` is
@@ -172,7 +173,9 @@ by code point, a missing member is an empty field, a string is unquoted
 with `\\`, `\t`, `\r`, `\n` and `\uXXXX` escapes, every other value is
 compact JSON. On a terminal the `human_line` given to
 `maelys_cli_emit_record()` is shown instead when there is one. The stable
-machine form stays `jsonl`.
+machine form stays `jsonl`, whose lines are written once the command has
+succeeded: a command that fails after emitting records leaves stdout empty,
+as in every format.
 
 `--dry-run` and `--plan` are refused, with the migration hint, only on
 commands that declare `--apply`; a product without transactions is not
@@ -183,8 +186,9 @@ shared contract exists to prevent.
 ## Rendering decisions
 
 `MAELYS_CLI_FORMAT=json|text` in the environment selects the default
-rendering when no rendering option is given; for a stream command it only
-shapes the failure envelope on stderr, since stdout belongs to the protocol.
+format: `--format` and `--json` override it, `--compact` and `--pretty`
+select none and leave it in force. For a stream command it only shapes the
+failure envelope on stderr, since stdout belongs to the protocol.
 `--non-interactive` guarantees that no question is asked:
 `maelys_cli_confirm()` fails with `VALIDATION_FAILED` instead.
 

@@ -977,7 +977,8 @@ static int succeed_with(
         return fflush(context->out) == 0 ? exit_code : MAELYS_CLI_EXIT_FAILURE;
     }
     if (context->invocation->format == MAELYS_CLI_FORMAT_JSONL) {
-        /* Records were already streamed; the process status is the result. */
+        /* The records were written by maelys_cli_finish_records(); the
+         * process status is the result. */
         return fflush(context->out) == 0 ? exit_code : MAELYS_CLI_EXIT_FAILURE;
     }
     if (trusted && context->invocation->compact) {
@@ -1080,16 +1081,20 @@ static int emit_record_with(
     }
     if (context->invocation->format == MAELYS_CLI_FORMAT_JSONL &&
         !context->invocation->field) {
-        if (trusted) {
-            int failed = fputs(record_json, context->out) == EOF ||
-                fputc('\n', context->out) == EOF;
-            return failed ? -1 : 0;
-        }
+        /* One line per record, held until maelys_cli_finish_records(): a
+         * failure leaves stdout empty in every format (agent-cli/v2,
+         * section 7), so no line leaves before the command knows it
+         * succeeded. The buffer is the records writer, which jsonl uses for
+         * nothing else; a trusted record is kept verbatim. */
         char *compact = NULL;
-        if (maelys_cli_json_format(record_json, 1, &compact) != 0) return -1;
-        int failed = fputs(compact, context->out) == EOF ||
-            fputc('\n', context->out) == EOF || fflush(context->out) != 0;
+        if (!trusted && maelys_cli_json_format(record_json, 1, &compact) != 0) {
+            context->records_failed = 1;
+            return -1;
+        }
+        int failed = append_trusted(&context->records, trusted ? record_json : compact) != 0 ||
+            append_trusted(&context->records, "\n") != 0;
         free(compact);
+        if (failed) context->records_failed = 1;
         return failed ? -1 : 0;
     }
     /* TEXT, JSON, and JSONL held back for --field: buffer into an array,
@@ -1469,8 +1474,9 @@ static int reply_field(
     maelys_cli_context_t *context, const char *data, int exit_code) {
     const char *name = context->invocation->field;
     if (context->invocation->format == MAELYS_CLI_FORMAT_JSON) {
-        /* Reached only via an environment MAELYS_CLI_FORMAT=json the parser
-         * could not see; an explicit --format json was already refused. */
+        /* Defensive: maelys_cli_run() refuses this before the handler, and
+         * the parser an explicit --format json. Reached only by a caller
+         * that builds its own context. */
         maelys_cli_error_t error;
         context->replied = 0;
         maelys_cli_error_set(&error, MAELYS_CLI_CODE_VALIDATION_FAILED,
@@ -1532,6 +1538,17 @@ int maelys_cli_finish_records(maelys_cli_context_t *context, int exit_code) {
                 "Report this defect to the command implementation.",
                 "Command '%s' emitted a record that is not an object.",
                 command_id(context));
+        return maelys_cli_succeed(context, "{}", "", exit_code);
+    }
+    if (!context->invocation->field &&
+        context->invocation->format == MAELYS_CLI_FORMAT_JSONL &&
+        context->record_count > 0u) {
+        /* The lines emit_record_with() held, now that the command succeeds. */
+        char *lines = maelys_cli_json_finish(&context->records);
+        if (!lines) return MAELYS_CLI_EXIT_FAILURE;
+        int failed = fputs(lines, context->out) == EOF;
+        free(lines);
+        if (failed) return MAELYS_CLI_EXIT_FAILURE;
         return maelys_cli_succeed(context, "{}", "", exit_code);
     }
     /* --field needs count and records as named members of one object even
@@ -3000,7 +3017,9 @@ int maelys_cli_run(
         (void)maelys_cli_fail_error(&context, &error);
         return MAELYS_CLI_EXIT_FAILURE;
     }
-    if (!invocation.rendering_requested) apply_environment_format(&invocation);
+    /* MAELYS_CLI_FORMAT is the default format: --format and --json override
+     * it, --compact and --pretty select none and leave it in force. */
+    if (!invocation.format_requested) apply_environment_format(&invocation);
     maelys_cli_terminal_detect(&context.terminal, invocation.color);
     const maelys_cli_command_t *command = invocation.command;
     if (pager_applies(&context)) start_pager(&context);
@@ -3008,6 +3027,17 @@ int maelys_cli_run(
     if (invocation.help_requested && !command->delegate) {
         /* Command-level help renders through the help builtin's contract. */
         result = help_for(&context, command);
+    } else if (invocation.field && invocation.format == MAELYS_CLI_FORMAT_JSON &&
+               command->output != MAELYS_CLI_OUTPUT_STREAM && !command->delegate) {
+        /* The format the environment selected conflicts with --field as an
+         * explicit one does, and is refused where the parser refuses that
+         * one: before the command runs. A rendering refusal never follows a
+         * write. */
+        maelys_cli_error_set(&error, MAELYS_CLI_CODE_VALIDATION_FAILED,
+            "Use --format text or --format jsonl with --field.",
+            "--field conflicts with --format json: a filtered envelope "
+            "would not validate against the command's outputSchema.");
+        result = maelys_cli_fail_error(&context, &error);
     } else if (command->delegate) {
         result = delegate_command(&context, command);
     } else if (!command->handler) {

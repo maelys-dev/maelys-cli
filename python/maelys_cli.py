@@ -1960,18 +1960,20 @@ class Program:
             if command["outputMode"] == "protocol-stream":
                 result = command["handler"](invocation)
                 return int(result[1] if isinstance(result, tuple) else result)
+            if invocation.field is not None and fmt == "json":
+                # Reached only via an environment MAELYS_CLI_FORMAT=json the
+                # parser could not see; an explicit --format json was already
+                # refused there. Refused here, before the handler: a rendering
+                # refusal never follows a write (C: maelys_cli_run).
+                raise Failure("VALIDATION_FAILED",
+                              "--field conflicts with --format json: a filtered envelope "
+                              "would not validate against the command's outputSchema.",
+                              "Use --format text or --format jsonl with --field.")
             data, exit_code = command["handler"](invocation)
             invocation.progress_done()
             if invocation.field is not None:
-                # Reached with fmt == "json" only via an environment
-                # MAELYS_CLI_FORMAT=json the parser could not see; an explicit
-                # --format json was already refused there. A name absent from
-                # data is discoverable only now, once the handler has run.
-                if fmt == "json":
-                    raise Failure("VALIDATION_FAILED",
-                                  "--field conflicts with --format json: a filtered envelope "
-                                  "would not validate against the command's outputSchema.",
-                                  "Use --format text or --format jsonl with --field.")
+                # A name absent from data is discoverable only now, once the
+                # handler has run.
                 if invocation.field not in data:
                     raise Failure("VALIDATION_FAILED",
                                   f"Option --field names '{invocation.field}', which "

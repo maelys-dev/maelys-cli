@@ -183,6 +183,11 @@ run hidden-complete "$hello" __complete -- greet --
 check "hidden option never completed" 'printf "%s" "$out" | grep -q -- "--shout" && ! printf "%s" "$out" | grep -q -- "--trace"'
 run hidden-accepted "$hello" greet x --trace --json
 check "hidden option accepted and traced on stderr" '[ "$code" = 0 ] && printf "%s" "$err" | grep -q "warning: greet: name=x"'
+note_env="$work/env-field.txt"
+run env-field env MAELYS_CLI_FORMAT=json "$hello" note write "$note_env" --content hi --apply --field path
+check "--field against the environment's json is refused before anything is written" '[ "$code" = 1 ] && [ ! -e "$note_env" ] && printf "%s" "$err" | grep -q "conflicts with --format json"'
+run env-compact env MAELYS_CLI_FORMAT=json "$hello" greet Ada --compact
+check "--compact leaves the environment's format in force" '[ "$code" = 0 ] && printf "%s" "$out" | grep -q "^{\"schemaVersion\":2,.*\"greeting\":\"Hello, Ada!\""'
 run env-format env MAELYS_CLI_FORMAT=json "$hello" greet x --times 99
 check "MAELYS_CLI_FORMAT shapes the failure envelope" '[ "$code" = 1 ] && printf "%s" "$err" | grep -q "\"code\": \"VALIDATION_FAILED\""'
 run env-stream env MAELYS_CLI_FORMAT=json "$hello" run /bin/sh -c "echo plain"

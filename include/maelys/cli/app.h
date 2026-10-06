@@ -173,8 +173,11 @@ int maelys_cli_emit_record_trusted(
     const char *human_line);
 
 /* Emits one record for MAELYS_CLI_OUTPUT_RECORDS commands. In jsonl mode
- * the object is written immediately as one line; in json mode it is
- * collected into data.records; in text mode human_line is printed. */
+ * the object is one line, held until maelys_cli_finish_records() and never
+ * written if the command fails: a failure leaves stdout empty in every
+ * format. In json mode it is collected into data.records; in text mode
+ * human_line is printed. Output that must flow while the work goes on is a
+ * protocol stream, not records. */
 int maelys_cli_emit_record(
     maelys_cli_context_t *context, const char *record_json,
     const char *human_line);
