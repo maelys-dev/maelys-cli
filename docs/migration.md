@@ -124,6 +124,17 @@ command when either is wrong:
   option with one of these spellings must have the trunk's shape and
   meaning, or be renamed.
 
+## Every consumer, at agent-cli-spec 2.10.0
+
+- Nothing to change. A delegate declares the effect `execute` and no
+  `protocol`, which `MAELYS_CLI_EXTERNAL` and `cli.external()` have always
+  done; a product cannot declare one otherwise through the framework.
+- The specification now says when to use which: `MAELYS_CLI_EXTERNAL` for a
+  command whose words after the pattern are another executable's, handed
+  over verbatim, its `--help` and its completion included;
+  `MAELYS_CLI_STREAM` for a command that keeps its own options and operands
+  and relays the stdio of a child it starts itself.
+
 ## Every consumer, at agent-cli-spec 2.9.0
 
 - **`--field` on a command that can write is checked against the catalog,

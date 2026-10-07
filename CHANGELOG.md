@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+- agent-cli-spec pinned at v2.10.0 (from v2.9.0): the pin, and nothing in
+  the framework. 2.10.0 says what a delegate is, on the criterion this
+  repository gave when asked: `external: true` when the catalog does not own
+  what follows the pattern, the words, the help and the completion there
+  being another executable's. A command that keeps its grammar and relays
+  the stdio of a child it starts is a `stream` with `external: false`,
+  whether it names the child or takes it as an operand, which is `run` of
+  `maelys-hello` and `channel exec` of maelys-egress. One rule joins the
+  schema: `external: true` implies the effect `execute` and no `protocol`,
+  which `MAELYS_CLI_EXTERNAL` and `cli.external()` have always declared. Run
+  at the tag on the five programs before the pin moved: no failure.
+
 ## 0.5.36 - 2026-10-07
 
 agent-cli-spec 2.9.0 writes down three rules a review of the contract found
