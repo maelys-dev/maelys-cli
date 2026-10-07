@@ -99,9 +99,23 @@ def main(argv: list) -> int:
             lines = [f"C {a!r}, Python {b!r}" for a, b in zip(expected.splitlines(), offered.splitlines()) if a != b]
             print(f"hello-parity-check: completion {shell}: the scripts differ: "
                   f"{lines[0] if lines else 'one is longer'}", file=sys.stderr)
+    # A plan bound to its application carries the same fingerprint in both:
+    # the two products frame the same entries the same way.
+    import tempfile
+    with tempfile.TemporaryDirectory() as directory:
+        existing = pathlib.Path(directory) / "existing.txt"
+        existing.write_text("already here", encoding="utf-8")
+        for words in (["note", "write", str(pathlib.Path(directory) / "absent.txt"), "--content", "hi"],
+                      ["note", "write", str(existing), "--content", "hi", "--replace"]):
+            prints = [subprocess.run([*program, *words, "--field", "fingerprint"], check=True, capture_output=True,
+                                     text=True).stdout.strip() for program in (c_hello, python_hello)]
+            if prints[0] != prints[1] or not prints[0].startswith("sha256:"):
+                unlike += 1
+                print(f"hello-parity-check: fingerprint of {' '.join(words[:2])} {words[3:]}: C {prints[0]}, "
+                      f"Python {prints[1]}", file=sys.stderr)
     if not differing and not unlike:
         print(f"hello-parity-check: ok ({len(reference.keys() & found.keys())} shared members, "
-              f"{len(WORD_LISTS)} word lists, 3 scripts)")
+              f"{len(WORD_LISTS)} word lists, 3 scripts, 2 fingerprints)")
     return 1 if differing or unlike else 0
 
 

@@ -407,6 +407,88 @@ class Contract(unittest.TestCase):
         self.assertEqual(ran, ["strict"])                 # none of the refused runs reached the handler
         self.assertEqual(answer("look", "--field", "extra")[:2], (0, "1\n"))
 
+    def test_expect_binds_apply_to_the_plan(self) -> None:
+        """transaction(expect=True) declares the reserved --expect FINGERPRINT (spec 2.9, section 4): the
+        plan carries a fingerprint over the action and the state it touches, and --apply --expect applies
+        only the plan that fingerprint names, refusing any other before anything is written."""
+        with tempfile.TemporaryDirectory() as directory:
+            target = os.path.join(directory, "note.txt")
+            reviewed = run("note", "write", target, "--content", "first", "--field", "fingerprint")[1].strip()
+            self.assertRegex(reviewed, r"^sha256:[0-9a-f]{64}$")
+            self.assertEqual(run("note", "write", target, "--content", "first", "--field", "fingerprint")[1].strip(), reviewed)
+            self.assertNotEqual(run("note", "write", target, "--content", "second", "--field", "fingerprint")[1].strip(),
+                                reviewed)
+            code, error = failure("note", "write", target, "--content", "second", "--apply", "--expect", reviewed)
+            self.assertEqual((code, error["code"]), (1, "PRECONDITION_FAILED"))
+            self.assertIn("Plan again without --apply", error["hint"])
+            self.assertFalse(os.path.exists(target))
+            pathlib.Path(target).write_text("someone else")           # the state moves under the same action
+            code, error = failure("note", "write", target, "--content", "first", "--replace", "--apply",
+                                  "--expect", reviewed)
+            self.assertEqual(error["code"], "PRECONDITION_FAILED")
+            self.assertEqual(pathlib.Path(target).read_text(), "someone else")
+            os.unlink(target)
+            code, out, _ = run("note", "write", target, "--content", "first", "--apply", "--expect", reviewed, "--json")
+            self.assertEqual((code, json.loads(out)["data"]["fingerprint"]), (0, reviewed))
+            self.assertEqual(pathlib.Path(target).read_text(), "first")
+            self.assertIn("requires --apply",
+                          failure("note", "write", target, "--content", "x", "--replace", "--expect", reviewed)[1]["message"])
+        described = hello.PROGRAM.descriptor(hello.PROGRAM.command_by_id("note.write"))
+        expect = next(item for item in described["input"]["options"] if item["long"] == "--expect")
+        self.assertEqual((expect["argument"]["type"], expect["argument"]["algorithms"], expect["requires"]),
+                         ("digest", ["sha256"], ["--apply"]))
+        self.assertIn("fingerprint", described["outputSchema"]["required"])
+
+        # The fingerprint is the framing of the C library, byte for byte: the same reference strings
+        # as tests/test_digest.c, computed apart from both.
+        self.assertEqual(cli.Fingerprint().finish(),
+                         "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
+        self.assertEqual(cli.Fingerprint().add("ab", "c").finish(),
+                         "sha256:98567ed2582c877b4f71760c31e078ab7d7bd86f42689d58325689d652f4056a")
+        self.assertEqual(cli.Fingerprint().add("a", b"bc").finish(),
+                         "sha256:890cb9913f8086a050b29183b982ee91719b35a2f82cfb9b00a01d6c9884031d")
+        self.assertEqual(cli.Fingerprint().add("k", None).finish(),
+                         "sha256:d815ac6f89858e27e4a82ec5e72a64929b510196736898158ab4b48c00410c3d")
+        self.assertEqual(cli.Fingerprint().add("k", "").finish(),
+                         "sha256:629d67d8c50c9d34279f5c01951a2ccdbe46930ac5da8e5b9ac52205f60a0a45")
+        self.assertEqual(cli.Fingerprint().add("path", "/tmp/x").add("content", "hi").finish(),
+                         "sha256:aeff1db4e0dd584988c9a8a30434603418a6ba8813483d00ef7227191cea74a0")
+        with tempfile.TemporaryDirectory() as directory:
+            note = os.path.join(directory, "note")
+            self.assertEqual(cli.Fingerprint().add_file("k", note, 16).finish(), cli.Fingerprint().add("k", None).finish())
+            pathlib.Path(note).write_text("hi")
+            self.assertEqual(cli.Fingerprint().add_file("target", note, 16).finish(),
+                             "sha256:a20aaeef176c63d62a064d2db7831d3b1cce5a3e99b5369f0ce16dc985f51fbd")
+            with self.assertRaises(OSError):
+                cli.Fingerprint().add_file("target", note, 1)          # too large
+            with self.assertRaises(OSError):
+                cli.Fingerprint().add_file("target", directory, 16)    # not a file
+
+        # The declaration is whole or refused, as the C catalog validation refuses it.
+        def handler(invocation: cli.Invocation) -> "tuple[dict, int]":
+            return {"mode": "apply", "fingerprint": "sha256:" + "0" * 64}, cli.EXIT_OK
+        bound = {"type": "object", "required": ["mode", "fingerprint"]}
+        cli.transaction("t", "t", "T.", handler, expect=True, schema=bound)
+        with self.assertRaises(ValueError):
+            cli.transaction("t", "t", "T.", handler, expect=True, schema={"type": "object", "required": ["mode"]})
+        with self.assertRaises(ValueError):
+            cli.transaction("t", "t", "T.", handler, expect=True)
+        with self.assertRaises(ValueError):                             # another meaning of the name
+            cli.transaction("t", "t", "T.", handler, schema=bound,
+                            options=[cli.option("--expect", "Else.", cli.argument("TEXT"))])
+        cli.read("r", "r", "R.", handler, options=[cli.option("--expect", "Free on a read.", cli.argument("TEXT"))])
+
+        # A handler that answers without having asked invocation.expect() is not believed.
+        careless = cli.Program("p", "P", "0", [cli.transaction("t", "t", "T.", handler, expect=True, schema=bound)])
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = careless.main(["t", "--apply", "--expect", "sha256:" + "0" * 64])
+        self.assertEqual((code, out.getvalue()), (1, ""))
+        self.assertIn("[UNEXPECTED]", err.getvalue())
+        self.assertIn("answered without checking --expect", err.getvalue())
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(careless.main(["t", "--apply"]), 0)
+
     def test_completion_scripts(self) -> None:
         """The scripts that call __complete print what src/app.c prints (make hello-parity-check compares
         them whole); each line here is one 0.5.33 got wrong."""

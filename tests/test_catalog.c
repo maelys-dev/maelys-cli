@@ -249,6 +249,50 @@ static int test_validation(void) {
     command.operand_count = 2u;
     CHECK(!validate(&command));
 
+    /* --expect on a transaction is the reserved binding of a plan (spec 2.9,
+     * section 4): MAELYS_CLI_EXPECT_OPTION whole, and a fingerprint the
+     * output schema requires. Every other shape is refused at startup. */
+    static const char bound_schema[] =
+        "{\"type\":\"object\",\"required\":[\"mode\",\"fingerprint\"]}";
+    static const maelys_cli_option_t bound[] = {
+        MAELYS_CLI_APPLY_OPTION, MAELYS_CLI_EXPECT_OPTION,
+    };
+    command = good_command();
+    command.options = bound;
+    command.option_count = 2u;
+    command.output_schema_json = bound_schema;
+    CHECK(validate(&command));
+    command.output_schema_json = "{\"type\":\"object\",\"required\":[\"mode\"]}";
+    CHECK(!validate(&command));                    /* fingerprint not required */
+    command.output_schema_json = "{\"type\":\"object\"}";
+    CHECK(!validate(&command));                    /* nothing required */
+    static const char *const two_algorithms[] = {"sha256", "sha512", NULL};
+    maelys_cli_option_t shaped[2] = {MAELYS_CLI_APPLY_OPTION, MAELYS_CLI_EXPECT_OPTION};
+    command.options = shaped;
+    command.output_schema_json = bound_schema;
+    CHECK(validate(&command));
+    shaped[1].depends_on = NULL;
+    CHECK(!validate(&command));                    /* accepted without --apply */
+    shaped[1].depends_on = "apply";
+    shaped[1].choices = two_algorithms;
+    CHECK(!validate(&command));                    /* another algorithm */
+    shaped[1].choices = maelys_cli_expect_algorithms;
+    shaped[1].repeatable = 1;
+    CHECK(!validate(&command));                    /* repeatable */
+    shaped[1].repeatable = 0;
+    shaped[1].kind = MAELYS_CLI_VALUE_STRING;
+    shaped[1].choices = NULL;
+    CHECK(!validate(&command));                    /* another meaning of the name */
+    /* The name is reserved on a transaction only. */
+    maelys_cli_command_t reading = {
+        MAELYS_CLI_READ("look", "look", "A read.", dummy_handler)};
+    static const maelys_cli_option_t free_expect[] = {
+        {MAELYS_CLI_STRING("expect", "TEXT", "Something else, on a read.")},
+    };
+    reading.options = free_expect;
+    reading.option_count = 1u;
+    CHECK(validate(&reading));
+
     /* Duplicate identifiers across the catalog and clash with a builtin. */
     maelys_cli_command_t pair[2] = {good_command(), good_command()};
     maelys_cli_app_t app = {"prog", "Product", "1.0", NULL, pair, 2u, NULL, 0u, NULL, NULL};

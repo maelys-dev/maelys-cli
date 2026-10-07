@@ -184,6 +184,25 @@ machine form stays `jsonl`, whose lines are written once the command has
 succeeded: a command that fails after emitting records leaves stdout empty,
 as in every format.
 
+`--apply` plans again and applies that plan: the re-validation says the
+state still allows the transaction, not that the action is the one the
+caller reviewed. A transaction whose plan has a stable identity binds the
+two with the reserved form of spec 2.9, section 4, and no other:
+`MAELYS_CLI_EXPECT_OPTION` beside `MAELYS_CLI_APPLY_OPTION`, and
+`fingerprint` in the `required` of its output schema. The plan returns
+`data.fingerprint`, a `sha256:HEX` over the action and over the state of
+the resources it would touch, built with `maelys_cli_fingerprint_*()`; the
+handler calls `maelys_cli_expect()` before its first write, and `--apply
+--expect FINGERPRINT` fails with `PRECONDITION_FAILED` when the plan is no
+longer that one, nothing having been written. What the fingerprint covers
+is the product's decision, and the decision that matters: the same writes
+on the same state must give the same string, another write or another
+state another. After an `--apply` whose outcome is unknown, a new plan
+answers: the same fingerprint, the action is still to be done. The
+fingerprint narrows the window between the review and the write; closing
+it is the product's locking. `note write` of `maelys-hello` is the worked
+example.
+
 `--dry-run` and `--plan` are refused, with the migration hint, only on
 commands that declare `--apply`; a product without transactions is not
 affected. The refusal is deliberate: accepting an alias would let two

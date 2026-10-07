@@ -42,7 +42,7 @@ Global options:
 | complete.candidates | `__complete [WORDS...]` | read | json-records | Return completion candidates for a partial command line. |
 | greet | `greet NAME [--shout] [--times N]` | read | json-envelope | Greet someone. |
 | limits | `limits [--memory BYTES] [--wall-time DURATION] [--level low\|high] [--offset N] [--digest HEX] [--tag TEXT...] [--strict] [--lenient]` | read | json-envelope | Echo typed option values. |
-| note.write | `note write FILE --content TEXT [--replace] [--apply]` | preview then apply with --apply | json-envelope | Store a note in a file. |
+| note.write | `note write FILE --content TEXT [--replace] [--apply] [--expect FINGERPRINT]` | preview then apply with --apply | json-envelope | Store a note in a file. |
 | list | `list [--limit N]` | read | json-records | List sample records. |
 | check | `check FILE` | read | json-envelope | Validate that a file is private. |
 | env.show | `env show [--env NAME[=VALUE]...]` | read | json-envelope | Show an environment overlay. |

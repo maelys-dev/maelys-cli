@@ -124,6 +124,22 @@ command when either is wrong:
   option with one of these spellings must have the trunk's shape and
   meaning, or be renamed.
 
+## A transaction that binds its application to the reviewed plan
+
+- Optional, and nothing changes for a transaction that declares none of it.
+  A transaction whose plan has a stable identity declares
+  `MAELYS_CLI_EXPECT_OPTION` (C) or `expect=True` (Python), lists
+  `fingerprint` in the `required` of its output schema, builds the
+  fingerprint with `maelys_cli_fingerprint_*()` or `cli.Fingerprint`, calls
+  `maelys_cli_expect()` or `invocation.expect()` before its first write and
+  returns `data.fingerprint` in the plan and in the application.
+- A product that already bound a plan under another spelling -- a revision
+  it compared itself, a precondition object -- moves to this one: on a
+  transaction `--expect` has this meaning and no other, and the catalog
+  validation refuses another shape of it.
+- A product that had an `--expect` of another meaning on a transaction
+  renames it; on a read it is untouched.
+
 ## Every consumer, at agent-cli-spec 2.10.0
 
 - Nothing to change. A delegate declares the effect `execute` and no

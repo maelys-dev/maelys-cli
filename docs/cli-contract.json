@@ -1371,7 +1371,15 @@
           "hidden": false,
           "id": "note.write",
           "input": {
-            "constraints": [],
+            "constraints": [
+              {
+                "kind": "requires",
+                "options": [
+                  "--expect",
+                  "--apply"
+                ]
+              }
+            ],
             "operands": [
               {
                 "name": "FILE",
@@ -1408,10 +1416,27 @@
                 "required": false,
                 "requires": [],
                 "summary": "Apply the reviewed transaction; omission returns a read-only plan."
+              },
+              {
+                "argument": {
+                  "algorithms": [
+                    "sha256"
+                  ],
+                  "name": "FINGERPRINT",
+                  "type": "digest"
+                },
+                "conflictsWith": [],
+                "long": "--expect",
+                "repeatable": false,
+                "required": false,
+                "requires": [
+                  "--apply"
+                ],
+                "summary": "Apply only the plan this fingerprint names; a plan that has changed since is refused before anything is written."
               }
             ],
             "passthrough": false,
-            "synopsis": "note write FILE --content TEXT [--replace] [--apply]"
+            "synopsis": "note write FILE --content TEXT [--replace] [--apply] [--expect FINGERPRINT]"
           },
           "outputMode": "json-envelope",
           "outputSchema": {
@@ -1423,6 +1448,10 @@
               },
               "changed": {
                 "type": "boolean"
+              },
+              "fingerprint": {
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
               },
               "mode": {
                 "enum": [
@@ -1455,6 +1484,7 @@
               "changed",
               "path",
               "bytes",
+              "fingerprint",
               "precondition"
             ],
             "type": "object"
@@ -1464,7 +1494,7 @@
             "write"
           ],
           "purpose": "Store a note in a file.",
-          "usage": "note write FILE --content TEXT [--replace] [--apply]"
+          "usage": "note write FILE --content TEXT [--replace] [--apply] [--expect FINGERPRINT]"
         },
         {
           "available": true,

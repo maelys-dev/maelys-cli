@@ -7,6 +7,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+const char *const maelys_cli_expect_algorithms[] = {"sha256", NULL};
+
 const char *maelys_cli_value_kind_name(maelys_cli_value_kind_t kind) {
     switch (kind) {
         case MAELYS_CLI_VALUE_NONE: return "boolean";

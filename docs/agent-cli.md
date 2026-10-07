@@ -21,6 +21,20 @@ PROGRAM note write /tmp/a.txt --content hello --format json --compact --non-inte
 PROGRAM note write /tmp/a.txt --content hello --apply --format json --compact --non-interactive
 ```
 
+When `describe` shows `--expect` among a transaction's options, bind the
+application to the plan you reviewed: read `data.fingerprint` from the plan
+and pass it back.
+
+```sh
+fingerprint=$(PROGRAM note write /tmp/a.txt --content hello --field fingerprint)
+PROGRAM note write /tmp/a.txt --content hello --apply --expect "$fingerprint" --format json --compact --non-interactive
+```
+
+`PRECONDITION_FAILED` then means that the action or the state it touches
+has changed since the plan and that nothing was written: plan again and
+review. After an `--apply` whose outcome you cannot tell, plan again too:
+the same fingerprint says the action is still to be done.
+
 Verify `contract == "agent-cli/v2"` and `schemaVersion == 2`; identify a
 command by `id`; never replay a `PRECONDITION_FAILED` blindly; prefer
 `--compact` to save tokens.

@@ -26,6 +26,9 @@ static int builtin_help(maelys_cli_context_t *context);
 static int builtin_version(maelys_cli_context_t *context);
 static int builtin_describe(maelys_cli_context_t *context);
 static int builtin_completion(maelys_cli_context_t *context);
+static int schema_required(
+    const maelys_cli_command_t *command, const char **out_array, size_t *out_length);
+static int schema_requires(const maelys_cli_command_t *command, const char *name);
 static int builtin_complete(maelys_cli_context_t *context);
 
 static const char *const shell_choices[] = {"bash", "zsh", "fish", NULL};
@@ -205,6 +208,34 @@ static int validate_command(
                 "Transactional command '%s' must declare effect preview, "
                 "apply_effect apply or commit, and an --apply option.", id);
             return -1;
+        }
+    }
+    if (command->apply_effect != MAELYS_CLI_EFFECT_NONE) {
+        /* On a transaction --expect has one meaning and one shape
+         * (agent-cli/v2 2.9, section 4): MAELYS_CLI_EXPECT_OPTION, and a
+         * fingerprint the output schema requires. */
+        for (size_t i = 0u; i < command->option_count; ++i) {
+            const maelys_cli_option_t *option = &command->options[i];
+            if (strcmp(option->name, "expect") != 0) continue;
+            int shaped = option->kind == MAELYS_CLI_VALUE_DIGEST &&
+                option->choices && option->choices[0] &&
+                !strcmp(option->choices[0], "sha256") && !option->choices[1] &&
+                option->depends_on && !strcmp(option->depends_on, "apply") &&
+                !option->repeatable && !option->required && !option->hidden;
+            if (!shaped) {
+                maelys_cli_error_set(error, MAELYS_CLI_CODE_UNEXPECTED, hint,
+                    "Transactional command '%s' declares --expect, which is "
+                    "reserved for binding a plan: declare it with "
+                    "MAELYS_CLI_EXPECT_OPTION, or name the option otherwise.", id);
+                return -1;
+            }
+            if (!schema_requires(command, "fingerprint")) {
+                maelys_cli_error_set(error, MAELYS_CLI_CODE_UNEXPECTED, hint,
+                    "Transactional command '%s' declares --expect: its output "
+                    "schema must list \"fingerprint\" in its top-level "
+                    "\"required\".", id);
+                return -1;
+            }
         }
     }
     if (command->output > MAELYS_CLI_OUTPUT_STREAM) {
@@ -944,6 +975,20 @@ static int succeed_with(
     if (!context || !context->invocation || !context->invocation->command)
         return MAELYS_CLI_EXIT_FAILURE;
     if (context->replied) return exit_code;
+    if (!context->expect_checked && context->invocation->command->apply_effect !=
+            MAELYS_CLI_EFFECT_NONE &&
+        maelys_cli_invocation_option(context->invocation, "expect")) {
+        /* --expect was given and the handler answers without having asked
+         * maelys_cli_expect(): the caller would believe a binding nobody
+         * checked. Whatever was done is not known to be the reviewed plan. */
+        maelys_cli_error_t error;
+        maelys_cli_error_set(&error, MAELYS_CLI_CODE_UNEXPECTED,
+            "Report this defect to the command implementation.",
+            "Command '%s' answered without checking --expect: what it did is "
+            "not known to be the plan the fingerprint names.",
+            command_id(context));
+        return maelys_cli_fail_error(context, &error);
+    }
     context->replied = 1;
     const char *data = data_json ? data_json : "{}";
     size_t offset = 0u;
@@ -1125,6 +1170,22 @@ static int emit_record_with(
             return 0;
     }
     return -1;
+}
+
+/* ---- --expect, a plan bound to its application (spec 2.9, section 4) ----- */
+
+int maelys_cli_expect(maelys_cli_context_t *context, const char *fingerprint) {
+    if (!context || !context->invocation || !fingerprint)
+        return MAELYS_CLI_EXIT_FAILURE;
+    context->expect_checked = 1;
+    const char *expected = maelys_cli_option(context, "expect");
+    if (!expected || !strcmp(expected, fingerprint)) return 0;
+    return maelys_cli_fail(context, MAELYS_CLI_CODE_PRECONDITION_FAILED,
+        "Plan again without --apply, review the new plan, then apply it with "
+        "its fingerprint.",
+        "The plan --expect names is no longer the one '%s' would apply: the "
+        "action or the state it touches has changed. Nothing was written.",
+        command_id(context));
 }
 
 /* ---- text records, pipe form (spec 2.3, section 7) ---------------------- */
@@ -1494,6 +1555,27 @@ static int schema_required(
     return 1;
 }
 
+/* 1 when the top-level `required` of the command's output schema lists
+ * `name`. The name is compared in its JSON spelling, so a schema that
+ * escapes a letter it need not escape does not match. */
+static int schema_requires(const maelys_cli_command_t *command, const char *name) {
+    const char *array = NULL;
+    size_t length = 0u;
+    if (!schema_required(command, &array, &length)) return 0;
+    maelys_cli_json_writer_t writer;
+    maelys_cli_json_writer_init(&writer);
+    char *quoted = maelys_cli_json_string(&writer, name) == 0 ?
+        maelys_cli_json_finish(&writer) : NULL;
+    if (!quoted) {
+        maelys_cli_json_writer_clear(&writer);
+        return 0;
+    }
+    required_state_t state = {quoted, strlen(quoted), 0};
+    (void)iterate_array(array, length, match_required, &state);
+    free(quoted);
+    return state.found;
+}
+
 /* The refusals --field brings that the parser could not make, decided on the
  * catalog and before the handler (agent-cli/v2 2.9, section 5): returns 1
  * with the error. A caller that reads VALIDATION_FAILED concludes that
@@ -1531,15 +1613,7 @@ static int field_refused(
             "its output schema requires no member.", command->id);
         return 1;
     }
-    maelys_cli_json_writer_t writer;
-    maelys_cli_json_writer_init(&writer);
-    char *quoted = maelys_cli_json_string(&writer, invocation->field) == 0 ?
-        maelys_cli_json_finish(&writer) : NULL;
-    if (!quoted) maelys_cli_json_writer_clear(&writer);
-    required_state_t state = {quoted, quoted ? strlen(quoted) : 0u, 0};
-    if (quoted) (void)iterate_array(array, length, match_required, &state);
-    free(quoted);
-    if (state.found) return 0;
+    if (schema_requires(command, invocation->field)) return 0;
     maelys_cli_error_set(error, MAELYS_CLI_CODE_VALIDATION_FAILED,
         "Use a member the command's output schema requires; describe lists them.",
         "Option --field names '%s', which '%s' does not always return: a "
