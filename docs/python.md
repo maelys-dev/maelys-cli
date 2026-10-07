@@ -74,6 +74,17 @@ the same entries return the same fingerprint. `invocation.expect(fingerprint)`
 returns when `--expect` was not given or names it, and raises
 `PRECONDITION_FAILED` otherwise; a handler that answers when `--expect` was
 given without having called it is answered `UNEXPECTED`.
+## Help
+
+`help`, `help COMMAND_ID`, `help FAMILY` and their `--help` spellings are
+generated from the catalog and laid out as the C library lays them out
+(`docs/command-conventions.md`, "Help"): within 80 columns where stdout is
+no terminal, the terminal's width between 60 and 100 where it is one.
+`program.guide(width)`, `program.command_help(command, width)` and
+`program.family_help(name, commands, width)` return the three texts;
+`help_width(fmt)` is the width the built-in uses and `display_width(text)`
+counts columns, an accented letter being one, a CJK character two and a
+combining mark none.
 
 ## Completion
 

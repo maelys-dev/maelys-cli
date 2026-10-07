@@ -139,6 +139,21 @@ command when either is wrong:
   validation refuses another shape of it.
 - A product that had an `--expect` of another meaning on a transaction
   renames it; on a read it is untouched.
+## Every consumer, at the help that fits eighty columns
+
+- The text of `help` changes, in all its forms; `describe` does not. A
+  product test that compared a line of `help` compares the new one, or
+  better, reads `describe`.
+- `PROGRAM help` no longer carries the usage of every command: it names
+  each by its pattern and its purpose. The usage is in `help COMMAND_ID` and
+  in the new `help FAMILY` / `FAMILY --help`, which lists the commands under
+  an identifier. Nothing to declare; identifiers that share a prefix are
+  what makes a family.
+- A Python product's `help COMMAND_ID` now has the sections of a C
+  product's: `USAGE`, the purpose, `EFFECT`, `OUTPUT`, `OPERANDS`,
+  `OPTIONS`. It began with the usage line alone.
+- The summary of the `help` operand changed, so a committed reference
+  generated from `describe` changes by that sentence at the next adoption.
 
 ## Every consumer, at agent-cli-spec 2.10.0
 

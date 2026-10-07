@@ -349,12 +349,110 @@ static int expect_failure(run_result_t *result, const char *code, const char *fr
 #define COUNT(...) ((int)(sizeof((char *[]){__VA_ARGS__}) / sizeof(char *)))
 #define RUNV(...) run(COUNT(__VA_ARGS__), ARGV(__VA_ARGS__))
 
+/* The widest line of a text, in bytes: columns for the ASCII of these tests. */
+static size_t widest_line(const char *text) {
+    size_t widest = 0u;
+    for (const char *line = text; *line;) {
+        const char *end = strchr(line, '\n');
+        size_t length = end ? (size_t)(end - line) : strlen(line);
+        if (length > widest) widest = length;
+        line = end ? end + 1 : line + length;
+    }
+    return widest;
+}
+
+/* A second program, for what the help of the first cannot show: a purpose
+ * whose letters take more bytes than columns. */
+static int command_nothing(maelys_cli_context_t *context) {
+    return maelys_cli_succeed(context, "{}", "", MAELYS_CLI_EXIT_OK);
+}
+static const maelys_cli_command_t accented_commands[] = {
+    /* Twelve words of six columns and ten bytes, then three CJK characters:
+     * wrapped by columns, nine words fit a line of 80 after the label;
+     * wrapped by bytes, six would. */
+    {MAELYS_CLI_READ("wide", "wide",
+     "\xc3\xa9t\xc3\xa9\xc3\xa9t\xc3\xa9 \xc3\xa9t\xc3\xa9\xc3\xa9t\xc3\xa9 "
+     "\xc3\xa9t\xc3\xa9\xc3\xa9t\xc3\xa9 \xc3\xa9t\xc3\xa9\xc3\xa9t\xc3\xa9 "
+     "\xc3\xa9t\xc3\xa9\xc3\xa9t\xc3\xa9 \xc3\xa9t\xc3\xa9\xc3\xa9t\xc3\xa9 "
+     "\xc3\xa9t\xc3\xa9\xc3\xa9t\xc3\xa9 \xc3\xa9t\xc3\xa9\xc3\xa9t\xc3\xa9 "
+     "\xc3\xa9t\xc3\xa9\xc3\xa9t\xc3\xa9 \xc3\xa9t\xc3\xa9\xc3\xa9t\xc3\xa9 "
+     "\xc3\xa9t\xc3\xa9\xc3\xa9t\xc3\xa9 \xc3\xa9t\xc3\xa9\xc3\xa9t\xc3\xa9 "
+     "\xe6\x97\xa5\xe6\x9c\xac\xe8\xaa\x9e.", command_nothing)},
+};
+static const maelys_cli_app_t accented_app = {
+    "prog", "Test Product", "9.9.9", NULL, accented_commands, 1u, NULL, 0u, NULL, NULL
+};
+
 static int test_help_and_version(void) {
     run_result_t result = run(0, NULL);
     CHECK(result.code == 0 && strstr(result.out, "COMMANDS") && !result.err[0]);
-    CHECK(strstr(result.out, "thing make ROOT NAME") && strstr(result.out, "EXTRA GUIDANCE"));
+    /* The general help names a command by its pattern and its purpose; its
+     * usage is in its own help and in its family's. */
+    CHECK(strstr(result.out, "\n  thing make") && !strstr(result.out, "thing make ROOT NAME"));
+    CHECK(strstr(result.out, "prog help COMMAND_ID") && strstr(result.out, "prog help FAMILY"));
+    CHECK(strstr(result.out, "EXTRA GUIDANCE"));
     CHECK(!strstr(result.out, "badjson")); /* hidden */
+    /* The product's commands come first, then the ones every program has. */
+    const char *own = strstr(result.out, "\n  thing make");
+    const char *built_in = strstr(result.out, "\n  describe");
+    CHECK(own && built_in && own < built_in);
+    /* It fits eighty columns where it is not written to a terminal: no
+     * description is pushed to the right of the longest usage. */
+    CHECK(widest_line(result.out) <= 80u);
     release(&result);
+    result = RUNV("help", "thing.make");
+    CHECK(result.code == 0 && widest_line(result.out) <= 80u &&
+        strstr(result.out, "USAGE\n  prog thing make ROOT NAME"));
+    /* A usage breaks between its groups, never inside one. */
+    CHECK(!strstr(result.out, "[--git\n") && !strstr(result.out, "[--level\n"));
+    release(&result);
+    /* A family: the commands under an identifier, with their usage and the
+     * purpose below; `help FAMILY` and `FAMILY --help` say the same. */
+    result = RUNV("help", "thing");
+    CHECK(result.code == 0 && !result.err[0] && widest_line(result.out) <= 80u &&
+        strstr(result.out, "prog thing - commands") &&
+        strstr(result.out, "\n  thing make ROOT NAME") && strstr(result.out, "\n      Make."));
+    char *by_identifier = result.out;
+    result.out = NULL;
+    release(&result);
+    result = RUNV("thing", "--help");
+    CHECK(result.code == 0 && strcmp(result.out, by_identifier) == 0);
+    free(by_identifier);
+    release(&result);
+    result = RUNV("help", "thing", "--json", "--compact");
+    CHECK(result.code == 0 && strstr(result.out, "\"command\":\"help\"") &&
+        strstr(result.out, "\"commands\":[\"thing.make\"]"));
+    release(&result);
+    /* Without --help, words that name no command are still an error. */
+    result = RUNV("thing");
+    CHECK(result.code == 1 && !result.out[0] && strstr(result.err, "[INVALID_COMMAND]"));
+    release(&result);
+    result = RUNV("nope", "--help");
+    CHECK(result.code == 1 && !result.out[0] && strstr(result.err, "[INVALID_COMMAND]"));
+    release(&result);
+    /* Wrapped by columns, not by bytes: an accented letter is one column
+     * and a CJK one two. */
+    {
+        run_result_t wide = {0, NULL, NULL};
+        size_t out_size = 0u;
+        size_t err_size = 0u;
+        FILE *out = open_memstream(&wide.out, &out_size);
+        FILE *err = open_memstream(&wide.err, &err_size);
+        wide.code = maelys_cli_run(&accented_app, 1, ARGV("help"), out, err);
+        (void)fclose(out);
+        (void)fclose(err);
+        const char *entry = strstr(wide.out, "\n  wide ");
+        CHECK(wide.code == 0 && entry);
+        const char *end = strchr(entry + 1, '\n');
+        size_t bytes = (size_t)(end - entry - 1);
+        /* The label and its column take 14; nine words of six columns and
+         * their eight spaces take 62: 76 columns, in 112 bytes, each word
+         * being ten bytes. Wrapped by bytes, six words would fit. */
+        CHECK(bytes == 112u);
+        /* The last line carries three CJK characters, six columns. */
+        CHECK(strstr(wide.out, "\xe6\x97\xa5\xe6\x9c\xac\xe8\xaa\x9e.\n"));
+        release(&wide);
+    }
     result = RUNV("--help");
     CHECK(result.code == 0 && strstr(result.out, "USAGE"));
     release(&result);

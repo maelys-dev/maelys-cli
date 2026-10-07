@@ -48,7 +48,15 @@ check "describe is valid json and silent on stderr" '[ "$code" = 0 ] && [ -z "$e
 check "describe usage equals synopsis" 'printf "%s" "$out" | grep -q "\"usage\":\"note write FILE --content TEXT \[--replace\] \[--apply\] \[--expect FINGERPRINT\]\",.*\"synopsis\":\"note write FILE --content TEXT \[--replace\] \[--apply\] \[--expect FINGERPRINT\]\""'
 
 run help "$hello" help
-check "help lists commands" '[ "$code" = 0 ] && printf "%s" "$out" | grep -q "note write FILE --content TEXT" && printf "%s" "$out" | grep -q "AGENT CONTRACT"'
+check "help lists commands" '[ "$code" = 0 ] && printf "%s" "$out" | grep -q "^  note write  Store a note in a file.$" && printf "%s" "$out" | grep -q "AGENT CONTRACT"'
+check "help fits eighty columns" '[ "$(printf "%s\n" "$out" | awk "{ if (length(\$0) > m) m = length(\$0) } END { print m }")" -le 80 ]'
+run help-family "$hello" note --help
+check "the help of a family lists its commands with their usage" '[ "$code" = 0 ] && [ -z "$err" ] && printf "%s" "$out" | grep -q "^  note write FILE --content TEXT" && printf "%s" "$out" | grep -q "^      Store a note in a file.$"'
+family_help=$out
+run help-family-id "$hello" help note
+check "help FAMILY and FAMILY --help say the same" '[ "$code" = 0 ] && [ "$out" = "$family_help" ]'
+run help-not-family "$hello" note
+check "words that name no command are an error without --help" '[ "$code" = 1 ] && printf "%s" "$err" | grep -q "\[INVALID_COMMAND\]"'
 
 run greet "$hello" greet world --shout --times 2
 check "greet text" '[ "$code" = 0 ] && [ "$out" = "HELLO, WORLD!
@@ -252,7 +260,9 @@ run d-list "$maelys" commands list --json --compact
 check "dispatcher lists extensions" '[ "$code" = 0 ] && printf "%s" "$out" | grep -q "\"command\":\"hello\",\"executable\":\"$hello\""'
 
 run d-help "$maelys" help
-check "dispatcher help shows extension" 'printf "%s" "$out" | grep -q "hello \[ARGUMENTS...\]"'
+check "dispatcher help shows extension" 'printf "%s" "$out" | grep -Eq "^  hello +Reference CLI"'
+run d-help-extension "$maelys" help hello
+check "and the extension's own help gives its usage" '[ "$code" = 0 ] && printf "%s" "$out" | grep -q "hello \[ARGUMENTS...\]"'
 
 # A manifest a package manager linked into its prefix: the link is followed
 # and the file it resolves to is judged, in the directory that holds it. This
