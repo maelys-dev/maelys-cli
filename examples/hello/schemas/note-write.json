@@ -1,12 +1,13 @@
 {
   "type": "object",
   "additionalProperties": false,
-  "required": ["mode", "changed", "path", "bytes", "precondition"],
+  "required": ["mode", "changed", "path", "bytes", "fingerprint", "precondition"],
   "properties": {
     "mode": {"enum": ["plan", "apply"]},
     "changed": {"type": "boolean"},
     "path": {"type": "string"},
     "bytes": {"type": "integer", "minimum": 0},
+    "fingerprint": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
     "precondition": {
       "type": "object",
       "additionalProperties": false,

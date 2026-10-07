@@ -158,6 +158,48 @@ static int command_broken(maelys_cli_context_t *context) {
         "The source broke after two records.");
 }
 
+/* A transaction that binds its application to the reviewed plan: the plan
+ * is "write bound_state + 1", its fingerprint covers the state it reads. */
+static int bound_state;
+static int bound_writes;
+
+static int command_bound(maelys_cli_context_t *context) {
+    maelys_cli_fingerprint_t plan;
+    char fingerprint[MAELYS_CLI_FINGERPRINT_SIZE];
+    char state[32];
+    (void)snprintf(state, sizeof(state), "%d", bound_state);
+    maelys_cli_fingerprint_init(&plan);
+    maelys_cli_fingerprint_add_string(&plan, "state", state);
+    maelys_cli_fingerprint_finish(&plan, fingerprint);
+    int refused = maelys_cli_expect(context, fingerprint);
+    if (refused) return refused;
+    int apply = maelys_cli_flag(context, "apply");
+    if (apply) {
+        ++bound_writes;
+        ++bound_state;
+    }
+    maelys_cli_json_writer_t data;
+    maelys_cli_json_writer_init(&data);
+    (void)maelys_cli_json_begin_object(&data);
+    (void)maelys_cli_json_key_string(&data, "mode", apply ? "apply" : "plan");
+    (void)maelys_cli_json_key_string(&data, "fingerprint", fingerprint);
+    (void)maelys_cli_json_end_object(&data);
+    return maelys_cli_succeed_writer(context, &data, fingerprint, MAELYS_CLI_EXIT_OK);
+}
+
+/* The same declaration over a handler that never asks maelys_cli_expect():
+ * the framework does not let it answer as if the binding had been checked. */
+static int command_careless(maelys_cli_context_t *context) {
+    return maelys_cli_succeed(context,
+        "{\"mode\":\"apply\",\"fingerprint\":\"sha256:0\"}", "done", MAELYS_CLI_EXIT_OK);
+}
+
+static const maelys_cli_option_t bound_options[] = {
+    MAELYS_CLI_APPLY_OPTION, MAELYS_CLI_EXPECT_OPTION,
+};
+static const char bound_schema[] =
+    "{\"type\":\"object\",\"required\":[\"mode\",\"fingerprint\"]}";
+
 static int command_trusted(maelys_cli_context_t *context) {
     if (context->invocation->command->output == MAELYS_CLI_OUTPUT_RECORDS) {
         (void)maelys_cli_emit_record_trusted(context, "{\"i\":0}", "zero");
@@ -233,6 +275,11 @@ static const maelys_cli_command_t commands[] = {
     {MAELYS_CLI_PROTOCOL_STREAM("exec", "exec", "Exec.", command_exec, "test-jsonl"),
      MAELYS_CLI_OPERANDS(rest_operands)},
     {MAELYS_CLI_RECORDS("records", "records", "Records.", command_records)},
+    {MAELYS_CLI_TRANSACTION("bound", "bound", "A plan bound to its application.", command_bound),
+     MAELYS_CLI_OPTIONS(bound_options), MAELYS_CLI_SCHEMA(bound_schema), .hidden = 1},
+    {MAELYS_CLI_TRANSACTION("careless", "careless", "Declares --expect, never checks it.",
+     command_careless),
+     MAELYS_CLI_OPTIONS(bound_options), MAELYS_CLI_SCHEMA(bound_schema), .hidden = 1},
     {MAELYS_CLI_RECORDS("broken", "broken", "Records, then a failure.", command_broken),
      .hidden = 1},
     {MAELYS_CLI_READ("report", "report", "Report.", command_report)},
@@ -845,6 +892,60 @@ static int test_groups_defaults_unavailable(void) {
     return 1;
 }
 
+/* --expect binds --apply to the reviewed plan (spec 2.9, section 4). */
+static int test_expect(void) {
+    bound_state = 7;
+    bound_writes = 0;
+    run_result_t result = RUNV("bound", "--field", "fingerprint");
+    CHECK(result.code == 0 && strncmp(result.out, "sha256:", 7u) == 0 &&
+        strlen(result.out) == MAELYS_CLI_FINGERPRINT_SIZE);       /* 71 characters and a newline */
+    char reviewed[MAELYS_CLI_FINGERPRINT_SIZE];
+    memcpy(reviewed, result.out, MAELYS_CLI_FINGERPRINT_SIZE - 1u);
+    reviewed[MAELYS_CLI_FINGERPRINT_SIZE - 1u] = '\0';
+    release(&result);
+    /* Two plans over the same state carry the same fingerprint. */
+    result = RUNV("bound", "--field", "fingerprint");
+    CHECK(result.code == 0 && strncmp(result.out, reviewed, strlen(reviewed)) == 0);
+    release(&result);
+    /* --expect belongs to --apply, and is a sha256 digest. */
+    result = RUNV("bound", "--expect", reviewed);
+    CHECK(expect_failure(&result, "[VALIDATION_FAILED]", "--expect requires --apply"));
+    result = RUNV("bound", "--apply", "--expect", "md5:00");
+    CHECK(result.code == 1 && bound_writes == 0 && strstr(result.err, "[VALIDATION_FAILED]"));
+    release(&result);
+    /* The state moves between the review and the application: refused
+     * before anything is written, with the code that says nothing changed. */
+    bound_state = 8;
+    result = RUNV("bound", "--apply", "--expect", reviewed);
+    CHECK(result.code == 1 && bound_writes == 0 && bound_state == 8 && result.out[0] == '\0' &&
+        strstr(result.err, "[PRECONDITION_FAILED]") && strstr(result.err, "Plan again without --apply"));
+    release(&result);
+    /* The reviewed plan is still the one: applied, and the result carries
+     * the fingerprint of the action performed. */
+    bound_state = 7;
+    result = RUNV("bound", "--apply", "--expect", reviewed, "--json", "--compact");
+    CHECK(result.code == 0 && bound_writes == 1 && bound_state == 8 &&
+        strstr(result.out, "\"mode\":\"apply\"") && strstr(result.out, reviewed));
+    release(&result);
+    /* A caller that never passes --expect is served as before. */
+    result = RUNV("bound", "--apply");
+    CHECK(result.code == 0 && bound_writes == 2);
+    release(&result);
+    /* A handler that answers without having checked is not believed. */
+    result = RUNV("careless", "--apply", "--expect", reviewed);
+    CHECK(result.code == 1 && result.out[0] == '\0' && strstr(result.err, "[UNEXPECTED]") &&
+        strstr(result.err, "answered without checking --expect"));
+    release(&result);
+    result = RUNV("careless", "--apply");
+    CHECK(result.code == 0);
+    release(&result);
+    result = RUNV("describe", "bound", "--json", "--compact");
+    CHECK(result.code == 0 && strstr(result.out, "\"long\":\"--expect\"") &&
+        strstr(result.out, "\"algorithms\":[\"sha256\"]") && strstr(result.out, "\"requires\":[\"--apply\"]"));
+    release(&result);
+    return 1;
+}
+
 static int test_environment_format(void) {
     CHECK(setenv("MAELYS_CLI_FORMAT", "json", 1) == 0);
     run_result_t result = RUNV("report");
@@ -1074,6 +1175,7 @@ int main(void) {
     RUN(test_stream_records_and_codes);
     RUN(test_field);
     RUN(test_typed_operands_and_completion);
+    RUN(test_expect);
     RUN(test_groups_defaults_unavailable);
     RUN(test_constraints);
     RUN(test_operand_pattern);

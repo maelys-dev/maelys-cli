@@ -61,6 +61,7 @@ typedef struct maelys_cli_context {
     int progress_shown;      /* a transient progress line is on stderr */
     int pager_pid;           /* the pager child, or 0 */
     FILE *pager_out;         /* stdout of the process while paging */
+    int expect_checked;      /* maelys_cli_expect() was called */
 } maelys_cli_context_t;
 
 /* Process entry point: returns the exit code. Uses stdout and stderr. */
@@ -212,6 +213,21 @@ void maelys_cli_warn(maelys_cli_context_t *context, const char *format, ...)
     __attribute__((format(printf, 2, 3)))
 #endif
     ;
+
+/* Binds --apply to the reviewed plan (MAELYS_CLI_EXPECT_OPTION, catalog.h).
+ * `fingerprint` is the `sha256:HEX` the handler has just computed, with
+ * maelys_cli_fingerprint_*(), for the action it is about to perform on the
+ * state as it now is. Returns 0 when --expect was not given or names that
+ * fingerprint: the handler goes on, and puts the same string in
+ * data.fingerprint. Otherwise replies PRECONDITION_FAILED, the hint saying
+ * to plan again, and returns the exit code the handler returns at once:
+ *
+ *     int refused = maelys_cli_expect(context, fingerprint);
+ *     if (refused) return refused;
+ *
+ * Call it before the first write, in plan mode as well as under --apply: a
+ * caller that reads PRECONDITION_FAILED concludes that nothing changed. */
+int maelys_cli_expect(maelys_cli_context_t *context, const char *fingerprint);
 
 /* Reads a prompt answer only when interactive; refuses under
  * --non-interactive with a VALIDATION_FAILED error. */

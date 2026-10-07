@@ -2,6 +2,40 @@
 
 ## Unreleased
 
+- **A transaction can bind its application to the plan that was reviewed.**
+  `--apply` plans again and applies that plan: the re-validation says the
+  state still allows the transaction, not that the action is the one the
+  caller read. agent-cli-spec 2.9.0 reserves one spelling for the binding,
+  and the framework now offers it, in C and in Python:
+  - **declaration**: `MAELYS_CLI_EXPECT_OPTION` beside
+    `MAELYS_CLI_APPLY_OPTION`, `cli.transaction(..., expect=True)` in Python:
+    `--expect FINGERPRINT`, a sha256 digest that requires `--apply`. The
+    catalog validation refuses another shape of `--expect` on a transaction
+    and a schema that does not list `fingerprint` in its `required`; on a
+    read the name stays free;
+  - **the fingerprint**: `maelys_cli_fingerprint_init/add/add_string/
+    add_file/finish` (`digest.h`) and `cli.Fingerprint`, a `sha256:HEX` over
+    the entries the product adds: the action and the state of what it would
+    touch. Each entry is its label, a presence byte and its value, the two
+    strings preceded by their length, so two entries are never one
+    concatenation and an absent value is not an empty one. The two
+    implementations frame identically: `make hello-parity-check` compares
+    the fingerprints of both reference products, and both test suites hold
+    the same reference strings, computed apart from either;
+  - **the check**: `maelys_cli_expect(context, fingerprint)` and
+    `invocation.expect(fingerprint)`, called before the first write. When
+    `--expect` names another plan, `PRECONDITION_FAILED` with the hint to
+    plan again, and nothing written;
+  - **a handler that declares the option and never asks is not believed**:
+    answering when `--expect` was given without having called the check is
+    `UNEXPECTED`, not a success a caller would take for a binding.
+
+  `note write` of `maelys-hello` and of `hello.py` are the worked example:
+  the fingerprint covers the path, the content, `--replace` and what is at
+  the path now, so the same note over a file that changed since is refused.
+  Nothing changes for a transaction that declares none of this.
+  `maelys agents install` does not offer it yet.
+
 - agent-cli-spec pinned at v2.10.0 (from v2.9.0): the pin, and nothing in
   the framework. 2.10.0 says what a delegate is, on the criterion this
   repository gave when asked: `external: true` when the catalog does not own

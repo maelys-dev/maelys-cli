@@ -47,6 +47,34 @@ the built-ins `help`, `version`, `describe`, `completion` and
 refuses a duplicate identifier. The catalog is the only source of the
 synopsis, the help, `describe` and the completion.
 
+## Binding a plan to its application
+
+`cli.transaction(..., expect=True)` declares the reserved `--expect
+FINGERPRINT` (spec 2.9, section 4; `MAELYS_CLI_EXPECT_OPTION` in C): a
+sha256 digest that requires `--apply`. The `schema=` must then list
+`fingerprint` in its `required`, or the declaration is refused, as is an
+`--expect` of another shape on a transaction.
+
+```python
+def note_write(invocation):
+    fingerprint = cli.Fingerprint().add("path", path).add("content", content) \
+        .add_file("target", path, 1 << 20).finish()
+    invocation.expect(fingerprint)          # before the first write
+    plan = {"mode": "plan", "path": path, "fingerprint": fingerprint}
+    ...
+```
+
+`Fingerprint` builds the `sha256:HEX` string over the action and over the
+state of the resources it would touch: `add(label, value)` takes bytes, a
+string or `None` for an absent value, `add_file(label, path, maximum_size)`
+the state of a file (absent, or the sha256 of its content; any other
+`OSError` is raised), `finish()` returns the string. It frames its entries
+as `maelys_cli_fingerprint_*()` does, so a C and a Python product that add
+the same entries return the same fingerprint. `invocation.expect(fingerprint)`
+returns when `--expect` was not given or names it, and raises
+`PRECONDITION_FAILED` otherwise; a handler that answers when `--expect` was
+given without having called it is answered `UNEXPECTED`.
+
 ## Completion
 
 `PROGRAM completion bash|zsh|fish` prints a script that **carries the
@@ -85,7 +113,7 @@ returns either text without running the command.
 | --- | --- | --- |
 | `cli.read(id, pattern, purpose, handler, ...)` | `read` | `(data, EXIT_OK)` or `(report, EXIT_VIOLATIONS)` |
 | `cli.records(...)` | `read`, `json-records` | `({"count": N, "records": [...]}, EXIT_OK)`; `--format jsonl` accepted |
-| `cli.transaction(..., commit=False)` | `{"plan": "preview", "apply": "apply"}` | `data.mode` is `plan` without `--apply`, `apply` with it; `--dry-run` and `--plan` are refused |
+| `cli.transaction(..., commit=False, expect=False)` | `{"plan": "preview", "apply": "apply"}` | `data.mode` is `plan` without `--apply`, `apply` with it; `--dry-run` and `--plan` are refused |
 | `cli.execute(...)` | `execute` | `(data, exit_code)` |
 | `cli.stream(..., protocol=...)` | `stream`, `protocol-stream` | the exit status; rendering options are refused, stdout belongs to the protocol |
 | `cli.external(...)` | delegate, `passthrough` | the exit status; every word after the pattern reaches the handler verbatim |

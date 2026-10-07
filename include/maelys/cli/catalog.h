@@ -262,6 +262,26 @@ typedef struct maelys_cli_command {
     {MAELYS_CLI_FLAG("apply", \
      "Apply the reviewed transaction; omission returns a read-only plan.")}
 
+/* The reserved binding of a plan to its application (agent-cli/v2 2.9,
+ * section 4), for a transaction whose plan has a stable identity:
+ * `--expect FINGERPRINT` beside MAELYS_CLI_APPLY_OPTION, and "fingerprint"
+ * in the top-level `required` of the output schema. The plan returns
+ * data.fingerprint; `--apply --expect FINGERPRINT` applies only the plan
+ * that fingerprint names. The handler computes the fingerprint with
+ * maelys_cli_fingerprint_*() (digest.h) and, before it writes anything,
+ * calls maelys_cli_expect() (app.h), which is what refuses a stale plan.
+ * A transaction declares the pair whole or not at all: the catalog
+ * validation refuses another shape of --expect and a schema that does not
+ * require the fingerprint, and a handler that replies without having
+ * called maelys_cli_expect() when --expect was given is answered
+ * UNEXPECTED rather than believed. */
+extern const char *const maelys_cli_expect_algorithms[];
+#define MAELYS_CLI_EXPECT_OPTION \
+    {MAELYS_CLI_DIGEST("expect", "FINGERPRINT", \
+     "Apply only the plan this fingerprint names; a plan that has changed " \
+     "since is refused before anything is written.", \
+     maelys_cli_expect_algorithms), .depends_on = "apply"}
+
 /* Commands: identity plus effect and output mode; add operands, options,
  * schema and attributes after the macro. */
 #define MAELYS_CLI_READ(id_, pattern_, purpose_, handler_) \

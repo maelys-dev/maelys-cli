@@ -45,7 +45,7 @@ check "version json envelope on stdout only" '[ "$code" = 0 ] && [ -z "$err" ] &
 
 run describe "$hello" describe --format json --compact --non-interactive
 check "describe is valid json and silent on stderr" '[ "$code" = 0 ] && [ -z "$err" ] && json_ok "$work/out"'
-check "describe usage equals synopsis" 'printf "%s" "$out" | grep -q "\"usage\":\"note write FILE --content TEXT \[--replace\] \[--apply\]\",.*\"synopsis\":\"note write FILE --content TEXT \[--replace\] \[--apply\]\""'
+check "describe usage equals synopsis" 'printf "%s" "$out" | grep -q "\"usage\":\"note write FILE --content TEXT \[--replace\] \[--apply\] \[--expect FINGERPRINT\]\",.*\"synopsis\":\"note write FILE --content TEXT \[--replace\] \[--apply\] \[--expect FINGERPRINT\]\""'
 
 run help "$hello" help
 check "help lists commands" '[ "$code" = 0 ] && printf "%s" "$out" | grep -q "note write FILE --content TEXT" && printf "%s" "$out" | grep -q "AGENT CONTRACT"'
@@ -183,6 +183,26 @@ run hidden-complete "$hello" __complete -- greet --
 check "hidden option never completed" 'printf "%s" "$out" | grep -q -- "--shout" && ! printf "%s" "$out" | grep -q -- "--trace"'
 run hidden-accepted "$hello" greet x --trace --json
 check "hidden option accepted and traced on stderr" '[ "$code" = 0 ] && printf "%s" "$err" | grep -q "warning: greet: name=x"'
+# --expect binds --apply to the reviewed plan (spec 2.9, section 4).
+bound="$work/bound.txt"
+run plan-fingerprint "$hello" note write "$bound" --content first --field fingerprint
+reviewed=$out
+check "a plan carries its fingerprint" '[ "$code" = 0 ] && printf "%s" "$reviewed" | grep -Eq "^sha256:[0-9a-f]{64}$"'
+run plan-again "$hello" note write "$bound" --content first --field fingerprint
+check "the same plan over the same state has the same fingerprint" '[ "$out" = "$reviewed" ]'
+run plan-other "$hello" note write "$bound" --content second --field fingerprint
+check "another action has another" '[ "$code" = 0 ] && [ "$out" != "$reviewed" ]'
+run expect-stale "$hello" note write "$bound" --content second --apply --expect "$reviewed"
+check "an action that is not the reviewed one is refused before anything is written" '[ "$code" = 1 ] && [ ! -e "$bound" ] && [ -z "$out" ] && printf "%s" "$err" | grep -q "\[PRECONDITION_FAILED\]"'
+printf 'someone else' >"$bound"
+run expect-moved "$hello" note write "$bound" --content first --replace --apply --expect "$reviewed"
+check "the same action over a state that moved is refused too" '[ "$code" = 1 ] && [ "$(cat "$bound")" = "someone else" ] && printf "%s" "$err" | grep -q "Plan again without --apply"'
+rm -f "$bound"
+run expect-apply "$hello" note write "$bound" --content first --apply --expect "$reviewed" --field fingerprint
+check "the reviewed plan is applied, and the result carries its fingerprint" '[ "$code" = 0 ] && [ "$(cat "$bound")" = "first" ] && [ "$out" = "$reviewed" ]'
+run expect-plan "$hello" note write "$work/unbound.txt" --content x --expect "$reviewed"
+check "--expect without --apply is refused" '[ "$code" = 1 ] && printf "%s" "$err" | grep -q "requires --apply"'
+
 note_field="$work/field-refused.txt"
 run field-write "$hello" note write "$note_field" --content hi --apply --field no-such-member
 check "--field of a member a transaction does not require is refused before anything is written" '[ "$code" = 1 ] && [ ! -e "$note_field" ] && [ -z "$out" ] && printf "%s" "$err" | grep -q "does not always return"'

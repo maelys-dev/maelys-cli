@@ -1,6 +1,7 @@
 #include "maelys/cli/digest.h"
 #include "maelys/cli/files.h"
 
+#include <errno.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -135,4 +136,67 @@ int maelys_cli_sha256_file(
     maelys_cli_sha256_hex(bytes, size, out);
     free(bytes);
     return 0;
+}
+
+/* ---- fingerprint of a plan ---------------------------------------------------- */
+
+static void fingerprint_length(maelys_cli_sha256_t *hash, uint64_t length) {
+    unsigned char bytes[8];
+    for (size_t i = 0u; i < 8u; ++i)
+        bytes[i] = (unsigned char)(length >> (56u - 8u * i));
+    maelys_cli_sha256_update(hash, bytes, sizeof(bytes));
+}
+
+void maelys_cli_fingerprint_init(maelys_cli_fingerprint_t *fingerprint) {
+    if (fingerprint) maelys_cli_sha256_init(&fingerprint->hash);
+}
+
+void maelys_cli_fingerprint_add(
+    maelys_cli_fingerprint_t *fingerprint, const char *label,
+    const void *bytes, size_t size) {
+    if (!fingerprint) return;
+    size_t label_length = label ? strlen(label) : 0u;
+    unsigned char present = bytes ? 1u : 0u;
+    fingerprint_length(&fingerprint->hash, (uint64_t)label_length);
+    if (label_length) maelys_cli_sha256_update(&fingerprint->hash, label, label_length);
+    maelys_cli_sha256_update(&fingerprint->hash, &present, 1u);
+    fingerprint_length(&fingerprint->hash, present ? (uint64_t)size : 0u);
+    if (present && size) maelys_cli_sha256_update(&fingerprint->hash, bytes, size);
+}
+
+void maelys_cli_fingerprint_add_string(
+    maelys_cli_fingerprint_t *fingerprint, const char *label, const char *text) {
+    maelys_cli_fingerprint_add(fingerprint, label, text, text ? strlen(text) : 0u);
+}
+
+int maelys_cli_fingerprint_add_file(
+    maelys_cli_fingerprint_t *fingerprint, const char *label,
+    const char *path, size_t maximum_size) {
+    if (!fingerprint || !path) {
+        errno = EINVAL;
+        return -1;
+    }
+    char digest[MAELYS_CLI_SHA256_HEX_SIZE];
+    if (maelys_cli_sha256_file(path, maximum_size, digest) != 0) {
+        if (errno != ENOENT) return -1;
+        maelys_cli_fingerprint_add(fingerprint, label, NULL, 0u);
+        return 0;
+    }
+    maelys_cli_fingerprint_add(fingerprint, label, digest, strlen(digest));
+    return 0;
+}
+
+void maelys_cli_fingerprint_finish(
+    maelys_cli_fingerprint_t *fingerprint,
+    char out[MAELYS_CLI_FINGERPRINT_SIZE]) {
+    static const char digits[] = "0123456789abcdef";
+    unsigned char raw[MAELYS_CLI_SHA256_SIZE];
+    if (!fingerprint || !out) return;
+    maelys_cli_sha256_final(&fingerprint->hash, raw);
+    memcpy(out, "sha256:", 7u);
+    for (size_t i = 0u; i < MAELYS_CLI_SHA256_SIZE; ++i) {
+        out[7u + 2u * i] = digits[raw[i] >> 4];
+        out[8u + 2u * i] = digits[raw[i] & 15u];
+    }
+    out[MAELYS_CLI_FINGERPRINT_SIZE - 1u] = '\0';
 }

@@ -199,7 +199,14 @@ Value kinds: `NONE` (flag, accepts `--flag=false`), `STRING`, `INTEGER`,
 delivered in milliseconds), `PATH` (non-empty), `ABSOLUTE_PATH`, `CHOICE`,
 `HEX`, `DIGEST`. Prefer `ABSOLUTE_PATH` and `DIGEST` over re-validating a
 `STRING` in the handler. A transaction must declare
-`MAELYS_CLI_APPLY_OPTION`.
+`MAELYS_CLI_APPLY_OPTION`. One whose plan has a stable identity also
+declares `MAELYS_CLI_EXPECT_OPTION` (spec 2.9) and lists `fingerprint` in the
+`required` of its schema: the handler computes the fingerprint of the action
+and of the state it would touch with `maelys_cli_fingerprint_init/add/
+add_string/add_file/finish`, calls `maelys_cli_expect()` before its first
+write and returns `data.fingerprint`. `--apply --expect FINGERPRINT` then
+applies only the plan that was reviewed. Never give `--expect` another
+meaning on a transaction.
 
 
 ### Compose the catalog from parts (build variants)
@@ -277,6 +284,7 @@ Handler accessors (`maelys/cli/app.h`):
 | `maelys_cli_replied(ctx)` | 1 once a reply was emitted |
 | `maelys_cli_resolve_helper(ctx, name, out, size)` | trusted helper path, delegate search order |
 | `maelys_cli_confirm(ctx, question, &yes)` | interactive prompt; fails under `--non-interactive` |
+| `maelys_cli_expect(ctx, fingerprint)` | binds `--apply` to the reviewed plan: 0 to go on, else the exit code to return, `PRECONDITION_FAILED` replied |
 | `maelys_cli_warn(ctx, fmt, ...)` | diagnostic on stderr |
 
 Handler rules:

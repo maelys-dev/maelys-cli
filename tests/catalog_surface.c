@@ -110,6 +110,30 @@ static const maelys_cli_constraint_t surface_constraints[] = {
 static const char surface_schema[] =
     "{\"type\":\"object\",\"additionalProperties\":false}";
 
+static const maelys_cli_option_t bound_options[] = {
+    MAELYS_CLI_APPLY_OPTION, MAELYS_CLI_EXPECT_OPTION,
+};
+static const char bound_schema[] =
+    "{\"type\":\"object\",\"required\":[\"mode\",\"fingerprint\"]}";
+
+static int reply_bound(maelys_cli_context_t *context) {
+    maelys_cli_fingerprint_t plan;
+    char fingerprint[MAELYS_CLI_FINGERPRINT_SIZE];
+    maelys_cli_fingerprint_init(&plan);
+    maelys_cli_fingerprint_add_string(&plan, "surface", "bound");
+    maelys_cli_fingerprint_finish(&plan, fingerprint);
+    int refused = maelys_cli_expect(context, fingerprint);
+    if (refused) return refused;
+    maelys_cli_json_writer_t data;
+    maelys_cli_json_writer_init(&data);
+    (void)maelys_cli_json_begin_object(&data);
+    (void)maelys_cli_json_key_string(&data, "mode",
+        maelys_cli_flag(context, "apply") ? "apply" : "plan");
+    (void)maelys_cli_json_key_string(&data, "fingerprint", fingerprint);
+    (void)maelys_cli_json_end_object(&data);
+    return maelys_cli_succeed_writer(context, &data, fingerprint, MAELYS_CLI_EXIT_OK);
+}
+
 static const maelys_cli_command_t commands[] = {
     /* Every output mode and effect, with the fields that only some carry:
      * an output schema, an explicit synopsis, hidden, a protocol name, an
@@ -126,6 +150,11 @@ static const maelys_cli_command_t commands[] = {
     {MAELYS_CLI_COMMIT_TRANSACTION("plan.commit", "plan commit",
      "A transaction that plans and commits.", reply),
      MAELYS_CLI_OPERANDS(one_operand), MAELYS_CLI_OPTIONS(apply_options)},
+    /* A transaction that binds its application to the reviewed plan: the
+     * reserved --expect, and a fingerprint its schema requires (spec 2.9). */
+    {MAELYS_CLI_TRANSACTION("plan.bound", "plan bound",
+     "A transaction whose plan can be bound.", reply_bound),
+     MAELYS_CLI_OPTIONS(bound_options), MAELYS_CLI_SCHEMA(bound_schema)},
     {MAELYS_CLI_EXECUTE("execute", "execute", "An execute command.", reply)},
     {MAELYS_CLI_STREAM("stream", "stream", "A stream that owns stdio.", reply),
      MAELYS_CLI_OPERANDS(one_operand),

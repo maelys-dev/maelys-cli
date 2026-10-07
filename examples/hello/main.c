@@ -125,7 +125,11 @@ static const maelys_cli_option_t note_options[] = {
     {MAELYS_CLI_STRING("content", "TEXT", "Text to store."), .required = 1},
     {MAELYS_CLI_FLAG("replace", "Allow replacing an existing file atomically.")},
     MAELYS_CLI_APPLY_OPTION,
+    MAELYS_CLI_EXPECT_OPTION,
 };
+
+/* The largest note whose content the fingerprint reads back. */
+#define NOTE_MAXIMUM_SIZE (1u << 20)
 
 static int command_note_write(maelys_cli_context_t *context) {
     const char *path = maelys_cli_operand(context, 0u);
@@ -139,6 +143,22 @@ static int command_note_write(maelys_cli_context_t *context) {
             "Choose a new path or add --replace to overwrite atomically.",
             "Target %s already exists.", path);
     }
+    /* The fingerprint of the plan: the action (which path, which content,
+     * replacing or not) and the state it would touch (what is at the path
+     * now). The same note over the same file is the same plan; another
+     * content, or the same content over a file that has changed since, is
+     * another, and --expect refuses it before anything is written. */
+    maelys_cli_fingerprint_t plan;
+    char fingerprint[MAELYS_CLI_FINGERPRINT_SIZE];
+    maelys_cli_fingerprint_init(&plan);
+    maelys_cli_fingerprint_add_string(&plan, "path", path);
+    maelys_cli_fingerprint_add_string(&plan, "content", content);
+    maelys_cli_fingerprint_add_string(&plan, "replace", replace ? "true" : "false");
+    if (maelys_cli_fingerprint_add_file(&plan, "target", path, NOTE_MAXIMUM_SIZE) != 0)
+        return maelys_cli_fail_errno(context, MAELYS_CLI_CODE_IO_FAILED, errno, path);
+    maelys_cli_fingerprint_finish(&plan, fingerprint);
+    int refused = maelys_cli_expect(context, fingerprint);
+    if (refused) return refused;
     if (apply && maelys_cli_write_file_atomic(path, content, strlen(content),
             0644, replace ? MAELYS_CLI_WRITE_REPLACE :
             MAELYS_CLI_WRITE_NO_REPLACE) != 0) {
@@ -152,6 +172,7 @@ static int command_note_write(maelys_cli_context_t *context) {
     (void)maelys_cli_json_key_boolean(&data, "changed", apply);
     (void)maelys_cli_json_key_string(&data, "path", path);
     (void)maelys_cli_json_key_unsigned(&data, "bytes", (uint64_t)strlen(content));
+    (void)maelys_cli_json_key_string(&data, "fingerprint", fingerprint);
     (void)maelys_cli_json_key(&data, "precondition");
     (void)maelys_cli_json_begin_object(&data);
     (void)maelys_cli_json_key_boolean(&data, "targetAbsent", absent);

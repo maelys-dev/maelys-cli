@@ -263,6 +263,20 @@ def _command(identifier: str, pattern: str, purpose: str, handler: Optional[Hand
     words = pattern.split()
     operands = list(operands)
     options = list(options)
+    # On a transaction --expect has one meaning and one shape (spec 2.9,
+    # section 4): what transaction(expect=True) declares, and a fingerprint
+    # the schema requires. Refused here as C refuses it at startup.
+    for item in options if isinstance(effect, dict) else ():
+        if item["long"] != "--expect":
+            continue
+        value = item.get("argument", {})
+        if value.get("type") != "digest" or value.get("algorithms") != ["sha256"] \
+                or "--apply" not in item["requires"] or item["repeatable"] or item["required"] or item.get("hidden"):
+            raise ValueError(f"{identifier}: --expect is reserved on a transaction for binding a plan; "
+                             "declare it with transaction(expect=True), or name the option otherwise")
+        if "fingerprint" not in ((schema or {}).get("required") or []):
+            raise ValueError(f"{identifier}: a transaction that declares --expect lists \"fingerprint\" "
+                             "in the required of its schema")
     variadic = [item for item in operands if item["variadic"]]
     if len(variadic) > 1 or (variadic and operands[-1] is not variadic[0]):
         raise ValueError(f"{identifier}: at most one operand is variadic, and it is the last one")
@@ -301,11 +315,61 @@ def records(identifier: str, pattern: str, purpose: str, handler: Handler, **key
 
 
 def transaction(identifier: str, pattern: str, purpose: str, handler: Handler, commit: bool = False,
-                options: tuple = (), **keywords: Any) -> dict:
-    """Plans by default, writes with --apply; the handler reads invocation.apply."""
+                options: tuple = (), expect: bool = False, **keywords: Any) -> dict:
+    """Plans by default, writes with --apply; the handler reads invocation.apply.
+    `expect=True` binds the application to the reviewed plan (spec 2.9, section
+    4; C: MAELYS_CLI_EXPECT_OPTION): it declares `--expect FINGERPRINT`, and
+    the schema must then list `fingerprint` in its `required`. The handler
+    computes the fingerprint with Fingerprint and calls
+    invocation.expect(fingerprint) before it writes anything."""
     effect = {"plan": "preview", "apply": "commit" if commit else "apply"}
     options = list(options) + [flag("--apply", "Apply the reviewed plan instead of only planning it.")]
+    if expect:
+        options.append(option("--expect", "Apply only the plan this fingerprint names; a plan that has changed "
+                              "since is refused before anything is written.",
+                              argument("FINGERPRINT", "digest", algorithms=["sha256"]), requires=("--apply",)))
     return _command(identifier, pattern, purpose, handler, effect, options=options, **keywords)
+
+
+class Fingerprint:
+    """The fingerprint of a plan (spec 2.9, section 4): a `sha256:HEX` string
+    over the action the plan describes and over the state of the resources
+    that action would touch. The same writes on the same state give the same
+    fingerprint; another write, or the same write on another state, gives
+    another. What goes in is the product's business; this is how it goes in,
+    and it is the framing of maelys_cli_fingerprint_*() in C, byte for byte:
+    each entry is its label, a presence byte and its value, the two strings
+    preceded by their length on eight bytes. Add the entries in a fixed order."""
+
+    def __init__(self) -> None:
+        import hashlib  # here, not at the top: only a transaction that binds its plan pays for it
+        self._hash = hashlib.sha256()
+
+    def add(self, label: str, value: Union[bytes, str, None]) -> "Fingerprint":
+        """One entry; `None` is an absent value, which differs from an empty one."""
+        name = label.encode("utf-8")
+        data = value.encode("utf-8", "surrogateescape") if isinstance(value, str) else value
+        self._hash.update(len(name).to_bytes(8, "big") + name)
+        self._hash.update(b"\x00" if data is None else b"\x01")
+        self._hash.update(len(data or b"").to_bytes(8, "big") + bytes(data or b""))
+        return self
+
+    def add_file(self, label: str, path: str, maximum_size: int) -> "Fingerprint":
+        """The state of a file the action would touch: absent when nothing is
+        at `path`, the sha256 of its content when it is a regular file read
+        within `maximum_size`. Anything else raises the OSError: a state that
+        cannot be read is not a state to bind a plan to."""
+        import hashlib
+        try:
+            content = read_regular_file(path, 0, maximum_size)
+        except OSError as error:
+            if error.errno != errno.ENOENT:
+                raise
+            return self.add(label, None)
+        return self.add(label, hashlib.sha256(content).hexdigest())
+
+    def finish(self) -> str:
+        return "sha256:" + self._hash.hexdigest()
 
 
 def execute(identifier: str, pattern: str, purpose: str, handler: Handler, **keywords: Any) -> dict:
@@ -1239,6 +1303,7 @@ class Invocation:
         self.color = color
         self.field = field
         self._progress_shown = False
+        self._expect_checked = False
 
     @property
     def color_stdout(self) -> bool:
@@ -1303,6 +1368,22 @@ class Invocation:
     @property
     def apply(self) -> bool:
         return self.flag("--apply")
+
+    def expect(self, fingerprint: str) -> None:
+        """Binds --apply to the reviewed plan (transaction(expect=True); C:
+        maelys_cli_expect). `fingerprint` is what the handler has just computed
+        for the action it is about to perform on the state as it now is.
+        Returns when --expect was not given or names it, and the handler puts
+        the same string in data["fingerprint"]; raises PRECONDITION_FAILED
+        otherwise. Call it before the first write, in plan mode as well: a
+        caller that reads that code concludes that nothing changed."""
+        self._expect_checked = True
+        expected = self.options.get("--expect")
+        if expected is not None and expected != fingerprint:
+            raise Failure("PRECONDITION_FAILED",
+                          f"The plan --expect names is no longer the one '{self.command['id']}' would apply: "
+                          "the action or the state it touches has changed. Nothing was written.",
+                          "Plan again without --apply, review the new plan, then apply it with its fingerprint.")
 
 
 class Program:
@@ -1991,6 +2072,15 @@ class Program:
                                       "Use a member the command's output schema requires; describe lists them.")
             data, exit_code = command["handler"](invocation)
             invocation.progress_done()
+            if invocation.options.get("--expect") is not None and not invocation._expect_checked \
+                    and isinstance(command["effect"], dict):
+                # --expect was given and the handler answers without having
+                # asked invocation.expect(): the caller would believe a
+                # binding nobody checked (C: succeed_with).
+                raise Failure("UNEXPECTED",
+                              f"Command '{command_id}' answered without checking --expect: what it did is "
+                              "not known to be the plan the fingerprint names.",
+                              "Report this defect to the command implementation.")
             if invocation.field is not None:
                 # A name absent from data is discoverable only now, once the
                 # handler has run.

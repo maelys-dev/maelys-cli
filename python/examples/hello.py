@@ -41,6 +41,9 @@ def limits(invocation: cli.Invocation):
     return data, cli.EXIT_OK
 
 
+NOTE_MAXIMUM_SIZE = 1 << 20  # the largest note whose content the fingerprint reads back
+
+
 def note_write(invocation: cli.Invocation):
     path = invocation.operands[0]
     content = invocation.option("--content")
@@ -48,8 +51,18 @@ def note_write(invocation: cli.Invocation):
     if exists and not invocation.flag("--replace"):
         raise cli.Failure("PRECONDITION_FAILED", f"{path} already exists.",
                           "Add --replace to replace it, or choose another file.")
+    # The fingerprint of the plan, entry for entry the one maelys-hello
+    # computes: the action (which path, which content, replacing or not) and
+    # the state it would touch (what is at the path now).
+    try:
+        fingerprint = cli.Fingerprint().add("path", path).add("content", content) \
+            .add("replace", "true" if invocation.flag("--replace") else "false") \
+            .add_file("target", path, NOTE_MAXIMUM_SIZE).finish()
+    except OSError as error:
+        raise cli.file_failure(error, path) from None
+    invocation.expect(fingerprint)
     plan = {"mode": "plan", "path": path, "bytes": len(content.encode("utf-8")),
-            "action": "replace" if exists else "create"}
+            "action": "replace" if exists else "create", "fingerprint": fingerprint}
     if not invocation.apply:
         return plan, cli.EXIT_OK
     try:
@@ -100,7 +113,8 @@ PROGRAM = cli.Program("maelys-hello-py", "Maelys Hello (Python)", VERSION, [
                     operands=[cli.operand("FILE", "Destination file; never replaced without --replace.", kind="path")],
                     options=[cli.option("--content", "Text to store.", cli.argument("TEXT", "string"), required=True),
                              cli.flag("--replace", "Allow replacing an existing file.")],
-                    schema={"type": "object", "required": ["mode", "path", "bytes", "action"]}),
+                    expect=True,
+                    schema={"type": "object", "required": ["mode", "path", "bytes", "action", "fingerprint"]}),
     cli.records("list", "list", "List sample records.", listing,
                 options=[cli.option("--limit", "Maximum number of records.", cli.argument("N", "unsigned", minimum=0, maximum=1000),
                                     default="1000")],
