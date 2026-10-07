@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.36 - 2026-10-07
 
 agent-cli-spec 2.9.0 writes down three rules a review of the contract found
 broken here by reading; each was run before anything was changed, in C and
