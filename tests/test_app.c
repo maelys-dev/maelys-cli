@@ -40,7 +40,10 @@ static uint64_t last_wait;
 static int64_t last_offset;
 static size_t last_level;
 
+static int make_runs;
+
 static int command_make(maelys_cli_context_t *context) {
+    ++make_runs;
     last_memory_present = maelys_cli_option_unsigned(context, "memory", &last_memory);
     (void)maelys_cli_option_unsigned(context, "wait", &last_wait);
     (void)maelys_cli_option_integer(context, "offset", &last_offset);
@@ -874,10 +877,34 @@ static int test_environment_format(void) {
     CHECK(result.code == 1 && mirror_runs == 0 &&
         strstr(result.err, "\"code\":\"VALIDATION_FAILED\""));
     release(&result);
-    result = RUNV("mirror", "--apply", "--source-oid", "abcd", "--target-oid", "ef01", "--field", "mode", "--format", "text");
-    CHECK(mirror_runs == 1); /* an explicit format overrides the environment */
-    release(&result);
     CHECK(unsetenv("MAELYS_CLI_FORMAT") == 0);
+    /* A command that can write accepts for --field only a member its output
+     * schema requires, and says so before it runs (spec 2.9, section 5).
+     * `mirror` is a transaction whose schema requires none: no name is
+     * accepted, with or without --apply. */
+    result = RUNV("mirror", "--field", "mode");
+    CHECK(result.code == 1 && mirror_runs == 0 && result.out[0] == '\0' &&
+        strstr(result.err, "[VALIDATION_FAILED]") &&
+        strstr(result.err, "its output schema requires no member"));
+    release(&result);
+    result = RUNV("mirror", "--apply", "--source-oid", "abcd", "--target-oid", "ef01", "--field", "mode");
+    CHECK(result.code == 1 && mirror_runs == 0);
+    release(&result);
+    /* `thing make` requires "mode": that name is accepted and the command
+     * runs; another is refused while nothing has run, where 0.5.35 ran the
+     * command and then answered that data did not have it. */
+    make_runs = 0;
+    result = RUNV("thing", "make", "/root", "name", "--field", "mode");
+    CHECK(result.code == 0 && make_runs == 1 && strcmp(result.out, "plan\n") == 0);
+    release(&result);
+    result = RUNV("thing", "make", "/root", "name", "--apply", "--field", "path");
+    CHECK(result.code == 1 && make_runs == 1 && result.out[0] == '\0' &&
+        strstr(result.err, "names 'path', which 'thing.make' does not always return"));
+    release(&result);
+    /* A read decides on data, as before: the refusal costs nothing there. */
+    result = RUNV("describe", "--field", "no-such-member");
+    CHECK(result.code == 1 && strstr(result.err, "which 'describe' does not have"));
+    release(&result);
     maelys_cli_json_writer_t writer;
     maelys_cli_json_writer_init(&writer);
     CHECK(maelys_cli_json_begin_object(&writer) == 0);

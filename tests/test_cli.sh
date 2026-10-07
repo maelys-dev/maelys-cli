@@ -183,6 +183,11 @@ run hidden-complete "$hello" __complete -- greet --
 check "hidden option never completed" 'printf "%s" "$out" | grep -q -- "--shout" && ! printf "%s" "$out" | grep -q -- "--trace"'
 run hidden-accepted "$hello" greet x --trace --json
 check "hidden option accepted and traced on stderr" '[ "$code" = 0 ] && printf "%s" "$err" | grep -q "warning: greet: name=x"'
+note_field="$work/field-refused.txt"
+run field-write "$hello" note write "$note_field" --content hi --apply --field no-such-member
+check "--field of a member a transaction does not require is refused before anything is written" '[ "$code" = 1 ] && [ ! -e "$note_field" ] && [ -z "$out" ] && printf "%s" "$err" | grep -q "does not always return"'
+run field-write-ok "$hello" note write "$note_field" --content hi --apply --field path
+check "--field of a member it requires runs the transaction" '[ "$code" = 0 ] && [ -e "$note_field" ] && [ "$out" = "$note_field" ]'
 note_env="$work/env-field.txt"
 run env-field env MAELYS_CLI_FORMAT=json "$hello" note write "$note_env" --content hi --apply --field path
 check "--field against the environment's json is refused before anything is written" '[ "$code" = 1 ] && [ ! -e "$note_env" ] && printf "%s" "$err" | grep -q "conflicts with --format json"'

@@ -221,8 +221,10 @@ scalar its escaped value); `field_jsonl(value)` is its `jsonl` counterpart
 (an array as one compact value per line, else exactly one line). `main()`
 refuses `--field` together with `--format json` (`VALIDATION_FAILED`,
 before the handler runs, also when `MAELYS_CLI_FORMAT=json` resolved the
-format) and a name absent from `data`, after the handler has run. `--field` also lifts the records-only
-restriction on `jsonl`.
+format); on a command that can write (a transaction or an `execute`), a
+name the `required` of its `schema=` does not list, before the handler runs
+too (spec 2.9); on a `read`, a name absent from `data`, after the handler
+has run. `--field` also lifts the records-only restriction on `jsonl`.
 
 ## Stability of the module
 
