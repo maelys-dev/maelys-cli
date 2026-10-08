@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+- **An example is printed as a shell reads it.** `help COMMAND_ID` printed
+  the words of an example as declared, joined by spaces. A word holding
+  `$`, `*`, a quote, `;` or a leading `~` was then another word once the
+  line was pasted: `$HOME` became the reader's home, `*.c` their files,
+  `it's` an unterminated string. The conventions call an example "a line to
+  copy", and it was one only for words no shell interprets. A word made of
+  letters, digits and `_@%+=:,./-` is still printed as it is; any other is
+  single-quoted, a quote and a backslash written `\'` and `\\` outside the
+  quotes, the one spelling sh, bash, zsh and fish read back as the same
+  word, and a word starting with `=` is quoted for zsh. C and Python print
+  the same bytes, and a test passes the spelling through each of the four
+  shells that is installed. No example of `maelys`, `maelys-hello` or
+  `hello.py` changes: none holds such a word. `describe` is untouched: it
+  carries the words as an array, which never needed a spelling.
+
 ## 0.6.3 - 2026-10-08
 
 - maelys-json pinned at v0.3.0 (from v0.2.0). That version copies a number

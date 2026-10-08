@@ -233,7 +233,12 @@ none.
 sentence below; the general help does not, and stays a screen. An example is
 never broken, even when it is longer than the help is wide: it is the one
 line the layout leaves alone, because half of an invocation is another
-invocation. The sentence below it wraps as usual. `describe`
+invocation. The sentence below it wraps as usual. The line is spelled for
+a shell: a word made of letters, digits and `_@%+=:,./-` is printed as it
+is, any other between single quotes, a quote and a backslash written `\'`
+and `\\` outside them, which sh, bash, zsh and fish all read back as the
+declared word. An example declared with `$HOME` shows `'$HOME'`, and pasting
+it passes those five characters rather than a directory. `describe`
 lists them as `{"words": [...], "summary": "..."}` in the catalog and in
 `describe COMMAND_ID`; `describe --summary` omits them, as it omits the
 output schema. Examples written in a README drift from the binary a user

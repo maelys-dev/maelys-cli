@@ -535,6 +535,20 @@ def help_width(fmt: str = "text") -> int:
 # having been taken just above.
 # Every word of a row matches _STATIC_WORD, so a row is inert inside single quotes in the three shells; a
 # catalog holding anything else gets the script that calls __complete, which is always exact.
+_SHELL_BARE = re.compile(r"[A-Za-z0-9_@%+=:,./-]+\Z")
+
+
+def _shell_word(word: str) -> str:
+    """One word of an example as a shell reads it back (C: help_shell_words).
+    A word made of the characters no shell interprets goes as it is; any
+    other is single-quoted, a quote and a backslash leaving the quotes to be
+    written \\' and \\\\, the one spelling sh, bash, zsh and fish read as the
+    same word."""
+    if _SHELL_BARE.match(word) and not word.startswith("="):
+        return word
+    return "'" + "".join("'\\" + character + "'" if character in "'\\" else character for character in word) + "'"
+
+
 _STATIC_WORD = re.compile(r"^[A-Za-z0-9._:/+@%,=-]+$")
 
 _STATIC_BASH = r"""# bash completion for @PROG@ @VERSION@, generated from its catalog
@@ -1708,8 +1722,11 @@ class Program:
             # A line to copy: on one line whatever the width, the one place
             # the help passes it on purpose. Wrapped, the first half was a
             # command of its own and the second another. The sentence wraps.
+            # And spelled for a shell: a word holding `$`, `*` or a quote,
+            # copied as declared, would be another word once pasted.
             text += "\nEXAMPLES\n" + "".join(
-                f"  {self.program} {' '.join(item['words'])}\n" + " " * 6 + _help_wrap(item["summary"], 6, 6, width) + "\n"
+                f"  {self.program} {' '.join(_shell_word(word) for word in item['words'])}\n"
+                + " " * 6 + _help_wrap(item["summary"], 6, 6, width) + "\n"
                 for item in command["examples"])
         text += "\nGLOBAL OPTIONS\n" + _help_paragraph(
             f"Run '{self.program} help conventions' for --format, --json, --compact, --non-interactive, --color "
