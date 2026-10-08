@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+- maelys-json pinned at v0.3.0 (from v0.2.0). That version copies a number
+  that is not an integer by its lexeme where `maelys_json_writer_value` and
+  `maelys_json_writer_object_begin_except` answered `NOT_INTEGER`, adds
+  `maelys_json_writer_number_text`, and raises `MAELYS_JSON_ABI_VERSION` to
+  3. `libmaelys_cli_extension.a` calls none of them: the manifest reader
+  behaves as it did, and the requirement a consumer sees stays
+  `maelys-json >= 0.2`.
+
+- maelys-release adopted at v0.63.1 (from v0.63.0): the three workflow
+  pins. Its Impact line asks nothing of a product, and no managed file
+  moves.
+
 ## 0.6.2 - 2026-10-08
 
 - **An example is one line, whatever the width.** `help COMMAND_ID` wrapped
