@@ -53,6 +53,11 @@
   - **the general help is short**: each command by its pattern and its
     purpose, the product's first, then the ones every program has. It no
     longer repeats every usage;
+  - **what every program has in common is named, not repeated**: the global
+    options by their names and the agent contract by its first rule, where
+    spelled out they were 28 of the 50 lines of `maelys-hello help` and the
+    same in every product. `PROGRAM help conventions` has both whole. The
+    general help of `maelys-hello` is 33 lines, 13 of them its commands;
   - **a family has its help**: `PROGRAM help FAMILY` and `PROGRAM FAMILY
     --help` list the commands under an identifier, the namespace `describe
     --summary --prefix` selects, each with its usage and its purpose below.

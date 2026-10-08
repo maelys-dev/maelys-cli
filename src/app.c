@@ -44,8 +44,8 @@ static const maelys_cli_operand_t complete_operands[] = {
 
 static const maelys_cli_operand_t help_operands[] = {
     {MAELYS_CLI_OPERAND_OPTIONAL("COMMAND_ID",
-     "Stable command identifier whose help is shown, or the family of "
-     "commands under an identifier.")},
+     "Stable command identifier whose help is shown, the family of "
+     "commands under an identifier, or `conventions`.")},
 };
 static const maelys_cli_operand_t describe_operands[] = {
     {MAELYS_CLI_OPERAND_OPTIONAL("COMMAND_ID",
@@ -3046,8 +3046,8 @@ static void command_help_text(
         (void)fputs("\nOPTIONS\n", stream);
         options_help(stream, command->options, command->option_count, width);
     }
-    (void)snprintf(line, sizeof(line), "Run '%s help' for --format, --json, "
-        "--compact, --non-interactive and --color.", app->program);
+    (void)snprintf(line, sizeof(line), "Run '%s help conventions' for --format, "
+        "--json, --compact, --non-interactive, --color and the others.", app->program);
     (void)fputs("\nGLOBAL OPTIONS\n", stream);
     help_paragraph(stream, line, width, 0);
 }
@@ -3114,12 +3114,16 @@ static void catalog_help_text(FILE *stream, const maelys_cli_app_t *app, size_t 
         (void)snprintf(line + used, sizeof(line) - used, " - %s", app->summary);
     (void)help_wrap(stream, line, 0u, 0u, width, 0);
     (void)fprintf(stream, "\n\nUSAGE\n  %s COMMAND [OPERANDS] [OPTIONS]\n", app->program);
-    (void)snprintf(line, sizeof(line), "%s help COMMAND_ID", app->program);
+    (void)snprintf(line, sizeof(line), "%s help conventions", app->program);
     size_t usage_column = display_width(line, strlen(line));
+    (void)snprintf(line, sizeof(line), "%s help COMMAND_ID", app->program);
     help_entry(stream, line, "the operands and options of one command",
         usage_column, width, 0);
     (void)snprintf(line, sizeof(line), "%s help FAMILY", app->program);
     help_entry(stream, line, "the commands of one family, with their usage",
+        usage_column, width, 0);
+    (void)snprintf(line, sizeof(line), "%s help conventions", app->program);
+    help_entry(stream, line, "the options every command takes, and the agent contract",
         usage_column, width, 0);
     (void)fputs("\nCOMMANDS\n", stream);
     size_t count = maelys_cli_app_command_count(app);
@@ -3144,12 +3148,44 @@ static void catalog_help_text(FILE *stream, const maelys_cli_app_t *app, size_t 
             help_entry(stream, command->pattern, line, column, width, 0);
         }
     }
+    /* What every program has in common is named, not repeated: the options
+     * and the contract are the same in every product, and spelled out they
+     * were two thirds of this screen. `help conventions` has them whole. */
+    size_t transport_count = 0u;
+    const maelys_cli_option_t *transport = maelys_cli_transport_options(
+        &transport_count);
+    size_t used_names = 0u;
+    line[0] = '\0';
+    for (size_t i = 0u; i < transport_count && used_names < sizeof(line); ++i)
+        if (!transport[i].hidden)
+            used_names += (size_t)snprintf(line + used_names, sizeof(line) - used_names,
+                "%s--%s", used_names ? ", " : "", transport[i].name);
+    if (used_names < sizeof(line))
+        (void)snprintf(line + used_names, sizeof(line) - used_names,
+            ". Run '%s help conventions' for what each one does.", app->program);
     (void)fputs("\nGLOBAL OPTIONS\n", stream);
+    help_paragraph(stream, line, width, 0);
+    (void)snprintf(line, sizeof(line),
+        "Use --format json --non-interactive, and run '%s describe --summary "
+        "--format json' first. '%s help conventions' has the rest of the "
+        "contract.", app->program, app->program);
+    (void)fputs("\nAGENT CONTRACT\n", stream);
+    help_paragraph(stream, line, width, 0);
+    if (app->agent_guidance && *app->agent_guidance)
+        (void)fprintf(stream, "\n%s%s", app->agent_guidance,
+            app->agent_guidance[strlen(app->agent_guidance) - 1u] == '\n' ?
+            "" : "\n");
+}
+
+/* What every program built on the framework has in common: the options
+ * every command takes and the contract an agent relies on, whole. */
+static void conventions_help_text(FILE *stream, const maelys_cli_app_t *app, size_t width) {
+    char line[2048];
+    (void)fprintf(stream, "%s - conventions\n\nGLOBAL OPTIONS\n", app->program);
     size_t transport_count = 0u;
     const maelys_cli_option_t *transport = maelys_cli_transport_options(
         &transport_count);
     options_help(stream, transport, transport_count, width);
-    (void)fputs("\nAGENT CONTRACT\n", stream);
     (void)snprintf(line, sizeof(line),
         "Use --format json --non-interactive. Run '%s describe --summary "
         "--format json' first, then '%s describe COMMAND_ID --format json' "
@@ -3159,12 +3195,14 @@ static void catalog_help_text(FILE *stream, const maelys_cli_app_t *app, size_t 
         "Stream commands reserve stdout for their protocol. Success data is "
         "written to stdout only; diagnostics and failures go to stderr.",
         app->program, app->program);
+    (void)fputs("\nAGENT CONTRACT\n", stream);
     help_paragraph(stream, line, width, 0);
-    if (app->agent_guidance && *app->agent_guidance)
-        (void)fprintf(stream, "\n%s%s", app->agent_guidance,
-            app->agent_guidance[strlen(app->agent_guidance) - 1u] == '\n' ?
-            "" : "\n");
 }
+
+#define HELP_CONVENTIONS "conventions"
+
+static int family_exists(const maelys_cli_app_t *app, const char *prefix,
+                         char *const words[], size_t word_count);
 
 /* Renders the general help, the help of `target`, or the help of the family
  * `prefix` or `words` names, and replies with data.text and data.commands,
@@ -3174,12 +3212,18 @@ static int help_reply(
     const char *prefix, char *const words[], size_t word_count) {
     char *text = NULL;
     size_t size = 0u;
-    int family = prefix || word_count > 0u;
+    /* The topic is asked for by its name where a family would be; it holds
+     * no command, so data.commands is empty. */
+    int conventions = !target && prefix && word_count == 0u &&
+        !strcmp(prefix, HELP_CONVENTIONS) &&
+        !family_exists(context->app, prefix, NULL, 0u);
+    int family = !conventions && (prefix || word_count > 0u);
     size_t width = help_width(context);
     FILE *memory = open_memstream(&text, &size);
     if (!memory) return maelys_cli_fail_errno(context,
         MAELYS_CLI_CODE_UNEXPECTED, errno, "help buffer");
     if (target) command_help_text(memory, context->app, target, width);
+    else if (conventions) conventions_help_text(memory, context->app, width);
     else if (family) family_help_text(memory, context->app, prefix, words, word_count, width);
     else catalog_help_text(memory, context->app, width);
     if (fclose(memory) != 0 || !text) {
@@ -3200,7 +3244,7 @@ static int help_reply(
             for (size_t i = 0u; built && i < count; ++i) {
                 const maelys_cli_command_t *command =
                     maelys_cli_app_command_at(context->app, i);
-                if (command->hidden ||
+                if (command->hidden || conventions ||
                     (family && !in_family(command, prefix, words, word_count)))
                     continue;
                 built = maelys_cli_json_string(&writer, command->id) == 0;
@@ -3241,8 +3285,9 @@ static int builtin_help(maelys_cli_context_t *context) {
     if (!query) return help_for(context, NULL);
     const maelys_cli_command_t *target = maelys_cli_app_find_command(context->app, query);
     if (target) return help_for(context, target);
-    /* Not a command: a family, the namespace describe --prefix selects. */
-    if (family_exists(context->app, query, NULL, 0u))
+    /* Not a command: a family, the namespace describe --prefix selects; or
+     * the one topic, which a command or a family of that name would hide. */
+    if (family_exists(context->app, query, NULL, 0u) || !strcmp(query, HELP_CONVENTIONS))
         return help_reply(context, NULL, query, NULL, 0u);
     return maelys_cli_fail(context, MAELYS_CLI_CODE_INVALID_COMMAND,
         "Run 'help' without operands to list the commands and their families.",

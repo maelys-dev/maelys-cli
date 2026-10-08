@@ -399,6 +399,20 @@ static int test_help_and_version(void) {
     /* It fits eighty columns where it is not written to a terminal: no
      * description is pushed to the right of the longest usage. */
     CHECK(widest_line(result.out) <= 80u);
+    /* What every program has in common is named, not repeated: the options
+     * by their names, the contract by its first rule, the rest one command
+     * away. Spelled out, they were two thirds of the screen. */
+    CHECK(strstr(result.out, "prog help conventions") && strstr(result.out, "--format, --json,"));
+    CHECK(strstr(result.out, "AGENT CONTRACT") && strstr(result.out, "describe --summary"));
+    CHECK(!strstr(result.out, "Exact alias of --format json") && !strstr(result.out, "Exit 0 is success"));
+    release(&result);
+    result = RUNV("help", "conventions");
+    CHECK(result.code == 0 && !result.err[0] && widest_line(result.out) <= 80u &&
+        strstr(result.out, "prog - conventions") &&
+        strstr(result.out, "Exact alias of --format json") && strstr(result.out, "Exit 0 is success"));
+    release(&result);
+    result = RUNV("help", "conventions", "--json", "--compact");
+    CHECK(result.code == 0 && strstr(result.out, "\"commands\":[]"));   /* a topic holds no command */
     release(&result);
     result = RUNV("help", "thing.make");
     CHECK(result.code == 0 && widest_line(result.out) <= 80u &&

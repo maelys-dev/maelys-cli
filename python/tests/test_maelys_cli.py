@@ -350,6 +350,24 @@ class Contract(unittest.TestCase):
         self.assertIn("maelys-hello-py help COMMAND_ID", guide)
         self.assertIn("maelys-hello-py help FAMILY", guide)
         self.assertIn("AGENT CONTRACT", guide)
+        # What every program has in common is named, not repeated; `help conventions` has it whole.
+        self.assertIn("maelys-hello-py help conventions", guide)
+        self.assertIn("--format, --json,", guide)
+        self.assertNotIn("Exact alias of --format json", guide)
+        self.assertNotIn("Exit 0 is success", guide)
+        conventions = run("help", "conventions")[1]
+        self.assertLessEqual(widest(conventions), 80)
+        self.assertIn("Exact alias of --format json", conventions)
+        self.assertIn("Exit 0 is success", conventions)
+        self.assertEqual(json.loads(run("help", "conventions", "--json")[1])["data"]["commands"], [])
+        # A command of that name is a command first: the topic does not take an identifier away.
+        shadowing = cli.Program("p", "P", "0", [cli.read("conventions", "conventions", "A product's own.",
+                                                         lambda i: ({}, 0))])
+        self.assertTrue(shadowing.command_help(shadowing.command_by_id("conventions")).startswith("USAGE\n  p conventions"))
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.assertEqual(shadowing.main(["help", "conventions"]), 0)
+        self.assertIn("A product's own.", out.getvalue())
         self.assertLess(guide.index("\n  greet"), guide.index("\n  describe"))    # the product's commands first
         self.assertNotIn("__complete", guide)
         for identifier in ("limits", "note.write", "describe"):

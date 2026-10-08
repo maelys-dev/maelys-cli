@@ -84,7 +84,8 @@ command by `id`; never replay a `PRECONDITION_FAILED` blindly; prefer
   line, no envelope; failure is still an envelope on stderr) and text (one
   human line per record).
 - `PROGRAM help` is for a person: it names each command by its pattern and
-  its purpose within 80 columns. `PROGRAM help COMMAND_ID` gives one
+  its purpose within 80 columns, and `PROGRAM help conventions` spells out
+  the global options and the agent contract. `PROGRAM help COMMAND_ID` gives one
   command, `PROGRAM help FAMILY` (or `PROGRAM FAMILY --help`) the commands
   under an identifier with their usage. An agent reads `describe`, whose
   shape is a contract; the text of `help` is not one.

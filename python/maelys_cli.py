@@ -1486,8 +1486,8 @@ class Program:
         self.text = dict(text or {})
         self.catalog = [
             read("help", "help", "Show the help of the program or of one command.", self._help,
-                 operands=[operand("COMMAND_ID", "Command identifier, or the family of commands under one.",
-                                   required=False)],
+                 operands=[operand("COMMAND_ID", "Command identifier, the family of commands under one, "
+                                   "or `conventions`.", required=False)],
                  schema={"type": "object", "required": ["text", "commands"],
                          "properties": {"text": {"type": "string"},
                                         "commands": {"type": "array", "items": {"type": "string"}}}}),
@@ -1645,7 +1645,8 @@ class Program:
         if any(not item.get("hidden") for item in command["options"]):
             text += "\nOPTIONS\n" + self._options_help(command["options"], width)
         text += "\nGLOBAL OPTIONS\n" + _help_paragraph(
-            f"Run '{self.program} help' for --format, --json, --compact, --non-interactive and --color.", width)
+            f"Run '{self.program} help conventions' for --format, --json, --compact, --non-interactive, --color "
+            "and the others.", width)
         return text
 
     def _family(self, prefix: Optional[str] = None, words: Optional[list] = None) -> list:
@@ -1679,9 +1680,11 @@ class Program:
         command is in its own help, the usage of a family in the family's."""
         text = _help_wrap(f"{self.program} {self.version} - {self.guide_line}", 0, 0, width) + "\n\n"
         text += f"USAGE\n  {self.program} COMMAND [OPERANDS] [OPTIONS]\n"
-        column = display_width(f"{self.program} help COMMAND_ID")
+        column = display_width(f"{self.program} help conventions")
         text += _help_entry(f"{self.program} help COMMAND_ID", "the operands and options of one command", column, width)
         text += _help_entry(f"{self.program} help FAMILY", "the commands of one family, with their usage", column, width)
+        text += _help_entry(f"{self.program} help conventions",
+                            "the options every command takes, and the agent contract", column, width)
         text += "\nCOMMANDS\n"
         visible = [(index, command) for index, command in enumerate(self.catalog) if not command["hidden"]]
         column = max([display_width(" ".join(command["pattern"])) for _, command in visible
@@ -1694,14 +1697,26 @@ class Program:
             for command in group:
                 purpose = command["purpose"] + (" (unavailable in this build)" if command["unavailable"] is not None else "")
                 text += _help_entry(" ".join(command["pattern"]), purpose, column, width)
-        text += "\nGLOBAL OPTIONS\n" + self._options_help(GLOBAL_OPTIONS, width)
+        # What every program has in common is named, not repeated: spelled
+        # out, the options and the contract were two thirds of this screen.
+        names = ", ".join(item["long"] for item in GLOBAL_OPTIONS if not item.get("hidden"))
+        text += "\nGLOBAL OPTIONS\n" + _help_paragraph(
+            f"{names}. Run '{self.program} help conventions' for what each one does.", width)
         text += "\nAGENT CONTRACT\n" + _help_paragraph(
-            f"Use --format json --non-interactive. Run '{self.program} describe --summary --format json' first, "
-            f"then '{self.program} describe COMMAND_ID --format json' for the exact input and output contract. "
-            "Exit 0 is success, 1 is execution failure, and 2 is a completed validation report with violations. "
-            "Transactions plan by default and require --apply. Stream commands reserve stdout for their protocol. "
-            "Success data is written to stdout only; diagnostics and failures go to stderr.", width)
+            f"Use --format json --non-interactive, and run '{self.program} describe --summary --format json' first. "
+            f"'{self.program} help conventions' has the rest of the contract.", width)
         return text
+
+    def conventions_help(self, width: int = HELP_WIDTH) -> str:
+        """What every program built on the framework has in common: the options
+        every command takes and the contract an agent relies on, whole."""
+        return f"{self.program} - conventions\n\nGLOBAL OPTIONS\n" + self._options_help(GLOBAL_OPTIONS, width) \
+            + "\nAGENT CONTRACT\n" + _help_paragraph(
+                f"Use --format json --non-interactive. Run '{self.program} describe --summary --format json' first, "
+                f"then '{self.program} describe COMMAND_ID --format json' for the exact input and output contract. "
+                "Exit 0 is success, 1 is execution failure, and 2 is a completed validation report with violations. "
+                "Transactions plan by default and require --apply. Stream commands reserve stdout for their "
+                "protocol. Success data is written to stdout only; diagnostics and failures go to stderr.", width)
 
     # ---- built-in handlers ----
 
@@ -1722,8 +1737,11 @@ class Program:
             command = next((item for item in self.catalog if item["id"] == query), None)
             if command is not None:
                 return {"text": self.command_help(command, width), "commands": [command["id"]]}, EXIT_OK
-            # Not a command: a family, the namespace describe --prefix selects.
+            # Not a command: a family, the namespace describe --prefix selects;
+            # or the one topic, which a command or a family of that name hides.
             family = self._family(prefix=query)
+            if not family and query == "conventions":
+                return {"text": self.conventions_help(width), "commands": []}, EXIT_OK
             if not family:
                 raise Failure("INVALID_COMMAND", f"Unknown command identifier or family: {query}.",
                               "Run 'help' without operands to list the commands and their families.")
