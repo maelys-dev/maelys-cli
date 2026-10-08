@@ -153,6 +153,12 @@ command when either is wrong:
   in the new `help FAMILY` / `FAMILY --help`, which lists the commands under
   an identifier. Nothing to declare; identifiers that share a prefix are
   what makes a family.
+- `COMMAND --help --format json` of a C product answers in the envelope of
+  `help`: `"command": "help"`, the command asked about in `data.commands`.
+  It named the command itself, over data that command's output schema does
+  not describe; a Python product already answered `help`. A consumer that
+  matched the envelope's `command` against the command it asked about reads
+  `data.commands` instead.
 - A Python product's `help COMMAND_ID` now has the sections of a C
   product's: `USAGE`, the purpose, `EFFECT`, `OUTPUT`, `OPERANDS`,
   `OPTIONS`. It began with the usage line alone.

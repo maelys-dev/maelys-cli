@@ -477,6 +477,29 @@ static int test_help_and_version(void) {
     result = RUNV("help", "exec");
     CHECK(result.code == 0 && strstr(result.out, "protocol-stream owned by protocol test-jsonl"));
     release(&result);
+    /* `COMMAND --help` answers as `help COMMAND_ID` does, envelope included:
+     * `command` names help, whose data this is, and data.commands the
+     * command asked about. 0.5.36 and earlier named the command itself over
+     * data its output schema does not describe. */
+    result = RUNV("thing", "make", "--help", "--json", "--compact");
+    CHECK(result.code == 0 && strstr(result.out, "\"command\":\"help\",\"ok\":true") &&
+        strstr(result.out, "\"commands\":[\"thing.make\"]"));
+    char *asked_by_option = result.out;
+    result.out = NULL;
+    release(&result);
+    result = RUNV("help", "thing.make", "--json", "--compact");
+    CHECK(result.code == 0 && strcmp(result.out, asked_by_option) == 0);
+    free(asked_by_option);
+    release(&result);
+    result = RUNV("version", "--help", "--json", "--compact");
+    CHECK(result.code == 0 && strstr(result.out, "\"command\":\"help\"") &&
+        strstr(result.out, "\"commands\":[\"version\"]") && !strstr(result.out, "\"product\""));
+    release(&result);
+    /* Nothing runs under --help, whatever else the line carries. */
+    mirror_runs = 0;
+    result = RUNV("mirror", "--apply", "--source-oid", "abcd", "--target-oid", "ef01", "--help");
+    CHECK(result.code == 0 && mirror_runs == 0 && strstr(result.out, "USAGE"));
+    release(&result);
     result = RUNV("help", "nope");
     CHECK(result.code == 1 && !result.out[0] && strstr(result.err, "[INVALID_COMMAND]"));
     release(&result);

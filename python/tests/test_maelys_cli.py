@@ -333,6 +333,21 @@ class Contract(unittest.TestCase):
         self.assertIn("COMMANDS", out)
         code, out, _ = run("greet", "--help")
         self.assertTrue(out.startswith("USAGE\n  maelys-hello-py greet NAME"))
+        # `COMMAND --help` answers as `help COMMAND_ID` does, envelope included: `command` names help,
+        # whose data this is, and data.commands the command asked about (C: maelys_cli_run).
+        for argv in (("greet", "--help"), ("help", "greet"), ("greet", "Ada", "--help")):
+            body = json.loads(run(*argv, "--json")[1])
+            self.assertEqual((body["command"], body["data"]["commands"]), ("help", ["greet"]), argv)
+        body = json.loads(run("version", "--help", "--json")[1])
+        self.assertEqual((body["command"], body["data"]["commands"]), ("help", ["version"]))
+        self.assertNotIn("version", body["data"])
+        # Nothing runs under --help, whatever else the line carries.
+        with tempfile.TemporaryDirectory() as directory:
+            target = os.path.join(directory, "note.txt")
+            code, out, _ = run("note", "write", target, "--content", "x", "--apply", "--help")
+            self.assertEqual(code, 0)
+            self.assertIn("USAGE", out)
+            self.assertFalse(os.path.exists(target))
         code, out, _ = run("--version", "--json")
         self.assertEqual(json.loads(out)["data"]["version"], hello.VERSION)
 
