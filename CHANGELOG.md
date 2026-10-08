@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.1 - 2026-10-08
 
 - **A product's `agent_guidance` follows the width of the help.** 0.6.0 said
   of the new help that "no line passes it", and had measured that on the two
