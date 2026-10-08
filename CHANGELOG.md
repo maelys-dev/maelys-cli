@@ -2,6 +2,41 @@
 
 ## Unreleased
 
+- **A command declares its examples, and they cannot rot.** Examples lived
+  in READMEs, where they drift: one product's README names two commands the
+  binary its users have installed does not know. agent-cli-spec 2.12.0 adds
+  an optional `examples` member at this repository's request, on one
+  condition that makes it worth having: an example MUST be an invocation
+  the command accepts.
+  - **declaration**: `MAELYS_CLI_EXAMPLES(array)` of
+    `MAELYS_CLI_EXAMPLE(words, summary)` in C, `examples=[cli.example(words,
+    summary)]` in Python. `words` is the command line without the program's
+    name, starting with the pattern, separated by single spaces;
+  - **checked, never run**: the catalog validation parses each example at
+    startup as it would a command line and refuses the catalog when one
+    does not parse -- an option the command has lost, a value that is not
+    of its kind, a required option or operand missing, a rule between
+    options broken -- and when one shows a hidden option or asks for
+    `--help`. The parser reads no file and starts nothing, so an example
+    with `--apply` is checked like any other. After a delegate's pattern
+    the words are the other executable's and are not checked. The same
+    twenty cases are held in C and in Python;
+  - **shown**: `help COMMAND_ID` has an `EXAMPLES` section, each a line to
+    copy with its sentence below; the general help does not, and stays a
+    screen. `describe` and `describe COMMAND_ID` list them, `describe
+    --summary` omits them as it omits the output schema.
+
+  `maelys-hello`, `hello.py` and `maelys` declare theirs; `make
+  hello-parity-check` compares the examples of the commands the two
+  reference products share. No categories: the families by identifier
+  prefix are the grouping.
+- agent-cli-spec pinned at v2.12.0 (from v2.10.0; 2.11.0 is skipped, having
+  put the examples in the summary). 2.12.0 also writes that `--help` after a
+  command gives its help and runs nothing, `--apply` included, and that the
+  envelope then says `"command": "help"`: both hold here, the second since
+  the change above it in this list. Its kit reads each declared example
+  against the catalog, without launching anything.
+
 - maelys-release adopted at v0.63.0 (from v0.62.3): the three workflow pins
   and one managed file. Its Impact line asks a gesture of this product: a
   managed file moves, so a product that carries

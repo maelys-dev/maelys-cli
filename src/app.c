@@ -172,6 +172,95 @@ static int code_is_stable(const char *code) {
     return 0;
 }
 
+/* An example is an invocation the command accepts (agent-cli/v2 2.12,
+ * section 2): it starts with the command's pattern and parses as any command
+ * line does -- declared options, values of their kind, the operands the
+ * command takes, every rule between options -- and shows no hidden option.
+ * It is parsed, never run: the parser reads no file and starts nothing.
+ * After the pattern of a delegate the words are the other executable's. */
+#define EXAMPLE_MAX_WORDS 64u
+#define EXAMPLE_MAX_LENGTH 2048u
+
+static int validate_examples(
+    const maelys_cli_app_t *app, const maelys_cli_command_t *command,
+    maelys_cli_error_t *error) {
+    static const char hint[] =
+        "Write the example as a real invocation of the command, or remove it.";
+    if (command->example_count > 0u && !command->examples) {
+        maelys_cli_error_set(error, MAELYS_CLI_CODE_UNEXPECTED, hint,
+            "Catalog command '%s' counts examples it does not declare.", command->id);
+        return -1;
+    }
+    for (size_t e = 0u; e < command->example_count; ++e) {
+        const maelys_cli_example_t *example = &command->examples[e];
+        const char *words = example->words;
+        size_t pattern_length = strlen(command->pattern);
+        if (!words || !*words || !example->summary || !*example->summary ||
+            !maelys_cli_text_is_terminal_safe(words) ||
+            !maelys_cli_text_is_terminal_safe(example->summary)) {
+            maelys_cli_error_set(error, MAELYS_CLI_CODE_UNEXPECTED, hint,
+                "Catalog command '%s' has an example without words or without "
+                "a summary, or with a control character.", command->id);
+            return -1;
+        }
+        size_t length = strlen(words);
+        if (length >= EXAMPLE_MAX_LENGTH || words[0] == ' ' ||
+            words[length - 1u] == ' ' || strstr(words, "  ")) {
+            maelys_cli_error_set(error, MAELYS_CLI_CODE_UNEXPECTED, hint,
+                "Catalog command '%s' has an example whose words are not "
+                "separated by single spaces: '%s'.", command->id, words);
+            return -1;
+        }
+        if (strncmp(words, command->pattern, pattern_length) != 0 ||
+            (words[pattern_length] != ' ' && words[pattern_length] != '\0')) {
+            maelys_cli_error_set(error, MAELYS_CLI_CODE_UNEXPECTED, hint,
+                "Catalog command '%s' has an example that does not start with "
+                "its pattern '%s': '%s'.", command->id, command->pattern, words);
+            return -1;
+        }
+        if (command->delegate) continue;
+        char copy[EXAMPLE_MAX_LENGTH];
+        char *argv[EXAMPLE_MAX_WORDS];
+        int argc = 0;
+        int asks_help = 0;
+        memcpy(copy, words, length + 1u);
+        for (char *word = copy; word; ) {
+            char *end = strchr(word, ' ');
+            if (end) *end = '\0';
+            if (argc == (int)EXAMPLE_MAX_WORDS) {
+                maelys_cli_error_set(error, MAELYS_CLI_CODE_UNEXPECTED, hint,
+                    "Catalog command '%s' has an example of more than %u words.",
+                    command->id, EXAMPLE_MAX_WORDS);
+                return -1;
+            }
+            if (!strcmp(word, "--help") || !strcmp(word, "-h")) asks_help = 1;
+            argv[argc++] = word;
+            word = end ? end + 1 : NULL;
+        }
+        maelys_cli_invocation_t invocation;
+        maelys_cli_error_t refusal;
+        if (asks_help || maelys_cli_parse(app, argc, argv, &invocation, &refusal) != 0 ||
+            invocation.command != command) {
+            maelys_cli_error_set(error, MAELYS_CLI_CODE_UNEXPECTED, hint,
+                "Catalog command '%s' has an example it does not accept: '%s': %s",
+                command->id, words, asks_help ? "an example invokes the command, "
+                "it does not ask for its help." : invocation.command != command &&
+                !refusal.message[0] ? "it names another command." : refusal.message);
+            return -1;
+        }
+        for (size_t o = 0u; o < invocation.option_count; ++o) {
+            const maelys_cli_option_t *option = invocation.options[o].descriptor;
+            if (option && option->hidden) {
+                maelys_cli_error_set(error, MAELYS_CLI_CODE_UNEXPECTED, hint,
+                    "Catalog command '%s' has an example that shows the hidden "
+                    "option --%s: '%s'.", command->id, option->name, words);
+                return -1;
+            }
+        }
+    }
+    return 0;
+}
+
 static int validate_command(
     const maelys_cli_app_t *app, const maelys_cli_command_t *command,
     maelys_cli_error_t *error) {
@@ -558,6 +647,14 @@ int maelys_cli_catalog_validate(
     for (size_t i = 0u; i < count; ++i) {
         const maelys_cli_command_t *command = maelys_cli_app_command_at(app, i);
         if (validate_command(app, command, error) != 0) return -1;
+    }
+    /* The examples last: parsing one needs a catalog already known to be
+     * well declared. */
+    for (size_t i = 0u; i < count; ++i)
+        if (validate_examples(app, maelys_cli_app_command_at(app, i), error) != 0)
+            return -1;
+    for (size_t i = 0u; i < count; ++i) {
+        const maelys_cli_command_t *command = maelys_cli_app_command_at(app, i);
         for (size_t j = i + 1u; j < count; ++j) {
             const maelys_cli_command_t *other = maelys_cli_app_command_at(app, j);
             if (!strcmp(command->id, other->id) ||
@@ -2222,6 +2319,31 @@ static int describe_command_body(
             command->delegate != NULL) != 0 ||
         maelys_cli_json_end_object(writer) != 0)
         return -1;
+    if (!summary && command->example_count > 0u) {
+        /* The summary omits them, as it omits the schema: it is the form
+         * an agent pays for on every discovery (spec 2.12, section 1). */
+        if (maelys_cli_json_key(writer, "examples") != 0 ||
+            maelys_cli_json_begin_array(writer) != 0)
+            return -1;
+        for (size_t i = 0u; i < command->example_count; ++i) {
+            const maelys_cli_example_t *example = &command->examples[i];
+            if (maelys_cli_json_begin_object(writer) != 0 ||
+                maelys_cli_json_key(writer, "words") != 0 ||
+                maelys_cli_json_begin_array(writer) != 0)
+                return -1;
+            for (const char *word = example->words; *word;) {
+                const char *end = strchr(word, ' ');
+                size_t length = end ? (size_t)(end - word) : strlen(word);
+                if (maelys_cli_json_stringn(writer, word, length) != 0) return -1;
+                word = end ? end + 1 : word + length;
+            }
+            if (maelys_cli_json_end_array(writer) != 0 ||
+                maelys_cli_json_key_string(writer, "summary", example->summary) != 0 ||
+                maelys_cli_json_end_object(writer) != 0)
+                return -1;
+        }
+        if (maelys_cli_json_end_array(writer) != 0) return -1;
+    }
     if (!summary) {
         if (maelys_cli_json_key_raw(writer, "outputSchema",
                 command->output_schema_json ? command->output_schema_json :
@@ -3045,6 +3167,15 @@ static void command_help_text(
     if (shown) {
         (void)fputs("\nOPTIONS\n", stream);
         options_help(stream, command->options, command->option_count, width);
+    }
+    if (command->example_count) {
+        (void)fputs("\nEXAMPLES\n", stream);
+        for (size_t i = 0u; i < command->example_count; ++i) {
+            (void)snprintf(line, sizeof(line), "%s %s", app->program,
+                command->examples[i].words);
+            /* Never beside: a line to copy stands alone. */
+            help_entry(stream, line, command->examples[i].summary, 0u, width, 0);
+        }
     }
     (void)snprintf(line, sizeof(line), "Run '%s help conventions' for --format, "
         "--json, --compact, --non-interactive, --color and the others.", app->program);

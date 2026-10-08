@@ -244,12 +244,28 @@ def constraint(kind: str, *options: str) -> dict:
     return {"kind": kind, "options": list(options)}
 
 
+def example(words: str, summary: str) -> dict:
+    """One example of a command, for `examples=` of a declaration (spec 2.12,
+    section 2; C: MAELYS_CLI_EXAMPLE). `words` is the command line without
+    the program's name, starting with the command's pattern, its words
+    separated by single spaces: a word cannot hold a space, so an example
+    carries values that have none. `summary` says in one sentence what that
+    line does. An example is an invocation the command accepts, with real
+    values; the program parses it when it is built and refuses it otherwise,
+    and nothing runs it."""
+    if not words or not summary or _terminal_safe(words) != words or _terminal_safe(summary) != summary:
+        raise ValueError("an example has words and a summary, without a control character")
+    if words != words.strip(" ") or "  " in words:
+        raise ValueError(f"the words of an example are separated by single spaces: {words!r}")
+    return {"words": words.split(" "), "summary": summary}
+
+
 def _command(identifier: str, pattern: str, purpose: str, handler: Optional[Handler], effect: Any,
              operands: tuple = (), options: tuple = (), schema: Optional[dict] = None, mode: str = "json-envelope",
              protocol: Optional[str] = None, external: bool = False, hidden: bool = False,
              unavailable: Optional[str] = None, unavailable_code: Optional[str] = None,
              passthrough: bool = False,
-             synopsis: Optional[str] = None, constraints: tuple = ()) -> dict:
+             synopsis: Optional[str] = None, constraints: tuple = (), examples: tuple = ()) -> dict:
     if not IDENTIFIER.match(identifier):
         raise ValueError(f"a command identifier is [a-z][a-z0-9.-]*, not {identifier!r}")
     # The code an unavailable command answers: UNSUPPORTED says "absent from
@@ -300,7 +316,7 @@ def _command(identifier: str, pattern: str, purpose: str, handler: Optional[Hand
             "outputMode": mode, "protocol": protocol, "external": external, "hidden": hidden,
             "unavailable": unavailable, "unavailableCode": unavailable_code,
             "operands": operands, "options": options, "passthrough": passthrough,
-            "constraints": list(constraints),
+            "constraints": list(constraints), "examples": list(examples),
             "outputSchema": schema or {"type": "object"}, "handler": handler}
 
 
@@ -1526,6 +1542,45 @@ class Program:
         # usage in help; describe uses the catalog's synopsis
         self.catalog[0]["usage"] = "help [COMMAND_ID] | --help"
         self.catalog[1]["usage"] = "version | --version"
+        # The examples last: parsing one needs the whole catalog.
+        for command in self.catalog:
+            self._check_examples(command)
+
+    def _check_examples(self, command: dict) -> None:
+        """An example is an invocation the command accepts (spec 2.12, section
+        2; C: validate_examples): it starts with the command's pattern and
+        parses as any command line does, and shows no hidden option. It is
+        parsed, never run. After the pattern of a delegate the words are the
+        other executable's."""
+        hidden = {item["long"] for item in command["options"] if item.get("hidden")}
+        for item in command["examples"]:
+            words = item["words"]
+            spelled = " ".join(words)
+            if words[:len(command["pattern"])] != command["pattern"]:
+                raise ValueError(f"{command['id']}: an example does not start with the pattern "
+                                 f"'{' '.join(command['pattern'])}': '{spelled}'")
+            if command["passthrough"]:
+                continue
+            before = words[:words.index("--")] if "--" in words else words
+            if "--help" in before:
+                raise ValueError(f"{command['id']}: an example invokes the command, it does not ask for its help: "
+                                 f"'{spelled}'")
+            unavailable, command["unavailable"] = command["unavailable"], None
+            try:
+                invocation, resolved = self.parse(list(words))
+            except Failure as failure:
+                raise ValueError(f"{command['id']}: an example the command does not accept: '{spelled}': "
+                                 f"{failure.message}") from None
+            finally:
+                command["unavailable"] = unavailable
+                self.resolved_command_id = ""
+                self._family_words = None
+            if resolved is not command:
+                raise ValueError(f"{command['id']}: an example names another command: '{spelled}'")
+            shown = sorted(name for name in invocation.options if name in hidden
+                           and any(word.split("=", 1)[0] == name for word in before))
+            if shown:
+                raise ValueError(f"{command['id']}: an example shows the hidden option {shown[0]}: '{spelled}'")
 
     def _check_references(self, command: dict) -> None:
         names = {item["long"] for item in command["options"]} | {item["long"] for item in GLOBAL_OPTIONS}
@@ -1558,6 +1613,11 @@ class Program:
         entry["input"] = {"synopsis": command["usage"], "operands": command["operands"],
                           "options": command["options"], "constraints": self.constraints(command),
                           "passthrough": command["passthrough"]}
+        if not summary and command["examples"]:
+            # The summary omits them, as it omits the schema: it is the form
+            # an agent pays for on every discovery (spec 2.12, section 1).
+            entry["examples"] = [{"words": list(item["words"]), "summary": item["summary"]}
+                                 for item in command["examples"]]
         if not summary:
             entry["outputSchema"] = command["outputSchema"]
             entry["exitCodes"] = dict(EXIT_CODES)
@@ -1644,6 +1704,11 @@ class Program:
                 for item in command["operands"])
         if any(not item.get("hidden") for item in command["options"]):
             text += "\nOPTIONS\n" + self._options_help(command["options"], width)
+        if command["examples"]:
+            # Never beside: a line to copy stands alone.
+            text += "\nEXAMPLES\n" + "".join(
+                _help_entry(f"{self.program} {' '.join(item['words'])}", item["summary"], 0, width)
+                for item in command["examples"])
         text += "\nGLOBAL OPTIONS\n" + _help_paragraph(
             f"Run '{self.program} help conventions' for --format, --json, --compact, --non-interactive, --color "
             "and the others.", width)

@@ -139,6 +139,26 @@ command when either is wrong:
   validation refuses another shape of it.
 - A product that had an `--expect` of another meaning on a transaction
   renames it; on a read it is untouched.
+## Every consumer, at agent-cli-spec 2.12.0
+
+- **Examples are declared in the catalog**, optionally:
+  `MAELYS_CLI_EXAMPLES` of `MAELYS_CLI_EXAMPLE(words, summary)` in C,
+  `examples=[cli.example(words, summary)]` in Python. A product that keeps
+  invocation lines in a README moves the ones worth keeping: the catalog
+  validation parses each at startup and refuses the catalog when one no
+  longer parses, which a README never does. A product that declares none
+  changes nothing.
+- An example carries real values and no hidden option, and a word of it
+  cannot hold a space. One that needs a 64-digit digest writes one.
+- `--help` after a command gives its help and runs nothing, `--apply`
+  included, and under `--format json` the envelope says `"command":
+  "help"`. Both were true of this framework before the specification wrote
+  them, the second since the release that carries this section; the 2.12.0
+  kit checks them, so **a product pins 2.12.0 with or after that release**,
+  not before: a C product built on 0.5.36 or earlier fails the kit on the
+  envelope.
+- 2.11.0 is skipped: it put the examples in the summary too.
+
 ## Every consumer, at the help that fits eighty columns
 
 - The text of `help` changes, in all its forms; `describe` does not. A

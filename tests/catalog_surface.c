@@ -134,6 +134,14 @@ static int reply_bound(maelys_cli_context_t *context) {
     return maelys_cli_succeed_writer(context, &data, fingerprint, MAELYS_CLI_EXIT_OK);
 }
 
+/* Examples, with every form an option takes: `--name value`, `--name=value`
+ * and a global option. */
+static const maelys_cli_example_t records_examples[] = {
+    {MAELYS_CLI_EXAMPLE("records", "List the records.")},
+    {MAELYS_CLI_EXAMPLE("records --format jsonl", "One JSON object per line.")},
+    {MAELYS_CLI_EXAMPLE("records --format=json --compact", "One envelope, on one line.")},
+};
+
 static const maelys_cli_command_t commands[] = {
     /* Every output mode and effect, with the fields that only some carry:
      * an output schema, an explicit synopsis, hidden, a protocol name, an
@@ -143,7 +151,7 @@ static const maelys_cli_command_t commands[] = {
      MAELYS_CLI_OPERANDS(surface_operands), MAELYS_CLI_OPTIONS(surface_options),
      MAELYS_CLI_CONSTRAINTS(surface_constraints), MAELYS_CLI_SCHEMA(surface_schema)},
     {MAELYS_CLI_RECORDS("records", "records", "A records command.", reply),
-     MAELYS_CLI_SCHEMA(surface_schema)},
+     MAELYS_CLI_SCHEMA(surface_schema), MAELYS_CLI_EXAMPLES(records_examples)},
     {MAELYS_CLI_TRANSACTION("plan.apply", "plan apply",
      "A transaction that plans and applies.", reply),
      MAELYS_CLI_OPERANDS(one_operand), MAELYS_CLI_OPTIONS(apply_options)},

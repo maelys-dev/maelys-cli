@@ -570,6 +570,79 @@ class Contract(unittest.TestCase):
         with contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(careless.main(["t", "--apply"]), 0)
 
+    def test_examples(self) -> None:
+        """An example is an invocation the command accepts (spec 2.12, section 2): the program parses it
+        when it is built and refuses it when it does not parse, as the C catalog validation does, case
+        for case. describe lists the examples except in its summary; help COMMAND_ID shows them."""
+        text = run("help", "note.write")[1]
+        self.assertIn("\nEXAMPLES\n  maelys-hello-py note write /tmp/note.txt --content hello\n"
+                      "      Plan the note: nothing is written.\n", text)
+        described = json.loads(run("describe", "note.write", "--json")[1])["data"]["commands"][0]
+        self.assertEqual(described["examples"][1],
+                         {"words": ["note", "write", "/tmp/note.txt", "--content", "hello", "--apply"],
+                          "summary": "Write it."})
+        catalog = json.loads(run("describe", "--json")[1])["data"]["commands"]
+        self.assertIn("examples", next(item for item in catalog if item["id"] == "greet"))
+        self.assertNotIn("examples", next(item for item in catalog if item["id"] == "check"))   # none declared
+        summary = json.loads(run("describe", "--summary", "--json")[1])["data"]["commands"]
+        self.assertTrue(all("examples" not in item for item in summary))
+        self.assertNotIn("EXAMPLES", run("help")[1])                    # the general help stays a screen
+
+        def program(words: str, summary: str = "A sentence.") -> cli.Program:
+            return cli.Program("prog", "P", "1.0", [
+                cli.transaction("thing.make", "thing make", "Make a thing.", lambda i: ({}, 0),
+                                operands=[cli.operand("ROOT", "Root."), cli.operand("NAME", "Name.", required=False),
+                                          cli.operand("PATH", "Paths.", required=False, variadic=True)],
+                                options=[cli.option("--mode", "Mode.", cli.argument("MODE", "choice", ["fast", "safe"]),
+                                                    default="fast"),
+                                         cli.option("--size", "Size.", cli.argument("BYTES", "size", minimum=1),
+                                                    required=True),
+                                         cli.option("--tag", "Tag.", cli.argument("TEXT"), repeatable=True,
+                                                    requires=("--size",)),
+                                         cli.flag("--trace", "Trace.", hidden=True)],
+                                examples=[cli.example(words, summary)])])
+        for words in ("thing make /root --size 1K",
+                      "thing make /root --size=1K --mode safe --tag a --tag b",
+                      "thing make /root --size 1K --apply --format json",
+                      "thing make --size 1K -- /root",
+                      "thing make /root name a b --size 1K"):
+            program(words)
+        for words in ("make /root --size 1K",                           # not its pattern
+                      "thing makes /root --size 1K",                    # a pattern that only begins alike
+                      "thing make /root",                               # a required option is missing
+                      "thing make --size 1K",                           # a required operand is missing
+                      "thing make /root --size 1K --nosuch",            # an option the command has lost
+                      "thing make /root --size bogus",                  # a value that is not of its kind
+                      "thing make /root --size 1K --mode sideways",     # a choice it does not offer
+                      "thing make /root --tag a",                       # --tag requires --size
+                      "thing make /root --size 1K --trace",             # a hidden option
+                      "thing make /root --size 1K --help",              # asks for the help instead
+                      "thing make  /root --size 1K",                    # two spaces
+                      "thing make /root --size 1K ",                    # a trailing space
+                      ""):
+            with self.assertRaises(ValueError, msg=words):
+                program(words)
+        with self.assertRaises(ValueError):
+            program("thing make /root --size 1K", "")
+        with self.assertRaises(ValueError):
+            program("thing make /root --size 1K", "A control \x1b[2J character.")
+        with self.assertRaises(ValueError) as refusal:
+            program("thing make /root --size 1K --nosuch")
+        self.assertIn("thing.make", str(refusal.exception))
+        self.assertIn("--nosuch", str(refusal.exception))
+        # After a delegate's pattern the words are the other executable's: not checked, the pattern is.
+        cli.Program("prog", "P", "1.0", [cli.external("tool", "tool", "A delegate.", lambda i: 0,
+                                                      examples=[cli.example("tool anything --at --all", "Handed over.")])])
+        with self.assertRaises(ValueError):
+            cli.Program("prog", "P", "1.0", [cli.external("tool", "tool", "A delegate.", lambda i: 0,
+                                                          examples=[cli.example("other anything", "Astray.")])])
+        # Building a program with examples runs none of them.
+        ran = []
+        built = cli.Program("prog", "P", "1.0", [
+            cli.transaction("write", "write", "Write.", lambda i: (ran.append(1) or {}, 0),
+                            examples=[cli.example("write --apply", "Write it.")])])
+        self.assertEqual((ran, built.resolved_command_id), ([], ""))
+
     def test_completion_scripts(self) -> None:
         """The scripts that call __complete print what src/app.c prints (make hello-parity-check compares
         them whole); each line here is one 0.5.33 got wrong."""

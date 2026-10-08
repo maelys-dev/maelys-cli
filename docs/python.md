@@ -74,6 +74,19 @@ the same entries return the same fingerprint. `invocation.expect(fingerprint)`
 returns when `--expect` was not given or names it, and raises
 `PRECONDITION_FAILED` otherwise; a handler that answers when `--expect` was
 given without having called it is answered `UNEXPECTED`.
+## Examples
+
+`examples=[cli.example("note write /tmp/note.txt --content hello", "Plan the
+note.")]` on any declaration gives a command its examples (spec 2.12,
+section 2; `MAELYS_CLI_EXAMPLES` in C). `example(words, summary)` takes the
+command line without the program's name, starting with the command's
+pattern, its words separated by single spaces, and one sentence. `Program`
+parses each example when it is built and raises `ValueError` when the
+command does not accept it, or when it shows a hidden option or asks for
+`--help`; nothing runs it. `help COMMAND_ID` shows them, `describe` lists
+them except in its summary. The rules are those of
+`docs/command-conventions.md`, "Examples".
+
 ## Help
 
 `help`, `help COMMAND_ID`, `help FAMILY` and their `--help` spellings are

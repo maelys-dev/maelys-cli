@@ -163,7 +163,34 @@ typedef struct maelys_cli_command {
      * from the code and never from the sentence. Refused without
      * `unavailable`. */
     const char *unavailable_code;
+    /* Invocations of the command, for the reader of `help` and for an agent
+     * that learns a command faster from one real line than from its grammar
+     * (agent-cli/v2 2.12, section 2). The catalog validation parses each one
+     * and refuses the catalog when one does not parse: an example cannot
+     * name an option the command has lost. `describe` lists them, except in
+     * its summary, and `help COMMAND_ID` shows them. */
+    const struct maelys_cli_example *examples;
+    size_t example_count;
 } maelys_cli_command_t;
+
+/* One example. `words` is the command line without the program's name,
+ * starting with the command's pattern, its words separated by single
+ * spaces: a word cannot hold a space, so an example carries values that
+ * have none. `summary` says in one sentence what that line does. An example
+ * is an invocation the command accepts -- declared options, none hidden,
+ * values of their kind, the operands the command takes, every rule between
+ * options held -- with real values, never a placeholder; nothing runs it.
+ * After the pattern of a delegate the words are the other executable's and
+ * are not checked. */
+typedef struct maelys_cli_example {
+    const char *words;
+    const char *summary;
+} maelys_cli_example_t;
+
+#define MAELYS_CLI_EXAMPLE(words_, summary_) \
+    .words = (words_), .summary = (summary_)
+#define MAELYS_CLI_EXAMPLES(array) \
+    .examples = (array), .example_count = MAELYS_CLI_COUNT(array)
 
 /* Upper bound of a derived synopsis; the catalog validation names the
  * command whose synopsis would exceed it. */

@@ -293,6 +293,64 @@ static int test_validation(void) {
     reading.option_count = 1u;
     CHECK(validate(&reading));
 
+    /* An example is an invocation the command accepts (spec 2.12, section
+     * 2): the catalog validation parses it and refuses the catalog when it
+     * does not parse. Nothing runs it. */
+    {
+        struct { const char *words; const char *summary; int accepted; } cases[] = {
+            {"thing make /root --size 1K", "The least it takes.", 1},
+            {"thing make /root --size=1K --mode safe --tag a --tag b", "Both spellings, one repeated.", 1},
+            {"thing make /root --size 1K --apply --format json", "A global option.", 1},
+            {"thing make --size 1K -- /root", "An operand after --.", 1},
+            {"make /root --size 1K", "Not its pattern.", 0},
+            {"thing makes /root --size 1K", "A pattern that only begins alike.", 0},
+            {"thing make /root", "A required option is missing.", 0},
+            {"thing make --size 1K", "A required operand is missing.", 0},
+            {"thing make /root name a b --size 1K", "Its optional and its variadic operands.", 1},
+            {"thing make /root --size 1K --nosuch", "An option the command has lost.", 0},
+            {"thing make /root --size bogus", "A value that is not of its kind.", 0},
+            {"thing make /root --size 1K --mode sideways", "A choice it does not offer.", 0},
+            {"thing make /root --tag a", "--tag depends on --size.", 0},
+            {"thing make /root --size 1K --trace", "A hidden option.", 0},
+            {"thing make /root --size 1K --help", "Asks for the help instead.", 0},
+            {"thing make  /root --size 1K", "Two spaces.", 0},
+            {"thing make /root --size 1K ", "A trailing space.", 0},
+            {"thing make /root --size 1K", "", 0},
+            {"", "No words.", 0},
+            {"thing make /root --size 1K", "A control \033[2J character.", 0},
+        };
+        for (size_t i = 0u; i < sizeof(cases) / sizeof(cases[0]); ++i) {
+            maelys_cli_example_t example = {cases[i].words, cases[i].summary};
+            command = good_command();
+            command.examples = &example;
+            command.example_count = 1u;
+            if (validate(&command) != cases[i].accepted) {
+                (void)fprintf(stderr, "example %zu: '%s' should be %s\n", i,
+                    cases[i].words, cases[i].accepted ? "accepted" : "refused");
+                CHECK(0);
+            }
+        }
+        /* The refusal names the command, the example and why. */
+        maelys_cli_example_t lost = {"thing make /root --size 1K --nosuch", "Lost."};
+        command = good_command();
+        command.examples = &lost;
+        command.example_count = 1u;
+        maelys_cli_app_t one = {"prog", "Product", "1.0", NULL, &command, 1u, NULL, 0u, NULL, NULL};
+        maelys_cli_error_t refusal;
+        CHECK(maelys_cli_catalog_validate(&one, &refusal) != 0);
+        CHECK(strstr(refusal.message, "'thing.make'") && strstr(refusal.message, "--nosuch") &&
+            strstr(refusal.message, "does not accept"));
+        /* After a delegate's pattern the words are the other executable's. */
+        maelys_cli_example_t handed = {"tool anything --at --all", "Handed over as it is."};
+        maelys_cli_command_t delegate = {
+            MAELYS_CLI_EXTERNAL("tool", "tool", "A delegate.", "prog-tool"),
+            .examples = &handed, .example_count = 1u};
+        CHECK(validate(&delegate));
+        maelys_cli_example_t astray = {"other anything", "Not even its pattern."};
+        delegate.examples = &astray;
+        CHECK(!validate(&delegate));
+    }
+
     /* Duplicate identifiers across the catalog and clash with a builtin. */
     maelys_cli_command_t pair[2] = {good_command(), good_command()};
     maelys_cli_app_t app = {"prog", "Product", "1.0", NULL, pair, 2u, NULL, 0u, NULL, NULL};
