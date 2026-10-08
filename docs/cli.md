@@ -14,7 +14,7 @@ Common contract: `agent-cli/v2`. For the machine-readable detail run
 | completion | `completion SHELL` | read | json-envelope | Print the shell completion script generated from the catalog. |
 | complete.candidates | `__complete [WORDS...]` | read | json-records | Return completion candidates for a partial command line. |
 | commands.list | `commands list` | read | json-records | List the external commands declared by installed manifests. |
-| agents.install | `agents install PROJECT_DIR [--client all\|claude\|codex] [--apply]` | preview then apply with --apply | json-envelope | Install or refresh the maelys-cli agent instructions of a project. |
+| agents.install | `agents install PROJECT_DIR [--client all\|claude\|codex] [--apply] [--expect FINGERPRINT]` | preview then apply with --apply | json-envelope | Install or refresh the maelys-cli agent instructions of a project. |
 | agents.status | `agents status PROJECT_DIR [--client all\|claude\|codex]` | read | json-envelope | Report whether a project's maelys-cli agent instructions are current. |
 
 Global options:

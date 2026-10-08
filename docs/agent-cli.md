@@ -109,4 +109,6 @@ manifest (`maelys.cli-extension/v1`), passing every argument verbatim.
 `maelys COMMAND describe --format json` returns that program's own catalog;
 `maelys __complete -- COMMAND ...` forwards to that program's own
 `__complete`. `maelys agents install DIR --apply` installs these
-instructions in a project.
+instructions in a project; its plan carries `data.fingerprint`, and
+`--apply --expect FINGERPRINT` writes that plan or fails with
+`PRECONDITION_FAILED` before any write.
