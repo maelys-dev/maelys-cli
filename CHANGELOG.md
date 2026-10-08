@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.0 - 2026-10-08
 
 - **A command declares its examples, and they cannot rot.** Examples lived
   in READMEs, where they drift: one product's README names two commands the
