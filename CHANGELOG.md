@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- The two third-party actions this repository pins in its own CI jobs move
+  to their latest release: `actions/checkout` v7.0.1 (from v5.1.0), the
+  commit the socle's own workflows already run here, and
+  `actions/setup-python` v7.0.0 (from v5.6.0), which this repository alone
+  uses, for the Python 3.9 job. Each stays pinned by commit, the tag beside
+  it. The three Maelys pins were already at their latest: agent-cli-spec
+  v2.12.0, maelys-json v0.2.0, maelys-release v0.63.0.
+
 ## 0.6.0 - 2026-10-08
 
 - **A command declares its examples, and they cannot rot.** Examples lived
