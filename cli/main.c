@@ -234,10 +234,9 @@ int main(int argc, char **argv) {
         .agent_guidance =
             "EXTERNAL COMMANDS\n"
             "  External commands come only from manifests installed in the "
-            "command directories\n"
-            "  (see 'maelys commands list'). Their arguments are passed verbatim; "
-            "run 'maelys COMMAND describe'\n"
-            "  to inspect their own catalog.",
+            "command directories (see 'maelys commands list'). Their arguments "
+            "are passed verbatim; run 'maelys COMMAND describe' to inspect their "
+            "own catalog.",
     };
     if (build_catalog(&error) != 0) {
         release();

@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- **A product's `agent_guidance` follows the width of the help.** 0.6.0 said
+  of the new help that "no line passes it", and had measured that on the two
+  reference products, neither of which declares a guidance. The text was
+  printed as written: one long sentence was one long line -- 533 columns for
+  maelys-egress, which reported it -- and lines broken by hand for 80
+  columns passed any other width, which is what `maelys help` itself did,
+  at 81 and 98 columns. Each line of the guidance is now a paragraph,
+  wrapped to the help's width at that line's own indentation; a blank line
+  stays a blank line. A product writes a paragraph on one line and breaks
+  none by hand; one that already did, as maelys-egress, changes nothing.
+  The dispatcher's own text is rewritten so, and a test now measures `maelys
+  help`, which the tests of 0.6.0 did not. The Python module has no such
+  field.
+
 - The two third-party actions this repository pins in its own CI jobs move
   to their latest release: `actions/checkout` v7.0.1 (from v5.1.0), the
   commit the socle's own workflows already run here, and

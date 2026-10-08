@@ -139,6 +139,14 @@ command when either is wrong:
   validation refuses another shape of it.
 - A product that had an `--expect` of another meaning on a transaction
   renames it; on a read it is untouched.
+## Every consumer whose program declares `agent_guidance`
+
+- The guidance is wrapped to the width of the help, each of its lines being
+  a paragraph kept at its own indentation. A paragraph written on one line
+  needs nothing. One broken by hand into lines of 80 columns is joined back
+  into one line per paragraph, or each hand-made line is wrapped on its own
+  and the paragraph reads ragged at another width.
+
 ## Every consumer, at agent-cli-spec 2.12.0
 
 - **Examples are declared in the catalog**, optionally:

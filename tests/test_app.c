@@ -315,7 +315,17 @@ static const maelys_cli_command_t commands[] = {
 
 static const maelys_cli_app_t app = {
     "prog", "Test Product", "9.9.9", "fixture", commands,
-    MAELYS_CLI_COUNT(commands), NULL, 0u, "EXTRA GUIDANCE", NULL
+    MAELYS_CLI_COUNT(commands), NULL, 0u,
+    /* A heading, a paragraph written on one line as the header asks, a blank
+     * line, and a deeper paragraph: each line is wrapped at its indentation. */
+    "EXTRA GUIDANCE\n"
+    "  A product writes each paragraph of its guidance on one line, however long "
+    "that line is, and the help wraps it to its width at the indentation it was "
+    "given.\n"
+    "\n"
+    "    Deeper: a second paragraph, indented by four, is wrapped at four and "
+    "never brought back to the margin of the first one.",
+    NULL
 };
 
 /* ---- harness ---------------------------------------------------------------- */
@@ -391,6 +401,14 @@ static int test_help_and_version(void) {
     CHECK(strstr(result.out, "\n  thing make") && !strstr(result.out, "thing make ROOT NAME"));
     CHECK(strstr(result.out, "prog help COMMAND_ID") && strstr(result.out, "prog help FAMILY"));
     CHECK(strstr(result.out, "EXTRA GUIDANCE"));
+    /* The product's guidance follows the width like the rest: each of its
+     * lines is a paragraph wrapped at that line's indentation. 0.6.0 printed
+     * it as written, so a paragraph on one line was one line of any length
+     * -- 533 columns for one product -- and `maelys help` itself passed 80. */
+    CHECK(strstr(result.out, "\nEXTRA GUIDANCE\n  A product writes each paragraph of its guidance on one line, however long that\n"
+        "  line is, and the help wraps it to its width at the indentation it was given.\n"));
+    CHECK(strstr(result.out, "given.\n\n    Deeper: a second paragraph, indented by four, is wrapped at four and never\n"
+        "    brought back to the margin of the first one.\n"));
     CHECK(!strstr(result.out, "badjson")); /* hidden */
     /* The product's commands come first, then the ones every program has. */
     const char *own = strstr(result.out, "\n  thing make");

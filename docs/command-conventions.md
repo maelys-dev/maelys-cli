@@ -270,6 +270,11 @@ envelope included: under `--format json` its `command` is `help`, whose
 `data` this is, and `data.commands` names the command asked about. Nothing
 runs under `--help`, whatever else the line carries, `--apply` included.
 
+A product's `agent_guidance` is appended to the general help and follows
+its width: each of its lines is a paragraph, wrapped at that line's own
+indentation, so a paragraph is written on one line, however long, and never
+broken by hand.
+
 A product writes none of this and must not: a purpose that reads well in one
 line, and identifiers that share a prefix when the commands form a family,
 are what the layout needs.

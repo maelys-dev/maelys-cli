@@ -3302,10 +3302,33 @@ static void catalog_help_text(FILE *stream, const maelys_cli_app_t *app, size_t 
         "contract.", app->program, app->program);
     (void)fputs("\nAGENT CONTRACT\n", stream);
     help_paragraph(stream, line, width, 0);
-    if (app->agent_guidance && *app->agent_guidance)
-        (void)fprintf(stream, "\n%s%s", app->agent_guidance,
-            app->agent_guidance[strlen(app->agent_guidance) - 1u] == '\n' ?
-            "" : "\n");
+    /* The product's own guidance follows the width like the rest: each of
+     * its lines is a paragraph, wrapped at that line's indentation. It was
+     * printed as written, so one long sentence was one long line, and lines
+     * broken by hand for 80 columns passed any other width. */
+    if (app->agent_guidance && *app->agent_guidance) {
+        (void)fputc('\n', stream);
+        for (const char *source = app->agent_guidance; *source;) {
+            const char *end = strchr(source, '\n');
+            size_t length = end ? (size_t)(end - source) : strlen(source);
+            size_t indent = 0u;
+            while (indent < length && source[indent] == ' ') ++indent;
+            if (indent < length) {
+                char *paragraph = malloc(length - indent + 1u);
+                if (paragraph) {
+                    memcpy(paragraph, source + indent, length - indent);
+                    paragraph[length - indent] = '\0';
+                    /* An indentation the width cannot hold is not kept. */
+                    size_t margin = indent < width / 2u ? indent : 0u;
+                    help_indent(stream, margin);
+                    (void)help_wrap(stream, paragraph, margin, margin, width, 0);
+                    free(paragraph);
+                }
+            }
+            (void)fputc('\n', stream);
+            source = end ? end + 1 : source + length;
+        }
+    }
 }
 
 /* What every program built on the framework has in common: the options
