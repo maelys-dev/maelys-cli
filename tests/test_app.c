@@ -279,6 +279,9 @@ static const maelys_cli_example_t long_examples[] = {
     {MAELYS_CLI_EXAMPLE("long-example --first-quite-long-option one "
      "--second-quite-long-option two -- /usr/local/bin/agent --once",
      "Longer than eighty columns, and whole.")},
+    {MAELYS_CLI_EXAMPLE("long-example --first-quite-long-option=$HOME "
+     "a=b:c,d/e.f-g_h@i%j+k $HOME *.c it's a\\b =first a;b caf\xc3\xa9",
+     "Words a shell would read otherwise.")},
 };
 
 static const maelys_cli_command_t commands[] = {
@@ -454,6 +457,17 @@ static int test_help_and_version(void) {
     CHECK(result.code == 0 && strstr(result.out,
         "\nEXAMPLES\n  prog long-example --first-quite-long-option one --second-quite-long-option two"
         " -- /usr/local/bin/agent --once\n      Longer than eighty columns, and whole.\n"));
+    /* And a line a shell reads as declared: a word no shell interprets goes
+     * bare, any other single-quoted, a quote and a backslash outside the
+     * quotes. Printed raw, `$HOME` was the reader's home and `*.c` their
+     * files. `describe` keeps the words themselves. */
+    CHECK(strstr(result.out,
+        "\n  prog long-example '--first-quite-long-option=$HOME' a=b:c,d/e.f-g_h@i%j+k "
+        "'$HOME' '*.c' 'it'\\''s' 'a'\\\\'b' '=first' 'a;b' 'caf\xc3\xa9'\n"
+        "      Words a shell would read otherwise.\n"));
+    release(&result);
+    result = RUNV("describe", "long-example", "--json", "--compact");
+    CHECK(result.code == 0 && strstr(result.out, "\"$HOME\",\"*.c\",\"it's\",\"a\\\\b\",\"=first\""));
     release(&result);
     result = RUNV("help", "thing.make");
     CHECK(result.code == 0 && widest_line(result.out) <= 80u &&

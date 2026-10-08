@@ -83,8 +83,9 @@ command line without the program's name, starting with the command's
 pattern, its words separated by single spaces, and one sentence. `Program`
 parses each example when it is built and raises `ValueError` when the
 command does not accept it, or when it shows a hidden option or asks for
-`--help`; nothing runs it. `help COMMAND_ID` shows them, `describe` lists
-them except in its summary. The rules are those of
+`--help`; nothing runs it. Write a word as the program receives it, without
+shell quoting: the help quotes the words a shell would read otherwise. `help
+COMMAND_ID` shows them, `describe` lists them except in its summary. The rules are those of
 `docs/command-conventions.md`, "Examples".
 
 ## Help

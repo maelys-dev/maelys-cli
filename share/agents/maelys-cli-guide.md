@@ -214,7 +214,9 @@ note.")}` (spec 2.12): the words without the program's name, starting with
 the pattern, separated by single spaces, and one sentence. An example is a
 real invocation the command accepts, never a placeholder: the catalog
 validation parses each one at startup and refuses the catalog when one does
-not parse, so an example cannot outlive the option it names. `help
+not parse, so an example cannot outlive the option it names. Write a word
+as the program receives it, without shell quoting: `help COMMAND_ID` quotes
+the words a shell would read otherwise (`$HOME` is shown `'$HOME'`). `help
 COMMAND_ID` shows them and `describe` lists them, except in its summary.
 Write them here, not in a README.
 

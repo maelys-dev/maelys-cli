@@ -2983,6 +2983,40 @@ static void help_indent(FILE *stream, size_t count) {
     for (size_t i = 0u; i < count; ++i) (void)fputc(' ', stream);
 }
 
+/* Writes the words of an example as a shell reads them back. A word made of
+ * the bytes no shell interprets goes as it is; any other is single-quoted,
+ * a quote and a backslash leaving the quotes to be written \' and \\, the
+ * one spelling sh, bash, zsh and fish read as the same word. `describe`
+ * carries the words themselves; this is the line a person copies. */
+static void help_shell_words(FILE *stream, const char *words) {
+    for (const char *word = words; *word; ) {
+        size_t length = strcspn(word, " ");
+        int bare = length > 0u && word[0] != '=';
+        for (size_t i = 0u; bare && i < length; ++i) {
+            unsigned char byte = (unsigned char)word[i];
+            bare = (byte >= 'a' && byte <= 'z') || (byte >= 'A' && byte <= 'Z') ||
+                (byte >= '0' && byte <= '9') || (byte && strchr("_@%+=:,./-", byte));
+        }
+        if (bare) {
+            (void)fwrite(word, 1u, length, stream);
+        } else {
+            (void)fputc('\'', stream);
+            for (size_t i = 0u; i < length; ++i) {
+                if (word[i] == '\'' || word[i] == '\\')
+                    (void)fprintf(stream, "'\\%c'", word[i]);
+                else
+                    (void)fputc(word[i], stream);
+            }
+            (void)fputc('\'', stream);
+        }
+        word += length;
+        if (*word == ' ') {
+            (void)fputc(' ', stream);
+            ++word;
+        }
+    }
+}
+
 /* Writes text wrapped between words so that no line passes `width`: the
  * first line goes on at `column`, the following ones start after `indent`
  * spaces. With `groups`, a space inside [...] is no place to break, which
@@ -3174,9 +3208,12 @@ static void command_help_text(
             /* A line to copy: on one line whatever the width, the one place
              * the help passes it on purpose. Wrapped, the first half was a
              * command of its own -- `prog exec --config F --` without its
-             * program -- and the second another. The sentence below wraps. */
-            (void)fprintf(stream, "  %s %s\n", app->program,
-                command->examples[i].words);
+             * program -- and the second another. The sentence below wraps.
+             * And spelled for a shell: a word holding `$`, `*` or a quote,
+             * copied as declared, would be another word once pasted. */
+            (void)fprintf(stream, "  %s ", app->program);
+            help_shell_words(stream, command->examples[i].words);
+            (void)fputc('\n', stream);
             help_indent(stream, 6u);
             (void)help_wrap(stream, command->examples[i].summary, 6u, 6u, width, 0);
             (void)fputc('\n', stream);

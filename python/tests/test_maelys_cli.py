@@ -11,7 +11,9 @@ import io
 import json
 import os
 import pathlib
+import shutil
 import stat
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -602,6 +604,43 @@ class Contract(unittest.TestCase):
         self.assertIn("\nEXAMPLES\n  prog long-example --first-quite-long-option one --second-quite-long-option two"
                       " -- /usr/local/bin/agent --once\n",
                       long.command_help(long.command_by_id("long-example"), width=60))   # nor at a narrower one
+
+        # And a line a shell reads as declared: a word no shell interprets goes bare, any other
+        # single-quoted, a quote and a backslash outside the quotes. Printed raw, `$HOME` was the
+        # reader's home and `*.c` their files. `describe` keeps the words themselves.
+        quoted = cli.Program("prog", "P", "1.0", [
+            cli.read("long-example", "long-example", "Words a shell reads.", lambda i: ({}, 0),
+                     operands=[cli.operand("WORD", "Words.", required=False, variadic=True)],
+                     options=[cli.option("--first-quite-long-option", "First.", cli.argument("TEXT"))],
+                     examples=[cli.example("long-example --first-quite-long-option=$HOME a=b:c,d/e.f-g_h@i%j+k "
+                                           "$HOME *.c it's a\\b =first a;b caf\u00e9",
+                                           "Words a shell would read otherwise.")])])
+        self.assertIn("\n  prog long-example '--first-quite-long-option=$HOME' a=b:c,d/e.f-g_h@i%j+k "
+                      "'$HOME' '*.c' 'it'\\''s' 'a'\\\\'b' '=first' 'a;b' 'caf\u00e9'\n"
+                      "      Words a shell would read otherwise.\n",
+                      quoted.command_help(quoted.command_by_id("long-example")))
+        self.assertEqual(quoted.descriptor(quoted.command_by_id("long-example"))["examples"][0]["words"][3:8],
+                         ["$HOME", "*.c", "it's", "a\\b", "=first"])
+
+    def test_an_example_word_is_read_back_by_every_shell(self) -> None:
+        """What the help prints for a word is that word once a shell has read
+        it: sh, bash, zsh and fish, each when installed. The spelling is the
+        same in C (help_shell_words), which the unit test of the layout pins."""
+        words = ["plain", "$HOME", "*", "it's", "a\\b", "\\\\", "'", "\\'", "a\\", "!x", "#c", "~", "=ls",
+                 "{a,b}", "$(id)", "`id`", 'a"b', "<>|&;()", "[x]", "?", "^", "caf\u00e9", "--name=$x"]
+        line = "printf '%s\\n' " + " ".join(cli._shell_word(word) for word in words)
+        ran = 0
+        for shell in ("sh", "bash", "zsh", "fish"):
+            path = shutil.which(shell)
+            if not path:
+                continue
+            with tempfile.TemporaryDirectory() as home:
+                done = subprocess.run([path, "-c", line], capture_output=True, text=True, cwd=home, check=False,
+                                      env={"HOME": home, "PATH": os.environ.get("PATH", ""), "x": "expanded",
+                                           "LC_ALL": "C.UTF-8"})
+            self.assertEqual((shell, done.returncode, done.stdout.splitlines()), (shell, 0, words), done.stderr)
+            ran += 1
+        self.assertGreater(ran, 0)
 
         def program(words: str, summary: str = "A sentence.") -> cli.Program:
             return cli.Program("prog", "P", "1.0", [
