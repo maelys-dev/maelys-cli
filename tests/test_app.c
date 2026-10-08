@@ -268,6 +268,19 @@ static int command_bad_json(maelys_cli_context_t *context) {
     return maelys_cli_succeed(context, "{broken", NULL, 0);
 }
 
+static const maelys_cli_operand_t long_example_operands[] = {
+    {MAELYS_CLI_OPERAND_REST("WORD", "Words.")},
+};
+static const maelys_cli_option_t long_example_options[] = {
+    {MAELYS_CLI_STRING("first-quite-long-option", "TEXT", "First.")},
+    {MAELYS_CLI_STRING("second-quite-long-option", "TEXT", "Second.")},
+};
+static const maelys_cli_example_t long_examples[] = {
+    {MAELYS_CLI_EXAMPLE("long-example --first-quite-long-option one "
+     "--second-quite-long-option two -- /usr/local/bin/agent --once",
+     "Longer than eighty columns, and whole.")},
+};
+
 static const maelys_cli_command_t commands[] = {
     {MAELYS_CLI_TRANSACTION("thing.make", "thing make", "Make.", command_make),
      MAELYS_CLI_OPERANDS(make_operands), MAELYS_CLI_OPTIONS(make_options),
@@ -275,6 +288,9 @@ static const maelys_cli_command_t commands[] = {
     {MAELYS_CLI_PROTOCOL_STREAM("exec", "exec", "Exec.", command_exec, "test-jsonl"),
      MAELYS_CLI_OPERANDS(rest_operands)},
     {MAELYS_CLI_RECORDS("records", "records", "Records.", command_records)},
+    {MAELYS_CLI_READ("long-example", "long-example", "An example past the width.", command_report),
+     MAELYS_CLI_OPERANDS(long_example_operands), MAELYS_CLI_OPTIONS(long_example_options),
+     MAELYS_CLI_EXAMPLES(long_examples), .hidden = 1},
     {MAELYS_CLI_TRANSACTION("bound", "bound", "A plan bound to its application.", command_bound),
      MAELYS_CLI_OPTIONS(bound_options), MAELYS_CLI_SCHEMA(bound_schema), .hidden = 1},
     {MAELYS_CLI_TRANSACTION("careless", "careless", "Declares --expect, never checks it.",
@@ -431,6 +447,13 @@ static int test_help_and_version(void) {
     release(&result);
     result = RUNV("help", "conventions", "--json", "--compact");
     CHECK(result.code == 0 && strstr(result.out, "\"commands\":[]"));   /* a topic holds no command */
+    release(&result);
+    /* An example is a line to copy: on one line, even past the width. 0.6.1
+     * wrapped it without a mark, and each half ran as a command of its own. */
+    result = RUNV("help", "long-example");
+    CHECK(result.code == 0 && strstr(result.out,
+        "\nEXAMPLES\n  prog long-example --first-quite-long-option one --second-quite-long-option two"
+        " -- /usr/local/bin/agent --once\n      Longer than eighty columns, and whole.\n"));
     release(&result);
     result = RUNV("help", "thing.make");
     CHECK(result.code == 0 && widest_line(result.out) <= 80u &&

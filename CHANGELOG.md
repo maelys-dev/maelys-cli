@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+- **An example is one line, whatever the width.** `help COMMAND_ID` wrapped
+  an example longer than the help is wide, as it wraps a usage, and with no
+  mark of continuation. maelys-egress reported its own, 93 columns wide:
+  `channel exec --config /etc/maelys-egress.conf -- /usr/local/bin/agent
+  --once` came out cut after the `--`, so that the first line, copied, ran
+  `channel exec` with no program and the second ran the program outside the
+  channel. The conventions call an example "a line to copy"; it was one only
+  while it fitted. Reproduced on both reference products at 60 columns,
+  where the Python module also parted `--tag` from its value. An example is
+  now written on one line and is the one line the layout leaves alone; the
+  sentence below it still wraps. Nothing changes in what is declared, in the
+  validation at startup or in `describe`.
+
 ## 0.6.1 - 2026-10-08
 
 - **A product's `agent_guidance` follows the width of the help.** 0.6.0 said

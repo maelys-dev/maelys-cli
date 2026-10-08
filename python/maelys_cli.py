@@ -1705,9 +1705,11 @@ class Program:
         if any(not item.get("hidden") for item in command["options"]):
             text += "\nOPTIONS\n" + self._options_help(command["options"], width)
         if command["examples"]:
-            # Never beside: a line to copy stands alone.
+            # A line to copy: on one line whatever the width, the one place
+            # the help passes it on purpose. Wrapped, the first half was a
+            # command of its own and the second another. The sentence wraps.
             text += "\nEXAMPLES\n" + "".join(
-                _help_entry(f"{self.program} {' '.join(item['words'])}", item["summary"], 0, width)
+                f"  {self.program} {' '.join(item['words'])}\n" + " " * 6 + _help_wrap(item["summary"], 6, 6, width) + "\n"
                 for item in command["examples"])
         text += "\nGLOBAL OPTIONS\n" + _help_paragraph(
             f"Run '{self.program} help conventions' for --format, --json, --compact, --non-interactive, --color "
