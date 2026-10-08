@@ -83,6 +83,11 @@ command by `id`; never replay a `PRECONDITION_FAILED` blindly; prefer
   "records"}` in the envelope), `--format jsonl` (one compact object per
   line, no envelope; failure is still an envelope on stderr) and text (one
   human line per record).
+- `PROGRAM help` is for a person: it names each command by its pattern and
+  its purpose within 80 columns. `PROGRAM help COMMAND_ID` gives one
+  command, `PROGRAM help FAMILY` (or `PROGRAM FAMILY --help`) the commands
+  under an identifier with their usage. An agent reads `describe`, whose
+  shape is a contract; the text of `help` is not one.
 - `PROGRAM completion bash|zsh|fish` prints the shell completion generated
   from the catalog; candidates come from the hidden
   `PROGRAM __complete -- WORDS...` (a `json-records` command, usable with

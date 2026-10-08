@@ -332,9 +332,57 @@ class Contract(unittest.TestCase):
         code, out, _ = run("--help")
         self.assertIn("COMMANDS", out)
         code, out, _ = run("greet", "--help")
-        self.assertTrue(out.startswith("maelys-hello-py greet NAME"))
+        self.assertTrue(out.startswith("USAGE\n  maelys-hello-py greet NAME"))
         code, out, _ = run("--version", "--json")
         self.assertEqual(json.loads(out)["data"]["version"], hello.VERSION)
+
+    def test_help_layout(self) -> None:
+        """The help is laid out as src/app.c lays it out: within eighty columns where stdout is no
+        terminal, a description beside a short label and below a long one, a line broken between words,
+        a usage between its groups. The general help names a command by its pattern and its purpose;
+        the usage is in the command's own help and in its family's."""
+        def widest(text: str) -> int:
+            return max(cli.display_width(line) for line in text.splitlines())
+        guide = run("help")[1]
+        self.assertLessEqual(widest(guide), 80)
+        self.assertIn("\n  note write  Store a note in a file.\n", guide)
+        self.assertNotIn("note write FILE", guide)
+        self.assertIn("maelys-hello-py help COMMAND_ID", guide)
+        self.assertIn("maelys-hello-py help FAMILY", guide)
+        self.assertIn("AGENT CONTRACT", guide)
+        self.assertLess(guide.index("\n  greet"), guide.index("\n  describe"))    # the product's commands first
+        self.assertNotIn("__complete", guide)
+        for identifier in ("limits", "note.write", "describe"):
+            self.assertLessEqual(widest(run("help", identifier)[1]), 80, identifier)
+        limits = run("help", "limits")[1]
+        self.assertIn("EFFECT\n  read\n", limits)
+        self.assertIn("OUTPUT\n  json-envelope\n", limits)
+        self.assertNotIn("[--offset\n", limits)                                    # a usage breaks between groups
+        self.assertIn("--tag TEXT (repeatable)", limits)
+        self.assertIn("Requires --level.", limits)
+        self.assertIn("preview by default; apply with --apply", run("help", "note.write")[1])
+        # A family: `help FAMILY` and `FAMILY --help` say the same, and data.commands lists it.
+        code, family, err = run("note", "--help")
+        self.assertEqual((code, err), (0, ""))
+        self.assertIn("maelys-hello-py note - commands", family)
+        self.assertIn("\n  note write FILE --content TEXT", family)
+        self.assertIn("\n      Store a note in a file.\n", family)
+        self.assertEqual(run("help", "note")[1], family)
+        self.assertEqual(json.loads(run("help", "note", "--json")[1])["data"]["commands"], ["note.write"])
+        self.assertEqual(failure("note")[1]["code"], "INVALID_COMMAND")              # no --help: still an error
+        self.assertEqual(failure("nope", "--help")[1]["code"], "INVALID_COMMAND")
+        self.assertIn("identifier or family", failure("help", "nope")[1]["message"])
+        # Width is in columns: an accented letter takes one, a CJK character two, a combining mark none.
+        self.assertEqual([cli.display_width(text) for text in ("abc", "\u00e9t\u00e9", "e\u0301", "\u65e5\u672c\u8a9e", "")],
+                         [3, 3, 1, 6, 0])
+        accented = cli.Program("prog", "P", "9.9.9", [
+            cli.read("wide", "wide", " ".join(["\u00e9t\u00e9\u00e9t\u00e9"] * 12) + " \u65e5\u672c\u8a9e.",
+                     lambda i: ({}, 0))])
+        entry = next(line for line in accented.guide().splitlines() if line.startswith("  wide"))
+        # The label and its column take 14, nine words of six columns and their spaces 62: the same
+        # line src/app.c writes, which tests/test_app.c measures in bytes.
+        self.assertEqual((cli.display_width(entry), len(entry.encode("utf-8"))), (76, 112))
+        self.assertLessEqual(widest(accented.guide()), 80)
 
     def test_completion(self) -> None:
         code, out, _ = run("__complete", "--json", "--", "no")

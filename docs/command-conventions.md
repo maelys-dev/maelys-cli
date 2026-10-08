@@ -209,6 +209,34 @@ affected. The refusal is deliberate: accepting an alias would let two
 spellings of the same intent coexist across products, which is what the
 shared contract exists to prevent.
 
+## Help
+
+`help` is read by a person, in a terminal, and is laid out for one. It is
+rendered at the width of the terminal when stdout is one, between 60 and
+100 columns, and at 80 anywhere else: what goes into a pipe, a file or
+`data.text` does not depend on a window. A description stands beside a
+label that fits its column and below one that does not; a line breaks
+between words, a usage between its groups, never inside `[--option VALUE]`;
+widths are counted in columns, an accented letter being one and a CJK
+character two.
+
+Three forms, all generated from the catalog:
+
+- `PROGRAM help` names each command by its pattern and its purpose, the
+  product's commands first, then the ones every program has. It does not
+  repeat every usage: a catalog of forty commands stays a screen.
+- `PROGRAM help COMMAND_ID`, or `PROGRAM COMMAND --help`, gives one command:
+  usage, purpose, effect, output mode, operands, options.
+- `PROGRAM help FAMILY`, or `PROGRAM FAMILY --help`, gives a family: the
+  commands under an identifier (`note` holds `note.write`), which is the
+  namespace `describe --summary --prefix` selects, each with its usage and
+  its purpose below. Words that name no command are still an error without
+  `--help`.
+
+A product writes none of this and must not: a purpose that reads well in one
+line, and identifiers that share a prefix when the commands form a family,
+are what the layout needs.
+
 ## Rendering decisions
 
 `MAELYS_CLI_FORMAT=json|text` in the environment selects the default

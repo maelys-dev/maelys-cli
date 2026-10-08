@@ -44,7 +44,8 @@ static const maelys_cli_operand_t complete_operands[] = {
 
 static const maelys_cli_operand_t help_operands[] = {
     {MAELYS_CLI_OPERAND_OPTIONAL("COMMAND_ID",
-     "Stable command identifier whose help is shown.")},
+     "Stable command identifier whose help is shown, or the family of "
+     "commands under an identifier.")},
 };
 static const maelys_cli_operand_t describe_operands[] = {
     {MAELYS_CLI_OPERAND_OPTIONAL("COMMAND_ID",
@@ -2808,48 +2809,207 @@ static int builtin_complete(maelys_cli_context_t *context) {
 
 /* ---- help ---------------------------------------------------------------- */
 
-static void option_help_line(
-    FILE *stream, const maelys_cli_option_t *option) {
-    char label[256];
-    char synopsis_value[160];
-    synopsis_value[0] = '\0';
+/* The help is read by a person, in a terminal: it fits the width, puts a
+ * description beside a short label and below a long one, and breaks a line
+ * between words. The general help names each command by its pattern and its
+ * purpose, on one line; the usage of a command is in its own help, and the
+ * usage of a family in the family's. */
+#define HELP_WIDTH 80u
+#define HELP_WIDTH_MINIMUM 60u
+#define HELP_WIDTH_MAXIMUM 100u
+#define HELP_LABEL_MAXIMUM 28u
+
+/* Columns a code point takes in a terminal: none for a combining mark or a
+ * zero-width character, two for the East Asian wide and fullwidth ranges
+ * and for emoji, one otherwise. python/maelys_cli.py holds the same table. */
+static size_t codepoint_width(uint32_t c) {
+    if ((c >= 0x0300u && c <= 0x036Fu) || (c >= 0x1AB0u && c <= 0x1AFFu) ||
+        (c >= 0x1DC0u && c <= 0x1DFFu) || (c >= 0x20D0u && c <= 0x20FFu) ||
+        (c >= 0xFE00u && c <= 0xFE0Fu) || (c >= 0xFE20u && c <= 0xFE2Fu) ||
+        (c >= 0x200Bu && c <= 0x200Fu) || c == 0x2060u || c == 0xFEFFu)
+        return 0u;
+    if ((c >= 0x1100u && c <= 0x115Fu) || (c >= 0x2E80u && c <= 0xA4CFu) ||
+        (c >= 0xAC00u && c <= 0xD7A3u) || (c >= 0xF900u && c <= 0xFAFFu) ||
+        (c >= 0xFE30u && c <= 0xFE4Fu) || (c >= 0xFF00u && c <= 0xFF60u) ||
+        (c >= 0xFFE0u && c <= 0xFFE6u) || (c >= 0x1F300u && c <= 0x1F64Fu) ||
+        (c >= 0x1F900u && c <= 0x1F9FFu) || (c >= 0x20000u && c <= 0x3FFFDu))
+        return 2u;
+    return 1u;
+}
+
+/* Display width of `length` bytes of UTF-8; an ill-formed byte counts one. */
+static size_t display_width(const char *text, size_t length) {
+    size_t width = 0u;
+    for (size_t i = 0u; i < length;) {
+        unsigned char lead = (unsigned char)text[i];
+        size_t extra = lead >= 0xF0u ? 3u : lead >= 0xE0u ? 2u : lead >= 0xC0u ? 1u : 0u;
+        uint32_t c = extra == 3u ? lead & 0x07u : extra == 2u ? lead & 0x0Fu :
+            extra == 1u ? lead & 0x1Fu : lead;
+        size_t used = 1u;
+        while (used <= extra && i + used < length &&
+               ((unsigned char)text[i + used] & 0xC0u) == 0x80u) {
+            c = (c << 6) | ((unsigned char)text[i + used] & 0x3Fu);
+            ++used;
+        }
+        width += used == extra + 1u ? codepoint_width(c) : 1u;
+        i += used;
+    }
+    return width;
+}
+
+static void help_indent(FILE *stream, size_t count) {
+    for (size_t i = 0u; i < count; ++i) (void)fputc(' ', stream);
+}
+
+/* Writes text wrapped between words so that no line passes `width`: the
+ * first line goes on at `column`, the following ones start after `indent`
+ * spaces. With `groups`, a space inside [...] is no place to break, which
+ * keeps an option and its value together in a usage. A word longer than a
+ * line stands alone on it. Returns the column reached. */
+static size_t help_wrap(FILE *stream, const char *text, size_t column,
+                        size_t indent, size_t width, int groups) {
+    size_t at = column;
+    int first = 1;
+    for (const char *cursor = text; *cursor;) {
+        while (*cursor == ' ') ++cursor;
+        if (!*cursor) break;
+        const char *end = cursor;
+        int depth = 0;
+        for (; *end && (*end != ' ' || (groups && depth > 0)); ++end) {
+            if (*end == '[') ++depth;
+            else if (*end == ']' && depth > 0) --depth;
+        }
+        size_t length = (size_t)(end - cursor);
+        size_t word = display_width(cursor, length);
+        if (!first && at + 1u + word > width && at > indent) {
+            (void)fputc('\n', stream);
+            help_indent(stream, indent);
+            at = indent;
+        } else if (!first) {
+            (void)fputc(' ', stream);
+            ++at;
+        }
+        (void)fwrite(cursor, 1u, length, stream);
+        at += word;
+        first = 0;
+        cursor = end;
+    }
+    return at;
+}
+
+/* One entry of a list: the label, then the text beside it when the label
+ * fits its column, below it when it does not. `groups` is for a label that
+ * is a usage. */
+static void help_entry(FILE *stream, const char *label, const char *text,
+                       size_t label_width, size_t width, int groups) {
+    size_t wide = display_width(label, strlen(label));
+    (void)fputs("  ", stream);
+    if (wide <= label_width) {
+        (void)fputs(label, stream);
+        help_indent(stream, label_width - wide + 2u);
+        (void)help_wrap(stream, text, label_width + 4u, label_width + 4u, width, 0);
+    } else {
+        (void)help_wrap(stream, label, 2u, 8u, width, groups);
+        (void)fputc('\n', stream);
+        help_indent(stream, 6u);
+        (void)help_wrap(stream, text, 6u, 6u, width, 0);
+    }
+    (void)fputc('\n', stream);
+}
+
+/* A paragraph under a heading, indented by two. */
+static void help_paragraph(FILE *stream, const char *text, size_t width, int groups) {
+    (void)fputs("  ", stream);
+    (void)help_wrap(stream, text, 2u, groups ? 6u : 2u, width, groups);
+    (void)fputc('\n', stream);
+}
+
+/* The width help is rendered at: the terminal's when stdout is one, within
+ * bounds that keep it readable; 80 anywhere else, so that what goes into a
+ * pipe, a file or data.text does not depend on a window. */
+static size_t help_width(const maelys_cli_context_t *context) {
+    if (!context->terminal.stdout_is_tty || context->terminal.columns == 0u ||
+        (context->invocation && context->invocation->format != MAELYS_CLI_FORMAT_TEXT))
+        return HELP_WIDTH;
+    size_t columns = context->terminal.columns;
+    return columns < HELP_WIDTH_MINIMUM ? HELP_WIDTH_MINIMUM :
+        columns > HELP_WIDTH_MAXIMUM ? HELP_WIDTH_MAXIMUM : columns;
+}
+
+/* "--name VALUE", "--name a|b" or "--name": how an option is spelled. */
+static void option_label(const maelys_cli_option_t *option, char *out, size_t size) {
+    char value[160];
+    value[0] = '\0';
     if (option->kind == MAELYS_CLI_VALUE_CHOICE && option->choices &&
         !option->value_name) {
         size_t used = 0u;
         for (size_t i = 0u; option->choices[i]; ++i) {
-            int written = snprintf(synopsis_value + used,
-                sizeof(synopsis_value) - used, "%s%s", i ? "|" : " ",
-                option->choices[i]);
-            if (written < 0 || (size_t)written >= sizeof(synopsis_value) - used)
-                break;
+            int written = snprintf(value + used, sizeof(value) - used, "%s%s",
+                i ? "|" : " ", option->choices[i]);
+            if (written < 0 || (size_t)written >= sizeof(value) - used) break;
             used += (size_t)written;
         }
     } else if (option->kind != MAELYS_CLI_VALUE_NONE) {
-        (void)snprintf(synopsis_value, sizeof(synopsis_value), " %s",
+        (void)snprintf(value, sizeof(value), " %s",
             option->value_name ? option->value_name : "VALUE");
     }
-    (void)snprintf(label, sizeof(label), "--%s%s%s", option->name,
-        synopsis_value, option->repeatable ? " (repeatable)" : "");
-    (void)fprintf(stream, "  %-34s %s", label, option->summary);
+    (void)snprintf(out, size, "--%s%s%s", option->name, value,
+        option->repeatable ? " (repeatable)" : "");
+}
+
+static void option_text(const maelys_cli_option_t *option, char *out, size_t size) {
+    size_t used = (size_t)snprintf(out, size, "%s", option->summary);
+    if (used >= size) return;
     if (option->default_text)
-        (void)fprintf(stream, " Default: %s.", option->default_text);
-    if (option->required) (void)fputs(" Required.", stream);
-    if (option->depends_on) (void)fprintf(stream, " Requires --%s.", option->depends_on);
-    if (option->conflicts_with)
-        (void)fprintf(stream, " Conflicts with --%s.", option->conflicts_with);
-    (void)fputc('\n', stream);
+        used += (size_t)snprintf(out + used, size - used, " Default: %s.",
+            option->default_text);
+    if (used < size && option->required)
+        used += (size_t)snprintf(out + used, size - used, " Required.");
+    if (used < size && option->depends_on)
+        used += (size_t)snprintf(out + used, size - used, " Requires --%s.",
+            option->depends_on);
+    if (used < size && option->conflicts_with)
+        (void)snprintf(out + used, size - used, " Conflicts with --%s.",
+            option->conflicts_with);
+}
+
+static void options_help(FILE *stream, const maelys_cli_option_t *options,
+                         size_t count, size_t width) {
+    size_t column = 0u;
+    char label[256];
+    for (size_t i = 0u; i < count; ++i) {
+        if (options[i].hidden) continue;
+        option_label(&options[i], label, sizeof(label));
+        size_t wide = display_width(label, strlen(label));
+        if (wide <= HELP_LABEL_MAXIMUM && wide > column) column = wide;
+    }
+    for (size_t i = 0u; i < count; ++i) {
+        if (options[i].hidden) continue;
+        char text[1024];
+        option_label(&options[i], label, sizeof(label));
+        option_text(&options[i], text, sizeof(text));
+        help_entry(stream, label, text, column, width, 0);
+    }
 }
 
 static void command_help_text(
     FILE *stream, const maelys_cli_app_t *app,
-    const maelys_cli_command_t *command) {
+    const maelys_cli_command_t *command, size_t width) {
     char *synopsis = maelys_cli_command_synopsis_alloc(command);
-    (void)fprintf(stream, "USAGE\n  %s %s\n\n%s\n\n", app->program,
-        synopsis ? synopsis : command->pattern, command->purpose);
+    char line[2048];
+    (void)snprintf(line, sizeof(line), "%s %s", app->program,
+        synopsis ? synopsis : command->pattern);
     free(synopsis);
-    if (command->unavailable)
-        (void)fprintf(stream, "UNAVAILABLE IN THIS BUILD\n  %s\n\n",
-            command->unavailable);
+    (void)fputs("USAGE\n", stream);
+    help_paragraph(stream, line, width, 1);
+    (void)fputc('\n', stream);
+    (void)help_wrap(stream, command->purpose, 0u, 0u, width, 0);
+    (void)fputs("\n\n", stream);
+    if (command->unavailable) {
+        (void)fputs("UNAVAILABLE IN THIS BUILD\n", stream);
+        help_paragraph(stream, command->unavailable, width, 0);
+        (void)fputc('\n', stream);
+    }
     (void)fputs("EFFECT\n  ", stream);
     if (command->apply_effect != MAELYS_CLI_EFFECT_NONE)
         (void)fprintf(stream, "%s by default; %s with --apply\n",
@@ -2857,17 +3017,26 @@ static void command_help_text(
             maelys_cli_effect_name(command->apply_effect));
     else
         (void)fprintf(stream, "%s\n", maelys_cli_effect_name(command->effect));
-    (void)fprintf(stream, "\nOUTPUT\n  %s%s%s%s\n",
+    (void)snprintf(line, sizeof(line), "%s%s%s%s",
         maelys_cli_output_mode_name(command->output),
         command->protocol ? " owned by protocol " : "",
         command->protocol ? command->protocol : "",
         command->delegate ? " (arguments are passed to an external program)" : "");
+    (void)fputs("\nOUTPUT\n", stream);
+    help_paragraph(stream, line, width, 0);
     if (command->operand_count) {
+        size_t column = 0u;
+        for (size_t i = 0u; i < command->operand_count; ++i) {
+            size_t wide = display_width(command->operands[i].name,
+                strlen(command->operands[i].name));
+            if (wide <= HELP_LABEL_MAXIMUM && wide > column) column = wide;
+        }
         (void)fputs("\nOPERANDS\n", stream);
         for (size_t i = 0u; i < command->operand_count; ++i) {
             const maelys_cli_operand_t *operand = &command->operands[i];
-            (void)fprintf(stream, "  %-34s %s%s\n", operand->name,
-                operand->summary, operand->required ? "" : " Optional.");
+            (void)snprintf(line, sizeof(line), "%s%s", operand->summary,
+                operand->required ? "" : " Optional.");
+            help_entry(stream, operand->name, line, column, width, 0);
         }
     }
     size_t shown = 0u;
@@ -2875,66 +3044,144 @@ static void command_help_text(
         if (!command->options[i].hidden) ++shown;
     if (shown) {
         (void)fputs("\nOPTIONS\n", stream);
-        for (size_t i = 0u; i < command->option_count; ++i)
-            if (!command->options[i].hidden)
-                option_help_line(stream, &command->options[i]);
+        options_help(stream, command->options, command->option_count, width);
     }
-    (void)fprintf(stream, "\nGLOBAL OPTIONS\n  Run '%s help' for --format, "
-        "--json, --compact, --non-interactive and --color.\n", app->program);
+    (void)snprintf(line, sizeof(line), "Run '%s help' for --format, --json, "
+        "--compact, --non-interactive and --color.", app->program);
+    (void)fputs("\nGLOBAL OPTIONS\n", stream);
+    help_paragraph(stream, line, width, 0);
 }
 
-static void catalog_help_text(FILE *stream, const maelys_cli_app_t *app) {
-    (void)fprintf(stream, "%s %s", app->program, app->version);
-    if (app->summary && *app->summary) (void)fprintf(stream, " - %s", app->summary);
-    (void)fprintf(stream, "\n\nUSAGE\n  %s COMMAND [OPERANDS] [OPTIONS]\n\nCOMMANDS\n",
-        app->program);
+/* 1 when the command is shown and belongs to the family: its identifier is
+ * the prefix or lies under it (`note` holds `note.write`), which is the
+ * namespace `describe --summary --prefix` selects; or, for `words`, its
+ * pattern starts with those words and has more. */
+static int in_family(const maelys_cli_command_t *command, const char *prefix,
+                     char *const words[], size_t word_count) {
+    if (command->hidden) return 0;
+    if (prefix) {
+        size_t length = strlen(prefix);
+        return !strncmp(command->id, prefix, length) &&
+            (command->id[length] == '\0' || command->id[length] == '.');
+    }
+    const char *cursor = command->pattern;
+    for (size_t w = 0u; w < word_count; ++w) {
+        const char *end = strchr(cursor, ' ');
+        if (!end) return 0;
+        size_t length = (size_t)(end - cursor);
+        if (strlen(words[w]) != length || memcmp(words[w], cursor, length) != 0)
+            return 0;
+        cursor = end + 1;
+    }
+    return 1;
+}
+
+/* The help of a family: each of its commands with its usage, the purpose
+ * below. */
+static void family_help_text(
+    FILE *stream, const maelys_cli_app_t *app, const char *prefix,
+    char *const words[], size_t word_count, size_t width) {
+    char line[2048];
+    size_t used = (size_t)snprintf(line, sizeof(line), "%s", app->program);
+    if (prefix) used += (size_t)snprintf(line + used, sizeof(line) - used, " %s", prefix);
+    for (size_t w = 0u; !prefix && w < word_count && used < sizeof(line); ++w)
+        used += (size_t)snprintf(line + used, sizeof(line) - used, " %s", words[w]);
+    (void)fprintf(stream, "%s - commands\n\nCOMMANDS\n", line);
     size_t count = maelys_cli_app_command_count(app);
     for (size_t i = 0u; i < count; ++i) {
         const maelys_cli_command_t *command = maelys_cli_app_command_at(app, i);
-        if (command->hidden) continue;
+        if (!in_family(command, prefix, words, word_count)) continue;
         char *synopsis = maelys_cli_command_synopsis_alloc(command);
-        const char *shown = synopsis ? synopsis : command->pattern;
-        const char *note = command->unavailable ? " (unavailable in this build)" : "";
-        if (strlen(shown) > 60u)
-            (void)fprintf(stream, "  %s\n  %-60s %s%s\n", shown, "",
-                command->purpose, note);
-        else
-            (void)fprintf(stream, "  %-60s %s%s\n", shown, command->purpose, note);
+        char text[1024];
+        (void)snprintf(text, sizeof(text), "%s%s", command->purpose,
+            command->unavailable ? " (unavailable in this build)" : "");
+        /* Never beside: a usage is as long as it needs to be. */
+        help_entry(stream, synopsis ? synopsis : command->pattern, text, 0u, width, 1);
         free(synopsis);
+    }
+    (void)snprintf(line, sizeof(line), "Run '%s help COMMAND_ID' or '%s COMMAND "
+        "--help' for the operands and options of one command.", app->program,
+        app->program);
+    (void)fputc('\n', stream);
+    (void)help_wrap(stream, line, 0u, 0u, width, 0);
+    (void)fputc('\n', stream);
+}
+
+static void catalog_help_text(FILE *stream, const maelys_cli_app_t *app, size_t width) {
+    char line[2048];
+    size_t used = (size_t)snprintf(line, sizeof(line), "%s %s", app->program, app->version);
+    if (app->summary && *app->summary && used < sizeof(line))
+        (void)snprintf(line + used, sizeof(line) - used, " - %s", app->summary);
+    (void)help_wrap(stream, line, 0u, 0u, width, 0);
+    (void)fprintf(stream, "\n\nUSAGE\n  %s COMMAND [OPERANDS] [OPTIONS]\n", app->program);
+    (void)snprintf(line, sizeof(line), "%s help COMMAND_ID", app->program);
+    size_t usage_column = display_width(line, strlen(line));
+    help_entry(stream, line, "the operands and options of one command",
+        usage_column, width, 0);
+    (void)snprintf(line, sizeof(line), "%s help FAMILY", app->program);
+    help_entry(stream, line, "the commands of one family, with their usage",
+        usage_column, width, 0);
+    (void)fputs("\nCOMMANDS\n", stream);
+    size_t count = maelys_cli_app_command_count(app);
+    size_t builtin_count = 0u;
+    (void)maelys_cli_builtin_commands(&builtin_count);
+    size_t column = 0u;
+    for (size_t i = 0u; i < count; ++i) {
+        const maelys_cli_command_t *command = maelys_cli_app_command_at(app, i);
+        size_t wide = display_width(command->pattern, strlen(command->pattern));
+        if (!command->hidden && wide <= HELP_LABEL_MAXIMUM && wide > column) column = wide;
+    }
+    /* The product's commands first, then the ones every program has. */
+    for (int built_in = 0; built_in < 2; ++built_in) {
+        int any = 0;
+        for (size_t i = 0u; i < count; ++i) {
+            const maelys_cli_command_t *command = maelys_cli_app_command_at(app, i);
+            if (command->hidden || (i < builtin_count) != (built_in == 1)) continue;
+            if (built_in && !any && builtin_count < count) (void)fputc('\n', stream);
+            any = 1;
+            (void)snprintf(line, sizeof(line), "%s%s", command->purpose,
+                command->unavailable ? " (unavailable in this build)" : "");
+            help_entry(stream, command->pattern, line, column, width, 0);
+        }
     }
     (void)fputs("\nGLOBAL OPTIONS\n", stream);
     size_t transport_count = 0u;
     const maelys_cli_option_t *transport = maelys_cli_transport_options(
         &transport_count);
-    for (size_t i = 0u; i < transport_count; ++i)
-        option_help_line(stream, &transport[i]);
-    (void)fprintf(stream,
-        "\nAGENT CONTRACT\n"
-        "  Use --format json --non-interactive. Run '%s describe --summary "
-        "--format json' first,\n"
-        "  then '%s describe COMMAND_ID --format json' for the exact input "
-        "and output contract.\n"
-        "  Exit 0 is success, 1 is execution failure, and 2 is a completed "
-        "validation report with violations.\n"
-        "  Transactions plan by default and require --apply. Stream commands "
-        "reserve stdout for their protocol.\n"
-        "  Success data is written to stdout only; diagnostics and failures "
-        "go to stderr.\n", app->program, app->program);
+    options_help(stream, transport, transport_count, width);
+    (void)fputs("\nAGENT CONTRACT\n", stream);
+    (void)snprintf(line, sizeof(line),
+        "Use --format json --non-interactive. Run '%s describe --summary "
+        "--format json' first, then '%s describe COMMAND_ID --format json' "
+        "for the exact input and output contract. Exit 0 is success, 1 is "
+        "execution failure, and 2 is a completed validation report with "
+        "violations. Transactions plan by default and require --apply. "
+        "Stream commands reserve stdout for their protocol. Success data is "
+        "written to stdout only; diagnostics and failures go to stderr.",
+        app->program, app->program);
+    help_paragraph(stream, line, width, 0);
     if (app->agent_guidance && *app->agent_guidance)
         (void)fprintf(stream, "\n%s%s", app->agent_guidance,
             app->agent_guidance[strlen(app->agent_guidance) - 1u] == '\n' ?
             "" : "\n");
 }
 
-static int help_for(
-    maelys_cli_context_t *context, const maelys_cli_command_t *target) {
+/* Renders the general help, the help of `target`, or the help of the family
+ * `prefix` or `words` names, and replies with data.text and data.commands,
+ * the identifiers shown (spec 2.3, section 6). */
+static int help_reply(
+    maelys_cli_context_t *context, const maelys_cli_command_t *target,
+    const char *prefix, char *const words[], size_t word_count) {
     char *text = NULL;
     size_t size = 0u;
+    int family = prefix || word_count > 0u;
+    size_t width = help_width(context);
     FILE *memory = open_memstream(&text, &size);
     if (!memory) return maelys_cli_fail_errno(context,
         MAELYS_CLI_CODE_UNEXPECTED, errno, "help buffer");
-    if (target) command_help_text(memory, context->app, target);
-    else catalog_help_text(memory, context->app);
+    if (target) command_help_text(memory, context->app, target, width);
+    else if (family) family_help_text(memory, context->app, prefix, words, word_count, width);
+    else catalog_help_text(memory, context->app, width);
     if (fclose(memory) != 0 || !text) {
         free(text);
         return maelys_cli_fail(context, MAELYS_CLI_CODE_UNEXPECTED, NULL,
@@ -2946,8 +3193,6 @@ static int help_for(
         maelys_cli_json_key_string(&writer, "text", text) == 0 &&
         maelys_cli_json_key(&writer, "commands") == 0 &&
         maelys_cli_json_begin_array(&writer) == 0;
-    /* `commands` lists identifiers (spec 2.3, section 6): the target's, or
-     * every visible command of the guide. */
     if (built) {
         if (target) built = maelys_cli_json_string(&writer, target->id) == 0;
         else {
@@ -2955,7 +3200,9 @@ static int help_for(
             for (size_t i = 0u; built && i < count; ++i) {
                 const maelys_cli_command_t *command =
                     maelys_cli_app_command_at(context->app, i);
-                if (command->hidden) continue;
+                if (command->hidden ||
+                    (family && !in_family(command, prefix, words, word_count)))
+                    continue;
                 built = maelys_cli_json_string(&writer, command->id) == 0;
             }
         }
@@ -2974,18 +3221,32 @@ static int help_for(
     return result;
 }
 
+static int help_for(
+    maelys_cli_context_t *context, const maelys_cli_command_t *target) {
+    return help_reply(context, target, NULL, NULL, 0u);
+}
+
+/* 1 when at least one shown command belongs to the family. */
+static int family_exists(const maelys_cli_app_t *app, const char *prefix,
+                         char *const words[], size_t word_count) {
+    size_t count = maelys_cli_app_command_count(app);
+    for (size_t i = 0u; i < count; ++i)
+        if (in_family(maelys_cli_app_command_at(app, i), prefix, words, word_count))
+            return 1;
+    return 0;
+}
+
 static int builtin_help(maelys_cli_context_t *context) {
     const char *query = maelys_cli_operand(context, 0u);
-    const maelys_cli_command_t *target = NULL;
-    if (query) {
-        target = maelys_cli_app_find_command(context->app, query);
-        if (!target) {
-            return maelys_cli_fail(context, MAELYS_CLI_CODE_INVALID_COMMAND,
-                "Run 'help' without operands to list command identifiers.",
-                "Unknown command identifier: %s.", query);
-        }
-    }
-    return help_for(context, target);
+    if (!query) return help_for(context, NULL);
+    const maelys_cli_command_t *target = maelys_cli_app_find_command(context->app, query);
+    if (target) return help_for(context, target);
+    /* Not a command: a family, the namespace describe --prefix selects. */
+    if (family_exists(context->app, query, NULL, 0u))
+        return help_reply(context, NULL, query, NULL, 0u);
+    return maelys_cli_fail(context, MAELYS_CLI_CODE_INVALID_COMMAND,
+        "Run 'help' without operands to list the commands and their families.",
+        "Unknown command identifier or family: %s.", query);
 }
 
 static int builtin_version(maelys_cli_context_t *context) {
@@ -3174,6 +3435,28 @@ int maelys_cli_run(
         invocation.format = prescan_format;
         invocation.compact = prescan_compact;
         maelys_cli_terminal_detect(&context.terminal, prescan_color);
+        /* `PROGRAM note --help`: the words name no command, but a family of
+         * them, and help was asked for: the help of that family, as
+         * `PROGRAM help note` gives it, rather than "unknown command". */
+        char *family[MAELYS_CLI_MAX_OPERANDS];
+        size_t family_count = 0u;
+        int help_asked = 0;
+        for (int i = 0; argv && i < argc && strcmp(argv[i], "--") != 0; ++i) {
+            if (!strcmp(argv[i], "--help") || !strcmp(argv[i], "-h")) help_asked = 1;
+            else if (argv[i][0] != '-' && (size_t)i == family_count &&
+                     family_count < MAELYS_CLI_MAX_OPERANDS)
+                family[family_count++] = argv[i];
+        }
+        if (help_asked && family_count > 0u &&
+            !strcmp(error.code, MAELYS_CLI_CODE_INVALID_COMMAND) &&
+            family_exists(app, NULL, family, family_count)) {
+            invocation.command = maelys_cli_app_find_command(app, "help");
+            int shown = help_reply(&context, NULL, NULL, family, family_count);
+            maelys_cli_json_writer_clear(&context.records);
+            (void)fflush(context.out);
+            (void)fflush(context.err);
+            return shown;
+        }
         (void)maelys_cli_fail_error(&context, &error);
         return MAELYS_CLI_EXIT_FAILURE;
     }

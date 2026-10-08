@@ -35,6 +35,37 @@
   the path now, so the same note over a file that changed since is refused.
   Nothing changes for a transaction that declares none of this.
   `maelys agents install` does not offer it yet.
+- **`help` fits the terminal.** The general help aligned every description
+  on the longest usage: lines of 155 columns for `maelys-hello`, the
+  purposes pushed past column 60 with blank space before them. A review of
+  the contract named it, and a product had started to work around it. The
+  layout is rewritten in the C library and the Python module, alike:
+  - **width**: the terminal's when stdout is one, between 60 and 100
+    columns; 80 anywhere else, so that a pipe, a file and `data.text` do not
+    depend on a window. No line passes it: `help`, `help COMMAND_ID` and
+    `help FAMILY` of both reference products are at most 80 columns;
+  - **beside or below**: a description stands beside a label that fits its
+    column and below one that does not; a line breaks between words, a
+    usage between its groups, never inside `[--option VALUE]`;
+  - **columns, not bytes**: an accented letter is one column, a CJK
+    character two, a combining mark none. A purpose in French no longer
+    wraps a third early;
+  - **the general help is short**: each command by its pattern and its
+    purpose, the product's first, then the ones every program has. It no
+    longer repeats every usage;
+  - **a family has its help**: `PROGRAM help FAMILY` and `PROGRAM FAMILY
+    --help` list the commands under an identifier, the namespace `describe
+    --summary --prefix` selects, each with its usage and its purpose below.
+    Words that name no command are still `INVALID_COMMAND` without `--help`.
+
+  The Python module's `help COMMAND_ID` gains the sections of the C
+  library's (`USAGE`, `EFFECT`, `OUTPUT`) and its general help the `AGENT
+  CONTRACT` paragraph; `display_width()` and `help_width()` are public.
+  **What a product can see**: the text of `help` changes in all its forms,
+  and the summary of the `help` operand by one sentence; `describe` is
+  otherwise untouched, and nothing is to declare. Not done: categories or
+  examples declared in the catalog, which would be an addition to the
+  contract.
 
 - agent-cli-spec pinned at v2.10.0 (from v2.9.0): the pin, and nothing in
   the framework. 2.10.0 says what a delegate is, on the criterion this
