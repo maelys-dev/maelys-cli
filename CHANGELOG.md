@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- **`COMMAND --help` answers in the envelope of `help`, in C as in Python.**
+  Under `--format json`, a C program named the command asked about in the
+  envelope's `command` (`"command": "greet"`), over `data` that is the
+  help's -- `text` and `commands` -- and that the output schema of `greet`
+  does not describe; the Python module answered `"command": "help"`. The
+  specification, measuring both while writing its rule on `--help`, asked
+  which is right: `command` is what tells a consumer how to read `data`,
+  so it is `help`, and the command asked about is in `data.commands`.
+  `COMMAND --help` and `help COMMAND_ID` now return the same bytes.
+
 - **A transaction can bind its application to the plan that was reviewed.**
   `--apply` plans again and applies that plan: the re-validation says the
   state still allows the transaction, not that the action is the one the

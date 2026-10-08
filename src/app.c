@@ -3513,7 +3513,12 @@ int maelys_cli_run(
     if (pager_applies(&context)) start_pager(&context);
     int result;
     if (invocation.help_requested && !command->delegate) {
-        /* Command-level help renders through the help builtin's contract. */
+        /* Command-level help renders through the help builtin's contract,
+         * and the envelope says so: `command` is what tells a consumer how
+         * to read `data`, and data is the help's -- text and commands -- not
+         * what the command's own output schema describes. The command asked
+         * about is in data.commands. */
+        invocation.command = maelys_cli_app_find_command(app, "help");
         result = help_for(&context, command);
     } else if (command->delegate) {
         result = delegate_command(&context, command);

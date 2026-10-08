@@ -59,6 +59,11 @@ check "the help of a family lists its commands with their usage" '[ "$code" = 0 
 family_help=$out
 run help-family-id "$hello" help note
 check "help FAMILY and FAMILY --help say the same" '[ "$code" = 0 ] && [ "$out" = "$family_help" ]'
+run help-option-json "$hello" greet --help --format json --compact
+check "COMMAND --help answers in the envelope of help, naming the command in data" '[ "$code" = 0 ] && printf "%s" "$out" | grep -q "\"command\":\"help\",\"ok\":true" && printf "%s" "$out" | grep -q "\"commands\":\[\"greet\"\]"'
+help_note="$work/help-note.txt"
+run help-never-runs "$hello" note write "$help_note" --content x --apply --help
+check "nothing runs under --help, --apply included" '[ "$code" = 0 ] && [ ! -e "$help_note" ] && printf "%s" "$out" | grep -q "^USAGE"'
 run help-not-family "$hello" note
 check "words that name no command are an error without --help" '[ "$code" = 1 ] && printf "%s" "$err" | grep -q "\[INVALID_COMMAND\]"'
 

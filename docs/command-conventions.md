@@ -238,6 +238,11 @@ Four forms, all generated from the catalog:
   its purpose below. Words that name no command are still an error without
   `--help`.
 
+`PROGRAM COMMAND --help` answers exactly as `PROGRAM help COMMAND_ID` does,
+envelope included: under `--format json` its `command` is `help`, whose
+`data` this is, and `data.commands` names the command asked about. Nothing
+runs under `--help`, whatever else the line carries, `--apply` included.
+
 A product writes none of this and must not: a purpose that reads well in one
 line, and identifiers that share a prefix when the commands form a family,
 are what the layout needs.
