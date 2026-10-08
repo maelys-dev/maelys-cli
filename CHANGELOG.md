@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.3 - 2026-10-08
 
 - maelys-json pinned at v0.3.0 (from v0.2.0). That version copies a number
   that is not an integer by its lexeme where `maelys_json_writer_value` and
