@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.4 - 2026-10-08
 
 - **An example is printed as a shell reads it.** `help COMMAND_ID` printed
   the words of an example as declared, joined by spaces. A word holding
