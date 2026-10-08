@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.2 - 2026-10-08
 
 - **An example is one line, whatever the width.** `help COMMAND_ID` wrapped
   an example longer than the help is wide, as it wraps a usage, and with no
