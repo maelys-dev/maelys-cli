@@ -144,6 +144,10 @@ command when either is wrong:
 - The text of `help` changes, in all its forms; `describe` does not. A
   product test that compared a line of `help` compares the new one, or
   better, reads `describe`.
+- `PROGRAM help` no longer spells out the global options nor the whole
+  agent contract: it names the options and gives the first rule, and
+  `PROGRAM help conventions` has both whole. A product test that looked for
+  an option's description or for an exit code in `help` looks there.
 - `PROGRAM help` no longer carries the usage of every command: it names
   each by its pattern and its purpose. The usage is in `help COMMAND_ID` and
   in the new `help FAMILY` / `FAMILY --help`, which lists the commands under

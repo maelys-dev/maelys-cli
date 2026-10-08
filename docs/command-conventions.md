@@ -220,11 +220,16 @@ between words, a usage between its groups, never inside `[--option VALUE]`;
 widths are counted in columns, an accented letter being one and a CJK
 character two.
 
-Three forms, all generated from the catalog:
+Four forms, all generated from the catalog:
 
 - `PROGRAM help` names each command by its pattern and its purpose, the
   product's commands first, then the ones every program has. It does not
-  repeat every usage: a catalog of forty commands stays a screen.
+  repeat every usage: a catalog of forty commands stays a screen. What every
+  program has in common is named there and not repeated: the global options
+  by their names, the agent contract by its first rule.
+- `PROGRAM help conventions` has that common part whole: each global option
+  with what it does, and the agent contract. A product's own command or
+  family of that name is shown instead; the topic takes no identifier away.
 - `PROGRAM help COMMAND_ID`, or `PROGRAM COMMAND --help`, gives one command:
   usage, purpose, effect, output mode, operands, options.
 - `PROGRAM help FAMILY`, or `PROGRAM FAMILY --help`, gives a family: the

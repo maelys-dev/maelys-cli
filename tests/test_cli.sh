@@ -49,6 +49,10 @@ check "describe usage equals synopsis" 'printf "%s" "$out" | grep -q "\"usage\":
 
 run help "$hello" help
 check "help lists commands" '[ "$code" = 0 ] && printf "%s" "$out" | grep -q "^  note write  Store a note in a file.$" && printf "%s" "$out" | grep -q "AGENT CONTRACT"'
+check "help names what every program has in common, and says where it is spelled out" 'printf "%s" "$out" | grep -q "help conventions" && ! printf "%s" "$out" | grep -q "Exact alias of --format json"'
+run help-conventions "$hello" help conventions
+check "help conventions has the global options and the agent contract" '[ "$code" = 0 ] && printf "%s" "$out" | grep -q "Exact alias of --format json" && printf "%s" "$out" | grep -q "Exit 0 is success"'
+run help "$hello" help
 check "help fits eighty columns" '[ "$(printf "%s\n" "$out" | awk "{ if (length(\$0) > m) m = length(\$0) } END { print m }")" -le 80 ]'
 run help-family "$hello" note --help
 check "the help of a family lists its commands with their usage" '[ "$code" = 0 ] && [ -z "$err" ] && printf "%s" "$out" | grep -q "^  note write FILE --content TEXT" && printf "%s" "$out" | grep -q "^      Store a note in a file.$"'
