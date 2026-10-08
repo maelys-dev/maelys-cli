@@ -230,7 +230,10 @@ checked. A word cannot hold a space, so an example carries values that have
 none.
 
 `help COMMAND_ID` shows them under `EXAMPLES`, each a line to copy with its
-sentence below; the general help does not, and stays a screen. `describe`
+sentence below; the general help does not, and stays a screen. An example is
+never broken, even when it is longer than the help is wide: it is the one
+line the layout leaves alone, because half of an invocation is another
+invocation. The sentence below it wraps as usual. `describe`
 lists them as `{"words": [...], "summary": "..."}` in the catalog and in
 `describe COMMAND_ID`; `describe --summary` omits them, as it omits the
 output schema. Examples written in a README drift from the binary a user

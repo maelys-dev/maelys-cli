@@ -3171,10 +3171,15 @@ static void command_help_text(
     if (command->example_count) {
         (void)fputs("\nEXAMPLES\n", stream);
         for (size_t i = 0u; i < command->example_count; ++i) {
-            (void)snprintf(line, sizeof(line), "%s %s", app->program,
+            /* A line to copy: on one line whatever the width, the one place
+             * the help passes it on purpose. Wrapped, the first half was a
+             * command of its own -- `prog exec --config F --` without its
+             * program -- and the second another. The sentence below wraps. */
+            (void)fprintf(stream, "  %s %s\n", app->program,
                 command->examples[i].words);
-            /* Never beside: a line to copy stands alone. */
-            help_entry(stream, line, command->examples[i].summary, 0u, width, 0);
+            help_indent(stream, 6u);
+            (void)help_wrap(stream, command->examples[i].summary, 6u, 6u, width, 0);
+            (void)fputc('\n', stream);
         }
     }
     (void)snprintf(line, sizeof(line), "Run '%s help conventions' for --format, "

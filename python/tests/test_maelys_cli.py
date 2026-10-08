@@ -587,6 +587,21 @@ class Contract(unittest.TestCase):
         summary = json.loads(run("describe", "--summary", "--json")[1])["data"]["commands"]
         self.assertTrue(all("examples" not in item for item in summary))
         self.assertNotIn("EXAMPLES", run("help")[1])                    # the general help stays a screen
+        # An example is a line to copy: on one line, even past the width. 0.6.1 wrapped it without a
+        # mark, and each half ran as a command of its own.
+        long = cli.Program("prog", "P", "1.0", [
+            cli.read("long-example", "long-example", "An example past the width.", lambda i: ({}, 0),
+                     operands=[cli.operand("WORD", "Words.", required=False, variadic=True)],
+                     options=[cli.option("--first-quite-long-option", "First.", cli.argument("TEXT")),
+                              cli.option("--second-quite-long-option", "Second.", cli.argument("TEXT"))],
+                     examples=[cli.example("long-example --first-quite-long-option one --second-quite-long-option two"
+                                           " -- /usr/local/bin/agent --once", "Longer than eighty columns, and whole.")])])
+        self.assertIn("\nEXAMPLES\n  prog long-example --first-quite-long-option one --second-quite-long-option two"
+                      " -- /usr/local/bin/agent --once\n      Longer than eighty columns, and whole.\n",
+                      long.command_help(long.command_by_id("long-example")))
+        self.assertIn("\nEXAMPLES\n  prog long-example --first-quite-long-option one --second-quite-long-option two"
+                      " -- /usr/local/bin/agent --once\n",
+                      long.command_help(long.command_by_id("long-example"), width=60))   # nor at a narrower one
 
         def program(words: str, summary: str = "A sentence.") -> cli.Program:
             return cli.Program("prog", "P", "1.0", [
