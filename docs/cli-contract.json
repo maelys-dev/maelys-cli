@@ -433,6 +433,16 @@
                 "claude",
                 "--apply"
               ]
+            },
+            {
+              "summary": "The fingerprint of the plan, to give to --apply --expect.",
+              "words": [
+                "agents",
+                "install",
+                ".",
+                "--field",
+                "fingerprint"
+              ]
             }
           ],
           "exitCodes": {
@@ -444,7 +454,15 @@
           "hidden": false,
           "id": "agents.install",
           "input": {
-            "constraints": [],
+            "constraints": [
+              {
+                "kind": "requires",
+                "options": [
+                  "--expect",
+                  "--apply"
+                ]
+              }
+            ],
             "operands": [
               {
                 "name": "PROJECT_DIR",
@@ -479,10 +497,27 @@
                 "required": false,
                 "requires": [],
                 "summary": "Apply the reviewed transaction; omission returns a read-only plan."
+              },
+              {
+                "argument": {
+                  "algorithms": [
+                    "sha256"
+                  ],
+                  "name": "FINGERPRINT",
+                  "type": "digest"
+                },
+                "conflictsWith": [],
+                "long": "--expect",
+                "repeatable": false,
+                "required": false,
+                "requires": [
+                  "--apply"
+                ],
+                "summary": "Apply only the plan this fingerprint names; a plan that has changed since is refused before anything is written."
               }
             ],
             "passthrough": false,
-            "synopsis": "agents install PROJECT_DIR [--client all|claude|codex] [--apply]"
+            "synopsis": "agents install PROJECT_DIR [--client all|claude|codex] [--apply] [--expect FINGERPRINT]"
           },
           "outputMode": "json-envelope",
           "outputSchema": {
@@ -533,6 +568,10 @@
                 },
                 "type": "array"
               },
+              "fingerprint": {
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
+              },
               "frameworkVersion": {
                 "type": "string"
               },
@@ -552,6 +591,7 @@
               "project",
               "client",
               "frameworkVersion",
+              "fingerprint",
               "files"
             ],
             "type": "object"
@@ -561,7 +601,7 @@
             "install"
           ],
           "purpose": "Install or refresh the maelys-cli agent instructions of a project.",
-          "usage": "agents install PROJECT_DIR [--client all|claude|codex] [--apply]"
+          "usage": "agents install PROJECT_DIR [--client all|claude|codex] [--apply] [--expect FINGERPRINT]"
         },
         {
           "available": true,

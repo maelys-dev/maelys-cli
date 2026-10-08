@@ -361,10 +361,29 @@ printf '# Project\n\nExisting notes.\n' >"$project/AGENTS.md"
 run a-plan "$maelys" agents install "$project" --json --compact
 check "agents plan writes nothing" '[ "$code" = 0 ] && [ ! -e "$project/CLAUDE.md" ] && printf "%s" "$out" | grep -q "\"mode\":\"plan\",\"changed\":false" && printf "%s" "$out" | grep -q "\"action\":\"update\""'
 
+# The plan of an installation is bound to its application (spec 2.9, section
+# 4): the fingerprint covers the project, the clients and, for each file, what
+# is there and what would be written.
+reviewed=$("$maelys" agents install "$project" --field fingerprint)
+check "agents plan carries a fingerprint, the same for the same plan" 'printf "%s" "$reviewed" | grep -Eq "^sha256:[0-9a-f]{64}$" && [ "$("$maelys" agents install "$project" --field fingerprint)" = "$reviewed" ]'
+check "another client is another plan" '[ "$("$maelys" agents install "$project" --client codex --field fingerprint)" != "$reviewed" ]'
+run a-plan-text "$maelys" agents install "$project"
+check "the text of a plan gives the option that binds it" '[ "$code" = 0 ] && printf "%s" "$out" | grep -q "^  --expect $reviewed$"'
+run a-expect-plan "$maelys" agents install "$project" --expect "$reviewed"
+check "agents install refuses --expect without --apply" '[ "$code" = 1 ] && printf "%s" "$err" | grep -q "requires --apply" && [ ! -e "$project/CLAUDE.md" ]'
+cp "$project/AGENTS.md" "$work/AGENTS.reviewed"
+printf 'Edited after the plan was read.\n' >>"$project/AGENTS.md"
+cp "$project/AGENTS.md" "$work/AGENTS.edited"
+run a-expect-stale "$maelys" agents install "$project" --apply --expect "$reviewed" --json --compact
+check "a file edited since the plan refuses the application, before any write" '[ "$code" = 1 ] && [ -z "$out" ] && printf "%s" "$err" | grep -q "\"code\":\"PRECONDITION_FAILED\"" && [ ! -e "$project/CLAUDE.md" ] && [ ! -e "$project/docs" ] && cmp -s "$project/AGENTS.md" "$work/AGENTS.edited"'
+cp "$work/AGENTS.reviewed" "$project/AGENTS.md"
+check "the same files again are the reviewed plan again" '[ "$("$maelys" agents install "$project" --field fingerprint)" = "$reviewed" ]'
+
 run a-status0 "$maelys" agents status "$project" --json --compact
 check "agents status reports missing with exit 2" '[ "$code" = 2 ] && printf "%s" "$out" | grep -q "\"upToDate\":false" && printf "%s" "$out" | grep -q "\"state\":\"unmanaged\""'
 
-run a-apply "$maelys" agents install "$project" --apply --json --compact
+run a-apply "$maelys" agents install "$project" --apply --expect "$reviewed" --json --compact
+check "the reviewed plan applies, and answers its fingerprint" '[ "$code" = 0 ] && printf "%s" "$out" | grep -q "\"mode\":\"apply\",\"changed\":true" && printf "%s" "$out" | grep -q "\"fingerprint\":\"$reviewed\""'
 check "agents apply creates managed files" '[ "$code" = 0 ] && grep -q "maelys-cli:begin" "$project/AGENTS.md" && grep -q "Existing notes." "$project/AGENTS.md" && grep -q "maelys-cli:begin" "$project/CLAUDE.md" && [ -f "$project/docs/maelys-cli-guide.md" ] && [ -f "$project/.claude/skills/maelys-cli-command/SKILL.md" ]'
 check "skill keeps frontmatter first" '[ "$(head -1 "$project/.claude/skills/maelys-cli-command/SKILL.md")" = "---" ]'
 check "generated texts stamp a commit next to the version, not a date" \
@@ -381,6 +400,8 @@ check "agents status current" '[ "$code" = 0 ] && printf "%s" "$out" | grep -q "
 
 run a-idempotent "$maelys" agents install "$project" --apply --json --compact
 check "agents install is idempotent" '[ "$code" = 0 ] && printf "%s" "$out" | grep -q "\"changed\":false"'
+run a-expect-applied "$maelys" agents install "$project" --apply --expect "$reviewed" --json --compact
+check "a plan already applied is no longer the plan" '[ "$code" = 1 ] && printf "%s" "$err" | grep -q "\"code\":\"PRECONDITION_FAILED\""'
 
 printf '\nUser additions after the block.\n' >>"$project/CLAUDE.md"
 sed -i.bak 's/maelys-cli:begin -->/maelys-cli:begin -->\nstale line/' "$project/CLAUDE.md" && rm -f "$project/CLAUDE.md.bak"

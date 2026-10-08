@@ -27,11 +27,12 @@ const maelys_cli_operand_t maelys_agents_operands[1] = {
     {MAELYS_CLI_OPERAND("PROJECT_DIR",
      "Existing project directory that consumes libmaelys_cli.")},
 };
-const maelys_cli_option_t maelys_agents_install_options[2] = {
+const maelys_cli_option_t maelys_agents_install_options[3] = {
     {MAELYS_CLI_CHOICE("client",
      "Agent clients to configure: all, claude (CLAUDE.md and skill) or codex "
      "(AGENTS.md).", client_choices), .default_text = "all"},
     MAELYS_CLI_APPLY_OPTION,
+    MAELYS_CLI_EXPECT_OPTION,
 };
 const maelys_cli_option_t maelys_agents_status_options[1] = {
     {MAELYS_CLI_CHOICE("client", "Agent clients to inspect: all, claude or codex.",
@@ -40,11 +41,13 @@ const maelys_cli_option_t maelys_agents_status_options[1] = {
 
 const char maelys_agents_install_schema[] =
     "{\"type\":\"object\",\"additionalProperties\":false,\"required\":[\"mode\","
-    "\"changed\",\"project\",\"client\",\"frameworkVersion\",\"files\"],"
+    "\"changed\",\"project\",\"client\",\"frameworkVersion\",\"fingerprint\","
+    "\"files\"],"
     "\"properties\":{\"mode\":{\"enum\":[\"plan\",\"apply\"]},\"changed\":{"
     "\"type\":\"boolean\"},\"project\":{\"type\":\"string\"},\"client\":{"
     "\"enum\":[\"all\",\"claude\",\"codex\"]},\"frameworkVersion\":{\"type\":"
-    "\"string\"},\"files\":{\"type\":\"array\",\"items\":{\"type\":\"object\","
+    "\"string\"},\"fingerprint\":{\"type\":\"string\",\"pattern\":"
+    "\"^sha256:[0-9a-f]{64}$\"},\"files\":{\"type\":\"array\",\"items\":{\"type\":\"object\","
     "\"additionalProperties\":false,\"required\":[\"path\",\"kind\",\"action\","
     "\"bytes\"],\"properties\":{\"path\":{\"type\":\"string\"},\"kind\":{\"enum\":"
     "[\"managed-block\",\"generated\"]},\"action\":{\"enum\":[\"create\","
@@ -386,9 +389,16 @@ static void free_plan(plan_entry_t *entries, size_t count) {
     for (size_t i = 0u; i < count; ++i) free(entries[i].desired);
 }
 
+/* Reads each managed file and decides what it should become. With
+ * `fingerprint`, every file adds what the plan rests on and what it would
+ * write: its relative path, the bytes read here (absent when there is no
+ * file, which differs from an empty one) and the content wanted. The bytes
+ * are the ones the decision was made on, read once through the project
+ * descriptor, not a second read by path. */
 static int build_plan(
     maelys_cli_context_t *context, int project_descriptor, const char *project,
-    plan_entry_t *entries, size_t *out_count) {
+    plan_entry_t *entries, size_t *out_count,
+    maelys_cli_fingerprint_t *fingerprint) {
     size_t file_count = 0u;
     const managed_file_t *files = managed_files(&file_count);
     int mask = client_mask(context);
@@ -427,6 +437,12 @@ static int build_plan(
             else entry->state = !exists || !current ? 0 :
                 strcmp(current, entry->desired) == 0 ? 1 : 2;
         }
+        if (fingerprint && result == 0) {
+            maelys_cli_fingerprint_add_string(fingerprint, "file", files[i].relative);
+            maelys_cli_fingerprint_add(fingerprint, "current",
+                exists ? current : NULL, current_size);
+            maelys_cli_fingerprint_add_string(fingerprint, "desired", entry->desired);
+        }
         free(current);
         if (result != 0) {
             free(entry->desired);
@@ -462,9 +478,27 @@ int maelys_agents_install(maelys_cli_context_t *context) {
             errno, project);
     plan_entry_t entries[4];
     size_t count = 0u;
-    if (build_plan(context, project_descriptor, project, entries, &count) != 0) {
+    /* The fingerprint of the plan: where and for which clients, then for
+     * each file what is there now and what would be written. The same
+     * installation over the same files is the same plan; another client,
+     * another version of these texts, or a file edited since the plan was
+     * read is another, and --expect refuses it before anything is written. */
+    maelys_cli_fingerprint_t plan;
+    char fingerprint[MAELYS_CLI_FINGERPRINT_SIZE];
+    maelys_cli_fingerprint_init(&plan);
+    maelys_cli_fingerprint_add_string(&plan, "project", project);
+    maelys_cli_fingerprint_add_string(&plan, "client", client_name(context));
+    if (build_plan(context, project_descriptor, project, entries, &count,
+            &plan) != 0) {
         (void)close(project_descriptor);
         return MAELYS_CLI_EXIT_FAILURE;
+    }
+    maelys_cli_fingerprint_finish(&plan, fingerprint);
+    int refused = maelys_cli_expect(context, fingerprint);
+    if (refused) {
+        free_plan(entries, count);
+        (void)close(project_descriptor);
+        return refused;
     }
     int apply = maelys_cli_flag(context, "apply");
     int changed = 0;
@@ -502,6 +536,7 @@ int maelys_agents_install(maelys_cli_context_t *context) {
         maelys_cli_json_key_string(&writer, "client", client_name(context)) == 0 &&
         maelys_cli_json_key_string(&writer, "frameworkVersion",
             maelys_agents_version) == 0 &&
+        maelys_cli_json_key_string(&writer, "fingerprint", fingerprint) == 0 &&
         maelys_cli_json_key(&writer, "files") == 0 &&
         maelys_cli_json_begin_array(&writer) == 0;
     for (size_t i = 0u; built && i < count; ++i) {
@@ -530,7 +565,9 @@ int maelys_agents_install(maelys_cli_context_t *context) {
     }
     if (!apply)
         (void)snprintf(human + used, sizeof(human) - used,
-            "Plan only; add --apply to write these files.\n");
+            "Plan only; add --apply to write these files.\n"
+            "To write this plan and no other, add as well:\n  --expect %s\n",
+            fingerprint);
     return maelys_cli_succeed_writer(context, &writer, human, MAELYS_CLI_EXIT_OK);
 }
 
@@ -545,7 +582,8 @@ int maelys_agents_status(maelys_cli_context_t *context) {
             errno, project);
     plan_entry_t entries[4];
     size_t count = 0u;
-    if (build_plan(context, project_descriptor, project, entries, &count) != 0) {
+    if (build_plan(context, project_descriptor, project, entries, &count,
+            NULL) != 0) {
         (void)close(project_descriptor);
         return MAELYS_CLI_EXIT_FAILURE;
     }

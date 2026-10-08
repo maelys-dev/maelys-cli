@@ -232,6 +232,11 @@ maelys agents install /path/to/project --apply   # write
 maelys agents status /path/to/project            # exit 2 when outdated
 ```
 
+The plan ends with the `--expect sha256:...` that binds it: added to
+`--apply`, it writes that plan and refuses any other, so a file edited
+between the review and the write stops the installation before it touches
+anything.
+
 This manages a marked block in `AGENTS.md` (Codex) and `CLAUDE.md` (Claude
 Code), the complete guide `docs/maelys-cli-guide.md` and the Claude skill
 `.claude/skills/maelys-cli-command/SKILL.md`. Short product templates for

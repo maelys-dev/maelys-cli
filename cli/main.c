@@ -44,6 +44,8 @@ static const maelys_cli_example_t agents_install_examples[] = {
      "Plan the installation in this project: every file is named, none is written.")},
     {MAELYS_CLI_EXAMPLE("agents install . --client claude --apply",
      "Write the instructions Claude reads.")},
+    {MAELYS_CLI_EXAMPLE("agents install . --field fingerprint",
+     "The fingerprint of the plan, to give to --apply --expect.")},
 };
 static const maelys_cli_example_t agents_status_examples[] = {
     {MAELYS_CLI_EXAMPLE("agents status .",
@@ -59,7 +61,7 @@ static const maelys_cli_command_t builtin_commands[] = {
      "Install or refresh the maelys-cli agent instructions of a project.",
      maelys_agents_install),
      .operands = maelys_agents_operands, .operand_count = 1u,
-     .options = maelys_agents_install_options, .option_count = 2u,
+     .options = maelys_agents_install_options, .option_count = 3u,
      MAELYS_CLI_SCHEMA(maelys_agents_install_schema),
      MAELYS_CLI_EXAMPLES(agents_install_examples)},
     {MAELYS_CLI_READ("agents.status", "agents status",

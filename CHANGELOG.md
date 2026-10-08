@@ -17,6 +17,24 @@
   `hello.py` changes: none holds such a word. `describe` is untouched: it
   carries the words as an array, which never needed a spelling.
 
+- **`maelys agents install` binds its plan to its application.** The command
+  wrote up to four files of a project and offered no way to say "this plan,
+  and no other", though the framework has provided one since 0.5.36. It now
+  declares `--expect FINGERPRINT` and answers `data.fingerprint`, which its
+  output schema requires. The fingerprint covers the resolved project
+  directory, the clients asked and, for each managed file, its path, the
+  bytes that are there (an absent file differing from an empty one) and the
+  content that would be written; those bytes are the ones the plan was
+  decided on, read once through the project's descriptor. `--apply --expect
+  sha256:...` writes that plan; a file edited since, another `--client` or
+  another version of these texts is another plan, answered
+  `PRECONDITION_FAILED` before anything is written. A plan already applied
+  is no longer the plan either: the files it would create exist. The text
+  of a plan ends with the option to add. `--apply` without `--expect`
+  behaves as it did. `describe agents.install` changes: one option and one
+  required member more, and a third example (`agents install . --field
+  fingerprint`).
+
 ## 0.6.3 - 2026-10-08
 
 - maelys-json pinned at v0.3.0 (from v0.2.0). That version copies a number
