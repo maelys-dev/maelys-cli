@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- maelys-release adopted at v0.63.0 (from v0.62.3): the three workflow pins
+  and one managed file. Its Impact line asks a gesture of this product: a
+  managed file moves, so a product that carries
+  `scripts/checkout-dependencies.sh` re-adopts rather than moving its pin,
+  or `check` exits 2 on that file. The script now skips a pin whose file
+  says `on-request` and prints how long each clone took; this repository
+  declares no such pin, so it clones what it cloned.
+
 - **`COMMAND --help` answers in the envelope of `help`, in C as in Python.**
   Under `--format json`, a C program named the command asked about in the
   envelope's `command` (`"command": "greet"`), over `data` that is the
