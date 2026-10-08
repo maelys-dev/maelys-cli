@@ -83,6 +83,11 @@ command by `id`; never replay a `PRECONDITION_FAILED` blindly; prefer
   "records"}` in the envelope), `--format jsonl` (one compact object per
   line, no envelope; failure is still an envelope on stderr) and text (one
   human line per record).
+- A descriptor may carry `examples`: real invocations of the command, each
+  `{"words": [...], "summary": "..."}`, `words` being the command line
+  without the program's name. They are in `describe` and in `describe
+  COMMAND_ID`, not in the summary. The program parsed each one when it
+  started, so an example is a line the command accepts as it stands.
 - `PROGRAM help` is for a person: it names each command by its pattern and
   its purpose within 80 columns, and `PROGRAM help conventions` spells out
   the global options and the agent contract. `PROGRAM help COMMAND_ID` gives one

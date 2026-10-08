@@ -304,6 +304,24 @@
         {
           "available": true,
           "effect": "read",
+          "examples": [
+            {
+              "summary": "The commands installed manifests declare, one per line.",
+              "words": [
+                "commands",
+                "list"
+              ]
+            },
+            {
+              "summary": "The same with each manifest's path, version and availability.",
+              "words": [
+                "commands",
+                "list",
+                "--format",
+                "json"
+              ]
+            }
+          ],
           "exitCodes": {
             "0": "command completed",
             "1": "execution failed",
@@ -396,6 +414,27 @@
             "apply": "apply",
             "plan": "preview"
           },
+          "examples": [
+            {
+              "summary": "Plan the installation in this project: every file is named, none is written.",
+              "words": [
+                "agents",
+                "install",
+                "."
+              ]
+            },
+            {
+              "summary": "Write the instructions Claude reads.",
+              "words": [
+                "agents",
+                "install",
+                ".",
+                "--client",
+                "claude",
+                "--apply"
+              ]
+            }
+          ],
           "exitCodes": {
             "0": "command completed",
             "1": "execution failed",
@@ -527,6 +566,16 @@
         {
           "available": true,
           "effect": "read",
+          "examples": [
+            {
+              "summary": "Say whether this project's instructions are current; exit 2 when they are not.",
+              "words": [
+                "agents",
+                "status",
+                "."
+              ]
+            }
+          ],
           "exitCodes": {
             "0": "command completed",
             "1": "execution failed",
@@ -1095,6 +1144,25 @@
         {
           "available": true,
           "effect": "read",
+          "examples": [
+            {
+              "summary": "Greet Ada.",
+              "words": [
+                "greet",
+                "Ada"
+              ]
+            },
+            {
+              "summary": "Greet her twice, in capitals.",
+              "words": [
+                "greet",
+                "Ada",
+                "--shout",
+                "--times",
+                "2"
+              ]
+            }
+          ],
           "exitCodes": {
             "0": "command completed",
             "1": "execution failed",
@@ -1177,6 +1245,22 @@
         {
           "available": true,
           "effect": "read",
+          "examples": [
+            {
+              "summary": "Echo four typed values, one option being repeated.",
+              "words": [
+                "limits",
+                "--level",
+                "high",
+                "--memory",
+                "512M",
+                "--tag",
+                "build",
+                "--tag",
+                "nightly"
+              ]
+            }
+          ],
           "exitCodes": {
             "0": "command completed",
             "1": "execution failed",
@@ -1362,6 +1446,29 @@
             "apply": "apply",
             "plan": "preview"
           },
+          "examples": [
+            {
+              "summary": "Plan the note: nothing is written.",
+              "words": [
+                "note",
+                "write",
+                "/tmp/note.txt",
+                "--content",
+                "hello"
+              ]
+            },
+            {
+              "summary": "Write it.",
+              "words": [
+                "note",
+                "write",
+                "/tmp/note.txt",
+                "--content",
+                "hello",
+                "--apply"
+              ]
+            }
+          ],
           "exitCodes": {
             "0": "command completed",
             "1": "execution failed",
@@ -1499,6 +1606,18 @@
         {
           "available": true,
           "effect": "read",
+          "examples": [
+            {
+              "summary": "The first two records, one JSON object per line.",
+              "words": [
+                "list",
+                "--limit",
+                "2",
+                "--format",
+                "jsonl"
+              ]
+            }
+          ],
           "exitCodes": {
             "0": "command completed",
             "1": "execution failed",
@@ -1675,6 +1794,16 @@
         {
           "available": true,
           "effect": "stream",
+          "examples": [
+            {
+              "summary": "Run a program and relay its output.",
+              "words": [
+                "run",
+                "/bin/echo",
+                "hello"
+              ]
+            }
+          ],
           "exitCodes": {
             "0": "command completed",
             "1": "execution failed",
@@ -1716,6 +1845,17 @@
         {
           "available": true,
           "effect": "execute",
+          "examples": [
+            {
+              "summary": "Hand `inspect --platform linux/arm64` to the helper.",
+              "words": [
+                "image",
+                "inspect",
+                "--platform",
+                "linux/arm64"
+              ]
+            }
+          ],
           "exitCodes": {
             "0": "command completed",
             "1": "execution failed",

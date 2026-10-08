@@ -209,6 +209,33 @@ affected. The refusal is deliberate: accepting an alias would let two
 spellings of the same intent coexist across products, which is what the
 shared contract exists to prevent.
 
+## Examples
+
+A command declares its examples in the catalog, with
+`MAELYS_CLI_EXAMPLES(array)` of `MAELYS_CLI_EXAMPLE(words, summary)`
+(`examples=[cli.example(words, summary)]` in Python; spec 2.12, section 2).
+`words` is the command line without the program's name, starting with the
+command's pattern, its words separated by single spaces; `summary` says in
+one sentence what that line does.
+
+An example is an invocation the command accepts, with real values, never a
+placeholder. The catalog validation parses each one at startup, as it would
+a command line -- declared options, none hidden, values of their kind, the
+operands the command takes, every rule between options -- and refuses the
+catalog when one does not parse, naming the command, the example and the
+reason. Nothing runs an example: the parser reads no file and starts
+nothing, so an example with `--apply` is checked like any other. After the
+pattern of a delegate the words are the other executable's and are not
+checked. A word cannot hold a space, so an example carries values that have
+none.
+
+`help COMMAND_ID` shows them under `EXAMPLES`, each a line to copy with its
+sentence below; the general help does not, and stays a screen. `describe`
+lists them as `{"words": [...], "summary": "..."}` in the catalog and in
+`describe COMMAND_ID`; `describe --summary` omits them, as it omits the
+output schema. Examples written in a README drift from the binary a user
+has; a declared one cannot name an option the command has lost.
+
 ## Help
 
 `help` is read by a person, in a terminal, and is laid out for one. It is

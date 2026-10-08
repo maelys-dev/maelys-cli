@@ -313,18 +313,50 @@ static const maelys_cli_operand_t image_operands[] = {
      "Arguments passed verbatim to maelys-hello-image.")},
 };
 
+/* Examples: real invocations, which the catalog validation parses at
+ * startup. python/examples/hello.py declares the same ones for the commands
+ * the two share. */
+static const maelys_cli_example_t greet_examples[] = {
+    {MAELYS_CLI_EXAMPLE("greet Ada", "Greet Ada.")},
+    {MAELYS_CLI_EXAMPLE("greet Ada --shout --times 2", "Greet her twice, in capitals.")},
+};
+static const maelys_cli_example_t limits_examples[] = {
+    {MAELYS_CLI_EXAMPLE("limits --level high --memory 512M --tag build --tag nightly",
+     "Echo four typed values, one option being repeated.")},
+};
+static const maelys_cli_example_t note_examples[] = {
+    {MAELYS_CLI_EXAMPLE("note write /tmp/note.txt --content hello",
+     "Plan the note: nothing is written.")},
+    {MAELYS_CLI_EXAMPLE("note write /tmp/note.txt --content hello --apply",
+     "Write it.")},
+};
+static const maelys_cli_example_t list_examples[] = {
+    {MAELYS_CLI_EXAMPLE("list --limit 2 --format jsonl",
+     "The first two records, one JSON object per line.")},
+};
+static const maelys_cli_example_t run_examples[] = {
+    {MAELYS_CLI_EXAMPLE("run /bin/echo hello", "Run a program and relay its output.")},
+};
+/* After a delegate's pattern the words are the helper's: not checked. */
+static const maelys_cli_example_t image_examples[] = {
+    {MAELYS_CLI_EXAMPLE("image inspect --platform linux/arm64",
+     "Hand `inspect --platform linux/arm64` to the helper.")},
+};
+
 static const maelys_cli_command_t commands[] = {
     {MAELYS_CLI_READ("greet", "greet", "Greet someone.", command_greet),
      MAELYS_CLI_OPERANDS(greet_operands), MAELYS_CLI_OPTIONS(greet_options),
-     MAELYS_CLI_SCHEMA(hello_greet_schema)},
+     MAELYS_CLI_SCHEMA(hello_greet_schema), MAELYS_CLI_EXAMPLES(greet_examples)},
     {MAELYS_CLI_READ("limits", "limits", "Echo typed option values.", command_limits),
-     MAELYS_CLI_OPTIONS(limits_options), MAELYS_CLI_SCHEMA(hello_limits_schema)},
+     MAELYS_CLI_OPTIONS(limits_options), MAELYS_CLI_SCHEMA(hello_limits_schema),
+     MAELYS_CLI_EXAMPLES(limits_examples)},
     {MAELYS_CLI_TRANSACTION("note.write", "note write", "Store a note in a file.",
      command_note_write),
      MAELYS_CLI_OPERANDS(note_operands), MAELYS_CLI_OPTIONS(note_options),
-     MAELYS_CLI_SCHEMA(hello_note_write_schema)},
+     MAELYS_CLI_SCHEMA(hello_note_write_schema), MAELYS_CLI_EXAMPLES(note_examples)},
     {MAELYS_CLI_RECORDS("list", "list", "List sample records.", command_list),
-     MAELYS_CLI_OPTIONS(list_options), MAELYS_CLI_SCHEMA(hello_list_schema)},
+     MAELYS_CLI_OPTIONS(list_options), MAELYS_CLI_SCHEMA(hello_list_schema),
+     MAELYS_CLI_EXAMPLES(list_examples)},
     {MAELYS_CLI_READ("check", "check", "Validate that a file is private.", command_check),
      MAELYS_CLI_OPERANDS(check_operands), MAELYS_CLI_SCHEMA(hello_check_schema)},
     {MAELYS_CLI_READ("env.show", "env show", "Show an environment overlay.",
@@ -332,11 +364,11 @@ static const maelys_cli_command_t commands[] = {
      MAELYS_CLI_OPTIONS(env_options), MAELYS_CLI_SCHEMA(hello_env_show_schema)},
     {MAELYS_CLI_STREAM("run", "run", "Execute a program and relay its stdio.",
      command_run),
-     MAELYS_CLI_OPERANDS(run_operands),
+     MAELYS_CLI_OPERANDS(run_operands), MAELYS_CLI_EXAMPLES(run_examples),
      .synopsis = "run PROGRAM [ARG...] | run -- PROGRAM [ARG...]"},
     {MAELYS_CLI_EXTERNAL("image", "image",
      "Delegate to the optional maelys-hello-image helper.", "maelys-hello-image"),
-     MAELYS_CLI_OPERANDS(image_operands)},
+     MAELYS_CLI_OPERANDS(image_operands), MAELYS_CLI_EXAMPLES(image_examples)},
 };
 
 int main(int argc, char **argv) {

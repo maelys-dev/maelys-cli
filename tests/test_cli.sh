@@ -64,6 +64,12 @@ check "COMMAND --help answers in the envelope of help, naming the command in dat
 help_note="$work/help-note.txt"
 run help-never-runs "$hello" note write "$help_note" --content x --apply --help
 check "nothing runs under --help, --apply included" '[ "$code" = 0 ] && [ ! -e "$help_note" ] && printf "%s" "$out" | grep -q "^USAGE"'
+run help-examples "$hello" help note.write
+check "the help of a command shows its examples, each a line to copy" '[ "$code" = 0 ] && printf "%s" "$out" | grep -q "^EXAMPLES$" && printf "%s" "$out" | grep -q "^  maelys-hello note write /tmp/note.txt --content hello --apply$" && printf "%s" "$out" | grep -q "^      Write it.$"'
+run describe-examples "$hello" describe note.write --format json --compact
+check "describe COMMAND_ID carries them, one word per element" '[ "$code" = 0 ] && printf "%s" "$out" | grep -q "\"examples\":\[{\"words\":\[\"note\",\"write\",\"/tmp/note.txt\",\"--content\",\"hello\"\],\"summary\":\"Plan the note: nothing is written.\"}"'
+run describe-summary-examples "$hello" describe --summary --format json --compact
+check "the summary omits them" '[ "$code" = 0 ] && ! printf "%s" "$out" | grep -q "\"examples\""'
 run help-not-family "$hello" note
 check "words that name no command are an error without --help" '[ "$code" = 1 ] && printf "%s" "$err" | grep -q "\[INVALID_COMMAND\]"'
 

@@ -99,6 +99,16 @@ def main(argv: list) -> int:
             lines = [f"C {a!r}, Python {b!r}" for a, b in zip(expected.splitlines(), offered.splitlines()) if a != b]
             print(f"hello-parity-check: completion {shell}: the scripts differ: "
                   f"{lines[0] if lines else 'one is longer'}", file=sys.stderr)
+    # The commands both declare carry the same examples.
+    def examples(program: list) -> dict:
+        out = subprocess.run([*program, "describe", "--format", "json"], check=True, capture_output=True, text=True).stdout
+        return {item["id"]: item.get("examples", []) for item in json.loads(out)["data"]["commands"]}
+    c_examples, python_examples = examples(c_hello), examples(python_hello)
+    for identifier in sorted(shared - {"help", "version", "describe", "completion", "complete.candidates"}):
+        if c_examples.get(identifier) != python_examples.get(identifier):
+            unlike += 1
+            print(f"hello-parity-check: examples of {identifier}: C {json.dumps(c_examples.get(identifier))}, "
+                  f"Python {json.dumps(python_examples.get(identifier))}", file=sys.stderr)
     # A plan bound to its application carries the same fingerprint in both:
     # the two products frame the same entries the same way.
     import tempfile

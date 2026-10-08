@@ -208,6 +208,16 @@ write and returns `data.fingerprint`. `--apply --expect FINGERPRINT` then
 applies only the plan that was reviewed. Never give `--expect` another
 meaning on a transaction.
 
+Give a command examples with `MAELYS_CLI_EXAMPLES(array)` of
+`{MAELYS_CLI_EXAMPLE("note write /tmp/note.txt --content hello", "Plan the
+note.")}` (spec 2.12): the words without the program's name, starting with
+the pattern, separated by single spaces, and one sentence. An example is a
+real invocation the command accepts, never a placeholder: the catalog
+validation parses each one at startup and refuses the catalog when one does
+not parse, so an example cannot outlive the option it names. `help
+COMMAND_ID` shows them and `describe` lists them, except in its summary.
+Write them here, not in a README.
+
 
 ### Compose the catalog from parts (build variants)
 

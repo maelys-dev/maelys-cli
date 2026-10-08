@@ -32,22 +32,43 @@ static const maelys_cli_operand_t passthrough_operands[] = {
     "\"unavailableReason\":{\"type\":\"string\"},\"unavailableCode\":{" \
     "\"type\":\"string\"}}}}}}"
 
+/* Examples: real invocations, parsed by the catalog validation at startup. */
+static const maelys_cli_example_t commands_list_examples[] = {
+    {MAELYS_CLI_EXAMPLE("commands list",
+     "The commands installed manifests declare, one per line.")},
+    {MAELYS_CLI_EXAMPLE("commands list --format json",
+     "The same with each manifest's path, version and availability.")},
+};
+static const maelys_cli_example_t agents_install_examples[] = {
+    {MAELYS_CLI_EXAMPLE("agents install .",
+     "Plan the installation in this project: every file is named, none is written.")},
+    {MAELYS_CLI_EXAMPLE("agents install . --client claude --apply",
+     "Write the instructions Claude reads.")},
+};
+static const maelys_cli_example_t agents_status_examples[] = {
+    {MAELYS_CLI_EXAMPLE("agents status .",
+     "Say whether this project's instructions are current; exit 2 when they are not.")},
+};
+
 static const maelys_cli_command_t builtin_commands[] = {
     {MAELYS_CLI_RECORDS("commands.list", "commands list",
      "List the external commands declared by installed manifests.",
-     commands_list), MAELYS_CLI_SCHEMA(COMMANDS_LIST_SCHEMA)},
+     commands_list), MAELYS_CLI_SCHEMA(COMMANDS_LIST_SCHEMA),
+     MAELYS_CLI_EXAMPLES(commands_list_examples)},
     {MAELYS_CLI_TRANSACTION("agents.install", "agents install",
      "Install or refresh the maelys-cli agent instructions of a project.",
      maelys_agents_install),
      .operands = maelys_agents_operands, .operand_count = 1u,
      .options = maelys_agents_install_options, .option_count = 2u,
-     MAELYS_CLI_SCHEMA(maelys_agents_install_schema)},
+     MAELYS_CLI_SCHEMA(maelys_agents_install_schema),
+     MAELYS_CLI_EXAMPLES(agents_install_examples)},
     {MAELYS_CLI_READ("agents.status", "agents status",
      "Report whether a project's maelys-cli agent instructions are current.",
      maelys_agents_status),
      .operands = maelys_agents_operands, .operand_count = 1u,
      .options = maelys_agents_status_options, .option_count = 1u,
-     MAELYS_CLI_SCHEMA(maelys_agents_status_schema)},
+     MAELYS_CLI_SCHEMA(maelys_agents_status_schema),
+     MAELYS_CLI_EXAMPLES(agents_status_examples)},
 };
 
 typedef struct dispatcher_state {
