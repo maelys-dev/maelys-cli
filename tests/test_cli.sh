@@ -275,6 +275,7 @@ run d-list "$maelys" commands list --json --compact
 check "dispatcher lists extensions" '[ "$code" = 0 ] && printf "%s" "$out" | grep -q "\"command\":\"hello\",\"executable\":\"$hello\""'
 
 run d-help "$maelys" help
+check "the dispatcher's help fits eighty columns, its own guidance included" '[ "$(printf "%s\n" "$out" | awk "{ if (length(\$0) > m) m = length(\$0) } END { print m }")" -le 80 ] && printf "%s" "$out" | grep -q "^EXTERNAL COMMANDS$"'
 check "dispatcher help shows extension" 'printf "%s" "$out" | grep -Eq "^  hello +Reference CLI"'
 run d-help-extension "$maelys" help hello
 check "and the extension's own help gives its usage" '[ "$code" = 0 ] && printf "%s" "$out" | grep -q "hello \[ARGUMENTS...\]"'

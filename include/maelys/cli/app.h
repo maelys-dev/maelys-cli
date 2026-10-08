@@ -39,7 +39,10 @@ typedef struct maelys_cli_app {
      * the directory of the running executable and its ../libexec/PROGRAM. */
     const char *const *helper_directories;
     size_t helper_directory_count;
-    /* Optional free text appended to help for agents. */
+    /* Optional text appended to the general help, for agents. Each of its
+     * lines is a paragraph: help wraps it to its width at that line's own
+     * indentation, so a paragraph is written on one line, however long, and
+     * never broken by hand; a blank line stays a blank line. */
     const char *agent_guidance;
     void *user_data;
 } maelys_cli_app_t;
