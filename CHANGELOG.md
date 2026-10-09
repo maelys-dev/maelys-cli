@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.5 - 2026-10-09
 
 - **What `--expect` leaves open, written down.** The conventions said the
   fingerprint "narrows the window between the review and the write" and
