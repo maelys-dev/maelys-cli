@@ -364,6 +364,23 @@ class Contract(unittest.TestCase):
         code, envelope = failure("limits", "--bogus", "--help")
         self.assertEqual((code, envelope["code"]), (1, "VALIDATION_FAILED"))
         self.assertEqual(json.loads(run("limits", "--bogus", "--help", "--json")[2])["command"], "limits")
+        # An option that ends the line without its value is refused at its turn (spec, section 8): after
+        # the command is resolved, so that the failure names it; after an unknown command, which is said
+        # first; and after the options written before it. The module refused it while it was still
+        # splitting the line, in the name of no command and before everything else. Seen only when the
+        # format comes from the environment: a --json at the end of the line became the value.
+        def named(*argv: str) -> tuple:
+            code, out, err = run(*argv, env={"MAELYS_CLI_FORMAT": "json"})
+            body = json.loads(err)
+            return code, out, body["command"], body["error"]["code"], body["error"]["message"].split(".")[0]
+        self.assertEqual(named("greet", "kit", "--times"),
+                         (1, "", "greet", "VALIDATION_FAILED", "Option --times needs a value N"))
+        self.assertEqual(named("greet", "--field")[2:], ("greet", "VALIDATION_FAILED", "Option --field needs a value NAME"))
+        self.assertEqual(named("version", "--format")[2:4], ("version", "VALIDATION_FAILED"))
+        self.assertEqual(named("nope", "--format")[2:4], ("unknown", "INVALID_COMMAND"))
+        self.assertEqual(named("note", "--format")[2:4], ("unknown", "INVALID_COMMAND"))
+        self.assertEqual(named("note", "--help", "--format")[2:4], ("help", "VALIDATION_FAILED"))
+        self.assertIn("--bogus", named("greet", "--bogus", "--times")[4])
         # Nothing runs under --help, whatever else the line carries.
         with tempfile.TemporaryDirectory() as directory:
             target = os.path.join(directory, "note.txt")

@@ -2081,12 +2081,13 @@ class Program:
                 if definition is None and command is not None:
                     definition = next((item for item in command["options"] if item["long"] == name), None)
                 index += 1
-                if definition and "argument" in definition and not separator:
-                    if index >= len(argv):
-                        raise Failure("VALIDATION_FAILED", f"Option {name} needs a value {definition['argument']['name']}.",
-                                      "Run describe for this command and pass the option's argument.")
+                if definition and "argument" in definition and not separator and index < len(argv):
                     value, separator = argv[index], "="
                     index += 1
+                # An option that ends the line without its value is kept without
+                # one and refused below, at its turn: after the command is
+                # resolved, so that the failure names it and an unknown command
+                # is said first, and after the options written before it.
                 raw.append((name, value if separator else None))
                 continue
             if word.startswith("-") and word != "-":
@@ -2132,6 +2133,10 @@ class Program:
             if name in seen and not (name in known and known[name]["repeatable"]):
                 raise Failure("VALIDATION_FAILED", f"Option {name} is given twice.", "Give each option once.")
             seen.add(name)
+            declared = known.get(name) or next((item for item in GLOBAL_OPTIONS if item["long"] == name), None)
+            if declared is not None and "argument" in declared and value is None:
+                raise Failure("VALIDATION_FAILED", f"Option {name} needs a value {declared['argument']['name']}.",
+                              "Run describe for this command and pass the option's argument.")
             if name in RENDERING:
                 rendering.append(name)
             if name == "--format":
@@ -2155,9 +2160,6 @@ class Program:
             elif name == "--pager":
                 pager = parse_value("choice", value or "", {"choices": list(TRISTATE)}, "Option --pager", usage)
             elif name == "--field":
-                if value is None:
-                    raise Failure("VALIDATION_FAILED", "Option --field needs a value NAME.",
-                                  "Pass the option's argument.")
                 field = value
             elif name == "--help":
                 help_requested = _parse_flag(value, name, usage)
@@ -2170,9 +2172,6 @@ class Program:
             else:
                 definition = known[name]
                 if "argument" in definition:
-                    if value is None:
-                        raise Failure("VALIDATION_FAILED", f"Option {name} needs a value {definition['argument']['name']}.",
-                                      "Pass the option's argument.")
                     typed = parse_value(definition["argument"]["type"], value, definition["argument"],
                                         f"Option {name}", usage)
                     if definition["repeatable"]:
