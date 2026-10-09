@@ -41,6 +41,16 @@
   same thing, the last one written wins (`--json` and `--format`,
   `--compact` and `--pretty`); the same option twice is a duplication. Tests
   now hold it.
+- agent-cli-spec pinned at v2.15.0 (from v2.14.0). It writes the grammar of
+  each value kind and of a word, and its kit checks them; the four entries
+  above are what it asked of this framework, and the entry on Python values
+  below what measuring both implementations for it found. As for 2.14.0,
+  the text and the tools were worked out before any tag, each repository
+  testing the other's commits, and the tag carries the tree both agreed on.
+  Two points are left open by the contract on purpose: which command a line
+  such as `-x version` names in its refusal, and what `--json=false` means
+  under `MAELYS_CLI_FORMAT=json`. A product pins 2.15.0 with or after this
+  release, not before; `docs/migration.md` lists what changes for it.
 
 - **Python: a value C refuses is refused.** Four places where the module
   read more than the C parser, found by measuring both on the same values

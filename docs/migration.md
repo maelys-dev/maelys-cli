@@ -147,6 +147,42 @@ command when either is wrong:
   into one line per paragraph, or each hand-made line is wrapped on its own
   and the paragraph reads ragged at another width.
 
+## Every consumer, at agent-cli-spec 2.15.0
+
+Unlike the pins before it, this one comes with a framework release that
+changes what a C product accepts. Three lines that worked are refused.
+
+- **`-h` is not `--help`.** There is no short option. As the first word it
+  names no command (`INVALID_COMMAND`); after a command it is refused like
+  any word that starts with one dash. Search the product's documents, tests
+  and scripts for ` -h`, and write `--help` or `help`.
+- **A word that starts with one dash is refused before `--`**
+  (`VALIDATION_FAILED`, in the name of the command). It was an operand in
+  C. An operand that starts with a dash goes after `--`: `greet -- -5`.
+  `-` alone is still an operand.
+- **A command that takes another program's line takes it after `--`** as
+  soon as one of its words starts with a dash: `run /bin/sh -c 'exit 3'`
+  is refused, `run -- /bin/sh -c 'exit 3'` runs. A product with such a
+  command (a stream command with a variadic operand) changes its tests, its
+  examples and the synopsis it documents. A delegate is not concerned.
+- **A size suffix is in capitals.** `512m`, `4k`, `2g`, `1t` are refused;
+  `512M` is read. This holds for a `MAELYS_CLI_SIZE` option and for a
+  direct call to `maelys_cli_parse_byte_size()`, whose reference said
+  "either case". Search for a size value written in small letters.
+- **A catalog is refused at startup** for an identifier outside
+  `^[a-z][a-z0-9-]*(\.[a-z0-9][a-z0-9-]*)*$` (an underscore, a leading
+  digit, a final dot, two dots), for the identifier `unknown`, and for
+  `preview`, `apply` or `commit` declared outside a transaction. A product
+  sees it on its first run and in its tests, not in production.
+- Nothing to do: of two options that set the same thing the last one
+  written wins (`--json` and `--format`, `--compact` and `--pretty`), which
+  both implementations already did; a Python product's values are now read
+  exactly as C reads them (ASCII digits, 64 bits, a digest of its
+  algorithm's length).
+- **Pin 2.15.0 with or after the release that carries this section**, not
+  before: its kit fails a C product built on an earlier framework on `help
+  -x`, which that framework read as an operand.
+
 ## Every consumer, at agent-cli-spec 2.14.0
 
 - **Pin 2.14.0 with or after the release that carries this section**, not
