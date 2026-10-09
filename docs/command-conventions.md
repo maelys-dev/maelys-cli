@@ -292,6 +292,12 @@ Four forms, all generated from the catalog:
 envelope included: under `--format json` its `command` is `help`, whose
 `data` this is, and `data.commands` names the command asked about. Nothing
 runs under `--help`, whatever else the line carries, `--apply` included.
+The line is then validated as an invocation of `help`, for a command as for
+a family: `--format jsonl` is refused as after `help COMMAND_ID`, since a
+help is not records, even when the command asked about produces some;
+`--field NAME` selects a member of the help's data; and after a family, an
+option `help` does not have is refused. A help never succeeds on an empty
+stdout.
 
 A product's `agent_guidance` is appended to the general help and follows
 its width: each of its lines is a paragraph, wrapped at that line's own

@@ -499,6 +499,26 @@ static int test_help_and_version(void) {
     result = RUNV("nope", "--help");
     CHECK(result.code == 1 && !result.out[0] && strstr(result.err, "[INVALID_COMMAND]"));
     release(&result);
+    /* `FAMILY --help` is an invocation of `help`, and the rest of the line
+     * is parsed as one. Reading only the family and --help answered the
+     * whole help to each of these, and nothing to --format jsonl. */
+    result = RUNV("thing", "--help", "--field", "commands");
+    CHECK(result.code == 0 && strcmp(result.out, "thing.make\n") == 0);
+    release(&result);
+    result = RUNV("thing", "--help", "--bogus");
+    CHECK(result.code == 1 && !result.out[0] &&
+        strstr(result.err, "Option --bogus is not supported by 'help'"));
+    release(&result);
+    result = RUNV("thing", "--help", "--format", "xml");
+    CHECK(result.code == 1 && !result.out[0] && strstr(result.err, "[VALIDATION_FAILED]"));
+    release(&result);
+    result = RUNV("thing", "--help", "extra");
+    CHECK(result.code == 1 && !result.out[0] && strstr(result.err, "[INVALID_COMMAND]"));
+    release(&result);
+    result = RUNV("thing", "--help", "--format", "jsonl", "--compact");
+    CHECK(result.code == 1 && !result.out[0] && strstr(result.err, "\"command\":\"help\"") &&
+        strstr(result.err, "'help' does not produce records and cannot render jsonl."));
+    release(&result);
     /* Wrapped by columns, not by bytes: an accented letter is one column
      * and a CJK one two. */
     {
@@ -549,6 +569,26 @@ static int test_help_and_version(void) {
     result = RUNV("version", "--help", "--json", "--compact");
     CHECK(result.code == 0 && strstr(result.out, "\"command\":\"help\"") &&
         strstr(result.out, "\"commands\":[\"version\"]") && !strstr(result.out, "\"product\""));
+    release(&result);
+    /* `X --help` is validated as an invocation of `help`: jsonl has no form
+     * for a help, and the line is refused as `help X --format jsonl` is. It
+     * rendered nothing and exited 0, the costliest answer in a pipe. A
+     * records command asked for its help is no exception: the help is not
+     * records. With --field, one member renders. */
+    {
+        run_result_t direct = RUNV("help", "thing.make", "--format", "jsonl");
+        CHECK(direct.code == 1 && !direct.out[0] &&
+            strstr(direct.err, "'help' does not produce records and cannot render jsonl."));
+        result = RUNV("thing", "make", "--help", "--format", "jsonl");
+        CHECK(result.code == 1 && !result.out[0] && strcmp(result.err, direct.err) == 0);
+        release(&result);
+        result = RUNV("records", "--help", "--format", "jsonl");
+        CHECK(result.code == 1 && !result.out[0] && strcmp(result.err, direct.err) == 0);
+        release(&result);
+        release(&direct);
+    }
+    result = RUNV("thing", "make", "--help", "--format", "jsonl", "--field", "commands");
+    CHECK(result.code == 0 && strcmp(result.out, "\"thing.make\"\n") == 0);
     release(&result);
     /* Nothing runs under --help, whatever else the line carries. */
     mirror_runs = 0;

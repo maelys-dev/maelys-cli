@@ -694,29 +694,35 @@ int maelys_cli_parse(
         parsed->descriptor = NULL;
         parsed->boolean_value = 1;
     }
+    if (maelys_cli_rendering_refused(out->command, out, error)) PARSE_FAIL();
+    PARSE_DONE();
+}
+
+int maelys_cli_rendering_refused(
+    const maelys_cli_command_t *command, const maelys_cli_invocation_t *out,
+    maelys_cli_error_t *error) {
     /* A stream owns stdout, so rendering flags are refused -- unless the
      * command cannot run at all: an agent that asks for an envelope then
      * deserves the one naming why the command is unavailable, not a
      * complaint about a flag. */
-    if (out->command->output == MAELYS_CLI_OUTPUT_STREAM &&
-        !out->command->unavailable &&
+    if (command->output == MAELYS_CLI_OUTPUT_STREAM && !command->unavailable &&
         (out->rendering_requested || out->pager_requested || out->field)) {
         maelys_cli_error_set(error, MAELYS_CLI_CODE_VALIDATION_FAILED,
             "Remove rendering flags; stdout is reserved for the declared "
             "protocol stream.",
             "'%s' is a stream command and does not support CLI output "
-            "rendering.", out->command->id);
-        PARSE_FAIL();
+            "rendering.", command->id);
+        return 1;
     }
     if (out->format == MAELYS_CLI_FORMAT_JSONL && !out->field &&
-        out->command->output != MAELYS_CLI_OUTPUT_RECORDS) {
+        command->output != MAELYS_CLI_OUTPUT_RECORDS) {
         maelys_cli_error_set(error, MAELYS_CLI_CODE_VALIDATION_FAILED,
             "Use --format json for this command, or add --field to render "
             "one member in jsonl; jsonl otherwise is reserved for record "
             "streams.",
             "'%s' does not produce records and cannot render jsonl.",
-            out->command->id);
-        PARSE_FAIL();
+            command->id);
+        return 1;
     }
     /* Explicit --field with an explicit --format json (or --json): data is
      * governed by outputSchema, and a filtered envelope would not validate
@@ -729,9 +735,9 @@ int maelys_cli_parse(
             "Use --format text or --format jsonl with --field.",
             "--field conflicts with --format json: a filtered envelope "
             "would not validate against the command's outputSchema.");
-        PARSE_FAIL();
+        return 1;
     }
-    PARSE_DONE();
+    return 0;
 }
 
 const char *maelys_cli_invocation_operand(

@@ -64,6 +64,25 @@ check "COMMAND --help answers in the envelope of help, naming the command in dat
 help_note="$work/help-note.txt"
 run help-never-runs "$hello" note write "$help_note" --content x --apply --help
 check "nothing runs under --help, --apply included" '[ "$code" = 0 ] && [ ! -e "$help_note" ] && printf "%s" "$out" | grep -q "^USAGE"'
+# `X --help` is validated as an invocation of `help`: jsonl has no form for a
+# help. The line exited 0 on an empty stdout, on a command as on a family.
+run help-jsonl-direct "$hello" help greet --format jsonl --compact
+direct_err=$err
+check "help refuses --format jsonl" '[ "$code" = 1 ] && [ -z "$out" ] && printf "%s" "$err" | grep -q "\"code\":\"VALIDATION_FAILED\""'
+run help-jsonl-option "$hello" greet --help --format jsonl --compact
+check "COMMAND --help refuses --format jsonl as help does" '[ "$code" = 1 ] && [ -z "$out" ] && [ "$err" = "$direct_err" ]'
+run help-jsonl-records "$hello" list --help --format jsonl --compact
+check "the help of a records command is not records" '[ "$code" = 1 ] && [ -z "$out" ] && [ "$err" = "$direct_err" ]'
+run help-jsonl-family "$hello" note --help --format jsonl --compact
+check "FAMILY --help refuses --format jsonl as help does" '[ "$code" = 1 ] && [ -z "$out" ] && [ "$err" = "$direct_err" ]'
+run help-jsonl-write "$hello" note write "$help_note" --content x --apply --help --format jsonl
+check "a refused help line writes nothing either" '[ "$code" = 1 ] && [ -z "$out" ] && [ ! -e "$help_note" ]'
+run help-jsonl-field "$hello" greet --help --format jsonl --field commands
+check "with --field, one member of the help renders in jsonl" '[ "$code" = 0 ] && [ "$out" = "\"greet\"" ]'
+run help-family-field "$hello" note --help --field commands
+check "FAMILY --help honours --field" '[ "$code" = 0 ] && [ "$out" = "note.write" ]'
+run help-family-unknown "$hello" note --help --bogus
+check "FAMILY --help refuses an option help does not have" '[ "$code" = 1 ] && [ -z "$out" ] && printf "%s" "$err" | grep -q "not supported by .help."'
 run help-examples "$hello" help note.write
 check "the help of a command shows its examples, each a line to copy" '[ "$code" = 0 ] && printf "%s" "$out" | grep -q "^EXAMPLES$" && printf "%s" "$out" | grep -q "^  maelys-hello note write /tmp/note.txt --content hello --apply$" && printf "%s" "$out" | grep -q "^      Write it.$"'
 # A hidden command is never offered, and answered when named (spec 2.13.1,
