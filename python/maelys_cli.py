@@ -58,10 +58,17 @@ PREFIX_GRAMMAR = re.compile(r"^[a-z]([a-z0-9.-]*[a-z0-9-])?$")
 FORMATS = ("text", "json", "jsonl")
 COLORS = ("auto", "always", "never")
 SHELLS = ("bash", "zsh", "fish")
-RENDERING = ("--format", "--json", "--compact", "--pretty", "--color", "--pager", "--field")
+# What a stream command refuses, as the C parser does: the options that shape
+# stdout. --color shapes the diagnostics on stderr and is accepted.
+RENDERING = ("--format", "--json", "--compact", "--pretty", "--pager", "--field")
 TRISTATE = ("auto", "always", "never")
 SIZE_UNITS = {"": 1, "K": 1024, "M": 1024 ** 2, "G": 1024 ** 3, "T": 1024 ** 4}
 DURATION_UNITS = {"ms": 1, "s": 1000, "m": 60_000, "h": 3_600_000, "d": 86_400_000}
+# The values C holds in 64 bits: a number past them is refused there, and here.
+UNSIGNED_MAXIMUM = 2 ** 64 - 1
+INTEGER_MINIMUM, INTEGER_MAXIMUM = -(2 ** 63), 2 ** 63 - 1
+# The hexadecimal digits of a digest, by algorithm (C: maelys_cli_digest_hex_digits).
+DIGEST_DIGITS = {"sha1": 40, "sha256": 64, "sha384": 96, "sha512": 128}
 
 Handler = Callable[["Invocation"], "tuple[Any, int]"]
 
@@ -980,18 +987,22 @@ def parse_value(kind: str, text: str, spec: dict, where: str, usage: str) -> Any
         if "pattern" in spec and not re.search(spec["pattern"], text):
             raise refuse(f"a value matching {spec['pattern']}")
         return text
+    # Digits are the ten ASCII ones: `\d` also reads the digits of other
+    # scripts, which C refuses. And a number is one C holds in 64 bits.
     if kind in ("integer", "unsigned"):
-        if not re.fullmatch(r"-?\d+" if kind == "integer" else r"\d+", text):
+        if not re.fullmatch(r"-?[0-9]+" if kind == "integer" else r"[0-9]+", text):
             raise refuse("an integer" if kind == "integer" else "an unsigned integer")
         value = int(text)
+        if not (INTEGER_MINIMUM <= value <= INTEGER_MAXIMUM if kind == "integer" else value <= UNSIGNED_MAXIMUM):
+            raise refuse("an integer" if kind == "integer" else "an unsigned integer")
     elif kind == "size":
-        match = re.fullmatch(r"(\d+)([KMGT]?)", text)
-        if not match:
+        match = re.fullmatch(r"([0-9]+)([KMGT]?)", text)
+        if not match or int(match.group(1)) * SIZE_UNITS[match.group(2)] > UNSIGNED_MAXIMUM:
             raise refuse("a size such as 512, 4K, 16M, 2G or 1T")
         value = int(match.group(1)) * SIZE_UNITS[match.group(2)]
     elif kind == "duration":
-        match = re.fullmatch(r"(\d+)(ms|s|m|h|d)", text)
-        if not match:
+        match = re.fullmatch(r"([0-9]+)(ms|s|m|h|d)", text)
+        if not match or int(match.group(1)) * DURATION_UNITS[match.group(2)] > UNSIGNED_MAXIMUM:
             raise refuse("a duration with its unit: ms, s, m, h or d")
         value = int(match.group(1)) * DURATION_UNITS[match.group(2)]
     elif kind == "path":
@@ -1020,7 +1031,9 @@ def parse_value(kind: str, text: str, spec: dict, where: str, usage: str) -> Any
         return text
     elif kind == "digest":
         match = re.fullmatch(r"([a-z0-9-]+):([0-9a-f]+)", text)
-        if not match or (spec.get("algorithms") and match.group(1) not in spec["algorithms"]):
+        if not match or (spec.get("algorithms") and match.group(1) not in spec["algorithms"]) \
+                or len(match.group(2)) != DIGEST_DIGITS.get(match.group(1), len(match.group(2))):
+            # The length is the algorithm's, as in C: `sha256:ab` is no digest.
             raise refuse("ALGORITHM:HEX with " + ", ".join(spec.get("algorithms", ["a declared algorithm"])))
         return text
     else:

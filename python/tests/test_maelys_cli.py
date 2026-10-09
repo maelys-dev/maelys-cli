@@ -91,6 +91,40 @@ class Contract(unittest.TestCase):
                      ("limits", "--offset", "101"), ("limits", "--digest", "zz"), ("limits", "--digest", "a" * 63)):
             self.assertEqual(failure(*argv)[1]["code"], "VALIDATION_FAILED", argv)
 
+    def test_values_are_those_c_accepts(self) -> None:
+        """A value the C parser refuses is refused here, on the four points where the module read more:
+        the digits of another script, a number C cannot hold in 64 bits, a digest whose length is not
+        its algorithm's, and --color on a stream, which C accepts since it shapes stderr."""
+        def accepted(*argv: str) -> bool:
+            code, _, err = run(*argv)
+            if code != 0:
+                self.assertIn("[VALIDATION_FAILED]", err, argv)
+            return code == 0
+        for value, ok in (("16M", True), ("\u0661M", False), ("18446744073709551615", True),
+                          ("18446744073709551616", False), ("16777215T", True), ("16777216T", False)):
+            self.assertEqual(accepted("limits", "--memory", value), ok, value)
+        for value, ok in (("5s", True), ("\u0665s", False), ("213503982334d", True), ("213503982335d", False),
+                          ("18446744073709551616ms", False)):
+            self.assertEqual(accepted("limits", "--wall-time", value), ok, value)
+        self.assertFalse(accepted("limits", "--offset", "\u0661"))
+        self.assertFalse(accepted("greet", "kit", "--times", "\u0663"))
+        self.assertEqual(cli.parse_value("unsigned", str(2 ** 64 - 1), {}, "N", "u"), 2 ** 64 - 1)
+        self.assertEqual(cli.parse_value("integer", str(-(2 ** 63)), {}, "N", "u"), -(2 ** 63))
+        for kind, text in (("unsigned", str(2 ** 64)), ("integer", str(2 ** 63)), ("integer", str(-(2 ** 63) - 1))):
+            with self.assertRaises(cli.Failure):
+                cli.parse_value(kind, text, {}, "N", "u")
+        spec = {"algorithms": ["sha256", "sha512"]}
+        self.assertEqual(cli.parse_value("digest", "sha256:" + "ab" * 32, spec, "D", "u"), "sha256:" + "ab" * 32)
+        self.assertEqual(cli.parse_value("digest", "sha512:" + "ab" * 64, spec, "D", "u"), "sha512:" + "ab" * 64)
+        for text in ("sha256:ab", "sha256:" + "ab" * 33, "sha512:" + "ab" * 32):
+            with self.assertRaises(cli.Failure):
+                cli.parse_value("digest", text, spec, "D", "u")
+        stream = cli.Program("p", "P", "0", [cli.stream("pipe", "pipe", "A stream.", lambda i: cli.EXIT_OK)])
+        self.assertEqual(stream.parse(["pipe", "--color", "never"])[1]["id"], "pipe")
+        for flag in (["--json"], ["--compact"], ["--pretty"], ["--format", "json"], ["--pager", "never"], ["--field", "x"]):
+            with self.assertRaises(cli.Failure):
+                stream.parse(["pipe", *flag])
+
     def test_unavailable_code(self) -> None:
         """An unavailable command answers the code that fits its cause, since
         UNSUPPORTED says absence; the declaration refuses an invented code and
