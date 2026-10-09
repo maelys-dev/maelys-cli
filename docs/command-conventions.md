@@ -200,8 +200,23 @@ on the same state must give the same string, another write or another
 state another. After an `--apply` whose outcome is unknown, a new plan
 answers: the same fingerprint, the action is still to be done. The
 fingerprint narrows the window between the review and the write; closing
-it is the product's locking. `note write` of `maelys-hello` is the worked
-example.
+it is the product's locking. What is left open runs from the read the
+fingerprint was made of to the write itself. A write with
+`MAELYS_CLI_WRITE_NO_REPLACE` refuses a file that appeared in between, so
+that window can only produce a refusal; a write with
+`MAELYS_CLI_WRITE_REPLACE` replaces what is there, including a content
+another process wrote after that read, which no reviewed plan covered. Do
+not describe a replacing transaction as unable to overwrite.
+
+When what is written is derived from what is there -- a managed block
+inside a host file, a merge, an edit in place -- the fingerprint takes the
+bytes the write was derived from, with `maelys_cli_fingerprint_add()` on
+that one read. `maelys_cli_fingerprint_add_file()` reads the path again: a
+file that changed between the two reads would bind the plan to a state
+other than the one its write comes from. When the content written does not
+depend on the target, the second read is harmless and `add_file` is the
+short way. `note write` of `maelys-hello` is the worked example of the
+second case, `agents install` of `maelys` of the first, over several files.
 
 `--dry-run` and `--plan` are refused, with the migration hint, only on
 commands that declare `--apply`; a product without transactions is not
