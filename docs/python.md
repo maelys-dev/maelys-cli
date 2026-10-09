@@ -73,7 +73,11 @@ as `maelys_cli_fingerprint_*()` does, so a C and a Python product that add
 the same entries return the same fingerprint. `invocation.expect(fingerprint)`
 returns when `--expect` was not given or names it, and raises
 `PRECONDITION_FAILED` otherwise; a handler that answers when `--expect` was
-given without having called it is answered `UNEXPECTED`.
+given without having called it is answered `UNEXPECTED`. A handler that
+derives what it writes from what the file holds adds the bytes it read with
+`add(label, value)`, not `add_file`, which reads the path again; and a
+replacing write still replaces a content written after the fingerprint's
+read (`docs/command-conventions.md`, on the window `--expect` leaves).
 ## Examples
 
 `examples=[cli.example("note write /tmp/note.txt --content hello", "Plan the

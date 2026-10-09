@@ -70,7 +70,12 @@ void maelys_cli_fingerprint_add_string(
  * path, the sha256 of its content when it is a regular file read within
  * maximum_size. Returns -1 with errno for anything else -- a directory, a
  * file too large, a read refused -- and adds nothing: a state that cannot
- * be read is not a state to bind a plan to. */
+ * be read is not a state to bind a plan to.
+ *
+ * This reads the path itself. A handler that derives what it writes from
+ * what the file holds has already read it: it adds those bytes with
+ * maelys_cli_fingerprint_add() instead, so that the plan is bound to the
+ * state its write comes from and not to a second read of the path. */
 int maelys_cli_fingerprint_add_file(
     maelys_cli_fingerprint_t *fingerprint, const char *label,
     const char *path, size_t maximum_size);

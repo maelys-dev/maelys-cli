@@ -206,7 +206,12 @@ and of the state it would touch with `maelys_cli_fingerprint_init/add/
 add_string/add_file/finish`, calls `maelys_cli_expect()` before its first
 write and returns `data.fingerprint`. `--apply --expect FINGERPRINT` then
 applies only the plan that was reviewed. Never give `--expect` another
-meaning on a transaction.
+meaning on a transaction. When the content written is derived from the
+file's current content (a block inside a host file), add the bytes already
+read with `maelys_cli_fingerprint_add()` rather than reading the path again
+with `add_file`. The fingerprint narrows the window before the write and
+does not close it: under `MAELYS_CLI_WRITE_REPLACE`, a content written by
+another process after the fingerprint's read is replaced.
 
 Give a command examples with `MAELYS_CLI_EXAMPLES(array)` of
 `{MAELYS_CLI_EXAMPLE("note write /tmp/note.txt --content hello", "Plan the

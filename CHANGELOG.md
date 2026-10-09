@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+- **What `--expect` leaves open, written down.** The conventions said the
+  fingerprint "narrows the window between the review and the write" and
+  stopped there. maelys-sandbox-policy, adding `--expect` to its two
+  transactions, concluded that the remaining window "can only produce a
+  refusal, never an overwrite", which holds for a write that refuses an
+  existing file and not for a replacing one. `docs/command-conventions.md`
+  now says where the window runs (from the read the fingerprint was made of
+  to the write), what each write mode does in it, and that a replacing
+  transaction is not to be described as unable to overwrite. It also states
+  the rule `agents install` follows and `note write` does not need: when
+  the content written is derived from the file's content, the fingerprint
+  takes the bytes of that one read (`maelys_cli_fingerprint_add()`), since
+  `maelys_cli_fingerprint_add_file()` reads the path again. The comment of
+  `add_file` in `digest.h`, the agents' guide and `docs/python.md` say the
+  same. No code changes.
+
 ## 0.6.4 - 2026-10-08
 
 - **An example is printed as a shell reads it.** `help COMMAND_ID` printed
