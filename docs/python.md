@@ -219,8 +219,10 @@ its own grammar and answers `VALIDATION_FAILED`).
 Errors are reported in the contract's causal order: unknown command;
 option spelling, support and duplication; value kind, range and choice;
 `requires`, `conflicts_with`, all-or-none `group`s and the stated
-`constraints`; required options; operand arity and kinds; rendering
-constraints. Inside the handler, raise
+`constraints`; required options; operand arity and kinds; availability;
+rendering constraints. `--help` is answered after the value checks and
+before the rest (`docs/command-conventions.md`, "What the parser enforces").
+Inside the handler, raise
 `cli.Failure(code, message, hint)` with one of the eleven stable codes.
 
 ## Color

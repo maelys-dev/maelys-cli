@@ -64,6 +64,12 @@ check "COMMAND --help answers in the envelope of help, naming the command in dat
 help_note="$work/help-note.txt"
 run help-never-runs "$hello" note write "$help_note" --content x --apply --help
 check "nothing runs under --help, --apply included" '[ "$code" = 0 ] && [ ! -e "$help_note" ] && printf "%s" "$out" | grep -q "^USAGE"'
+# --help comes before what the line lacks as a whole (spec, section 8), and
+# after what one option says alone.
+run help-unmet-requires "$hello" limits --strict --help
+check "--help answers a line whose option lacks the one it requires" '[ "$code" = 0 ] && [ -z "$err" ] && printf "%s" "$out" | grep -q "^USAGE"'
+run help-unknown-option "$hello" limits --bogus --help --json --compact
+check "an option the command does not have is refused before --help, in its name" '[ "$code" = 1 ] && [ -z "$out" ] && printf "%s" "$err" | grep -q "\"command\":\"limits\"" && printf "%s" "$err" | grep -q "\"code\":\"VALIDATION_FAILED\""'
 # `X --help` is validated as an invocation of `help`: jsonl has no form for a
 # help. The line exited 0 on an empty stdout, on a command as on a family.
 run help-jsonl-direct "$hello" help greet --format jsonl --compact

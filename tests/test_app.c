@@ -1093,6 +1093,27 @@ static int test_groups_defaults_unavailable(void) {
     CHECK(result.code == 0 &&
         strstr(result.out, "\"available\":false,\"unavailableReason\":\"the component"));
     release(&result);
+    /* Where availability stands among the refusals (spec, section 8). The
+     * line is judged first: an option the command does not have and an
+     * operand too many are refused as such. Its help is given: asking how a
+     * command is used does not need the build to run it. Then the build
+     * says it cannot run it, before any refusal of a rendering: `sealed
+     * --format jsonl` named a flag where the cause was the component. */
+    result = RUNV("sealed", "--bogus");
+    CHECK(result.code == 1 && strstr(result.err, "[VALIDATION_FAILED]"));
+    release(&result);
+    result = RUNV("sealed", "extra");
+    CHECK(result.code == 1 && strstr(result.err, "[VALIDATION_FAILED]"));
+    release(&result);
+    result = RUNV("sealed", "--help");
+    CHECK(result.code == 0 && strstr(result.out, "USAGE") && !result.err[0]);
+    release(&result);
+    result = RUNV("sealed", "--format", "jsonl", "--compact");
+    CHECK(result.code == 1 && !result.out[0] && strstr(result.err, "\"code\":\"ACCESS_DENIED\""));
+    release(&result);
+    result = RUNV("sealed", "--format", "json", "--field", "x", "--compact");
+    CHECK(result.code == 1 && !result.out[0] && strstr(result.err, "\"code\":\"ACCESS_DENIED\""));
+    release(&result);
     result = RUNV("trusted", "--json", "--compact");
     CHECK(result.code == 0 && strstr(result.out, ",\"data\":{\"trusted\":true}}\n"));
     release(&result);

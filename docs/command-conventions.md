@@ -114,8 +114,24 @@ a child without a named protocol and has no `protocol` member.
    (`exactly-one`, `at-most-one`, `requires`);
 5. required options;
 6. operand arity and typed operands;
-7. rendering constraints: stream commands refuse rendering options, `jsonl`
+7. availability: a command this build cannot run answers `UNSUPPORTED` or
+   its `.unavailable_code`;
+8. rendering constraints: stream commands refuse rendering options, `jsonl`
    is accepted only by `json-records` commands.
+
+`--help` stands between 3 and 4, on a command that is neither a delegate
+nor `passthrough`. What one option says alone (1 to 3) is refused first, in
+the name of the command the line resolved. Then the help is given, whatever
+the line lacks as a whole and whether or not this build can run the
+command: 4 to 7 are skipped, and 8 is asked of `help`, whose line it has
+become. `limits --strict --help` answers the help although `--strict`
+requires an option that is not there; `limits --bogus --help` fails on
+`--bogus`.
+
+Availability comes after the line and before the rendering. A line the
+command would refuse is refused as such, so that a caller corrects it once;
+and a rendering flag is never what stops a command that cannot run: `sealed
+--format jsonl` names the component, not the format.
 
 Everything after that belongs to the handler: file type and permissions,
 syntax, schema, policy, current state and concurrency preconditions,

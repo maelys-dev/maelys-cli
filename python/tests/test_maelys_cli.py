@@ -109,6 +109,17 @@ class Contract(unittest.TestCase):
             program.parse(["sealed"])
         self.assertEqual(sealed.exception.code, "ACCESS_DENIED")
         self.assertIn("declared digest", sealed.exception.message)
+        # Where availability stands among the refusals (spec, section 8; C: maelys_cli_parse then
+        # maelys_cli_run). The line is judged first, its help is given, then the build says it cannot
+        # run the command, before any refusal of a rendering. The module said it first of all, so that
+        # `absent --help` was refused and `absent --bogus` did not name the option.
+        for line, code in ((["sealed", "--bogus"], "VALIDATION_FAILED"), (["sealed", "extra"], "VALIDATION_FAILED"),
+                           (["sealed", "--format", "jsonl"], "ACCESS_DENIED"),
+                           (["sealed", "--format", "json", "--field", "x"], "ACCESS_DENIED")):
+            with self.assertRaises(cli.Failure) as refused:
+                program.parse(line)
+            self.assertEqual(refused.exception.code, code, line)
+        self.assertEqual(program.parse(["sealed", "--help"])[1]["id"], "help")
         described = program.descriptor(program.command_by_id("sealed"))
         self.assertEqual(described["available"], False)
         self.assertIn("declared digest", described["unavailableReason"])
@@ -343,6 +354,16 @@ class Contract(unittest.TestCase):
         body = json.loads(run("version", "--help", "--json")[1])
         self.assertEqual((body["command"], body["data"]["commands"]), ("help", ["version"]))
         self.assertNotIn("version", body["data"])
+        # --help comes before what the line lacks as a whole (spec, section 8): a dependency, a required
+        # option, an operand. The module judged the dependencies first and refused these three, which C
+        # answers. What one option says alone still comes before, in the name of the command.
+        for argv in (("limits", "--strict", "--help"), ("describe", "--prefix", "kit", "--help"),
+                     ("note", "write", "--expect", "sha256:" + "ab" * 32, "--help")):
+            code, out, err = run(*argv)
+            self.assertEqual((code, err, out[:6]), (0, "", "USAGE\n"), argv)
+        code, envelope = failure("limits", "--bogus", "--help")
+        self.assertEqual((code, envelope["code"]), (1, "VALIDATION_FAILED"))
+        self.assertEqual(json.loads(run("limits", "--bogus", "--help", "--json")[2])["command"], "limits")
         # Nothing runs under --help, whatever else the line carries.
         with tempfile.TemporaryDirectory() as directory:
             target = os.path.join(directory, "note.txt")
