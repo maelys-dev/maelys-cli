@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- **Python: a value C refuses is refused.** Four places where the module
+  read more than the C parser, found by measuring both on the same values
+  for the specification:
+  - a number written with the digits of another script (`١M`, `٥s`, `٣`)
+    was read, `\d` matching them; a digit is one of the ten ASCII ones;
+  - a size, a duration, an integer past what C holds in 64 bits was
+    accepted (`18446744073709551616`, `16777216T`, `213503982335d`); it is
+    refused, at the same values as in C;
+  - a digest of any length was accepted (`sha256:ab`): the length is the
+    algorithm's, 40, 64, 96 or 128 digits;
+  - `--color` on a stream command was refused with the rendering options;
+    C accepts it, since it shapes the diagnostics on stderr and not stdout.
+  No value C accepts is refused by this.
+
 - **`COMMAND --help --format jsonl` is refused, as `help COMMAND_ID --format
   jsonl` is.** It exited 0 with nothing on stdout and nothing on stderr, in
   C as in Python: the parser stops at `--help`, before the rendering
