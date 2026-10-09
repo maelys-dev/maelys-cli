@@ -2057,6 +2057,9 @@ class Program:
 
     def parse(self, argv: list) -> "tuple[Invocation, dict]":
         """Validate the command line in the contract's causal order."""
+        # One line, one family: a line refused after `FAMILY --help` was read
+        # must not hand its family to the next help this program is asked.
+        self._family_words = None
         words: list = []
         raw: list = []
         passthrough: list = []
@@ -2231,7 +2234,15 @@ class Program:
                 raise Failure("VALIDATION_FAILED", f"Option {definition['long']} is required by '{command['id']}'.",
                               f"Use '{usage}'.")
         if help_requested:
+            # The line is an invocation of `help` from here on, and is validated as
+            # one (C: maelys_cli_run after the substitution): `X --help --format
+            # jsonl` rendered a help that jsonl has no form for and exited 0 on an
+            # empty stdout, where `help X --format jsonl` is refused.
             help_command = self.command_by_id("help")
+            self.resolved_command_id = help_command["id"]
+            if fmt == "jsonl" and field is None:
+                raise Failure("VALIDATION_FAILED", "--format jsonl is accepted only by json-records commands, not "
+                              "'help'; add --field to render one member in jsonl.", "Use --format json.")
             return Invocation(self, help_command, [command["id"]], {}, fmt, compact, non_interactive,
                               [command["id"]], verbose, progress, pager, color, field), help_command
         operands: list = []

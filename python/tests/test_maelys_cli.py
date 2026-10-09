@@ -404,6 +404,19 @@ class Contract(unittest.TestCase):
         self.assertIn("\n      Store a note in a file.\n", family)
         self.assertEqual(run("help", "note")[1], family)
         self.assertEqual(json.loads(run("help", "note", "--json")[1])["data"]["commands"], ["note.write"])
+        self.assertEqual(run("note", "--help", "--field", "commands")[1], "note.write\n")
+        # `X --help` and `FAMILY --help` are validated as invocations of `help`: jsonl has no form for a
+        # help, and the line is refused as `help X --format jsonl` is. It rendered nothing and exited 0.
+        refused = run("help", "greet", "--format", "jsonl")
+        self.assertEqual((refused[0], refused[1]), (1, ""))
+        self.assertIn("not 'help'", json.loads(refused[2])["error"]["message"])
+        for words in (("greet", "--help"), ("greet", "Ada", "--help"), ("list", "--help"), ("note", "--help")):
+            self.assertEqual(run(*words, "--format", "jsonl"), refused, words)
+        # The family of a refused line is not the next line's: the module kept it, and the help asked
+        # next in the same process answered for `note` whatever it was asked about.
+        self.assertEqual(run("greet", "--help", "--format", "jsonl", "--field", "commands"), (0, '"greet"\n', ""))
+        self.assertEqual(failure("note", "--help", "--bogus")[1]["code"], "VALIDATION_FAILED")
+        self.assertEqual(json.loads(run("help", "--json")[1])["data"]["commands"][:2], ["help", "version"])
         self.assertEqual(failure("note")[1]["code"], "INVALID_COMMAND")              # no --help: still an error
         self.assertEqual(failure("nope", "--help")[1]["code"], "INVALID_COMMAND")
         self.assertIn("identifier or family", failure("help", "nope")[1]["message"])

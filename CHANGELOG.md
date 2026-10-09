@@ -1,5 +1,36 @@
 # Changelog
 
+## Unreleased
+
+- **`COMMAND --help --format jsonl` is refused, as `help COMMAND_ID --format
+  jsonl` is.** It exited 0 with nothing on stdout and nothing on stderr, in
+  C as in Python: the parser stops at `--help`, before the rendering
+  refusals, and the help was then rendered in a format that has no form for
+  it. A success on an empty stdout is what the specification calls the
+  costliest failure mode in a pipe. Found by a test of agent-cli-spec that
+  builds command lines from a catalog; the 2.13.1 kit does not see it. The
+  line is now validated as an invocation of `help` once `--help` has turned
+  it into one: `VALIDATION_FAILED`, the envelope naming `help`, in the words
+  of `help COMMAND_ID --format jsonl`. A records command asked for its help
+  is no exception, the help not being records. `--format jsonl --field
+  commands` renders one member, as before. Nothing ran under `--help`
+  before and nothing runs now.
+- **`FAMILY --help` reads the rest of its line, in C.** The C runner read
+  the family and `--help` and nothing else: `note --help --field commands`
+  printed the whole help, `note --help --bogus` and `note --help --format
+  xml` succeeded, `note --help extra` showed the family `note`, and `note
+  --help --format jsonl` printed nothing and exited 0. What is left of the
+  line once the family and `--help` are taken out is now parsed as an
+  invocation of `help`, as the Python module did: `--field` selects a
+  member, an option `help` does not have and a value `--format` does not
+  take are refused, a further word names no command (`INVALID_COMMAND`).
+- **Python: the family of a refused line is not the next line's.** A
+  `Program` asked `note --help --bogus`, refused, then `help`, answered the
+  help of the family `note`: the family read on the first line was kept on
+  the object. One process runs one line, so no command line showed it; a
+  program that calls `main()` more than once, as tests do, did. The family
+  is reset when a line starts being parsed.
+
 ## 0.6.5 - 2026-10-09
 
 - **What `--expect` leaves open, written down.** The conventions said the

@@ -20,6 +20,16 @@ const maelys_cli_command_t *maelys_cli_app_find_command(
 
 size_t maelys_cli_pattern_words(const char *pattern);
 
+/* The rendering refusals of `command` for the options `invocation` holds: a
+ * stream refuses every rendering flag, --format jsonl is for records unless
+ * --field is given, --field conflicts with an explicit json. Sets `error`
+ * and returns 1 when one applies. The parser asks it of the command a line
+ * runs; the runner asks it of `help` when a line asks for help instead,
+ * which the parser, stopping at --help, did not. */
+int maelys_cli_rendering_refused(
+    const maelys_cli_command_t *command, const maelys_cli_invocation_t *invocation,
+    maelys_cli_error_t *error);
+
 /* Writes user-influenced text without allowing terminal control bytes. */
 void maelys_cli_fprint_terminal_safe(FILE *stream, const char *text);
 

@@ -3672,6 +3672,9 @@ int maelys_cli_run(
     maelys_cli_format_t prescan_format = invocation.format;
     int prescan_compact = invocation.compact;
     maelys_cli_color_mode_t prescan_color = invocation.color;
+    /* The words of a family asked for its help, when the line names one. */
+    char *family[MAELYS_CLI_MAX_OPERANDS];
+    size_t family_count = 0u;
     if (maelys_cli_parse(app, argc, argv, &invocation, &error) != 0) {
         invocation.format = prescan_format;
         invocation.compact = prescan_compact;
@@ -3679,8 +3682,6 @@ int maelys_cli_run(
         /* `PROGRAM note --help`: the words name no command, but a family of
          * them, and help was asked for: the help of that family, as
          * `PROGRAM help note` gives it, rather than "unknown command". */
-        char *family[MAELYS_CLI_MAX_OPERANDS];
-        size_t family_count = 0u;
         int help_asked = 0;
         for (int i = 0; argv && i < argc && strcmp(argv[i], "--") != 0; ++i) {
             if (!strcmp(argv[i], "--help") || !strcmp(argv[i], "-h")) help_asked = 1;
@@ -3688,18 +3689,47 @@ int maelys_cli_run(
                      family_count < MAELYS_CLI_MAX_OPERANDS)
                 family[family_count++] = argv[i];
         }
-        if (help_asked && family_count > 0u &&
+        /* The line is then an invocation of `help`, and what is left of it
+         * once the family and --help are taken out is parsed as one: an
+         * option `help` does not have, a value --format does not take and
+         * a rendering `help` refuses fail as they do after `help note`,
+         * and --field selects a member of its data. Reading only the
+         * family and --help answered a full help to all of these, and
+         * nothing at all to --format jsonl. */
+        static char help_word[] = "help";
+        char **line = help_asked && family_count > 0u &&
             !strcmp(error.code, MAELYS_CLI_CODE_INVALID_COMMAND) &&
-            family_exists(app, NULL, family, family_count)) {
-            invocation.command = maelys_cli_app_find_command(app, "help");
-            int shown = help_reply(&context, NULL, NULL, family, family_count);
-            maelys_cli_json_writer_clear(&context.records);
-            (void)fflush(context.out);
-            (void)fflush(context.err);
-            return shown;
+            family_exists(app, NULL, family, family_count) ?
+            calloc((size_t)argc + 1u, sizeof(*line)) : NULL;
+        int parsed = -1;
+        if (line) {
+            int count = 0;
+            int past = 0;
+            maelys_cli_error_t unknown = error;
+            line[count++] = help_word;
+            for (int i = (int)family_count; i < argc; ++i) {
+                if (!past && !strcmp(argv[i], "--")) past = 1;
+                if (past || (strcmp(argv[i], "--help") != 0 && strcmp(argv[i], "-h") != 0))
+                    line[count++] = argv[i];
+            }
+            parsed = maelys_cli_parse(app, count, line, &invocation, &error);
+            free(line);
+            if (parsed == 0 && invocation.operand_count > 0u) {
+                /* A word after the family names no family: the words name
+                 * no command, as the first reading said. */
+                invocation.command = NULL;
+                error = unknown;
+                parsed = -1;
+            }
         }
-        (void)maelys_cli_fail_error(&context, &error);
-        return MAELYS_CLI_EXIT_FAILURE;
+        if (parsed != 0) {
+            invocation.format = prescan_format;
+            invocation.compact = prescan_compact;
+            (void)maelys_cli_fail_error(&context, &error);
+            return MAELYS_CLI_EXIT_FAILURE;
+        }
+    } else {
+        family_count = 0u;
     }
     /* MAELYS_CLI_FORMAT is the default format: --format and --json override
      * it, --compact and --pretty select none and leave it in force. */
@@ -3714,8 +3744,18 @@ int maelys_cli_run(
          * to read `data`, and data is the help's -- text and commands -- not
          * what the command's own output schema describes. The command asked
          * about is in data.commands. */
+        /* And the line is validated as an invocation of `help`: the parser
+         * stopped at --help, before the rendering refusals, so that
+         * `X --help --format jsonl` rendered a help that jsonl has no form
+         * for and exited 0 on an empty stdout. `help X --format jsonl` is
+         * refused; so is this, in the same words. */
         invocation.command = maelys_cli_app_find_command(app, "help");
-        result = help_for(&context, command);
+        result = maelys_cli_rendering_refused(invocation.command, &invocation, &error) ?
+            maelys_cli_fail_error(&context, &error) : help_for(&context, command);
+    } else if (family_count > 0u) {
+        result = field_refused(&invocation, &error) ?
+            maelys_cli_fail_error(&context, &error) :
+            help_reply(&context, NULL, NULL, family, family_count);
     } else if (command->delegate) {
         result = delegate_command(&context, command);
     } else if (!command->handler) {
