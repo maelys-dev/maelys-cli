@@ -589,6 +589,11 @@ class Contract(unittest.TestCase):
         summary = json.loads(run("describe", "--summary", "--json")[1])["data"]["commands"]
         self.assertTrue(all("examples" not in item for item in summary))
         self.assertNotIn("EXAMPLES", run("help")[1])                    # the general help stays a screen
+        # A hidden command is never offered, and answered when named (spec 2.13.1, section 6).
+        self.assertNotIn("complete.candidates", json.loads(run("help", "--json")[1])["data"]["commands"])
+        for words in (("help", "complete.candidates"), ("__complete", "--help")):
+            envelope = json.loads(run(*words, "--json")[1])
+            self.assertEqual((envelope["command"], envelope["data"]["commands"]), ("help", ["complete.candidates"]))
         # An example is a line to copy: on one line, even past the width. 0.6.1 wrapped it without a
         # mark, and each half ran as a command of its own.
         long = cli.Program("prog", "P", "1.0", [
