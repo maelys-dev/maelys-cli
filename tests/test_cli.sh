@@ -170,8 +170,37 @@ check "validation report exit 2 on stdout" '[ "$code" = 2 ] && [ -z "$err" ] && 
 run env "$hello" env show --env A=1 --env PATH --json --compact
 check "environment overlay" 'printf "%s" "$out" | grep -q "\"name\":\"A\",\"value\":\"1\"" && printf "%s" "$out" | grep -q "\"name\":\"PATH\""'
 
-run stream "$hello" run /bin/sh -c 'echo streamed; exit 3'
+run stream "$hello" run -- /bin/sh -c 'echo streamed; exit 3'
 check "stream relays stdout and exit code" '[ "$code" = 3 ] && [ "$out" = "streamed" ] && [ -z "$err" ]'
+
+# There is no short option, and a word that starts with one dash is no operand
+# either (spec, section 8): before --, it is refused, in the name of the
+# command. A command that takes another program's line takes it after --.
+run stream-dash "$hello" run /bin/sh -c 'echo ran'
+check "a word that starts with one dash is refused before --, and nothing runs" '[ "$code" = 1 ] && [ -z "$out" ] && printf "%s" "$err" | grep -q "\[VALIDATION_FAILED\] Option -c is not supported: options are spelled --name"'
+run dash-operand env MAELYS_CLI_FORMAT=json "$hello" greet -x --compact
+check "the refusal names the command the line resolved" '[ "$code" = 1 ] && [ -z "$out" ] && printf "%s" "$err" | grep -q "\"command\":\"greet\"" && printf "%s" "$err" | grep -q "\"code\":\"VALIDATION_FAILED\""'
+run dash-alone "$hello" greet -
+check "a dash alone is an operand" '[ "$code" = 0 ] && [ "$out" = "Hello, -!" ]'
+run dash-after "$hello" greet -- -5
+check "after -- a word that starts with a dash is an operand" '[ "$code" = 0 ] && [ "$out" = "Hello, -5!" ]'
+run dash-first "$hello" -h
+check "-h names no command: there is no short option, --help included" '[ "$code" = 1 ] && [ -z "$out" ] && printf "%s" "$err" | grep -q "\[INVALID_COMMAND\]"'
+# Two options that set the same thing: the last one written wins. The same
+# option twice is still a duplication.
+run last-format-text "$hello" version --json --format text
+check "--json then --format text renders text" '[ "$code" = 0 ] && ! printf "%s" "$out" | grep -q "schemaVersion"'
+run last-format-json "$hello" version --format text --json --compact
+check "--format text then --json renders JSON" '[ "$code" = 0 ] && printf "%s" "$out" | grep -q "^{\"schemaVersion\":2"'
+run last-layout "$hello" version --json --compact --pretty
+check "--compact then --pretty indents" '[ "$code" = 0 ] && [ "$(printf "%s\n" "$out" | wc -l)" -gt 1 ]'
+run twice-format "$hello" version --format json --format text
+check "the same option twice is still refused" '[ "$code" = 1 ] && [ -z "$out" ] && printf "%s" "$err" | grep -q "\[VALIDATION_FAILED\]"'
+# A size suffix is written in capitals.
+run size-capital "$hello" limits --memory 16M --json --compact
+check "a size takes its suffix in capitals" '[ "$code" = 0 ] && printf "%s" "$out" | grep -q "16777216"'
+run size-small "$hello" limits --memory 16m
+check "a size suffix in small letters is refused" '[ "$code" = 1 ] && [ -z "$out" ] && printf "%s" "$err" | grep -q "\[VALIDATION_FAILED\]"'
 
 run stream-dd "$hello" run -- /bin/sh -c 'echo --dashdash'
 check "-- separates operands" '[ "$code" = 0 ] && [ "$out" = "--dashdash" ]'
@@ -271,7 +300,7 @@ run env-compact env MAELYS_CLI_FORMAT=json "$hello" greet Ada --compact
 check "--compact leaves the environment's format in force" '[ "$code" = 0 ] && printf "%s" "$out" | grep -q "^{\"schemaVersion\":2,.*\"greeting\":\"Hello, Ada!\""'
 run env-format env MAELYS_CLI_FORMAT=json "$hello" greet x --times 99
 check "MAELYS_CLI_FORMAT shapes the failure envelope" '[ "$code" = 1 ] && printf "%s" "$err" | grep -q "\"code\": \"VALIDATION_FAILED\""'
-run env-stream env MAELYS_CLI_FORMAT=json "$hello" run /bin/sh -c "echo plain"
+run env-stream env MAELYS_CLI_FORMAT=json "$hello" run -- /bin/sh -c "echo plain"
 check "MAELYS_CLI_FORMAT leaves stream stdout untouched" '[ "$code" = 0 ] && [ "$out" = "plain" ]'
 
 if command -v python3 >/dev/null 2>&1; then
@@ -372,7 +401,7 @@ rm -f "$commands/broken.json"
 run d-exec "$maelys" hello greet dispatcher --json --compact
 check "dispatcher execs extension verbatim" '[ "$code" = 0 ] && printf "%s" "$out" | grep -q "\"greeting\":\"Hello, dispatcher!\""'
 
-run d-exit "$maelys" hello run /bin/sh -c 'exit 4'
+run d-exit "$maelys" hello run -- /bin/sh -c 'exit 4'
 check "dispatcher propagates exit code" '[ "$code" = 4 ]'
 
 run d-complete "$maelys" __complete -- hello no

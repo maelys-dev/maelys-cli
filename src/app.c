@@ -131,12 +131,20 @@ const maelys_cli_command_t *maelys_cli_app_find_command(
 
 /* ---- catalog validation ---------------------------------------------- */
 
+/* ^[a-z][a-z0-9-]*(\.[a-z0-9][a-z0-9-]*)*$ (agent-cli/v2, section 2):
+ * segments that are not empty, separated by one dot, the first starting
+ * with a letter. `unknown` is what an envelope names when no command was
+ * resolved, and no command may be called that. */
 static int valid_identifier(const char *id) {
-    if (!id || !*id) return 0;
+    if (!id || !(*id >= 'a' && *id <= 'z') || !strcmp(id, "unknown")) return 0;
     for (const char *p = id; *p; ++p) {
-        if (!((*p >= 'a' && *p <= 'z') || (*p >= '0' && *p <= '9') ||
-              *p == '.' || *p == '-' || *p == '_'))
+        if (*p == '.') {
+            if (!((p[1] >= 'a' && p[1] <= 'z') || (p[1] >= '0' && p[1] <= '9')))
+                return 0;
+        } else if (!((*p >= 'a' && *p <= 'z') || (*p >= '0' && *p <= '9') ||
+                     *p == '-')) {
             return 0;
+        }
     }
     return 1;
 }
@@ -233,7 +241,7 @@ static int validate_examples(
                     command->id, EXAMPLE_MAX_WORDS);
                 return -1;
             }
-            if (!strcmp(word, "--help") || !strcmp(word, "-h")) asks_help = 1;
+            if (!strcmp(word, "--help")) asks_help = 1;
             argv[argc++] = word;
             word = end ? end + 1 : NULL;
         }
@@ -285,6 +293,20 @@ static int validate_command(
         command->effect > MAELYS_CLI_EFFECT_STREAM) {
         maelys_cli_error_set(error, MAELYS_CLI_CODE_UNEXPECTED, hint,
             "Catalog command '%s' has no effect.", id);
+        return -1;
+    }
+    /* preview, apply and commit exist in a transaction only (agent-cli/v2,
+     * section 4): a plan and what --apply does, declared together. Alone,
+     * `apply` would be a command that writes without a plan to review. */
+    if (command->apply_effect == MAELYS_CLI_EFFECT_NONE &&
+        (command->effect == MAELYS_CLI_EFFECT_PREVIEW ||
+         command->effect == MAELYS_CLI_EFFECT_APPLY ||
+         command->effect == MAELYS_CLI_EFFECT_COMMIT)) {
+        maelys_cli_error_set(error, MAELYS_CLI_CODE_UNEXPECTED, hint,
+            "Catalog command '%s' declares the effect %s outside a "
+            "transaction: use read or execute, or declare the transaction "
+            "with its apply_effect and --apply.", id,
+            maelys_cli_effect_name(command->effect));
         return -1;
     }
     if (command->apply_effect != MAELYS_CLI_EFFECT_NONE) {
@@ -3684,7 +3706,7 @@ int maelys_cli_run(
          * `PROGRAM help note` gives it, rather than "unknown command". */
         int help_asked = 0;
         for (int i = 0; argv && i < argc && strcmp(argv[i], "--") != 0; ++i) {
-            if (!strcmp(argv[i], "--help") || !strcmp(argv[i], "-h")) help_asked = 1;
+            if (!strcmp(argv[i], "--help")) help_asked = 1;
             else if (argv[i][0] != '-' && (size_t)i == family_count &&
                      family_count < MAELYS_CLI_MAX_OPERANDS)
                 family[family_count++] = argv[i];
@@ -3709,7 +3731,7 @@ int maelys_cli_run(
             line[count++] = help_word;
             for (int i = (int)family_count; i < argc; ++i) {
                 if (!past && !strcmp(argv[i], "--")) past = 1;
-                if (past || (strcmp(argv[i], "--help") != 0 && strcmp(argv[i], "-h") != 0))
+                if (past || strcmp(argv[i], "--help") != 0)
                     line[count++] = argv[i];
             }
             parsed = maelys_cli_parse(app, count, line, &invocation, &error);

@@ -36,7 +36,7 @@ refused.
 | `int maelys_cli_parse_u64_decimal(const char *value, uint64_t minimum, uint64_t maximum, uint64_t *out)` | Decimal digits only. |
 | `int maelys_cli_parse_u32_decimal(const char *value, uint32_t minimum, uint32_t maximum, uint32_t *out)` | Same through the `u64` parser. |
 | `int maelys_cli_parse_i64_decimal(const char *value, int64_t minimum, int64_t maximum, int64_t *out)` | Optional leading `-`; `INT64_MIN` accepted. |
-| `int maelys_cli_parse_byte_size(const char *value, uint64_t minimum, uint64_t maximum, uint64_t *out_bytes)` | Digits with one optional suffix `K`, `M`, `G`, `T` (either case), powers of 1024; multiplication overflow refused. `"0"` is valid when `minimum` is 0. |
+| `int maelys_cli_parse_byte_size(const char *value, uint64_t minimum, uint64_t maximum, uint64_t *out_bytes)` | Digits with one optional suffix `K`, `M`, `G`, `T` in capitals (`512m` is refused), powers of 1024; multiplication overflow refused. `"0"` is valid when `minimum` is 0. |
 | `int maelys_cli_parse_duration_ms(const char *value, uint64_t minimum, uint64_t maximum, uint64_t *out_ms)` | Digits with a mandatory unit `ms`, `s`, `m`, `h` or `d`; result in milliseconds. A bare number is refused. |
 | `int maelys_cli_parse_boolean(const char *value, int *out)` | Accepts `true`/`false`, `yes`/`no`, `on`/`off`, `1`/`0`. |
 | `int maelys_cli_parse_choice(const char *value, const char *const *choices, size_t *out_index)` | Exact match in a `NULL`-terminated array; index returned. |

@@ -82,6 +82,13 @@ static int test_rejections(void) {
     CHECK(maelys_cli_extension_load(path, &extension, &error) != 0);
     CHECK(strcmp(error.code, "UNSUPPORTED") == 0);
 
+    /* `unknown` is what an envelope names when no command was resolved: a
+     * manifest cannot claim it, as it cannot claim help. */
+    CHECK(write_text(path, "{\"schema\":\"maelys.cli-extension/v1\",\"command\":\"unknown\","
+        "\"executable\":\"/bin/sh\",\"cliApi\":1,\"version\":\"1\"}", 0644));
+    CHECK(maelys_cli_extension_load(path, &extension, &error) != 0);
+    CHECK(strcmp(error.code, "VALIDATION_FAILED") == 0);
+
     CHECK(write_manifest("bad.json", "x", ",\"cliApi\":2"));
     /* Duplicate key: last one wins in our lookup? No: first match wins. Use a
      * distinct manifest instead. */

@@ -1864,7 +1864,7 @@
               {
                 "name": "ARG",
                 "required": false,
-                "summary": "Arguments passed verbatim to the program.",
+                "summary": "Arguments passed verbatim to the program; write the program and its arguments after -- when one of them starts with a dash.",
                 "variadic": true
               }
             ],

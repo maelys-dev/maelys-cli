@@ -24,7 +24,7 @@ plugin ABI is loaded.
 | Member | Required | Rule |
 | --- | --- | --- |
 | `schema` | yes | exactly `maelys.cli-extension/v1` |
-| `command` | yes | `[a-z][a-z0-9-]*`, at most 63 characters, not `help`, `version` or `describe` |
+| `command` | yes | `[a-z][a-z0-9-]*`, at most 63 characters, not `help`, `version`, `describe` or `unknown` |
 | `executable` | yes | absolute path, canonicalized, of a regular file owned by root or the caller, not writable by group or world, owner-executable, in a trusted directory |
 | `cliApi` | yes | unsigned integer equal to the dispatcher's `MAELYS_CLI_API` (1) |
 | `version` | yes | one line without terminal control characters, reported by `commands list` |

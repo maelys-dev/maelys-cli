@@ -53,11 +53,17 @@ EXIT_VIOLATIONS = 2
 EXIT_CODES = {"0": "command completed", "1": "execution failed", "2": "valid report with violations"}
 STABLE_CODES = ("INVALID_COMMAND", "VALIDATION_FAILED", "PRECONDITION_FAILED", "POLICY_FAILED", "ACCESS_DENIED",
                 "NOT_FOUND", "IO_FAILED", "PROCESS_FAILED", "PROTOCOL_FAILED", "UNSUPPORTED", "UNEXPECTED")
-IDENTIFIER = re.compile(r"^[a-z][a-z0-9.-]*$")
+# Segments that are not empty, separated by one dot (spec, section 2; C:
+# valid_identifier). `unknown` is what an envelope names when no command was
+# resolved, and no command may be called that.
+IDENTIFIER = re.compile(r"^[a-z][a-z0-9-]*(\.[a-z0-9][a-z0-9-]*)*$")
 PREFIX_GRAMMAR = re.compile(r"^[a-z]([a-z0-9.-]*[a-z0-9-])?$")
 FORMATS = ("text", "json", "jsonl")
 COLORS = ("auto", "always", "never")
 SHELLS = ("bash", "zsh", "fish")
+# Marks, among the options read from a line, a word that starts with one dash.
+_DASH_WORD = object()
+
 # What a stream command refuses, as the C parser does: the options that shape
 # stdout. --color shapes the diagnostics on stderr and is accepted.
 RENDERING = ("--format", "--json", "--compact", "--pretty", "--pager", "--field")
@@ -273,8 +279,9 @@ def _command(identifier: str, pattern: str, purpose: str, handler: Optional[Hand
              unavailable: Optional[str] = None, unavailable_code: Optional[str] = None,
              passthrough: bool = False,
              synopsis: Optional[str] = None, constraints: tuple = (), examples: tuple = ()) -> dict:
-    if not IDENTIFIER.match(identifier):
-        raise ValueError(f"a command identifier is [a-z][a-z0-9.-]*, not {identifier!r}")
+    if not IDENTIFIER.match(identifier) or identifier == "unknown":
+        raise ValueError("a command identifier is letters, digits and dashes in segments separated by one dot, "
+                         f"starts with a letter and is not 'unknown': not {identifier!r}")
     # The code an unavailable command answers: UNSUPPORTED says "absent from
     # this build or version" and is wrong for a cause that is not absence,
     # so the declaration names the one that fits (C: .unavailable_code).
@@ -2104,11 +2111,20 @@ class Program:
                 raw.append((name, value if separator else None))
                 continue
             if word.startswith("-") and word != "-":
-                raise Failure("VALIDATION_FAILED", f"Option {word} is not supported: options are spelled --name.",
-                              "Run describe for this command and use only its declared options.")
+                # There is no short option, and such a word is no operand either
+                # (spec, section 8). It is kept and refused below at its turn,
+                # as an option without its value is: after the command is
+                # resolved, so that the failure names it, and after an unknown
+                # command, which is said first.
+                raw.append((word, _DASH_WORD))
+                index += 1
+                continue
             words.append(word)
             index += 1
-        if not words and any(name in ("--help", "--version") for name, _ in raw):
+        # A word that starts with one dash names no command and selects none:
+        # `-x --help` resolves nothing, as in C.
+        if not words and any(name in ("--help", "--version") for name, _ in raw) \
+                and not any(value is _DASH_WORD for _, value in raw):
             words = ["help"] if any(name == "--help" for name, _ in raw) else ["version"]
             raw = [(name, value) for name, value in raw if name not in ("--help", "--version")]
         if not words:
@@ -2145,6 +2161,9 @@ class Program:
         for name, value in raw:
             if name in seen and not (name in known and known[name]["repeatable"]):
                 raise Failure("VALIDATION_FAILED", f"Option {name} is given twice.", "Give each option once.")
+            if value is _DASH_WORD:
+                raise Failure("VALIDATION_FAILED", f"Option {name} is not supported: options are spelled --name.",
+                              "Spell an option --name; write an operand that starts with a dash after --.")
             seen.add(name)
             declared = known.get(name) or next((item for item in GLOBAL_OPTIONS if item["long"] == name), None)
             if declared is not None and "argument" in declared and value is None:

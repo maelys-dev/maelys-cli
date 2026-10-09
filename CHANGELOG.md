@@ -2,6 +2,46 @@
 
 ## Unreleased
 
+- **A word that starts with one dash is refused before `--`.** There is no
+  short option in the contract, and the C parser read such a word as an
+  operand: `greet -5` greeted "-5", and `note write -f` would have written a
+  file named `-f`. It is now refused with `VALIDATION_FAILED`, at its turn
+  and in the name of the command the line resolved, as the Python module
+  did; `-` alone is an operand, and after `--` every word is one. Three
+  things change for a caller of a C product:
+  - `-h` is no longer `--help` as the first word of a line. It names no
+    command (`INVALID_COMMAND`). The help is `help` and `--help`.
+  - An operand that starts with a dash is written after `--`: `greet -- -5`.
+  - **A command that takes another program's line takes it after `--`** as
+    soon as one of its words starts with a dash. `run /bin/sh -c 'exit 3'`
+    is refused; `run -- /bin/sh -c 'exit 3'` runs it. A delegate and a
+    `passthrough` command are not concerned.
+  Python: the refusal now names the command the line resolved (the envelope
+  said `unknown`), and comes after an unknown command and after the options
+  written before it.
+- **A size suffix is written in capitals.** `maelys_cli_parse_byte_size()`
+  and every `size` option read `k`, `m`, `g`, `t` as `K`, `M`, `G`, `T`, and
+  the API reference said so ("either case"). The contract now gives a unit
+  one spelling, as a duration has, where `m` is minutes: `512m` is refused,
+  `512M` is not. A product that calls the function directly on a value of
+  its own is concerned as one that declares `MAELYS_CLI_SIZE`. The
+  repositories of the two products that take sizes pass none in small
+  letters; their callers' own scripts were not read.
+- **A catalog is refused at startup for three more reasons**, each of which
+  the contract's schema now refuses too. No catalog of a known product is
+  concerned.
+  - An identifier is segments that are not empty, separated by one dot, the
+    first starting with a letter. C let an underscore, a leading digit, a
+    final dot and two dots through; Python the last two.
+  - `unknown` is no command's identifier, nor an extension's command name:
+    it is what an envelope names when no command was resolved.
+  - `preview`, `apply` and `commit` are effects of a transaction only. C let
+    a catalog written by hand declare one alone.
+- Written in the contract and unchanged here: of two options that set the
+  same thing, the last one written wins (`--json` and `--format`,
+  `--compact` and `--pretty`); the same option twice is a duplication. Tests
+  now hold it.
+
 - **Python: a value C refuses is refused.** Four places where the module
   read more than the C parser, found by measuring both on the same values
   for the specification:

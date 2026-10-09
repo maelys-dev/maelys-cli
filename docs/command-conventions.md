@@ -128,6 +128,33 @@ become. `limits --strict --help` answers the help although `--strict`
 requires an option that is not there; `limits --bogus --help` fails on
 `--bogus`.
 
+There is no short option. Before `--`, a word that starts with a dash and
+does not stop there is neither an option nor an operand: it is refused at
+step 2, in the name of the command the line resolved, and names no command
+when it comes first (`INVALID_COMMAND`). `-` alone is an operand, and after
+`--` every word is one. So `note write -f` fails instead of writing a file
+named `-f`, a negative number is written `-- -5`, and a command that takes
+another program's line takes it after `--` as soon as one of its words
+starts with a dash: `run -- /bin/sh -c 'exit 3'`. `-h` is no exception: the
+help is `help` and `--help`. A delegate and a `passthrough` command are not
+concerned, their words being the other program's.
+
+Two options that set the same thing do not conflict: the last one written
+wins. `--json` and `--format` set the format, `--compact` and `--pretty` the
+layout of JSON, so a wrapper that writes `--format json` leaves its caller
+free to add `--format text`. The same option written twice is still a
+duplication of step 2.
+
+A value is read by the grammar of its kind, the same in C and in Python
+(agent-cli/v2, section 3). A digit is one of `0` to `9`. An `integer` is an
+optional `-` and digits, an `unsigned` digits only: decimal, leading zeros
+meaning nothing, within 64 bits before the declared bounds. A `size` is
+digits and at most one of `K`, `M`, `G`, `T` in capitals, powers of 1024; a
+`duration` digits and one of `ms`, `s`, `m`, `h`, `d` in small letters;
+neither composes and both hold in 64 bits. A `hex` is lowercase and of the
+declared width; a `digest` is `ALGORITHM:HEX` in lowercase, of the width of
+its algorithm.
+
 Availability comes after the line and before the rendering. A line the
 command would refuse is refused as such, so that a caller corrects it once;
 and a rendering flag is never what stops a command that cannot run: `sealed
@@ -409,7 +436,11 @@ Any command change updates, in the same change:
    socle cannot guess, `[build]` and the second program documented.
 
 `maelys_cli_catalog_validate()` runs at every startup and in tests. It
-checks identifier and pattern validity and uniqueness, summaries, value
+checks identifier and pattern validity and uniqueness (an identifier is
+segments of letters, digits and dashes separated by one dot, starts with a
+letter and is not `unknown`, which an envelope names when no command was
+resolved), that `preview`, `apply` and `commit` are declared in a
+transaction only, summaries, value
 declarations and defaults, `depends_on`/`depends_on_all`/`conflicts_with`
 targets and groups, schema JSON validity, the synopsis length, the presence
 of `--apply` on transactions and the handler-or-delegate-or-unavailable rule.

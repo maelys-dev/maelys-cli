@@ -590,6 +590,31 @@ static int test_help_and_version(void) {
     result = RUNV("thing", "make", "--help", "--format", "jsonl", "--field", "commands");
     CHECK(result.code == 0 && strcmp(result.out, "\"thing.make\"\n") == 0);
     release(&result);
+    /* There is no short option (agent-cli/v2, section 8): before `--`, a
+     * word that starts with a dash and does not stop there is refused at
+     * its turn, in the name of the command; `-` alone and anything after
+     * `--` are operands; and `-h`, which was `--help` as the first word,
+     * names no command. Read as an operand, `thing make -f x` made `-f`. */
+    result = RUNV("help", "-x", "--json", "--compact");
+    CHECK(result.code == 1 && !result.out[0] && strstr(result.err, "\"command\":\"help\"") &&
+        strstr(result.err, "\"code\":\"VALIDATION_FAILED\"") &&
+        strstr(result.err, "Option -x is not supported: options are spelled --name."));
+    release(&result);
+    result = RUNV("help", "--bogus", "-x");
+    CHECK(result.code == 1 && strstr(result.err, "--bogus"));       /* at its turn, after --bogus */
+    release(&result);
+    result = RUNV("-h");
+    CHECK(result.code == 1 && !result.out[0] && strstr(result.err, "[INVALID_COMMAND]"));
+    release(&result);
+    result = RUNV("-x", "--help");
+    CHECK(result.code == 1 && !result.out[0] && strstr(result.err, "[INVALID_COMMAND]"));
+    release(&result);
+    result = RUNV("thing", "-h");
+    CHECK(result.code == 1 && !result.out[0] && strstr(result.err, "[INVALID_COMMAND]"));
+    release(&result);
+    result = RUNV("help", "--", "-x");
+    CHECK(result.code == 1 && strstr(result.err, "Unknown command identifier or family: -x."));
+    release(&result);
     /* Nothing runs under --help, whatever else the line carries. */
     mirror_runs = 0;
     result = RUNV("mirror", "--apply", "--source-oid", "abcd", "--target-oid", "ef01", "--help");
@@ -1331,6 +1356,27 @@ static int test_operand_pattern(void) {
          .unavailable_code = MAELYS_CLI_CODE_ACCESS_DENIED},
     };
     CHECK(refused_at_startup(codeless, "names an unavailable code without an"));
+    /* An identifier is segments that are not empty, separated by one dot,
+     * the first starting with a letter; `unknown` is what an envelope names
+     * when no command was resolved (agent-cli/v2, section 2). The grammar
+     * let a final dot, two dots, an underscore and a leading digit through. */
+    static const char *const refused_identifiers[] = {
+        "note.", "note..write", ".note", "note_write", "1note", "-note", "Note", "unknown", ""};
+    for (size_t i = 0u; i < sizeof(refused_identifiers) / sizeof(refused_identifiers[0]); ++i) {
+        maelys_cli_command_t named[] = {
+            {MAELYS_CLI_READ("placeholder", "named", "Named.", command_report)}};
+        named[0].id = refused_identifiers[i];
+        CHECK(refused_at_startup(named, "invalid identifier"));
+    }
+    /* preview, apply and commit exist in a transaction only (section 4). */
+    static const maelys_cli_effect_t bare[] = {
+        MAELYS_CLI_EFFECT_PREVIEW, MAELYS_CLI_EFFECT_APPLY, MAELYS_CLI_EFFECT_COMMIT};
+    for (size_t i = 0u; i < sizeof(bare) / sizeof(bare[0]); ++i) {
+        maelys_cli_command_t alone[] = {
+            {MAELYS_CLI_READ("alone", "alone", "Alone.", command_report)}};
+        alone[0].effect = bare[i];
+        CHECK(refused_at_startup(alone, "outside a transaction"));
+    }
     return 1;
 }
 

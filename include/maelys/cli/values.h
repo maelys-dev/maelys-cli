@@ -25,7 +25,8 @@ int maelys_cli_parse_i64_decimal(
     const char *value, int64_t minimum, int64_t maximum,
     int64_t *out_value);
 
-/* Bytes with an optional single K, M, G or T suffix (powers of 1024). */
+/* Bytes with an optional single K, M, G or T suffix (powers of 1024), in
+ * capitals: `512m` is refused. */
 int maelys_cli_parse_byte_size(
     const char *value, uint64_t minimum, uint64_t maximum,
     uint64_t *out_bytes);

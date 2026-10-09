@@ -42,7 +42,15 @@ static int test_sizes(void) {
     uint64_t bytes = 0u;
     CHECK(maelys_cli_parse_byte_size("16M", 1u, UINT64_MAX, &bytes) == 0);
     CHECK(bytes == UINT64_C(16) * 1024u * 1024u);
-    CHECK(maelys_cli_parse_byte_size("2k", 1u, UINT64_MAX, &bytes) == 0 && bytes == 2048u);
+    CHECK(maelys_cli_parse_byte_size("2K", 1u, UINT64_MAX, &bytes) == 0 && bytes == 2048u);
+    /* A suffix is written in capitals (agent-cli/v2, section 3). The four
+     * small letters were read as the capitals until the contract gave a
+     * unit one spelling, as a duration has, where `m` is minutes. */
+    CHECK(maelys_cli_parse_byte_size("2k", 1u, UINT64_MAX, &bytes) != 0);
+    CHECK(maelys_cli_parse_byte_size("16m", 1u, UINT64_MAX, &bytes) != 0);
+    CHECK(maelys_cli_parse_byte_size("1g", 1u, UINT64_MAX, &bytes) != 0);
+    CHECK(maelys_cli_parse_byte_size("1t", 1u, UINT64_MAX, &bytes) != 0);
+    CHECK(maelys_cli_parse_byte_size("16777215T", 1u, UINT64_MAX, &bytes) == 0);
     CHECK(maelys_cli_parse_byte_size("1G", 1u, UINT64_MAX, &bytes) == 0 && bytes == (UINT64_C(1) << 30));
     CHECK(maelys_cli_parse_byte_size("1T", 1u, UINT64_MAX, &bytes) == 0 && bytes == (UINT64_C(1) << 40));
     CHECK(maelys_cli_parse_byte_size("0", 0u, UINT64_MAX, &bytes) == 0 && bytes == 0u);
