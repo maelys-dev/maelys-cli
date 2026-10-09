@@ -48,6 +48,17 @@
     unavailable code, as a stream command already did and as Python does.
   `docs/command-conventions.md` states the order with `--help` and
   availability in it.
+- **Python: an option that ends the line without its value is refused at
+  its turn.** `greet kit --times` failed while the module was still
+  splitting the line: before the command was resolved, so that the JSON
+  envelope said `"command": "unknown"` where C says `greet`; before an
+  unknown command was said, so that `nope --format` answered
+  `VALIDATION_FAILED` where C answers `INVALID_COMMAND`; and before the
+  options written earlier, so that `greet --bogus --times` blamed `--times`.
+  The option is now kept without a value and refused where the others are.
+  The envelope showed it only when the format came from `MAELYS_CLI_FORMAT`:
+  a `--json` at the end of the line became the missing value. Found by the
+  same generator once it set that variable.
 
 ## 0.6.5 - 2026-10-09
 
