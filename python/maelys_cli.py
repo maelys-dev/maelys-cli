@@ -2112,10 +2112,6 @@ class Program:
                           "Run describe --summary and use one of the listed command identifiers.")
         # A failure envelope names the resolved command from here on (section 7).
         self.resolved_command_id = command["id"]
-        if command["unavailable"] is not None:
-            raise Failure(command.get("unavailableCode") or "UNSUPPORTED",
-                          f"Command '{command['id']}' is not available in this build: {command['unavailable']}",
-                          "Use another build of the product, or another command.")
         raw_operands = words[consumed:] + passthrough
         usage = command["usage"]
         fmt = environment_format()
@@ -2185,6 +2181,21 @@ class Program:
                         options[name] = typed
                 else:
                     options[name] = _parse_flag(value, name, usage)
+        # The order of the refusals (spec, section 8). What one option says
+        # alone was judged above, in the name of the command. --help comes
+        # next: asked how a command is used, the program answers, whatever the
+        # line lacks as a whole -- a dependency, a required option, an operand
+        # -- and whether or not this build can run the command.
+        if help_requested:
+            # The line is an invocation of `help` from here on, and its rendering
+            # is validated as one (C: maelys_cli_run after the substitution).
+            help_command = self.command_by_id("help")
+            self.resolved_command_id = help_command["id"]
+            if fmt == "jsonl" and field is None:
+                raise Failure("VALIDATION_FAILED", "--format jsonl is accepted only by json-records commands, not "
+                              "'help'; add --field to render one member in jsonl.", "Use --format json.")
+            return Invocation(self, help_command, [command["id"]], {}, fmt, compact, non_interactive,
+                              [command["id"]], verbose, progress, pager, color, field), help_command
         # dependencies, conflicts, groups; then required; then operands
         def enabled(option_name: str) -> bool:
             return option_name in options and options[option_name] is not False
@@ -2230,21 +2241,9 @@ class Program:
             elif rule["kind"] == "exactly-one" and len(present) != 1:
                 raise Failure("VALIDATION_FAILED", f"Exactly one of {listed} must be given.", f"Use '{usage}'.")
         for definition in command["options"]:
-            if definition["required"] and definition["long"] not in options and not help_requested:
+            if definition["required"] and definition["long"] not in options:
                 raise Failure("VALIDATION_FAILED", f"Option {definition['long']} is required by '{command['id']}'.",
                               f"Use '{usage}'.")
-        if help_requested:
-            # The line is an invocation of `help` from here on, and is validated as
-            # one (C: maelys_cli_run after the substitution): `X --help --format
-            # jsonl` rendered a help that jsonl has no form for and exited 0 on an
-            # empty stdout, where `help X --format jsonl` is refused.
-            help_command = self.command_by_id("help")
-            self.resolved_command_id = help_command["id"]
-            if fmt == "jsonl" and field is None:
-                raise Failure("VALIDATION_FAILED", "--format jsonl is accepted only by json-records commands, not "
-                              "'help'; add --field to render one member in jsonl.", "Use --format json.")
-            return Invocation(self, help_command, [command["id"]], {}, fmt, compact, non_interactive,
-                              [command["id"]], verbose, progress, pager, color, field), help_command
         operands: list = []
         if not command["passthrough"]:
             required = sum(1 for item in command["operands"] if item["required"])
@@ -2258,6 +2257,13 @@ class Program:
                 operands.append(parse_value(kind, value, item, item["name"], usage) if kind else value)
         else:
             operands = list(raw_operands)
+        # Then whether this build can run it: a line the command would refuse
+        # is refused as such first, and a rendering flag is not what stops a
+        # command that cannot run at all.
+        if command["unavailable"] is not None:
+            raise Failure(command.get("unavailableCode") or "UNSUPPORTED",
+                          f"Command '{command['id']}' is not available in this build: {command['unavailable']}",
+                          "Use another build of the product, or another command.")
         if command["outputMode"] == "protocol-stream" and rendering:
             raise Failure("VALIDATION_FAILED", f"Command '{command['id']}' owns its stdout and refuses {rendering[0]}.",
                           "Set MAELYS_CLI_FORMAT=json in the environment to receive its failure envelope as JSON.")

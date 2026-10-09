@@ -30,6 +30,24 @@
   the object. One process runs one line, so no command line showed it; a
   program that calls `main()` more than once, as tests do, did. The family
   is reset when a line starts being parsed.
+- **The order of the refusals is one order, in C and in Python.** Found by
+  the same test of agent-cli-spec, run here on the five programs of `make
+  conformance-check`; the kit sees neither.
+  - Python: `--help` was answered after the dependencies between options.
+    `limits --strict --help`, `describe --prefix x --help` and `note write
+    --expect sha256:... --help` failed with `VALIDATION_FAILED` where C
+    gives the help. `--help` now comes after what one option says alone and
+    before what the line lacks as a whole, as in C.
+  - Python: an unavailable command said so before anything else was read.
+    `absent --help` was refused, `absent --bogus` and `absent extra`
+    answered `UNSUPPORTED` without naming the option or the operand.
+    Availability now comes after the line, as in C.
+  - C: a rendering refusal came before availability, except for a stream.
+    `sealed --format jsonl` and `sealed --format json --field x` answered
+    `VALIDATION_FAILED` about the flag; they answer the command's
+    unavailable code, as a stream command already did and as Python does.
+  `docs/command-conventions.md` states the order with `--help` and
+  availability in it.
 
 ## 0.6.5 - 2026-10-09
 

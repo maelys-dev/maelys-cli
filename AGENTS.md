@@ -89,8 +89,8 @@ under incompatible terms into the agent texts. See `LICENSING.md`.
   rejects rendering flags;
 - unknown, duplicated (unless repeatable) or foreign options are refused;
 - validation errors are reported in causal order: command, option spelling
-  and duplicates, option values, dependencies and conflicts, required
-  options, operand arity, rendering constraints;
+  and duplicates, option values, `--help`, dependencies and conflicts,
+  required options, operand arity, availability, rendering constraints;
 - transactional commands plan by default and write with `--apply`;
   `--dry-run` and `--plan` are refused with the migration hint;
 - `--non-interactive` guarantees that no prompt is ever shown;
