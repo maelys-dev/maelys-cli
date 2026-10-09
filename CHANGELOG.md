@@ -1,6 +1,15 @@
 # Changelog
 
-## Unreleased
+## 0.7.0 - 2026-10-09
+
+This release changes what a C product accepts, which none since 0.6.0 did.
+Four kinds of line that worked are refused: `-h` for `--help`; a word that
+starts with one dash before `--`; the line of a wrapped program written
+before `--` (`run /bin/sh -c x`); a size suffix in small letters (`512m`).
+`docs/migration.md`, "Every consumer, at agent-cli-spec 2.15.0", says what
+to search for in a product. The rest corrects defects and aligns the Python
+module on the C library; a product pins agent-cli-spec 2.14.0 or 2.15.0
+with or after this release, not before.
 
 - **A word that starts with one dash is refused before `--`.** There is no
   short option in the contract, and the C parser read such a word as an
