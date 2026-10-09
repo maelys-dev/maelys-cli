@@ -79,10 +79,12 @@ int maelys_cli_parse_byte_size(
     if (*end) {
         if (end[1] != '\0') return -1;
         switch (*end) {
-            case 'k': case 'K': multiplier = UINT64_C(1) << 10; break;
-            case 'm': case 'M': multiplier = UINT64_C(1) << 20; break;
-            case 'g': case 'G': multiplier = UINT64_C(1) << 30; break;
-            case 't': case 'T': multiplier = UINT64_C(1) << 40; break;
+            /* In capitals only (agent-cli/v2, section 3): a unit has one
+             * spelling, as those of a duration do, where `m` is minutes. */
+            case 'K': multiplier = UINT64_C(1) << 10; break;
+            case 'M': multiplier = UINT64_C(1) << 20; break;
+            case 'G': multiplier = UINT64_C(1) << 30; break;
+            case 'T': multiplier = UINT64_C(1) << 40; break;
             default: return -1;
         }
     }

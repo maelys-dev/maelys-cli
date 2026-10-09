@@ -91,6 +91,33 @@ class Contract(unittest.TestCase):
                      ("limits", "--offset", "101"), ("limits", "--digest", "zz"), ("limits", "--digest", "a" * 63)):
             self.assertEqual(failure(*argv)[1]["code"], "VALIDATION_FAILED", argv)
 
+    def test_a_word_that_starts_with_one_dash(self) -> None:
+        """There is no short option (spec, section 8): before `--` such a word is refused at its turn, in
+        the name of the command the line resolved; `-` alone and anything after `--` are operands; and it
+        names no command. The module refused it while splitting the line, in the name of no command."""
+        def named(*argv: str) -> tuple:
+            code, out, err = run(*argv, env={"MAELYS_CLI_FORMAT": "json"})
+            body = json.loads(err)
+            return code, out, body["command"], body["error"]["code"]
+        for argv, command in ((("greet", "-x"), "greet"), (("greet", "kit", "-x"), "greet"), (("version", "-h"), "version"),
+                              (("help", "-x"), "help"), (("note", "write", "kit", "--content", "kit", "-x"), "note.write")):
+            self.assertEqual(named(*argv), (1, "", command, "VALIDATION_FAILED"), argv)
+        self.assertIn("--bogus", json.loads(run("greet", "--bogus", "-x", env={"MAELYS_CLI_FORMAT": "json"})[2])["error"]["message"])
+        for argv in (("-x",), ("-h",), ("-x", "--help"), ("nope", "-x")):
+            self.assertEqual(named(*argv)[2:], ("unknown", "INVALID_COMMAND"), argv)
+        self.assertEqual(run("greet", "-", "--json", "--compact")[0], 0)
+        self.assertEqual(json.loads(run("greet", "--json", "--", "-5")[1])["data"]["greeting"], "Hello, -5!")
+
+    def test_identifiers(self) -> None:
+        """An identifier is segments that are not empty, separated by one dot, the first starting with a
+        letter, and is not `unknown`, which an envelope names when no command was resolved (spec, section
+        2). The grammar let a final dot and two dots through."""
+        for identifier in ("note", "note.write", "a-b.c-d", "v2.list", "a.1"):
+            cli.read(identifier, "x", "X.", lambda i: ({}, 0))
+        for identifier in ("note.", "note..write", ".note", "note_write", "1note", "-note", "Note", "unknown", ""):
+            with self.assertRaises(ValueError, msg=identifier):
+                cli.read(identifier, "x", "X.", lambda i: ({}, 0))
+
     def test_values_are_those_c_accepts(self) -> None:
         """A value the C parser refuses is refused here, on the four points where the module read more:
         the digits of another script, a number C cannot hold in 64 bits, a digest whose length is not

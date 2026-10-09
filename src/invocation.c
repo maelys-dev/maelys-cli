@@ -100,7 +100,7 @@ static const maelys_cli_command_t *resolve_command(
     const maelys_cli_app_t *app, int argc, char **argv, int *out_words) {
     *out_words = 0;
     if (argc == 0) return maelys_cli_app_find_command(app, "help");
-    if (!strcmp(argv[0], "--help") || !strcmp(argv[0], "-h")) {
+    if (!strcmp(argv[0], "--help")) {
         *out_words = 1;
         return maelys_cli_app_find_command(app, "help");
     }
@@ -462,6 +462,20 @@ int maelys_cli_parse(
             if (!passthrough && !strcmp(argument, "--")) {
                 passthrough = 1;
                 continue;
+            }
+            /* There is no short option (agent-cli/v2, section 8). Before
+             * `--`, a word that starts with a dash and does not stop there
+             * is neither an option nor an operand: read as an operand,
+             * `note write -f` wrote a file named `-f`, and a caller who
+             * wrote `-v` out of habit learned nothing. `-` alone is an
+             * operand; after `--` every word is one. */
+            if (!passthrough && argument[0] == '-' && argument[1] != '\0') {
+                maelys_cli_error_set(error, MAELYS_CLI_CODE_VALIDATION_FAILED,
+                    "Spell an option --name; write an operand that starts "
+                    "with a dash after --.",
+                    "Option %s is not supported: options are spelled --name.",
+                    argument);
+                PARSE_FAIL();
             }
             if (add_operand(out, argument, error) != 0) PARSE_FAIL();
             continue;

@@ -39,8 +39,10 @@ static int valid_command_name(const char *name) {
         if (!((*p >= 'a' && *p <= 'z') || (*p >= '0' && *p <= '9') || *p == '-'))
             return 0;
     }
+    /* `unknown` is what an envelope names when no command was resolved
+     * (agent-cli/v2, section 2): no command is called that. */
     return strcmp(name, "help") && strcmp(name, "version") &&
-        strcmp(name, "describe");
+        strcmp(name, "describe") && strcmp(name, "unknown");
 }
 
 static int copy_string_field(

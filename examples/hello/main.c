@@ -285,7 +285,9 @@ static int command_env_show(maelys_cli_context_t *context) {
 
 static const maelys_cli_operand_t run_operands[] = {
     {MAELYS_CLI_OPERAND("PROGRAM", "Absolute path of the program to execute.")},
-    {MAELYS_CLI_OPERAND_REST("ARG", "Arguments passed verbatim to the program.")},
+    {MAELYS_CLI_OPERAND_REST("ARG", "Arguments passed verbatim to the program; "
+     "write the program and its arguments after -- when one of them starts "
+     "with a dash.")},
 };
 
 static int command_run(maelys_cli_context_t *context) {

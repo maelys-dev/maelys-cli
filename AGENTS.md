@@ -256,6 +256,15 @@ not a step in a procedure.
   expansion (`.gitattributes`) in a source archive that has none, such as
   a GitHub tag tarball; `unknown` when neither is available, never a
   failed build.
+- A word that starts with one dash is refused before `--`, `-h` included:
+  there is no short option, and read as an operand `note write -f` wrote a
+  file named `-f`. A command that wraps another program's line takes it
+  after `--`.
+- A size suffix is in capitals; `512m` is refused, as `5S` is for a
+  duration. The four small letters were read until the contract gave a unit
+  one spelling.
+- `--json --format text` renders text: of two options that set the same
+  thing, the last one written wins. The same option twice is a duplication.
 
 ## When adding a command to `maelys` or `maelys-hello`
 
