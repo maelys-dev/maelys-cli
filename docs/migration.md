@@ -147,23 +147,26 @@ command when either is wrong:
   into one line per paragraph, or each hand-made line is wrapped on its own
   and the paragraph reads ragged at another width.
 
-## Every consumer, at agent-cli-spec 2.13.0
+## Every consumer, at agent-cli-spec 2.13.1
 
 - **Nothing to change.** 2.13.0 writes what `data.commands` of `help` holds:
   the identifiers of the commands the text shows, so the one asked for
   `help COMMAND_ID` and for `--help` after a command. Both implementations
   answered that before the specification wrote it, and its kit now checks
-  it on `help version` and `version --help`. A product pins 2.13.0 with any
+  it on `help version` and `version --help`. A product pins 2.13.1 with any
   release from 0.6.0 on.
 - `help FAMILY` and a topic such as `help conventions` are this
   framework's, not the contract's: the commands of the family and an empty
   list are consistent with the sentence, and the kit does not check them.
-- One sentence is not met to the letter: "A hidden command is never among
-  them." The general help lists none, which is what the kit checks. But
-  `help COMMAND_ID` and `--help` asked of a hidden command answer its help
-  and name it in `data.commands`, here on `complete.candidates`. Which of
-  the two the sentence means is the specification's to say; nothing changes
-  here until it does.
+- A hidden command is never offered and is answered when named. The general
+  help lists none, which is what the kit checks; `help COMMAND_ID` and
+  `--help` asked of a hidden command answer its help and name it in
+  `data.commands`, as `describe COMMAND_ID` answers for it.
+- Pin 2.13.1 rather than 2.13.0. The two ask the same and check the same,
+  but 2.13.0 ended its sentence with "A hidden command is never among
+  them", which read to the letter forbade the answer above. 2.13.1 replaces
+  it at this repository's report; a program that passes one passes the
+  other.
 
 ## Every consumer, at agent-cli-spec 2.12.0
 

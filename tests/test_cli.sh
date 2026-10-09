@@ -66,6 +66,14 @@ run help-never-runs "$hello" note write "$help_note" --content x --apply --help
 check "nothing runs under --help, --apply included" '[ "$code" = 0 ] && [ ! -e "$help_note" ] && printf "%s" "$out" | grep -q "^USAGE"'
 run help-examples "$hello" help note.write
 check "the help of a command shows its examples, each a line to copy" '[ "$code" = 0 ] && printf "%s" "$out" | grep -q "^EXAMPLES$" && printf "%s" "$out" | grep -q "^  maelys-hello note write /tmp/note.txt --content hello --apply$" && printf "%s" "$out" | grep -q "^      Write it.$"'
+# A hidden command is never offered, and answered when named (spec 2.13.1,
+# section 6): the general help does not list it, its own help names it.
+run help-general "$hello" help --json --compact
+check "the general help lists no hidden command" '[ "$code" = 0 ] && ! printf "%s" "$out" | grep -q "complete.candidates"'
+run help-hidden "$hello" help complete.candidates --json --compact
+check "help asked of a hidden command names it" '[ "$code" = 0 ] && printf "%s" "$out" | grep -q "\"command\":\"help\"" && printf "%s" "$out" | grep -q "\"commands\":\[\"complete.candidates\"\]"'
+run help-hidden-flag "$hello" __complete --help --json --compact
+check "--help after a hidden command names it too" '[ "$code" = 0 ] && printf "%s" "$out" | grep -q "\"commands\":\[\"complete.candidates\"\]"'
 run describe-examples "$hello" describe note.write --format json --compact
 check "describe COMMAND_ID carries them, one word per element" '[ "$code" = 0 ] && printf "%s" "$out" | grep -q "\"examples\":\[{\"words\":\[\"note\",\"write\",\"/tmp/note.txt\",\"--content\",\"hello\"\],\"summary\":\"Plan the note: nothing is written.\"}"'
 run describe-summary-examples "$hello" describe --summary --format json --compact
