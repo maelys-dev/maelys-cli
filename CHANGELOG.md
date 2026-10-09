@@ -18,6 +18,23 @@
   `add_file` in `digest.h`, the agents' guide and `docs/python.md` say the
   same. No code changes.
 
+- agent-cli-spec pinned at v2.13.0 (from v2.12.0). It writes what
+  `data.commands` of `help` holds, in the sentence this repository asked
+  for: the identifiers of the commands the text shows, so the one asked for
+  `help COMMAND_ID` and for `--help` after a command. C and Python answered
+  that already; the kit now checks it on `help version` and `version
+  --help`, and passes on the five programs of `make conformance-check`.
+  One sentence of it is not met to the letter, and no check of the kit sees
+  it: "A hidden command is never among them." The general help lists no
+  hidden command, but `help complete.candidates` and `__complete --help`
+  answer the help of that hidden command and name it in `data.commands`, in
+  C as in Python. Nothing is changed here until the specification says
+  which it means.
+
+- maelys-release adopted at v0.63.2 (from v0.63.1): the three workflow
+  pins. Its Impact line asks nothing of a product, and no managed file
+  moves.
+
 ## 0.6.4 - 2026-10-08
 
 - **An example is printed as a shell reads it.** `help COMMAND_ID` printed
