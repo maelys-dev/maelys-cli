@@ -59,6 +59,16 @@
   The envelope showed it only when the format came from `MAELYS_CLI_FORMAT`:
   a `--json` at the end of the line became the missing value. Found by the
   same generator once it set that variable.
+- agent-cli-spec pinned at v2.14.0 (from v2.13.1). It writes the order of
+  the refusals as a numbered list, with `--help`, `--version` and an
+  unavailable command in it, and its kit checks the lines above. The four
+  entries before this one are what that order asked of this framework; they
+  were worked out against the unreleased text and tools of the
+  specification, each repository testing the other's commits, and both
+  agreed on a pair of commits before either tagged. One point is left open
+  by the contract on purpose: what `--json=false` means under
+  `MAELYS_CLI_FORMAT=json`; here it selects text. A product pins 2.14.0 with
+  or after this release, not before.
 
 ## 0.6.5 - 2026-10-09
 

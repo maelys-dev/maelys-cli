@@ -147,6 +147,35 @@ command when either is wrong:
   into one line per paragraph, or each hand-made line is wrapped on its own
   and the paragraph reads ragged at another width.
 
+## Every consumer, at agent-cli-spec 2.14.0
+
+- **Pin 2.14.0 with or after the release that carries this section**, not
+  before: its kit fails a product built on 0.6.5 or earlier on `COMMAND
+  --help --format jsonl`, which exited 0 on an empty stdout, and a Python
+  product on `describe --prefix NAME --help`, which was refused.
+- 2.14.0 writes the order of the refusals as a numbered list (its section
+  8), with `--help`, `--version` and an unavailable command in it. This
+  framework follows it to the letter, in C and in Python; the list is in
+  `docs/command-conventions.md`, "What the parser enforces".
+- What a product may see change when it takes the framework release:
+  - `COMMAND --help --format jsonl` fails with `VALIDATION_FAILED` in the
+    name of `help`; add `--field NAME` or ask for `json`.
+  - An unavailable command gives its help, refuses a wrong line as a wrong
+    line, and answers its unavailable code to a rendering flag.
+  - Python: `--help` on a line whose option lacks the one it requires gives
+    the help; an option that ends the line without its value names the
+    command in the failure envelope.
+  A test that pinned one of the former answers pins the new one.
+- The specification ships the test that found all of this:
+  `python3 tests/invocations.py --apply --format-variable MAELYS_CLI_FORMAT
+  PROGRAM` builds command lines from the program's catalog and holds the
+  program to the contract on each. It runs every command that is not a
+  stream, a delegate or `passthrough`, in a directory and a home made for
+  the line: read what `--apply` means there before using it on a product
+  whose plans reach a network.
+- Left open by the contract, on purpose: what `--json=false` means when
+  `MAELYS_CLI_FORMAT=json`. Here it selects text.
+
 ## Every consumer, at agent-cli-spec 2.13.1
 
 - **Nothing to change.** 2.13.0 writes what `data.commands` of `help` holds:
