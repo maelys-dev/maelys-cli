@@ -97,6 +97,8 @@ typedef struct maelys_cli_invocation {
     /* private */
     int format_requested;    /* --format or --json given: the environment's
                               * MAELYS_CLI_FORMAT is a default and yields */
+    int default_selected;    /* no word named the command: the app's
+                              * default_command was selected */
 } maelys_cli_invocation_t;
 
 /* auto | always | never, in the order of the trunk's choices. */

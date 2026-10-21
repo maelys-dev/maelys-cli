@@ -188,6 +188,12 @@ $(BUILD)/tests/catalog_surface: tests/catalog_surface.c $(LIB) $(HEADERS)
 	@mkdir -p $(@D)
 	$(CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) $(CFLAGS) $(COMMON_CFLAGS) $< $(LIB) $(LDFLAGS) -o $@
 
+# A program that declares a default command; python/tests/default_surface.py
+# is its twin, and tests/test_cli.sh compares their answers.
+$(BUILD)/tests/default_surface: tests/default_surface.c $(LIB) $(HEADERS)
+	@mkdir -p $(@D)
+	$(CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) $(CFLAGS) $(COMMON_CFLAGS) $< $(LIB) $(LDFLAGS) -o $@
+
 # Fuzzing, as maelys-release's conventions name it. Each harness of
 # tests/fuzz is built twice. With -DMAELYS_CLI_FUZZ_REPLAY it is a plain
 # program replaying tests/fuzz/corpus/NAME, every truncation and single-byte
@@ -256,7 +262,7 @@ $(BUILD)/pkgconfig/%.pc: pkgconfig/%.pc.in VERSION
 test: $(TESTS)
 	@for test in $(TESTS); do echo "== $$test"; $$test || exit 1; done
 
-cli-check: $(DISPATCHER) $(EXAMPLE)
+cli-check: $(DISPATCHER) $(EXAMPLE) $(BUILD)/tests/default_surface
 	./tests/test_cli.sh $(BUILD)/bin
 
 embed-check: $(EMBED)

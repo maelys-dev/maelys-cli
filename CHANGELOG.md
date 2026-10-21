@@ -1,5 +1,27 @@
 # Changelog
 
+## Unreleased
+
+- **A program may name a default command.** `.default_command` on
+  `maelys_cli_app_t`, `default_command=` on a Python `Program`, names the
+  command a line that names no command runs, as the next minor of
+  agent-cli-spec writes it ("A line that names no command", section 8). The
+  first word of the line, and it only, decides: `--help` and `--version` are
+  the help and the version; the first word of a pattern resolves as usual;
+  an option, `--`, a word with one dash or an empty line select the default
+  command; any other word is `INVALID_COMMAND`, never run as the default.
+  The rest of the line is then the default command's: a word an option
+  takes is its value, a bare word before `--` is refused in its name, its
+  operands come after `--`. It is the command in every respect, help,
+  effect and envelope included. `describe` carries `defaultCommand` in
+  every form; `help` names it and shows both ways to invoke it;
+  `__complete` completes a line of it. The catalog validation refuses a
+  default command that is not the product's, is hidden, unavailable or a
+  delegate, or whose effect is `execute`. A program that declares none is
+  read exactly as before. `tests/default_surface.c` and
+  `python/tests/default_surface.py` declare one, and `tests/test_cli.sh`
+  asks every line of both.
+
 ## 0.7.0 - 2026-10-09
 
 This release changes what a C product accepts, which none since 0.6.0 did.

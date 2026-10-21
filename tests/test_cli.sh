@@ -504,6 +504,71 @@ check "an untrusted manifest stops the dispatcher" '[ "$code" = 1 ] && printf "%
 rm -f "$commands/untrusted.json" 
 rm -f "$commands/bad.json"
 
+# A default command (agent-cli/v2, section 8, "A line that names no command"):
+# default_surface declares `show` in C, python/tests/default_surface.py the
+# same catalog in Python. Each line is asked of both, and their envelopes
+# must be the same bytes; then what each line must answer.
+dflt_c="$bin/../tests/default_surface"
+dflt_py="python3 -B $(dirname "$0")/../python/tests/default_surface.py"
+# What two answers must share: the command the envelope names, the exit
+# code, the error code, and the data of a success -- of a help, the commands
+# it is about, its text being worded apart in C and in Python.
+dflt_answer() {
+    printf '%s' "${out:-$err}" | python3 -c 'import json, sys
+envelope = json.load(sys.stdin)
+data = envelope.get("data", {})
+if envelope.get("command") == "help":
+    data = data.get("commands")
+print(envelope.get("command"), envelope.get("exitCode"), envelope.get("error", {}).get("code"),
+      json.dumps(data, sort_keys=True, separators=(",", ":")))'
+}
+dflt() { # dflt NAME WORDS...: both programs, JSON by the environment
+    name=$1
+    shift
+    run "$name" env MAELYS_CLI_FORMAT=json "$dflt_c" "$@"
+    c_code=$code c_answer=$(dflt_answer)
+    run "$name-py" env MAELYS_CLI_FORMAT=json $dflt_py "$@"
+    answer=$(dflt_answer)
+    check "default command, C and Python agree: $name" '[ "$code" = "$c_code" ] && [ "$answer" = "$c_answer" ]'
+}
+said() { # said PATTERN: the last answer, C and Python having agreed
+    printf '%s' "$answer" | grep -q -- "$1"
+}
+dflt empty
+check "an empty line runs the default command" '[ "$code" = 0 ] && said "^show 0 None "'
+dflt option --label x
+check "a line that starts with an option runs the default command" '[ "$code" = 0 ] && said "^show 0 None " && said "\"label\":\"x\""'
+dflt value --label list
+check "a command name an option takes as its value is that value" '[ "$code" = 0 ] && said "^show 0 None " && said "\"label\":\"list\""'
+dflt bare --label x list
+check "a bare word before -- is no operand of the default command" '[ "$code" = 1 ] && said "^show 1 VALIDATION_FAILED"'
+dflt named list --limit x
+check "a line that starts with a pattern runs that command" '[ "$code" = 1 ] && said "^list 1 VALIDATION_FAILED"'
+dflt operands --label x -- notes.txt
+check "the operands of the default command come after --" '[ "$code" = 0 ] && said "\"file\":\"notes.txt\""'
+dflt dash -h
+check "-h selects the default command and fails in its name" '[ "$code" = 1 ] && said "^show 1 VALIDATION_FAILED"'
+dflt unknown nope
+check "an unknown first word is never run as the default command" '[ "$code" = 1 ] && said "^unknown 1 INVALID_COMMAND"'
+dflt help-default --label x --help
+check "--help after an option is the help of the default command" '[ "$code" = 0 ] && said "^help 0 None \[\"show\"\]"'
+dflt help-first --help
+check "--help first is the general help" '[ "$code" = 0 ] && said "^help 0 None \[\"help\""'
+dflt plan save --content text
+check "a transaction plans without --apply" '[ "$code" = 0 ] && said "\"mode\":\"plan\""'
+dflt complete-root __complete -- --
+check "at the root a dash completes with the default command's options" '[ "$code" = 0 ] && said "\"word\":\"--label\""'
+dflt complete-after __complete -- --level ""
+check "after a first option the default command's values complete" '[ "$code" = 0 ] && said "\"word\":\"high\""'
+for form in "describe" "describe --summary" "describe --summary --prefix list" "describe list"; do
+    run "describe-default-$form" "$dflt_c" $form --json --compact
+    check "every form of describe names the default command: $form" '[ "$code" = 0 ] && printf "%s" "$out" | grep -q "\"defaultCommand\":\"show\""'
+done
+run help-default "$dflt_c" help
+check "help names the default command and shows both forms" '[ "$code" = 0 ] && printf "%s" "$out" | grep -q "^  default-surface \[OPTIONS\] \[-- OPERANDS\]$" && printf "%s" "$out" | grep -q "^  default-surface show \[OPTIONS\] \[-- OPERANDS\]$"'
+run help-no-default "$hello" help
+check "a program without a default command says nothing of one" '[ "$code" = 0 ] && ! printf "%s" "$out" | grep -q "DEFAULT COMMAND"'
+
 if [ "$failures" -ne 0 ]; then
     printf '%s CLI test(s) failed\n' "$failures" >&2
     exit 1
