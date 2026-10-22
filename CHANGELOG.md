@@ -1,6 +1,15 @@
 # Changelog
 
-## Unreleased
+## 0.8.0 - 2026-10-22
+
+This release adds the default command of agent-cli-spec 2.16.0, which it
+pins. A product that declares none is read exactly as before. Two things
+can still reach one: `default_command` is a new last field of
+`maelys_cli_app_t`, which a positional initializer built with `-Wextra
+-Werror` reports; and a product that declares a default refuses a line
+that put options before the command name (`PROGRAM --json list`).
+`docs/migration.md`, "Every consumer, at agent-cli-spec 2.16.0", says what
+to search for.
 
 - **A program may name a default command.** `.default_command` on
   `maelys_cli_app_t`, `default_command=` on a Python `Program`, names the
