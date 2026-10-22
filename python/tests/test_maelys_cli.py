@@ -108,6 +108,53 @@ class Contract(unittest.TestCase):
         self.assertEqual(run("greet", "-", "--json", "--compact")[0], 0)
         self.assertEqual(json.loads(run("greet", "--json", "--", "-5")[1])["data"]["greeting"], "Hello, -5!")
 
+    def test_default_command(self) -> None:
+        """The default command (spec, section 8; C: default_command): what a program may name, and the
+        parts of its reading no line of tests/test_cli.sh shows. The lines are held there, on
+        default_surface, in C and in Python together."""
+        def reply(invocation: cli.Invocation) -> "tuple[dict, int]":
+            return {}, cli.EXIT_OK
+
+        commands = [
+            cli.read("look", "look", "Look.", reply, options=[cli.option("--label", "Label.", cli.argument("TEXT"))]),
+            cli.read("look.closer", "look closer", "Look closer.", reply),
+            cli.transaction("plan", "plan", "Plan.", reply, schema={"type": "object", "required": ["mode"]}),
+            cli.stream("pipe", "pipe", "Pipe.", lambda i: cli.EXIT_OK),
+            cli.execute("act", "act", "Act.", reply),
+            cli.external("helper", "helper", "Helper.", lambda i: cli.EXIT_OK),
+            cli.read("quiet", "quiet", "Quiet.", reply, hidden=True),
+            cli.read("gone", "gone", "Gone.", reply, unavailable="not built"),
+        ]
+        for identifier in ("look", "look.closer", "plan", "pipe"):
+            cli.Program("p", "P", "1", commands, default_command=identifier)
+        for identifier, detail in (("nope", "names no command of the catalog"), ("help", "every program has"),
+                                   ("complete.candidates", "every program has"), ("gone", "this build cannot run"),
+                                   ("quiet", "a hidden command"), ("helper", "a delegate"),
+                                   ("act", "no consent to an action")):
+            with self.assertRaises(ValueError) as refused:
+                cli.Program("p", "P", "1", commands, default_command=identifier)
+            self.assertIn(f"default_command '{identifier}' ", str(refused.exception))
+            self.assertIn(detail, str(refused.exception))
+        program = cli.Program("p", "P", "1", commands, default_command="look")
+        self.assertEqual(program.parse([])[1]["id"], "look")
+        invocation, command = program.parse(["--label", "plan"])          # a value, not a command
+        self.assertEqual((command["id"], invocation.option("--label")), ("look", "plan"))
+        self.assertEqual(program.parse(["look", "closer"])[1]["id"], "look.closer")
+        self.assertEqual(program.parse(["--help"])[1]["id"], "help")
+        for argv, code in ((["--json", "plan"], "VALIDATION_FAILED"), (["-h"], "VALIDATION_FAILED"),
+                           (["-"], "VALIDATION_FAILED"), (["nope"], "INVALID_COMMAND")):
+            with self.assertRaises(cli.Failure) as refused:
+                program.parse(argv)
+            self.assertEqual(refused.exception.code, code, argv)
+        # Without a default, nothing changes: the module still reads `--json version` as before.
+        plain = cli.Program("p", "P", "1", commands)
+        self.assertEqual(plain.parse(["--json", "version"])[1]["id"], "version")
+        # The static completion table resolves a command from its pattern words, which a line of the
+        # default command does not have: such a catalog gets the script that calls __complete.
+        for shell in ("bash", "zsh", "fish"):
+            self.assertEqual(program.completion_script(shell), program._dynamic_script(shell))
+            self.assertNotEqual(plain.completion_script(shell), plain._dynamic_script(shell))
+
     def test_identifiers(self) -> None:
         """An identifier is segments that are not empty, separated by one dot, the first starting with a
         letter, and is not `unknown`, which an envelope names when no command was resolved (spec, section

@@ -344,6 +344,7 @@ static const maelys_cli_app_t app = {
     "\n"
     "    Deeper: a second paragraph, indented by four, is wrapped at four and "
     "never brought back to the margin of the first one.",
+    NULL,
     NULL
 };
 
@@ -409,7 +410,7 @@ static const maelys_cli_command_t accented_commands[] = {
      "\xe6\x97\xa5\xe6\x9c\xac\xe8\xaa\x9e.", command_nothing)},
 };
 static const maelys_cli_app_t accented_app = {
-    "prog", "Test Product", "9.9.9", NULL, accented_commands, 1u, NULL, 0u, NULL, NULL
+    "prog", "Test Product", "9.9.9", NULL, accented_commands, 1u, NULL, 0u, NULL, NULL, NULL
 };
 
 static int test_help_and_version(void) {
@@ -1442,6 +1443,117 @@ static int test_constraints(void) {
     return 1;
 }
 
+/* The default command (agent-cli/v2, section 8): what a catalog may name,
+ * and what a program then does with a line that names no command. The
+ * behaviour on lines is held by tests/test_cli.sh on default_surface, in C
+ * and in Python; here, what the catalog validation refuses, and the parts
+ * no line shows. */
+static const maelys_cli_option_t look_options[] = {
+    {MAELYS_CLI_STRING("label", "TEXT", "Label.")},
+    {MAELYS_CLI_UNSIGNED("count", "N", "Count.", 1u, 10u)},
+};
+static const maelys_cli_option_t plan_options[] = {MAELYS_CLI_APPLY_OPTION};
+static const maelys_cli_command_t default_candidates[] = {
+    {MAELYS_CLI_READ("look", "look", "Look.", command_report),
+     MAELYS_CLI_OPTIONS(look_options)},
+    {MAELYS_CLI_READ("look.closer", "look closer", "Look closer.", command_report)},
+    {MAELYS_CLI_TRANSACTION("plan", "plan", "Plan.", command_make),
+     MAELYS_CLI_OPTIONS(plan_options),
+     MAELYS_CLI_SCHEMA("{\"type\":\"object\",\"required\":[\"mode\"]}")},
+    {MAELYS_CLI_STREAM("pipe", "pipe", "Pipe.", command_exec)},
+    {MAELYS_CLI_EXECUTE("act", "act", "Act.", command_report)},
+    {MAELYS_CLI_EXTERNAL("helper", "helper", "Helper.", "maelys-test-helper")},
+    {MAELYS_CLI_READ("quiet", "quiet", "Quiet.", command_report), .hidden = 1},
+    {MAELYS_CLI_READ("gone", "gone", "Gone.", NULL), .unavailable = "not built"},
+};
+
+static int default_validates(const char *identifier, const char *detail) {
+    maelys_cli_app_t declared = app;
+    declared.commands = default_candidates;
+    declared.command_count = MAELYS_CLI_COUNT(default_candidates);
+    declared.default_command = identifier;
+    maelys_cli_error_t error;
+    memset(&error, 0, sizeof(error));
+    int validated = maelys_cli_catalog_validate(&declared, &error);
+    if (!detail) return validated == 0;
+    return validated != 0 && !strcmp(error.code, MAELYS_CLI_CODE_UNEXPECTED) &&
+        strstr(error.message, detail) != NULL;
+}
+
+static int test_default_command(void) {
+    /* A read, a stream and a transaction may be the default. */
+    CHECK(default_validates("look", NULL));
+    CHECK(default_validates("look.closer", NULL));
+    CHECK(default_validates("plan", NULL));
+    CHECK(default_validates("pipe", NULL));
+    /* Nothing else: the program refuses to run before it runs anything. */
+    CHECK(default_validates("nope", "names no command of the catalog"));
+    CHECK(default_validates("help", "names a command every program has"));
+    CHECK(default_validates("describe", "names a command every program has"));
+    CHECK(default_validates("complete.candidates", "names a command every program has"));
+    CHECK(default_validates("gone", "names a command this build cannot run"));
+    CHECK(default_validates("quiet", "names a hidden command"));
+    CHECK(default_validates("helper", "names a delegate"));
+    CHECK(default_validates("act", "no consent to an action"));
+    /* Refused at startup, whatever the line: an empty one, as `--help`. */
+    maelys_cli_app_t refused = app;
+    refused.commands = default_candidates;
+    refused.command_count = MAELYS_CLI_COUNT(default_candidates);
+    refused.default_command = "act";
+    char *out = NULL;
+    char *err = NULL;
+    size_t out_size = 0u;
+    size_t err_size = 0u;
+    FILE *out_stream = open_memstream(&out, &out_size);
+    FILE *err_stream = open_memstream(&err, &err_size);
+    char help_word[] = "--help";
+    char *line[] = {help_word};
+    int code = maelys_cli_run(&refused, 1, line, out_stream, err_stream);
+    (void)fclose(out_stream);
+    (void)fclose(err_stream);
+    CHECK(code == 1 && !out[0] && strstr(err, "[UNEXPECTED]") &&
+        strstr(err, "default_command 'act'"));
+    free(out);
+    free(err);
+    /* The parser: the first word of the line, and it only. */
+    maelys_cli_app_t declared = app;
+    declared.commands = default_candidates;
+    declared.command_count = MAELYS_CLI_COUNT(default_candidates);
+    declared.default_command = "look";
+    maelys_cli_invocation_t invocation;
+    maelys_cli_error_t error;
+    CHECK(maelys_cli_parse(&declared, 0, NULL, &invocation, &error) == 0 &&
+        !strcmp(invocation.command->id, "look") && invocation.default_selected);
+    char label[] = "--label";
+    char value[] = "plan";
+    char *with_value[] = {label, value};
+    /* A command's name taken by an option as its value is that value. */
+    CHECK(maelys_cli_parse(&declared, 2, with_value, &invocation, &error) == 0 &&
+        !strcmp(invocation.command->id, "look") &&
+        !strcmp(maelys_cli_invocation_option(&invocation, "label")->value, "plan"));
+    char look[] = "look";
+    char *named[] = {look, label, value};
+    CHECK(maelys_cli_parse(&declared, 3, named, &invocation, &error) == 0 &&
+        !strcmp(invocation.command->id, "look") && !invocation.default_selected);
+    char json[] = "--json";
+    char *second[] = {json, value};
+    CHECK(maelys_cli_parse(&declared, 2, second, &invocation, &error) != 0 &&
+        !strcmp(error.code, MAELYS_CLI_CODE_VALIDATION_FAILED) &&
+        strstr(error.message, "the default command 'look'"));
+    char closer[] = "closer";
+    char *family[] = {look, closer};
+    CHECK(maelys_cli_parse(&declared, 2, family, &invocation, &error) == 0 &&
+        !strcmp(invocation.command->id, "look.closer"));
+    char unknown[] = "nope";
+    char *mistyped[] = {unknown};
+    CHECK(maelys_cli_parse(&declared, 1, mistyped, &invocation, &error) != 0 &&
+        !strcmp(error.code, MAELYS_CLI_CODE_INVALID_COMMAND));
+    /* Without a default, nothing changes: a line of options names nothing. */
+    CHECK(maelys_cli_parse(&app, 2, with_value, &invocation, &error) != 0 &&
+        !strcmp(error.code, MAELYS_CLI_CODE_INVALID_COMMAND));
+    return 1;
+}
+
 static int test_invalid_catalog(void) {
     maelys_cli_command_t broken = commands[0];
     broken.id = "Broken Id";
@@ -1477,6 +1589,7 @@ int main(void) {
     RUN(test_constraints);
     RUN(test_operand_pattern);
     RUN(test_environment_format);
+    RUN(test_default_command);
     RUN(test_invalid_catalog);
     return failures ? 1 : 0;
 }

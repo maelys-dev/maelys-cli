@@ -147,6 +147,26 @@ command when either is wrong:
   into one line per paragraph, or each hand-made line is wrapped on its own
   and the paragraph reads ragged at another width.
 
+## Every consumer, at agent-cli-spec 2.16.0
+
+A program may now name a default command; one that names none is read as
+before, and nothing here is required of it.
+
+- **`default_command` is the last field of `maelys_cli_app_t`.** A product
+  that initializes the structure by position and builds with `-Wextra
+  -Werror` stops at `-Wmissing-field-initializers`: name the fields
+  (`.program = ...`), or add a trailing `NULL`.
+- **Declaring a default command can stop a line that ran.** The first word
+  of the line then decides alone: `PROGRAM --json list` selects the default
+  command and is refused in its name; `PROGRAM list --json` runs `list`. A
+  Python product read the first form as `list` until then; a C product
+  refused it already. Search the product's documents, tests and scripts for
+  options written before the command name.
+- **Its operands go after `--`**, and `-h` fails in its name: a line that
+  names no command is the default command's in every respect.
+- **A default command needs the release that carries this section**: an
+  earlier framework has no field to declare one.
+
 ## Every consumer, at agent-cli-spec 2.15.0
 
 Unlike the pins before it, this one comes with a framework release that

@@ -1,5 +1,46 @@
 # Changelog
 
+## Unreleased
+
+- **A program may name a default command.** `.default_command` on
+  `maelys_cli_app_t`, `default_command=` on a Python `Program`, names the
+  command a line that names no command runs, as agent-cli-spec 2.16.0
+  writes it ("A line that names no command", section 8). The
+  first word of the line, and it only, decides: `--help` and `--version` are
+  the help and the version; the first word of a pattern resolves as usual;
+  an option, `--`, a word with one dash or an empty line select the default
+  command; any other word is `INVALID_COMMAND`, never run as the default.
+  The rest of the line is then the default command's: a word an option
+  takes is its value, a bare word before `--` is refused in its name, its
+  operands come after `--`. It is the command in every respect, help,
+  effect and envelope included; a refusal or a failure of it tries no
+  other command. `describe` carries `defaultCommand` in every form; `help`
+  names it, says that a line starting with an option other than `--help`
+  and `--version` is its, and shows both ways to invoke it; `__complete`
+  completes a line of it. The catalog validation refuses a
+  default command that is not the product's, is hidden, unavailable or a
+  delegate, or whose effect is `execute`. A program that declares none is
+  read exactly as before. Declaring one can stop a line that ran: in
+  Python, `PROGRAM --json list` ran `list` and is then refused in the
+  default command's name; `PROGRAM list --json` runs it. `default_command`
+  is the last field of `maelys_cli_app_t`: a product that initializes the
+  structure by position and builds with `-Wextra -Werror` gets
+  `-Wmissing-field-initializers` until it names its fields.
+  `tests/default_surface.c` and `python/tests/default_surface.py` declare
+  one; `tests/test_cli.sh` asks every line of both, and sets fourteen lines
+  side by side before and after the default is declared, with a trace
+  showing that no handler runs on a refusal, `--help` or `--version`.
+- agent-cli-spec pinned at v2.16.0 (from v2.15.0). It adds the default
+  command; the entry above is what it asks of this framework. As for
+  2.15.0, the text and the tools were worked out before any tag, each
+  repository testing the other's commits, and the tag carries the tree both
+  agreed on. How a program without a default command reads an empty line,
+  or a line that starts with an option, is left as it was: C and Python
+  read them apart today, and that is for a later decision.
+  `conformance-check` now runs the kit on the two programs that declare a
+  default command too; `docs/migration.md` lists what changes for a
+  product.
+
 ## 0.7.0 - 2026-10-09
 
 This release changes what a C product accepts, which none since 0.6.0 did.

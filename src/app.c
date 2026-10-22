@@ -655,6 +655,42 @@ static int validate_command(
     return 0;
 }
 
+/* The default command (agent-cli/v2, section 8): a command of the product
+ * that a line naming nothing may run. Not a built-in, which every program
+ * has and none means by an empty line; not hidden or unavailable, which a
+ * line could not reach by name either; not a delegate, whose line nobody
+ * here reads; and not `execute`: a line that names nothing is no consent to
+ * an action. A read, a stream, or a transaction, which plans without
+ * --apply. */
+static int validate_default_command(
+    const maelys_cli_app_t *app, maelys_cli_error_t *error) {
+    const maelys_cli_command_t *command =
+        maelys_cli_app_find_command(app, app->default_command);
+    size_t builtin_count = 0u;
+    const maelys_cli_command_t *every = maelys_cli_builtin_commands(&builtin_count);
+    int builtin = 0;
+    for (size_t i = 0u; command && i < builtin_count; ++i)
+        if (command == &every[i]) builtin = 1;
+    const char *problem =
+        !command ? "names no command of the catalog" :
+        builtin ? "names a command every program has" :
+        command->unavailable ? "names a command this build cannot run" :
+        command->hidden ? "names a hidden command" :
+        command->delegate ? "names a delegate, whose line this program does not read" :
+        !(command->effect == MAELYS_CLI_EFFECT_READ ||
+          command->effect == MAELYS_CLI_EFFECT_STREAM ||
+          command->apply_effect != MAELYS_CLI_EFFECT_NONE) ?
+            "names a command that is neither a read, a stream nor a "
+            "transaction: a line that names nothing is no consent to an action" :
+        NULL;
+    if (!problem) return 0;
+    maelys_cli_error_set(error, MAELYS_CLI_CODE_UNEXPECTED,
+        "Name a shown, available read, stream or transaction command of the "
+        "product as default_command, or declare none.",
+        "Catalog default_command '%s' %s.", app->default_command, problem);
+    return -1;
+}
+
 int maelys_cli_catalog_validate(
     const maelys_cli_app_t *app, maelys_cli_error_t *error) {
     if (!app || !app->program || !*app->program || !app->product ||
@@ -675,6 +711,8 @@ int maelys_cli_catalog_validate(
     for (size_t i = 0u; i < count; ++i)
         if (validate_examples(app, maelys_cli_app_command_at(app, i), error) != 0)
             return -1;
+    if (app->default_command && validate_default_command(app, error) != 0)
+        return -1;
     for (size_t i = 0u; i < count; ++i) {
         const maelys_cli_command_t *command = maelys_cli_app_command_at(app, i);
         for (size_t j = i + 1u; j < count; ++j) {
@@ -2414,6 +2452,11 @@ static int describe_data(
         maelys_cli_json_key_integer(writer, "cliApi", MAELYS_CLI_API) != 0 ||
         maelys_cli_json_key_string(writer, "framework", MAELYS_CLI_VERSION) != 0)
         return -1;
+    /* In every form, the summary and the command form included: it says how
+     * the program reads a line, not which commands are shown. */
+    if (app->default_command &&
+        maelys_cli_json_key_string(writer, "defaultCommand", app->default_command) != 0)
+        return -1;
     if (prefix) {
         if (maelys_cli_json_key(writer, "filter") != 0 ||
             maelys_cli_json_begin_object(writer) != 0 ||
@@ -2799,6 +2842,17 @@ static int builtin_complete(maelys_cli_context_t *context) {
         }
     }
 
+    /* A first word that is an option selects the default command, whose
+     * words the rest are (agent-cli/v2, section 8): they are completed as
+     * that command's, after a pattern of no word. */
+    const maelys_cli_command_t *fallback = app->default_command ?
+        maelys_cli_app_find_command(app, app->default_command) : NULL;
+    if (!command && fallback && given_count > 0u && given[0][0] == '-' &&
+        strcmp(given[0], "--help") != 0 && strcmp(given[0], "--version") != 0) {
+        command = fallback;
+        command_words = 0u;
+    }
+
     if (!command) {
         /* Complete the next pattern word of every command that starts with
          * the words given so far, once: `agents install` and `agents status`
@@ -2817,6 +2871,22 @@ static int builtin_complete(maelys_cli_context_t *context) {
             }
             if (offered) continue;
             if (emit_candidate(context, word, prefix) != 0)
+                return maelys_cli_fail(context, MAELYS_CLI_CODE_IO_FAILED, NULL,
+                    "Could not write candidates.");
+        }
+        /* At the root, a word that starts with a dash may begin the line of
+         * the default command: its options are among the candidates. */
+        if (fallback && given_count == 0u && prefix[0] == '-') {
+            maelys_cli_invocation_t none;
+            memset(&none, 0, sizeof(none));
+            size_t transport_count = 0u;
+            const maelys_cli_option_t *transport =
+                maelys_cli_transport_options(&transport_count);
+            if (emit_option_candidates(context, fallback->options,
+                    fallback->option_count, prefix, &none) != 0 ||
+                (fallback->output != MAELYS_CLI_OUTPUT_STREAM &&
+                 emit_option_candidates(context, transport, transport_count,
+                    prefix, &none) != 0))
                 return maelys_cli_fail(context, MAELYS_CLI_CODE_IO_FAILED, NULL,
                     "Could not write candidates.");
         }
@@ -3170,6 +3240,13 @@ static void options_help(FILE *stream, const maelys_cli_option_t *options,
     }
 }
 
+/* The two ways to invoke the default command, each a line to copy and so,
+ * as an example, never wrapped. */
+static void default_forms(FILE *stream, const char *program, const char *pattern) {
+    (void)fprintf(stream, "  %s [OPTIONS] [-- OPERANDS]\n", program);
+    (void)fprintf(stream, "  %s %s [OPTIONS] [-- OPERANDS]\n", program, pattern);
+}
+
 static void command_help_text(
     FILE *stream, const maelys_cli_app_t *app,
     const maelys_cli_command_t *command, size_t width) {
@@ -3183,6 +3260,14 @@ static void command_help_text(
     (void)fputc('\n', stream);
     (void)help_wrap(stream, command->purpose, 0u, 0u, width, 0);
     (void)fputs("\n\n", stream);
+    if (app->default_command && !strcmp(app->default_command, command->id)) {
+        (void)fputs("DEFAULT COMMAND\n", stream);
+        help_paragraph(stream, "A line that names no command runs this one: an "
+            "empty line, or one that starts with an option other than --help "
+            "and --version. Its operands come after --:", width, 0);
+        default_forms(stream, app->program, command->pattern);
+        (void)fputc('\n', stream);
+    }
     if (command->unavailable) {
         (void)fputs("UNAVAILABLE IN THIS BUILD\n", stream);
         help_paragraph(stream, command->unavailable, width, 0);
@@ -3342,6 +3427,19 @@ static void catalog_help_text(FILE *stream, const maelys_cli_app_t *app, size_t 
                 command->unavailable ? " (unavailable in this build)" : "");
             help_entry(stream, command->pattern, line, column, width, 0);
         }
+    }
+    /* The default command, named and shown both ways (agent-cli/v2, section
+     * 8): which one a line that names no command runs, which lines those
+     * are, and how its operands are then written. */
+    const maelys_cli_command_t *fallback = app->default_command ?
+        maelys_cli_app_find_command(app, app->default_command) : NULL;
+    if (fallback) {
+        (void)snprintf(line, sizeof(line), "A line that names no command runs "
+            "'%s': an empty line, or one that starts with an option other than "
+            "--help and --version. Its operands come after --:", fallback->pattern);
+        (void)fputs("\nDEFAULT COMMAND\n", stream);
+        help_paragraph(stream, line, width, 0);
+        default_forms(stream, app->program, fallback->pattern);
     }
     /* What every program has in common is named, not repeated: the options
      * and the contract are the same in every product, and spelled out they

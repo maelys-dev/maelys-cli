@@ -97,9 +97,20 @@ static int pattern_matches(const char *pattern, int argc, char **argv) {
 }
 
 static const maelys_cli_command_t *resolve_command(
-    const maelys_cli_app_t *app, int argc, char **argv, int *out_words) {
+    const maelys_cli_app_t *app, int argc, char **argv, int *out_words,
+    int *out_default) {
     *out_words = 0;
-    if (argc == 0) return maelys_cli_app_find_command(app, "help");
+    *out_default = 0;
+    /* A program that declares a default command reads the first word of the
+     * line, and it only (agent-cli/v2, section 8): an option, `--` or a word
+     * with one dash selects the default command, and so does an empty line.
+     * The catalog validation has checked that it names a command. */
+    const maelys_cli_command_t *fallback = app->default_command ?
+        maelys_cli_app_find_command(app, app->default_command) : NULL;
+    if (argc == 0) {
+        *out_default = fallback != NULL;
+        return fallback ? fallback : maelys_cli_app_find_command(app, "help");
+    }
     if (!strcmp(argv[0], "--help")) {
         *out_words = 1;
         return maelys_cli_app_find_command(app, "help");
@@ -107,6 +118,10 @@ static const maelys_cli_command_t *resolve_command(
     if (!strcmp(argv[0], "--version")) {
         *out_words = 1;
         return maelys_cli_app_find_command(app, "version");
+    }
+    if (fallback && argv[0][0] == '-') {
+        *out_default = 1;
+        return fallback;
     }
     const maelys_cli_command_t *best = NULL;
     size_t best_words = 0u;
@@ -434,7 +449,7 @@ int maelys_cli_parse(
     memset(out, 0, sizeof(*out));
     if (error) memset(error, 0, sizeof(*error));
     int words = 0;
-    out->command = resolve_command(app, argc, argv, &words);
+    out->command = resolve_command(app, argc, argv, &words, &out->default_selected);
     if (!out->command) {
         maelys_cli_error_set(error, MAELYS_CLI_CODE_INVALID_COMMAND,
             "Run 'describe --summary --format json' to discover valid "
@@ -469,6 +484,21 @@ int maelys_cli_parse(
              * `note write -f` wrote a file named `-f`, and a caller who
              * wrote `-v` out of habit learned nothing. `-` alone is an
              * operand; after `--` every word is one. */
+            /* Selected by a line that named no command, the default command
+             * has no operand before `--`: a word that is neither an option
+             * nor its value is a command's name mistyped or put second, not
+             * an operand to run it with (`PROGRAM --json list`). */
+            if (!passthrough && out->default_selected &&
+                (argument[0] != '-' || argument[1] == '\0')) {
+                maelys_cli_error_set(error, MAELYS_CLI_CODE_VALIDATION_FAILED,
+                    "Write the command's pattern first, or the operands of "
+                    "the default command after --.",
+                    "'%s' is neither an option nor the value of one: the line "
+                    "names no command and runs the default command '%s', "
+                    "whose operands are written after --.", argument,
+                    out->command->id);
+                PARSE_FAIL();
+            }
             if (!passthrough && argument[0] == '-' && argument[1] != '\0') {
                 maelys_cli_error_set(error, MAELYS_CLI_CODE_VALIDATION_FAILED,
                     "Spell an option --name; write an operand that starts "

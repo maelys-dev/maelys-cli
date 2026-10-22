@@ -92,6 +92,21 @@ shell quoting: the help quotes the words a shell would read otherwise. `help
 COMMAND_ID` shows them, `describe` lists them except in its summary. The rules are those of
 `docs/command-conventions.md`, "Examples".
 
+## A default command
+
+`Program(..., default_command="show")` names the command a line that names
+no command runs (spec, section 8; `.default_command` in C): a line whose
+first word is an option, `--` or a word with one dash, and an empty line.
+Its operands are then written after `--`, and a bare word before `--` is
+refused in its name. `Program` raises `ValueError` when the identifier is
+not a command of the program, is a built-in, hidden, unavailable or a
+delegate, or is an `execute` command. `describe` carries `defaultCommand`,
+`help` names it, and the completion script is the one that calls
+`__complete`. Without it nothing changes; with it, `PROGRAM --json list`,
+which ran `list`, selects the default command and is refused: `PROGRAM list
+--json` runs `list`. The rules are those of
+`docs/command-conventions.md`, "A default command".
+
 ## Help
 
 `help`, `help COMMAND_ID`, `help FAMILY` and their `--help` spellings are

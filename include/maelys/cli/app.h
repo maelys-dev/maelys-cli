@@ -45,6 +45,16 @@ typedef struct maelys_cli_app {
      * never broken by hand; a blank line stays a blank line. */
     const char *agent_guidance;
     void *user_data;
+    /* The command a line that names none runs (agent-cli/v2, section 8, "A
+     * line that names no command"): its identifier, or NULL for none. With
+     * it, a line whose first word is an option, `--` or a word with one
+     * dash, and an empty line, run that command; its operands are written
+     * after `--`, and an unknown first word is still INVALID_COMMAND. It
+     * must name a command of the product that is available, shown, not a
+     * delegate, and a read, a stream or a transaction: the catalog
+     * validation refuses any other, an `execute` command included, since a
+     * line that names nothing is no consent to an action. */
+    const char *default_command;
 } maelys_cli_app_t;
 
 typedef struct maelys_cli_context {

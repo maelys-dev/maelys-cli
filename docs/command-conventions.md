@@ -267,6 +267,57 @@ affected. The refusal is deliberate: accepting an alias would let two
 spellings of the same intent coexist across products, which is what the
 shared contract exists to prevent.
 
+## A default command
+
+A program may name one of its commands as the one a line that names no
+command runs: `.default_command = "show"` on `maelys_cli_app_t` in C,
+`default_command="show"` on `Program` in Python (agent-cli/v2, section 8,
+"A line that names no command"). Without it nothing below applies, and a
+line that starts with an option is read as it always was.
+
+The program then reads the first word of the line, and it only. `--help`
+and `--version` are the help and the version, as in every program. The
+first word of a pattern resolves as usual, a pattern of several words
+included. Any other word that starts with a dash -- an option, `--`, a
+word with one dash -- selects the default command, and so does an empty
+line. Any other word is `INVALID_COMMAND`: a mistyped name is told, never
+run as the default command.
+
+No word further on is sought as a command. A word an option takes as its
+value is that value (`PROGRAM --label list`); a word that is neither an
+option nor a value is refused before `--` with `VALIDATION_FAILED`, in the
+name of the default command (`PROGRAM --json list` fails, `PROGRAM list
+--json` runs `list`). The operands of the default command are written after
+`--`: `PROGRAM -- FILE`. `-h` fails as any word with one dash does.
+
+Once selected, the default command is the command in every respect: its
+validation, its help (`PROGRAM --label x --help`), its effect -- a
+transaction plans without `--apply`, a stream keeps its stdout -- and the
+envelope, which names it. A refusal or a failure is its own: no other
+command is tried, before the handler or after it. `describe` carries
+`defaultCommand` in every form. `help` names it, says that a line starting
+with an option other than `--help` and `--version` is its, and shows the
+two ways to invoke it; its own help says so. `__complete` completes the words after a first option as the
+default command's, and offers its options at the root after a dash. A
+Python program with a default command gets the completion script that
+calls `__complete`: the static table resolves a command by its pattern
+words, which such a line does not have.
+
+The catalog validation refuses a default command that is not a command of
+the product, that is a built-in, hidden, unavailable or a delegate, or whose
+effect is `execute`: a line that names nothing is no consent to an action.
+A read, a stream and a transaction are allowed.
+
+Declaring a default command can stop a line that ran. A Python program
+without one reads `PROGRAM --json list` as `list`; with one, that line
+selects the default command and is refused, and `PROGRAM list --json` is the
+form that runs `list`. A C program refuses `PROGRAM --json list` either way.
+How a program without a default reads an empty line, or a line that starts
+with an option, is left as it was: C shows the help for the first and
+refuses the second, Python refuses the first and looks for the command
+further on in the second. `tests/test_cli.sh` sets the two answers side by
+side on one catalog, before and after a default is declared.
+
 ## Examples
 
 A command declares its examples in the catalog, with

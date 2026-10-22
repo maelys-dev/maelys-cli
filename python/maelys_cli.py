@@ -63,6 +63,8 @@ COLORS = ("auto", "always", "never")
 SHELLS = ("bash", "zsh", "fish")
 # Marks, among the options read from a line, a word that starts with one dash.
 _DASH_WORD = object()
+# And, on a line that selected the default command, a word that is no option.
+_BARE_WORD = object()
 
 # What a stream command refuses, as the C parser does: the options that shape
 # stdout. --color shapes the diagnostics on stderr and is accepted.
@@ -1523,7 +1525,8 @@ class Invocation:
 
 class Program:
     def __init__(self, program: str, product: str, version: str, commands: list, guide: str = "",
-                 text: Optional[dict] = None, framework: str = FRAMEWORK, static_completion: bool = True) -> None:
+                 text: Optional[dict] = None, framework: str = FRAMEWORK, static_completion: bool = True,
+                 default_command: Optional[str] = None) -> None:
         self.program = program
         self.product = product
         self.version = version
@@ -1576,9 +1579,39 @@ class Program:
         # usage in help; describe uses the catalog's synopsis
         self.catalog[0]["usage"] = "help [COMMAND_ID] | --help"
         self.catalog[1]["usage"] = "version | --version"
+        # The command a line that names none runs (spec, section 8; C: default_command and
+        # validate_default_command), checked before the examples, which are parsed.
+        self.default_command = default_command
+        if default_command is not None:
+            self._check_default_command(default_command)
         # The examples last: parsing one needs the whole catalog.
         for command in self.catalog:
             self._check_examples(command)
+
+    def _check_default_command(self, identifier: str) -> None:
+        """A command of the product that a line naming nothing may run: not a built-in, not hidden or
+        unavailable, not a delegate, and a read, a stream or a transaction -- a line that names nothing is
+        no consent to an action. The messages are those of the C catalog validation."""
+        target = next((item for item in self.catalog if item["id"] == identifier), None)
+        problem = (
+            "names no command of the catalog" if target is None else
+            "names a command every program has" if self.catalog.index(target) < self._builtin_count else
+            "names a command this build cannot run" if target["unavailable"] is not None else
+            "names a hidden command" if target["hidden"] else
+            "names a delegate, whose line this program does not read" if target["external"] or target["passthrough"] else
+            "names a command that is neither a read, a stream nor a transaction: a line that names nothing is "
+            "no consent to an action" if not (target["effect"] in ("read", "stream") or isinstance(target["effect"], dict))
+            else None)
+        if problem is not None:
+            raise ValueError(f"Catalog default_command '{identifier}' {problem}.")
+
+    def _default_forms(self, pattern: str) -> str:
+        """The two ways to invoke the default command (C: default_forms), each a line to copy and so,
+        as an example, never wrapped."""
+        return f"  {self.program} [OPTIONS] [-- OPERANDS]\n  {self.program} {pattern} [OPTIONS] [-- OPERANDS]\n"
+
+    def _default(self) -> Optional[dict]:
+        return self.command_by_id(self.default_command) if self.default_command is not None else None
 
     def _check_examples(self, command: dict) -> None:
         """An example is an invocation the command accepts (spec 2.12, section
@@ -1722,6 +1755,11 @@ class Program:
         operands and options, laid out within `width` columns."""
         text = "USAGE\n" + _help_paragraph(f"{self.program} {command['usage']}", width, groups=True)
         text += "\n" + _help_wrap(command["purpose"], 0, 0, width) + "\n\n"
+        if self.default_command == command["id"]:
+            text += "DEFAULT COMMAND\n" + _help_paragraph(
+                "A line that names no command runs this one: an empty line, or one that starts with an option "
+                "other than --help and --version. Its operands come after --:", width) \
+                + self._default_forms(" ".join(command["pattern"])) + "\n"
         if command["unavailable"] is not None:
             text += "UNAVAILABLE IN THIS BUILD\n" + _help_paragraph(command["unavailable"], width) + "\n"
         effect = command["effect"]
@@ -1801,6 +1839,13 @@ class Program:
             for command in group:
                 purpose = command["purpose"] + (" (unavailable in this build)" if command["unavailable"] is not None else "")
                 text += _help_entry(" ".join(command["pattern"]), purpose, column, width)
+        default = self._default()
+        if default is not None:
+            pattern = " ".join(default["pattern"])
+            text += "\nDEFAULT COMMAND\n" + _help_paragraph(
+                f"A line that names no command runs '{pattern}': an empty line, or one that starts with an option "
+                "other than --help and --version. Its operands come after --:", width) \
+                + self._default_forms(pattern)
         # What every program has in common is named, not repeated: spelled
         # out, the options and the contract were two thirds of this screen.
         names = ", ".join(item["long"] for item in GLOBAL_OPTIONS if not item.get("hidden"))
@@ -1856,6 +1901,9 @@ class Program:
     def _describe(self, invocation: Invocation) -> "tuple[dict, int]":
         data: dict = {"schemaVersion": CATALOG_SCHEMA, "program": self.program, "product": self.product,
                       "version": self.version, "contract": CONTRACT, "cliApi": CLI_API, "framework": self.framework}
+        if self.default_command is not None:
+            # In every form: it says how the program reads a line, not which commands are shown.
+            data["defaultCommand"] = self.default_command
         prefix = invocation.option("--prefix")
         if prefix is not None:
             if not PREFIX_GRAMMAR.fullmatch(prefix):
@@ -1898,7 +1946,10 @@ class Program:
         returns."""
         if shell not in SHELLS:
             raise ValueError(f"a completion script is for one of {', '.join(SHELLS)}, not {shell!r}")
-        rows = self._static_rows() if (self.static_completion if static is None else static) else None
+        # A catalog with a default command gets the script that calls __complete: the static table
+        # resolves a command from its pattern words, and a line of the default command has none.
+        rows = self._static_rows() if (self.static_completion if static is None else static) \
+            and self.default_command is None else None
         if rows is None:
             return self._dynamic_script(shell)
         template = {"bash": _STATIC_BASH, "zsh": _STATIC_ZSH, "fish": _STATIC_FISH}[shell]
@@ -2008,17 +2059,27 @@ class Program:
             pattern = other["pattern"]
             if previous[:len(pattern)] == pattern and (command is None or len(pattern) > len(command["pattern"])):
                 command = other
+        consumed = len(command["pattern"]) if command is not None else 0
+        # A first word that is an option selects the default command, whose words the rest are.
+        default = self._default()
+        if command is None and default is not None and previous and previous[0].startswith("-") \
+                and previous[0] not in ("--help", "--version"):
+            command, consumed = default, 0
         candidates: list = []
         if command is None:
             # The next pattern word of every command that starts with the words given so far.
             candidates = [other["pattern"][len(previous)] for other in shown
                           if len(other["pattern"]) > len(previous) and other["pattern"][:len(previous)] == previous]
+            if default is not None and not previous and current.startswith("-"):
+                # At the root, a word with a dash may begin the line of the default command.
+                shared = [] if default["outputMode"] == "protocol-stream" else GLOBAL_OPTIONS
+                candidates += [item["long"] for item in default["options"] + shared if not item.get("hidden")]
         elif command["external"]:
             # The words after a delegate's pattern are the delegate's, which this catalog does not hold:
             # none, and never this program's own options (section 9).
             pass
         else:
-            after = previous[len(command["pattern"]):]
+            after = previous[consumed:]
             shared = [] if command["outputMode"] == "protocol-stream" else GLOBAL_OPTIONS
             expecting = None
             if after and after[-1].startswith("--") and "=" not in after[-1]:
@@ -2086,9 +2147,14 @@ class Program:
         index = 0
         command = None
         consumed = 0
+        # With a default command, the first word of the line, and it only, says whether the line names a
+        # command (spec, section 8): an option, `--`, a word with one dash or an empty line select the
+        # default command, whose words the rest are; a bare word further on is no command and no operand.
+        default = self._default()
+        implicit = default is not None and (not argv or (argv[0].startswith("-") and argv[0] not in ("--help", "--version")))
         while index < len(argv):
             word = argv[index]
-            command, consumed = self.resolve(words)
+            command, consumed = (default, 0) if implicit else self.resolve(words)
             if command is not None and command["passthrough"] and len(words) == consumed:
                 passthrough = argv[index:]
                 break
@@ -2119,11 +2185,19 @@ class Program:
                 raw.append((word, _DASH_WORD))
                 index += 1
                 continue
+            if implicit:
+                # Refused below at its turn, in the name of the default command.
+                raw.append((word, _BARE_WORD))
+                index += 1
+                continue
             words.append(word)
             index += 1
         # A word that starts with one dash names no command and selects none:
         # `-x --help` resolves nothing, as in C.
-        if not words and any(name in ("--help", "--version") for name, _ in raw) \
+        if implicit:
+            words = list(default["pattern"])
+            consumed = len(words)
+        elif not words and any(name in ("--help", "--version") for name, _ in raw) \
                 and not any(value is _DASH_WORD for _, value in raw):
             words = ["help"] if any(name == "--help" for name, _ in raw) else ["version"]
             raw = [(name, value) for name, value in raw if name not in ("--help", "--version")]
@@ -2164,6 +2238,11 @@ class Program:
             if value is _DASH_WORD:
                 raise Failure("VALIDATION_FAILED", f"Option {name} is not supported: options are spelled --name.",
                               "Spell an option --name; write an operand that starts with a dash after --.")
+            if value is _BARE_WORD:
+                raise Failure("VALIDATION_FAILED",
+                              f"'{name}' is neither an option nor the value of one: the line names no command and runs "
+                              f"the default command '{command['id']}', whose operands are written after --.",
+                              "Write the command's pattern first, or the operands of the default command after --.")
             seen.add(name)
             declared = known.get(name) or next((item for item in GLOBAL_OPTIONS if item["long"] == name), None)
             if declared is not None and "argument" in declared and value is None:

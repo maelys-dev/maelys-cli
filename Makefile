@@ -188,6 +188,12 @@ $(BUILD)/tests/catalog_surface: tests/catalog_surface.c $(LIB) $(HEADERS)
 	@mkdir -p $(@D)
 	$(CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) $(CFLAGS) $(COMMON_CFLAGS) $< $(LIB) $(LDFLAGS) -o $@
 
+# A program that declares a default command; python/tests/default_surface.py
+# is its twin, and tests/test_cli.sh compares their answers.
+$(BUILD)/tests/default_surface: tests/default_surface.c $(LIB) $(HEADERS)
+	@mkdir -p $(@D)
+	$(CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) $(CFLAGS) $(COMMON_CFLAGS) $< $(LIB) $(LDFLAGS) -o $@
+
 # Fuzzing, as maelys-release's conventions name it. Each harness of
 # tests/fuzz is built twice. With -DMAELYS_CLI_FUZZ_REPLAY it is a plain
 # program replaying tests/fuzz/corpus/NAME, every truncation and single-byte
@@ -256,7 +262,7 @@ $(BUILD)/pkgconfig/%.pc: pkgconfig/%.pc.in VERSION
 test: $(TESTS)
 	@for test in $(TESTS); do echo "== $$test"; $$test || exit 1; done
 
-cli-check: $(DISPATCHER) $(EXAMPLE)
+cli-check: $(DISPATCHER) $(EXAMPLE) $(BUILD)/tests/default_surface
 	./tests/test_cli.sh $(BUILD)/bin
 
 embed-check: $(EMBED)
@@ -364,14 +370,14 @@ describe-schema-check: $(BUILD)/tests/catalog_surface
 		{ echo "describe-schema-check: no pinned agent-cli-spec at '$(AGENT_CLI_SPEC_DIR)': MAELYS_DEPENDENCIES_DIR must name the root 'maelys-release dependencies . --apply' materialised, or AGENT_CLI_SPEC_DIR its pinned checkout" >&2; exit 1; }
 	python3 scripts/describe-schema-check.py $(BUILD)/tests/catalog_surface $(AGENT_CLI_SPEC_DIR)
 
-conformance-check: $(DISPATCHER) $(EXAMPLE) $(BUILD)/tests/catalog_surface
+conformance-check: $(DISPATCHER) $(EXAMPLE) $(BUILD)/tests/catalog_surface $(BUILD)/tests/default_surface
 	@test -x $(AGENT_CLI_SPEC_DIR)/conformance/run.py || \
 		{ echo "conformance-check: no pinned agent-cli-spec at '$(AGENT_CLI_SPEC_DIR)': MAELYS_DEPENDENCIES_DIR must name the root 'maelys-release dependencies . --apply' materialised, or AGENT_CLI_SPEC_DIR its pinned checkout" >&2; exit 1; }
 	@test "$$(git -C $(AGENT_CLI_SPEC_DIR) rev-parse HEAD)" = "$$(sed -n 2p dependencies/agent-cli-spec.pin)" || \
 		{ echo "conformance-check: $(AGENT_CLI_SPEC_DIR) is not at dependencies/agent-cli-spec.pin" >&2; exit 1; }
 	@# The products, and the catalog declaring every macro: a declaration no
 	@# product exercises is one the kit never judged (spec 2.5.1, section 10).
-	@for program in "$(BUILD)/bin/maelys-hello" "$(BUILD)/bin/maelys" "$$(command -v python3) python/examples/hello.py" "$(BUILD)/tests/catalog_surface" "$$(command -v python3) python/tests/completion_surface.py"; do \
+	@for program in "$(BUILD)/bin/maelys-hello" "$(BUILD)/bin/maelys" "$$(command -v python3) python/examples/hello.py" "$(BUILD)/tests/catalog_surface" "$$(command -v python3) python/tests/completion_surface.py" "$(BUILD)/tests/default_surface" "$$(command -v python3) python/tests/default_surface.py"; do \
 		if MAELYS_COMMANDS_PATH=/nonexistent PYTHONDONTWRITEBYTECODE=1 \
 			python3 $(AGENT_CLI_SPEC_DIR)/conformance/run.py $$program > $(BUILD)/conformance.log 2>&1; then \
 			tail -1 $(BUILD)/conformance.log; \

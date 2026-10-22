@@ -504,6 +504,137 @@ check "an untrusted manifest stops the dispatcher" '[ "$code" = 1 ] && printf "%
 rm -f "$commands/untrusted.json" 
 rm -f "$commands/bad.json"
 
+# A default command (agent-cli/v2, section 8, "A line that names no command"):
+# default_surface declares `show` in C, python/tests/default_surface.py the
+# same catalog in Python. Each line is asked of both, and their envelopes
+# must be the same bytes; then what each line must answer.
+dflt_c="$bin/../tests/default_surface"
+dflt_py="python3 -B $(dirname "$0")/../python/tests/default_surface.py"
+# What two answers must share: the command the envelope names, the exit
+# code, the error code, and the data of a success -- of a help, the commands
+# it is about, its text being worded apart in C and in Python.
+dflt_answer() {
+    printf '%s' "${out:-$err}" | python3 -c 'import json, sys
+envelope = json.load(sys.stdin)
+data = envelope.get("data", {})
+if envelope.get("command") == "help":
+    data = data.get("commands")
+print(envelope.get("command"), envelope.get("exitCode"), envelope.get("error", {}).get("code"),
+      json.dumps(data, sort_keys=True, separators=(",", ":")))'
+}
+dflt() { # dflt NAME WORDS...: both programs, JSON by the environment
+    name=$1
+    shift
+    run "$name" env MAELYS_CLI_FORMAT=json "$dflt_c" "$@"
+    c_code=$code c_answer=$(dflt_answer)
+    run "$name-py" env MAELYS_CLI_FORMAT=json $dflt_py "$@"
+    answer=$(dflt_answer)
+    check "default command, C and Python agree: $name" '[ "$code" = "$c_code" ] && [ "$answer" = "$c_answer" ]'
+}
+said() { # said PATTERN: the last answer, C and Python having agreed
+    printf '%s' "$answer" | grep -q -- "$1"
+}
+dflt empty
+check "an empty line runs the default command" '[ "$code" = 0 ] && said "^show 0 None "'
+dflt option --label x
+check "a line that starts with an option runs the default command" '[ "$code" = 0 ] && said "^show 0 None " && said "\"label\":\"x\""'
+dflt value --label list
+check "a command name an option takes as its value is that value" '[ "$code" = 0 ] && said "^show 0 None " && said "\"label\":\"list\""'
+dflt bare --label x list
+check "a bare word before -- is no operand of the default command" '[ "$code" = 1 ] && said "^show 1 VALIDATION_FAILED"'
+dflt named list --limit x
+check "a line that starts with a pattern runs that command" '[ "$code" = 1 ] && said "^list 1 VALIDATION_FAILED"'
+dflt operands --label x -- notes.txt
+check "the operands of the default command come after --" '[ "$code" = 0 ] && said "\"file\":\"notes.txt\""'
+dflt dash -h
+check "-h selects the default command and fails in its name" '[ "$code" = 1 ] && said "^show 1 VALIDATION_FAILED"'
+dflt unknown nope
+check "an unknown first word is never run as the default command" '[ "$code" = 1 ] && said "^unknown 1 INVALID_COMMAND"'
+dflt help-default --label x --help
+check "--help after an option is the help of the default command" '[ "$code" = 0 ] && said "^help 0 None \[\"show\"\]"'
+dflt help-first --help
+check "--help first is the general help" '[ "$code" = 0 ] && said "^help 0 None \[\"help\""'
+dflt plan save --content text
+check "a transaction plans without --apply" '[ "$code" = 0 ] && said "\"mode\":\"plan\""'
+dflt complete-root __complete -- --
+check "at the root a dash completes with the default command's options" '[ "$code" = 0 ] && said "\"word\":\"--label\""'
+dflt complete-after __complete -- --level ""
+check "after a first option the default command's values complete" '[ "$code" = 0 ] && said "\"word\":\"high\""'
+for form in "describe" "describe --summary" "describe --summary --prefix list" "describe list"; do
+    run "describe-default-$form" "$dflt_c" $form --json --compact
+    check "every form of describe names the default command: $form" '[ "$code" = 0 ] && printf "%s" "$out" | grep -q "\"defaultCommand\":\"show\""'
+done
+run help-default "$dflt_c" help
+check "help names the default command and shows both forms" '[ "$code" = 0 ] && printf "%s" "$out" | grep -q "^  default-surface \[OPTIONS\] \[-- OPERANDS\]$" && printf "%s" "$out" | grep -q "^  default-surface show \[OPTIONS\] \[-- OPERANDS\]$"'
+run help-no-default "$hello" help
+check "a program without a default command says nothing of one" '[ "$code" = 0 ] && ! printf "%s" "$out" | grep -q "DEFAULT COMMAND"'
+run help-says-options "$dflt_c" help
+check "help says a line that starts with an option is the default command's" 'printf "%s" "$out" | tr "\n" " " | grep -q "starts *with an option other than --help *and --version"'
+run help-says-options-py $dflt_py show --help
+check "the default command's help says it too" 'printf "%s" "$out" | tr "\n" " " | grep -q "starts *with an option other than --help *and --version"'
+
+# Migration (section 8: declaring a default command can stop a line that
+# ran): the same catalog before a default is declared
+# (DEFAULT_SURFACE_DEFAULT=none) and after, in C and in Python. Each handler
+# appends its command to a trace: a handler ran exactly when a command of
+# the catalog succeeded, never on a refusal, --help or --version. Without a
+# default C and Python read an empty line and a line that starts with an
+# option apart; the specification leaves that open, and these lines say
+# what each does today.
+mig_trace="$work/default-trace"
+mig_answer() { # the command, the exit code and the error code; a stream's first line
+    printf '%s' "${out:-$err}" | python3 -c 'import json, sys
+text = sys.stdin.read()
+try:
+    envelope = json.loads(text)
+except ValueError:
+    print("stream", sys.argv[1], (text.splitlines() or [""])[0])
+    sys.exit()
+print(envelope.get("command"), envelope.get("exitCode"), envelope.get("error", {}).get("code"))' "$code"
+}
+mig_one() { # mig_one NAME DEFAULT PROGRAM WORDS...: $answer, the handler checked
+    mig_name=$1 mig_default=$2 mig_program=$3
+    shift 3
+    : >"$mig_trace"
+    run "$mig_name" env DEFAULT_SURFACE_DEFAULT="$mig_default" DEFAULT_SURFACE_TRACE="$mig_trace" \
+        MAELYS_CLI_FORMAT=json $mig_program "$@"
+    answer=$(mig_answer)
+    ran=$(cat "$mig_trace")
+    case "$answer" in
+        "stream 0 "*) expected=$mig_default ;;
+        help\ *|version\ *|*" 1 "*|*" 2 "*) expected= ;;
+        *) expected=${answer%% *} ;;
+    esac
+    check "a handler runs only for a command that succeeds: $mig_name ($answer)" '[ "$ran" = "$expected" ]'
+}
+mig() { # mig NAME DEFAULT BEFORE_C BEFORE_PY AFTER WORDS...
+    m_name=$1 m_default=$2 m_before_c=$3 m_before_py=$4 m_after=$5
+    shift 5
+    mig_one "$m_name-before" none "$dflt_c" "$@"
+    check "before a default, C: $m_name" '[ "$answer" = "$m_before_c" ]'
+    mig_one "$m_name-before-py" none "$dflt_py" "$@"
+    check "before a default, Python: $m_name" '[ "$answer" = "$m_before_py" ]'
+    mig_one "$m_name-after" "$m_default" "$dflt_c" "$@"
+    check "after a default, C: $m_name" '[ "$answer" = "$m_after" ]'
+    mig_one "$m_name-after-py" "$m_default" "$dflt_py" "$@"
+    check "after a default, Python: $m_name" '[ "$answer" = "$m_after" ]'
+}
+mig empty show "help 0 None" "unknown 1 INVALID_COMMAND" "show 0 None"
+mig json-first show "unknown 1 INVALID_COMMAND" "list 0 None" "show 1 VALIDATION_FAILED" --json list
+mig json-after show "list 0 None" "list 0 None" "list 0 None" list --json
+mig value-list show "unknown 1 INVALID_COMMAND" "list 1 VALIDATION_FAILED" "show 0 None" --label list
+mig unknown show "unknown 1 INVALID_COMMAND" "unknown 1 INVALID_COMMAND" "unknown 1 INVALID_COMMAND" nope
+mig help show "help 0 None" "help 0 None" "help 0 None" --help
+mig version show "version 0 None" "version 0 None" "version 0 None" --version
+mig help-implicit show "unknown 1 INVALID_COMMAND" "unknown 1 INVALID_COMMAND" "help 0 None" --label x --help
+mig dash-h show "unknown 1 INVALID_COMMAND" "unknown 1 INVALID_COMMAND" "show 1 VALIDATION_FAILED" -h
+mig dash-x show "unknown 1 INVALID_COMMAND" "unknown 1 INVALID_COMMAND" "show 1 VALIDATION_FAILED" -x
+mig operands show "unknown 1 INVALID_COMMAND" "unknown 1 INVALID_COMMAND" "show 0 None" --label x -- notes.txt
+mig stream-json watch "unknown 1 INVALID_COMMAND" "unknown 1 INVALID_COMMAND" "watch 1 VALIDATION_FAILED" --json
+mig stream-empty watch "help 0 None" "unknown 1 INVALID_COMMAND" "stream 0 watching"
+mig transaction save "unknown 1 INVALID_COMMAND" "unknown 1 INVALID_COMMAND" "save 0 None" --content text
+check "a default transaction without --apply plans" 'printf "%s" "$out" | grep -q "\"mode\": *\"plan\""'
+
 if [ "$failures" -ne 0 ]; then
     printf '%s CLI test(s) failed\n' "$failures" >&2
     exit 1

@@ -226,6 +226,20 @@ COMMAND_ID` shows them and `describe` lists them, except in its summary.
 Write them here, not in a README.
 
 
+### Name a default command (optional)
+
+`.default_command = "show"` on `maelys_cli_app_t` (`default_command=` on a
+Python `Program`) names the command a line that names none runs: a line
+whose first word is an option, `--` or a word with one dash, and an empty
+line. Its operands are then written after `--`; a bare word before `--` is
+refused, and an unknown first word is still `INVALID_COMMAND`. It must be
+the product's own command, shown, available, not a delegate, and a read, a
+stream or a transaction: the catalog validation refuses `execute`, since a
+line that names nothing is no consent to an action. Declare none unless one
+command is what the program is for: a line that put options before the
+command name (`PROGRAM --json list`) then selects the default command and is
+refused, and must be written `PROGRAM list --json`.
+
 ### Compose the catalog from parts (build variants)
 
 A product that ships several build variants (a public build and an
