@@ -7,8 +7,8 @@ générateur de lignes diffère. Ce document est une proposition de travail
 sur la branche `feat/human-help-man` ; il n'a pas vocation à rester dans
 le dépôt une fois les décisions prises.
 
-Points soumis à David (spec ou catalogue) : **D1 à D4**, en fin de
-document. Tout le reste est du rendu et peut avancer dès l'accord sur la
+Points soumis à David (spec ou catalogue) : **D1 à D5**, en fin de
+document, avec la lecture de la session spec pour chacun. Tout le reste est du rendu et peut avancer dès l'accord sur la
 matrice.
 
 ## 0.1 Matrice
@@ -68,12 +68,15 @@ texte que l'absence des options cachées ; il vérifie `data.commands`.
 
 ## 1. Règles de rendu proposées (sans décision de spec)
 
-- **Synopsis compact** : `PROGRAMME MOTIF OPÉRANDES [OPTIONS-REQUISES] [options]`. Les
-  sous-commandes du motif et chaque opérande, obligatoire ou entre
-  crochets, restent ; les options **requises** restent sur la ligne (sans
-  elles la ligne ne s'exécute pas) ; les autres options deviennent
-  `[options]`. Une option cachée n'y figure jamais. `describe` garde le
-  synopsis complet.
+- **Synopsis compact** : `PROGRAMME MOTIF OPÉRANDES [OPTIONS-REQUISES] [options]`,
+  calculé par **une règle unique** à partir de `input`, jamais écrit à la
+  main par un produit (section 10 : « nothing maintains a second usage
+  string »). Règle : les mots du motif ; chaque opérande avec son arité
+  (`NOM`, `[NOM]`, `NOM...`, `[NOM...]`) ; les options **requises**, avec
+  leur valeur ; `[options]` s'il reste au moins une option non cachée.
+  Une option cachée n'y figure jamais. `usage` = `input.synopsis` reste
+  complet dans `describe`. Un test vérifie que les opérandes et les options
+  requises du compact sont exactement ceux de `usage`.
 - **Commande par défaut, une ligne** : `PROGRAMME [options]` lance
   `MOTIF`, comme `PROGRAMME MOTIF [options]` ; les options en tête sont les
   siennes. Cette ligne nomme le défaut, dit à qui vont les options en tête
@@ -118,7 +121,13 @@ maelys-cli-man ./build/maelys-hello > share/man/man1/maelys-hello.1
 ```
 
 Il sert les produits C et Python, puisqu'il ne lit que `describe` ; le
-cœur ne gagne aucune dépendance (l'outil lit le JSON avec maelys-json,
+cœur ne gagne aucune dépendance. Il exécute le binaire du produit à la
+construction : un produit compilé en croisé ne le peut pas. Aucun produit
+Maelys ne l'est aujourd'hui (chaque cible se construit nativement), mais
+la limite est dite dans sa documentation. La page suit les règles de
+l'aide humaine : ni commande ni option cachée, commandes indisponibles
+marquées ; CODES DE SORTIE vient de `exitCodes`, que la spec fixe à 0, 1
+et 2 (l'outil lit le JSON avec maelys-json,
 déjà dépendance de la bibliothèque d'extension). Il ne touche ni à la spec
 ni au catalogue. Le produit l'appelle à la construction et installe la
 page. L'autre voie, une commande intégrée `man`, est en D2.
@@ -137,13 +146,14 @@ L'export `man` sort sans elles ; il les rendra quand l'une sera adoptée.
 
 ## Points soumis à David
 
-- **D1 — accès aux détails.** (a) recommandé : la page de commande est le
+- **D1 — accès aux détails.** Spec : d'accord avec (a). (a) recommandé : la page de commande est le
   niveau détails, rien n'est ajouté ; (b) `help COMMANDE --details` : une
   option sur `help`, visible dans `describe` de chaque produit (les
   références générées que commitent Maelys Git et Egress changent), et
   `COMMANDE --help --details` est refusé (VALIDATION_FAILED, section 8,
   étape 2) ; l'admettre serait une question de spec.
-- **D2 — `man`.** (a) recommandé : outil externe `maelys-cli-man` lisant
+- **D2 — `man`.** Spec : d'accord avec (a), « help is a rendering of
+  describe » ; précisions reportées en 0.2. (a) recommandé : outil externe `maelys-cli-man` lisant
   `describe` ; (b) commande intégrée `man` : présente au catalogue de
   chaque produit, offerte par la complétion, en collision possible avec une
   commande `man` d'un produit, et hors de la section 6 de la spec.
@@ -154,12 +164,38 @@ L'export `man` sort sans elles ; il les rendra quand l'une sera adoptée.
   changer la spec ; (b) un membre normatif `summary`, candidat de spec.
   Dans les deux cas `describe` gagne un membre : la mission le veut
   « inchangé » ; un ajout `x-` laisse le contrat intact mais change les
-  références générées des produits.
+  références générées des produits. Spec : `x-` est permis à la racine du
+  catalogue (`spec/extensions.md`, `patternProperties ^x-` de
+  `schemas/describe.json`) et le kit l'ignore ; avis : `x-` maintenant, un
+  `summary` normatif optionnel en mineure si un second framework en a
+  besoin. À David de confirmer que « describe inchangé » veut dire
+  « contrat inchangé », pas « octets inchangés ».
 - **D4 — synopsis de l'aide différent de `usage`.** La spec appelle
   `usage` « the human synopsis » et l'égale à `input.synopsis`. L'aide
   montrerait un synopsis compact (`[options]`) et `describe` garderait le
   complet. Aucune règle ne l'interdit ; la session spec donnera sa
-  lecture. Sinon, le synopsis compact reste dans le seul texte.
+  lecture. Spec : permis, à condition que le compact soit un rendu calculé
+  par une règle unique à partir de `input` (section 10), jamais une chaîne
+  maintenue ; la règle et son test sont en 1.
+- **D5 — `help conventions` et `help FAMILLE`** (relevé par la session
+  spec). La section 6 dit que `help` d'un identifiant que le catalogue n'a
+  pas échoue avec `INVALID_COMMAND`. Or maelys-cli répond déjà à `help
+  conventions` (`commands: []`) et à `help env` (`commands: ["env.show"]`),
+  dont aucun n'est un identifiant. Le kit ne le voit pas : il n'essaie
+  qu'un identifiant inventé. La matrice s'appuie davantage sur `help
+  conventions`. (a) la spec admet `help PRÉFIXE`, comme `describe
+  --summary --prefix`, et un sujet réservé `conventions` : candidat de
+  spec, et `conventions` devient un nom réservé, interdit comme premier
+  segment d'un identifiant de produit ; (b) maelys-cli rentre dans la
+  règle : `help FAMILLE` et `help conventions` disparaissent, les
+  conventions vont dans la page `man` (OPTIONS GLOBALES, ENVIRONNEMENT),
+  avec un renvoi depuis l'aide courte. Spec : penche pour (a) côté famille ;
+  sans avis sur `conventions`. Mon avis : (a) pour la famille ; pour les
+  conventions, (b) éviterait un nom réservé, mais un humain sans `man`
+  (Python seul, conteneur minimal) perdrait les options globales — un
+  sujet réservé est le moindre mal. Dans les deux cas, le kit gagne un
+  contrôle. Tant que D5 n'est pas tranché, le rendu garde `help
+  conventions` et `help FAMILLE` tels quels.
 
 Non soumis : `CLICOLOR_FORCE` n'a pas d'effet (la spec ne connaît que
 `--color`, `NO_COLOR`, `TERM=dumb`) ; il est seulement relevé dans les
