@@ -345,6 +345,7 @@ static const maelys_cli_app_t app = {
     "    Deeper: a second paragraph, indented by four, is wrapped at four and "
     "never brought back to the margin of the first one.",
     NULL,
+    NULL,
     NULL
 };
 
@@ -410,7 +411,7 @@ static const maelys_cli_command_t accented_commands[] = {
      "\xe6\x97\xa5\xe6\x9c\xac\xe8\xaa\x9e.", command_nothing)},
 };
 static const maelys_cli_app_t accented_app = {
-    "prog", "Test Product", "9.9.9", NULL, accented_commands, 1u, NULL, 0u, NULL, NULL, NULL
+    "prog", "Test Product", "9.9.9", NULL, accented_commands, 1u, NULL, 0u, NULL, NULL, NULL, NULL
 };
 
 /* The synopsis of help, one rule over usage (agent-cli/v2, section 10): the
@@ -488,6 +489,68 @@ static int test_help_synopsis(void) {
         free(out);
         free(err);
     }
+    return 1;
+}
+
+/* The help palette: each role in the product's color on a terminal with
+ * color, nothing anywhere else, and data.text never colored. */
+static const maelys_cli_help_palette_t test_palette = {
+    .heading = "1;34", .command = "36", .option = "33", .placeholder = "4", .example = "32",
+};
+
+static char *palette_run(const maelys_cli_app_t *palette_app, int argc, char **argv) {
+    char *out = NULL, *err = NULL;
+    size_t out_size = 0u, err_size = 0u;
+    FILE *out_stream = open_memstream(&out, &out_size);
+    FILE *err_stream = open_memstream(&err, &err_size);
+    (void)maelys_cli_run(palette_app, argc, argv, out_stream, err_stream);
+    (void)fclose(out_stream);
+    (void)fclose(err_stream);
+    free(err);
+    return out;
+}
+
+static int test_help_palette(void) {
+    maelys_cli_app_t colored = synopsis_app;
+    colored.help_palette = &test_palette;
+    char *forced = getenv("CLICOLOR_FORCE") ? strdup(getenv("CLICOLOR_FORCE")) : NULL;
+    CHECK(setenv("CLICOLOR_FORCE", "1", 1) == 0);
+    char *pick[] = {(char *)"help", (char *)"pick", NULL};
+    char *out = palette_run(&colored, 2, pick);
+    CHECK(out && strstr(out, "\033[1;34mUSAGE\033[0m\n") &&
+        strstr(out, "\n  \033[33m--mode\033[0m \033[4mfast|safe\033[0m") &&
+        strstr(out, "\n  \033[4mSHELL\033[0m"));
+    free(out);
+    char *general[] = {(char *)"help", NULL};
+    out = palette_run(&colored, 1, general);
+    CHECK(out && strstr(out, "\n  \033[36mpick\033[0m"));
+    free(out);
+    /* data.text is the plain rendering, whatever the terminal. */
+    char *json[] = {(char *)"help", (char *)"pick", (char *)"--json", NULL};
+    out = palette_run(&colored, 3, json);
+    CHECK(out && strstr(out, "USAGE") && !strstr(out, "\\u001b") && !strchr(out, '\033'));
+    free(out);
+    /* --color never wins over everything. */
+    char *never[] = {(char *)"help", (char *)"pick", (char *)"--color", (char *)"never", NULL};
+    out = palette_run(&colored, 4, never);
+    CHECK(out && strstr(out, "USAGE") && !strchr(out, '\033'));
+    free(out);
+    /* Without a palette: bold headings, nothing else. */
+    out = palette_run(&synopsis_app, 2, pick);
+    CHECK(out && strstr(out, "\033[1mUSAGE\033[0m") && !strstr(out, "\033[33m") && !strstr(out, "\033[4m"));
+    free(out);
+    if (forced) {
+        (void)setenv("CLICOLOR_FORCE", forced, 1);
+        free(forced);
+    } else {
+        (void)unsetenv("CLICOLOR_FORCE");
+    }
+    /* A color is SGR parameters; anything else could drive the terminal. */
+    maelys_cli_help_palette_t hostile = {.option = "2J\033[H"};
+    colored.help_palette = &hostile;
+    maelys_cli_error_t error;
+    CHECK(maelys_cli_catalog_validate(&colored, &error) != 0 &&
+        !strcmp(error.code, MAELYS_CLI_CODE_UNEXPECTED) && strstr(error.message, "Help palette option"));
     return 1;
 }
 
@@ -1665,6 +1728,7 @@ int main(void) {
     int failures = 0;
     RUN(test_help_and_version);
     RUN(test_help_synopsis);
+    RUN(test_help_palette);
     RUN(test_describe);
     RUN(test_parsing_success);
     RUN(test_parsing_failures);

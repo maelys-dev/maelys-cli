@@ -240,6 +240,20 @@ command is what the program is for: a line that put options before the
 command name (`PROGRAM --json list`) then selects the default command and is
 refused, and must be written `PROGRAM list --json`.
 
+### Color the help (optional)
+
+`.help_palette = &palette` on `maelys_cli_app_t` (`help_palette=` on a
+Python `Program`) gives the help the product's colors, role by role, with a
+`maelys_cli_help_palette_t`: `heading`, `command`, `option`, `placeholder`
+(`VALUE`, `FILE`, `a|b`) and `example`. Each is SGR parameters, digits and
+`;` only (`"1;34"`, `"36"`): `NULL` keeps the framework's choice, which is
+bold headings and nothing else, `""` shows the role plain; the catalog
+validation refuses anything else. Whether color is shown at all is not the
+product's to decide: `--color`, `NO_COLOR`, `TERM=dumb` and `CLICOLOR_FORCE`
+decide it, and `data.text` is never colored. A command's own text output
+colors itself with `maelys_cli_style(context->terminal.color_stdout, ...)`
+(`invocation.color_stdout` in Python).
+
 ### Compose the catalog from parts (build variants)
 
 A product that ships several build variants (a public build and an

@@ -640,6 +640,23 @@ mig stream-empty watch "help 0 None" "unknown 1 INVALID_COMMAND" "stream 0 watch
 mig transaction save "unknown 1 INVALID_COMMAND" "unknown 1 INVALID_COMMAND" "save 0 None" --content text
 check "a default transaction without --apply plans" 'printf "%s" "$out" | grep -q "\"mode\": *\"plan\""'
 
+# The help palette (maelys_cli_help_palette_t; help_palette= in Python):
+# default_surface declares one for every role. C and Python print the same
+# colored bytes where color is forced, the plain help once the colors are
+# taken out, and nothing colored under --color never or in data.text.
+for words in "help" "show --help" "list --help"; do
+    run "palette-$words" env CLICOLOR_FORCE=1 "$dflt_c" $words
+    c_colored=$out
+    run "palette-$words-py" env CLICOLOR_FORCE=1 $dflt_py $words
+    check "C and Python color the help alike: $words" '[ "$out" = "$c_colored" ] && printf "%s" "$out" | grep -q "$(printf "\033")\[33m--"'
+    run "palette-$words-plain" "$dflt_c" $words
+    check "the colored help is the plain one, colors taken out: $words" '[ "$(printf "%s" "$c_colored" | sed "s/$(printf "\033")\[[0-9;]*m//g")" = "$out" ]'
+done
+run palette-never env CLICOLOR_FORCE=1 "$dflt_c" help --color never
+check "--color never shows no color, CLICOLOR_FORCE notwithstanding" '! printf "%s" "$out" | grep -q "$(printf "\033")"'
+run palette-json env CLICOLOR_FORCE=1 "$dflt_c" help --json --compact
+check "data.text is never colored" '! printf "%s" "$out" | grep -q "u001b"'
+
 if [ "$failures" -ne 0 ]; then
     printf '%s CLI test(s) failed\n' "$failures" >&2
     exit 1

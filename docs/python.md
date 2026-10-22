@@ -109,6 +109,15 @@ which ran `list`, selects the default command and is refused: `PROGRAM list
 
 ## Help
 
+`Program(..., help_palette={"heading": "1;34", "command": "36"})` colors
+the help role by role (C: `maelys_cli_help_palette_t`): the roles are
+`HELP_PALETTE_ROLES`, `heading`, `command`, `option`, `placeholder` and
+`example`; each value is SGR parameters, digits and `;` only. A role left
+out or `None` keeps the framework's choice, bold headings and nothing else;
+`""` shows it plain. `Program` raises `ValueError` on an unknown role or a
+value that is not SGR parameters. Color is shown only where the stream
+accepts it (`invocation.color_stdout`), and `data.text` never carries it.
+
 `help`, `help COMMAND_ID`, `help FAMILY` and their `--help` spellings are
 generated from the catalog and laid out as the C library lays them out,
 byte for byte (`docs/command-conventions.md`, "Help"): within 80 columns

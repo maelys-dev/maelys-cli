@@ -64,7 +64,8 @@ PROGRAM = cli.Program("default-surface", "Default surface", "1.0.0", [
                     options=[cli.option("--content", "Text to save.", cli.argument("TEXT"), required=True)],
                     schema={"type": "object", "required": ["mode", "changed"]}),
     cli.stream("watch", "watch", "Watch the entries on stdout.", watch),
-], guide="a program whose lines may name no command", default_command=None if NAMED == "none" else NAMED)
+], guide="a program whose lines may name no command", default_command=None if NAMED == "none" else NAMED,
+    help_palette={"heading": "1;34", "command": "36", "option": "33", "placeholder": "4", "example": "32"})
 
 if __name__ == "__main__":
     sys.exit(PROGRAM.main(sys.argv[1:]))

@@ -16,6 +16,15 @@
   in one sentence, and gives the global options whole. Headings are bold on
   a terminal that accepts color; `data.text` never is. C and Python render
   the same bytes.
+- **A product may color its help.** `.help_palette` on `maelys_cli_app_t`
+  (`help_palette=` on a Python `Program`) names a color per role -- headings,
+  command patterns, option names, what the reader replaces, example lines --
+  as SGR parameters; `NULL` keeps the framework's choice, bold headings.
+  Whether color is shown stays the framework's: `--color`, `NO_COLOR`,
+  `TERM=dumb`, `CLICOLOR_FORCE`; `data.text` is never colored. The catalog
+  validation refuses a color that is not SGR parameters. `help_palette` is
+  a new last field of `maelys_cli_app_t`: a positional initializer built
+  with `-Wextra -Werror` reports it until it names its fields.
 - **`help conventions` is gone.** It was a topic of the help, and `help`
   names only commands and their families (agent-cli/v2, section 6): it is
   now `INVALID_COMMAND` like any word the catalog does not have. The global

@@ -691,6 +691,33 @@ static int validate_default_command(
     return -1;
 }
 
+/* Each color of the help palette is the parameters of one SGR sequence:
+ * digits and ';', at most 16 bytes. Anything else could move the cursor,
+ * clear the screen or set a title, and a terminal would obey. */
+static int validate_help_palette(
+    const maelys_cli_help_palette_t *palette, maelys_cli_error_t *error) {
+    const struct { const char *name, *value; } roles[] = {
+        {"heading", palette->heading}, {"command", palette->command},
+        {"option", palette->option}, {"placeholder", palette->placeholder},
+        {"example", palette->example},
+    };
+    for (size_t i = 0u; i < sizeof(roles) / sizeof(roles[0]); ++i) {
+        const char *value = roles[i].value;
+        if (!value) continue;
+        size_t length = strlen(value);
+        int valid = length <= 16u;
+        for (size_t j = 0u; valid && j < length; ++j)
+            valid = (value[j] >= '0' && value[j] <= '9') || value[j] == ';';
+        if (valid) continue;
+        maelys_cli_error_set(error, MAELYS_CLI_CODE_UNEXPECTED,
+            "Write each color as SGR parameters: digits and ';', such as \"1\" or \"1;36\".",
+            "Help palette %s '%s' is not the parameters of an SGR sequence.",
+            roles[i].name, value);
+        return -1;
+    }
+    return 0;
+}
+
 int maelys_cli_catalog_validate(
     const maelys_cli_app_t *app, maelys_cli_error_t *error) {
     if (!app || !app->program || !*app->program || !app->product ||
@@ -712,6 +739,8 @@ int maelys_cli_catalog_validate(
         if (validate_examples(app, maelys_cli_app_command_at(app, i), error) != 0)
             return -1;
     if (app->default_command && validate_default_command(app, error) != 0)
+        return -1;
+    if (app->help_palette && validate_help_palette(app->help_palette, error) != 0)
         return -1;
     for (size_t i = 0u; i < count; ++i) {
         const maelys_cli_command_t *command = maelys_cli_app_command_at(app, i);
@@ -3145,24 +3174,79 @@ static size_t help_wrap(FILE *stream, const char *text, size_t column,
     return at;
 }
 
+/* The escape sequences of one rendering of the help, one per role of
+ * maelys_cli_help_palette_t: all empty for data.text and wherever color is
+ * off. A label is always measured without them, so that color moves no
+ * column. */
+typedef struct help_style {
+    char heading[24], command[24], option[24], placeholder[24], example[24];
+} help_style_t;
+
+static const help_style_t help_plain = {"", "", "", "", ""};
+
+static void help_style_role(char *out, size_t size, const char *chosen,
+                            const char *otherwise) {
+    const char *value = chosen ? chosen : otherwise;
+    if (*value) (void)snprintf(out, size, "\033[%sm", value);
+    else out[0] = '\0';
+}
+
+/* The palette a product declares, each role it leaves NULL taking the
+ * framework's choice: bold headings, everything else plain. */
+static void help_style_init(help_style_t *style, const maelys_cli_help_palette_t *palette) {
+    const maelys_cli_help_palette_t none = {NULL, NULL, NULL, NULL, NULL};
+    if (!palette) palette = &none;
+    help_style_role(style->heading, sizeof(style->heading), palette->heading, "1");
+    help_style_role(style->command, sizeof(style->command), palette->command, "");
+    help_style_role(style->option, sizeof(style->option), palette->option, "");
+    help_style_role(style->placeholder, sizeof(style->placeholder), palette->placeholder, "");
+    help_style_role(style->example, sizeof(style->example), palette->example, "");
+}
+
+static void help_styled(FILE *stream, const char *style, const char *text) {
+    int styled = *style && *text;
+    if (styled) (void)fputs(style, stream);
+    (void)fputs(text, stream);
+    if (styled) (void)fputs("\033[0m", stream);
+}
+
 /* One entry of a list: the label, then the text beside it when the label
- * fits its column, below it when it does not. `groups` is for a label that
- * is a usage. */
-static void help_entry(FILE *stream, const char *label, const char *text,
-                       size_t label_width, size_t width, int groups) {
+ * fits its column, below it when it does not. The label is made of parts,
+ * each written in its own style and all measured plain. `groups` is for a
+ * label that is a usage: one wider than the line is wrapped between its
+ * groups, and then shown plain. */
+static void help_entry_parts(FILE *stream, const char *const parts[],
+                             const char *const styles[], size_t count,
+                             const char *text, size_t label_width, size_t width,
+                             int groups) {
+    char label[2048];
+    size_t used = 0u;
+    label[0] = '\0';
+    for (size_t i = 0u; i < count && used < sizeof(label); ++i)
+        used += (size_t)snprintf(label + used, sizeof(label) - used, "%s", parts[i]);
     size_t wide = display_width(label, strlen(label));
     (void)fputs("  ", stream);
+    if (wide <= label_width || 2u + wide <= width) {
+        for (size_t i = 0u; i < count; ++i) help_styled(stream, styles[i], parts[i]);
+    } else {
+        (void)help_wrap(stream, label, 2u, 8u, width, groups);
+    }
     if (wide <= label_width) {
-        (void)fputs(label, stream);
         help_indent(stream, label_width - wide + 2u);
         (void)help_wrap(stream, text, label_width + 4u, label_width + 4u, width, 0);
     } else {
-        (void)help_wrap(stream, label, 2u, 8u, width, groups);
         (void)fputc('\n', stream);
         help_indent(stream, 6u);
         (void)help_wrap(stream, text, 6u, 6u, width, 0);
     }
     (void)fputc('\n', stream);
+}
+
+static void help_entry(FILE *stream, const char *label, const char *style,
+                       const char *text, size_t label_width, size_t width, int groups) {
+    const char *parts[] = {label};
+    const char *styles[] = {style};
+    help_entry_parts(stream, parts, styles, 1u, text, label_width, width, groups);
 }
 
 /* A paragraph under a heading, indented by two. */
@@ -3184,25 +3268,26 @@ static size_t help_width(const maelys_cli_context_t *context) {
         columns > HELP_WIDTH_MAXIMUM ? HELP_WIDTH_MAXIMUM : columns;
 }
 
-/* "--name VALUE", "--name a|b" or "--name": how an option is spelled. */
-static void option_label(const maelys_cli_option_t *option, char *out, size_t size) {
-    char value[160];
+/* "--name VALUE", "--name a|b" or "--name": how an option is spelled, in
+ * three parts: the name, what the reader replaces, and " (repeatable)". */
+static void option_label(const maelys_cli_option_t *option, char *name, size_t name_size,
+                         char *value, size_t value_size, char *suffix, size_t suffix_size) {
     value[0] = '\0';
     if (option->kind == MAELYS_CLI_VALUE_CHOICE && option->choices &&
         !option->value_name) {
         size_t used = 0u;
         for (size_t i = 0u; option->choices[i]; ++i) {
-            int written = snprintf(value + used, sizeof(value) - used, "%s%s",
-                i ? "|" : " ", option->choices[i]);
-            if (written < 0 || (size_t)written >= sizeof(value) - used) break;
+            int written = snprintf(value + used, value_size - used, "%s%s",
+                i ? "|" : "", option->choices[i]);
+            if (written < 0 || (size_t)written >= value_size - used) break;
             used += (size_t)written;
         }
     } else if (option->kind != MAELYS_CLI_VALUE_NONE) {
-        (void)snprintf(value, sizeof(value), " %s",
+        (void)snprintf(value, value_size, "%s",
             option->value_name ? option->value_name : "VALUE");
     }
-    (void)snprintf(out, size, "--%s%s%s", option->name, value,
-        option->repeatable ? " (repeatable)" : "");
+    (void)snprintf(name, name_size, "--%s", option->name);
+    (void)snprintf(suffix, suffix_size, "%s", option->repeatable ? " (repeatable)" : "");
 }
 
 static void option_text(const maelys_cli_option_t *option, char *out, size_t size) {
@@ -3222,29 +3307,39 @@ static void option_text(const maelys_cli_option_t *option, char *out, size_t siz
 }
 
 static void options_help(FILE *stream, const maelys_cli_option_t *options,
-                         size_t count, size_t width) {
+                         size_t count, size_t width, const help_style_t *style) {
     size_t column = 0u;
-    char label[256];
+    char name[160], value[160], suffix[32], label[400];
     for (size_t i = 0u; i < count; ++i) {
         if (options[i].hidden) continue;
-        option_label(&options[i], label, sizeof(label));
+        option_label(&options[i], name, sizeof(name), value, sizeof(value), suffix, sizeof(suffix));
+        (void)snprintf(label, sizeof(label), "%s%s%s%s", name, *value ? " " : "", value, suffix);
         size_t wide = display_width(label, strlen(label));
         if (wide <= HELP_LABEL_MAXIMUM && wide > column) column = wide;
     }
     for (size_t i = 0u; i < count; ++i) {
         if (options[i].hidden) continue;
         char text[1024];
-        option_label(&options[i], label, sizeof(label));
+        option_label(&options[i], name, sizeof(name), value, sizeof(value), suffix, sizeof(suffix));
         option_text(&options[i], text, sizeof(text));
-        help_entry(stream, label, text, column, width, 0);
+        const char *parts[] = {name, *value ? " " : "", value, suffix};
+        const char *styles[] = {style->option, "", style->placeholder, ""};
+        help_entry_parts(stream, parts, styles, 4u, text, column, width, 0);
     }
 }
 
 /* The two ways to invoke the default command, each a line to copy and so,
  * as an example, never wrapped. */
-static void default_forms(FILE *stream, const char *program, const char *pattern) {
-    (void)fprintf(stream, "  %s [options] [-- OPERANDS]\n", program);
-    (void)fprintf(stream, "  %s %s [options] [-- OPERANDS]\n", program, pattern);
+static void default_forms(FILE *stream, const char *program, const char *pattern,
+                          const help_style_t *style) {
+    char line[1024];
+    (void)snprintf(line, sizeof(line), "%s [options] [-- OPERANDS]", program);
+    (void)fputs("  ", stream);
+    help_styled(stream, style->example, line);
+    (void)snprintf(line, sizeof(line), "%s %s [options] [-- OPERANDS]", program, pattern);
+    (void)fputs("\n  ", stream);
+    help_styled(stream, style->example, line);
+    (void)fputc('\n', stream);
 }
 
 /* What a command does that changes what its reader types, in words: a
@@ -3273,7 +3368,7 @@ static const char *effect_sentence(const maelys_cli_command_t *command,
 
 static void command_help_text(
     FILE *stream, const maelys_cli_app_t *app,
-    const maelys_cli_command_t *command, size_t width) {
+    const maelys_cli_command_t *command, size_t width, const help_style_t *style) {
     char *synopsis = maelys_cli_command_help_synopsis_alloc(command);
     char line[2048];
     (void)snprintf(line, sizeof(line), "%s %s", app->program,
@@ -3303,8 +3398,9 @@ static void command_help_text(
              * program -- and the second another. The sentence below wraps.
              * And spelled for a shell: a word holding `$`, `*` or a quote,
              * copied as declared, would be another word once pasted. */
-            (void)fprintf(stream, "  %s ", app->program);
+            (void)fprintf(stream, "  %s%s ", style->example, app->program);
             help_shell_words(stream, command->examples[i].words);
+            if (*style->example) (void)fputs("\033[0m", stream);
             (void)fputc('\n', stream);
             help_indent(stream, 6u);
             (void)help_wrap(stream, command->examples[i].summary, 6u, 6u, width, 0);
@@ -3316,7 +3412,7 @@ static void command_help_text(
         help_paragraph(stream, "A line that names no command runs this one: an "
             "empty line, or one that starts with an option other than --help "
             "and --version. Its operands come after --:", width, 0);
-        default_forms(stream, app->program, command->pattern);
+        default_forms(stream, app->program, command->pattern, style);
     }
     if (command->operand_count) {
         size_t column = 0u;
@@ -3330,7 +3426,7 @@ static void command_help_text(
             const maelys_cli_operand_t *operand = &command->operands[i];
             (void)snprintf(line, sizeof(line), "%s%s", operand->summary,
                 operand->required ? "" : " Optional.");
-            help_entry(stream, operand->name, line, column, width, 0);
+            help_entry(stream, operand->name, style->placeholder, line, column, width, 0);
         }
     }
     size_t shown = 0u;
@@ -3338,7 +3434,7 @@ static void command_help_text(
         if (!command->options[i].hidden) ++shown;
     if (shown) {
         (void)fputs("\nOPTIONS\n", stream);
-        options_help(stream, command->options, command->option_count, width);
+        options_help(stream, command->options, command->option_count, width, style);
     }
     (void)snprintf(line, sizeof(line), "Run '%s --help' for --format, --json, "
         "--compact, --non-interactive, --color and the others.", app->program);
@@ -3374,7 +3470,7 @@ static int in_family(const maelys_cli_command_t *command, const char *prefix,
  * below. */
 static void family_help_text(
     FILE *stream, const maelys_cli_app_t *app, const char *prefix,
-    char *const words[], size_t word_count, size_t width) {
+    char *const words[], size_t word_count, size_t width, const help_style_t *style) {
     char line[2048];
     size_t used = (size_t)snprintf(line, sizeof(line), "%s", app->program);
     if (prefix) used += (size_t)snprintf(line + used, sizeof(line) - used, " %s", prefix);
@@ -3390,7 +3486,8 @@ static void family_help_text(
         (void)snprintf(text, sizeof(text), "%s%s", command->purpose,
             command->unavailable ? " (unavailable in this build)" : "");
         /* Never beside: a usage is as long as it needs to be. */
-        help_entry(stream, synopsis ? synopsis : command->pattern, text, 0u, width, 1);
+        help_entry(stream, synopsis ? synopsis : command->pattern, style->command, text,
+            0u, width, 1);
         free(synopsis);
     }
     (void)snprintf(line, sizeof(line), "Run '%s help COMMAND_ID' or '%s COMMAND "
@@ -3421,7 +3518,8 @@ static void help_names(FILE *stream, const char *lead, const char *const *names,
  * every program has is named in a line, not described: the built-in
  * commands, the global options, the agent contract. A command this build
  * cannot run is named at the end, never mixed with those it can. */
-static void catalog_help_text(FILE *stream, const maelys_cli_app_t *app, size_t width) {
+static void catalog_help_text(FILE *stream, const maelys_cli_app_t *app, size_t width,
+                              const help_style_t *style) {
     char line[2048];
     size_t used = (size_t)snprintf(line, sizeof(line), "%s %s", app->program, app->version);
     if (app->summary && *app->summary && used < sizeof(line))
@@ -3430,10 +3528,10 @@ static void catalog_help_text(FILE *stream, const maelys_cli_app_t *app, size_t 
     (void)fprintf(stream, "\n\nUSAGE\n  %s COMMAND [OPERANDS] [options]\n", app->program);
     (void)snprintf(line, sizeof(line), "%s help COMMAND", app->program);
     size_t usage_column = display_width(line, strlen(line));
-    help_entry(stream, line, "one command, its options and examples",
+    help_entry(stream, line, "", "one command, its options and examples",
         usage_column, width, 0);
     (void)snprintf(line, sizeof(line), "%s help FAMILY", app->program);
-    help_entry(stream, line, "the commands of one family",
+    help_entry(stream, line, "", "the commands of one family",
         usage_column, width, 0);
     /* The default command in one sentence that says the three things
      * agent-cli/v2 section 8 asks of help: which command it is, that the
@@ -3471,7 +3569,8 @@ static void catalog_help_text(FILE *stream, const maelys_cli_app_t *app, size_t 
         } else if (command->unavailable) {
             if (unavailable) unavailable[unavailable_count++] = command->pattern;
         } else {
-            help_entry(stream, command->pattern, command->purpose, column, width, 0);
+            help_entry(stream, command->pattern, style->command, command->purpose,
+                column, width, 0);
         }
     }
     if (built_in_count || unavailable_count) (void)fputc('\n', stream);
@@ -3490,7 +3589,7 @@ static void catalog_help_text(FILE *stream, const maelys_cli_app_t *app, size_t 
     const maelys_cli_option_t *transport = maelys_cli_transport_options(
         &transport_count);
     (void)fputs("\nGLOBAL OPTIONS\n", stream);
-    options_help(stream, transport, transport_count, width);
+    options_help(stream, transport, transport_count, width, style);
     (void)snprintf(line, sizeof(line), "Run '%s describe --summary --format json' "
         "first, and build every line from its input, never from this text.",
         app->program);
@@ -3526,12 +3625,11 @@ static void catalog_help_text(FILE *stream, const maelys_cli_app_t *app, size_t 
     }
 }
 
-/* The help as a terminal shows it when color is on: each heading, a line of
- * capitals at the margin, in bold. data.text stays plain; without color the
- * headings, the blank lines and the indentation carry the hierarchy. */
-static char *help_emphasized(const char *text) {
-    const char *bold = maelys_cli_style(1, MAELYS_CLI_STYLE_BOLD);
-    const char *reset = maelys_cli_style(1, MAELYS_CLI_STYLE_RESET);
+/* Each heading of `text` -- a line of capitals at the margin -- in the
+ * `heading` sequence. The other roles are styled as they are written; a
+ * heading is found afterwards, the one line nothing else looks like. */
+static char *help_headings(const char *text, const char *heading) {
+    const char *reset = "\033[0m";
     size_t headings = 0u;
     for (const char *line = text; *line;) {
         const char *end = strchr(line, '\n');
@@ -3541,18 +3639,19 @@ static char *help_emphasized(const char *text) {
         if (length && i == length && line[0] != ' ') ++headings;
         line = end ? end + 1 : line + length;
     }
-    size_t size = strlen(text) + headings * (strlen(bold) + strlen(reset)) + 1u;
+    size_t size = strlen(text) + headings * (strlen(heading) + strlen(reset)) + 1u;
     char *out = malloc(size);
     if (!out) return NULL;
     size_t used = 0u;
+    out[0] = '\0';
     for (const char *line = text; *line;) {
         const char *end = strchr(line, '\n');
         size_t length = end ? (size_t)(end - line) : strlen(line);
         size_t i = 0u;
         while (i < length && ((line[i] >= 'A' && line[i] <= 'Z') || line[i] == ' ')) ++i;
-        int heading = length && i == length && line[0] != ' ';
+        int styled = *heading && length && i == length && line[0] != ' ';
         used += (size_t)snprintf(out + used, size - used, "%s%.*s%s%s",
-            heading ? bold : "", (int)length, line, heading ? reset : "", end ? "\n" : "");
+            styled ? heading : "", (int)length, line, styled ? reset : "", end ? "\n" : "");
         line = end ? end + 1 : line + length;
     }
     return out;
@@ -3561,24 +3660,39 @@ static char *help_emphasized(const char *text) {
 static int family_exists(const maelys_cli_app_t *app, const char *prefix,
                          char *const words[], size_t word_count);
 
+/* One rendering of the help asked for, in `style`; NULL when memory runs
+ * out. */
+static char *help_render(
+    const maelys_cli_app_t *app, const maelys_cli_command_t *target,
+    const char *prefix, char *const words[], size_t word_count, size_t width,
+    const help_style_t *style) {
+    char *text = NULL;
+    size_t size = 0u;
+    FILE *memory = open_memstream(&text, &size);
+    if (!memory) return NULL;
+    if (target) command_help_text(memory, app, target, width, style);
+    else if (prefix || word_count > 0u)
+        family_help_text(memory, app, prefix, words, word_count, width, style);
+    else catalog_help_text(memory, app, width, style);
+    if (fclose(memory) != 0) {
+        free(text);
+        return NULL;
+    }
+    return text;
+}
+
 /* Renders the general help, the help of `target`, or the help of the family
  * `prefix` or `words` names, and replies with data.text and data.commands,
- * the identifiers shown (spec 2.3, section 6). */
+ * the identifiers shown (spec 2.3, section 6). data.text is the plain
+ * rendering; a terminal with color shows the one in the product's palette. */
 static int help_reply(
     maelys_cli_context_t *context, const maelys_cli_command_t *target,
     const char *prefix, char *const words[], size_t word_count) {
-    char *text = NULL;
-    size_t size = 0u;
     int family = prefix || word_count > 0u;
     size_t width = help_width(context);
-    FILE *memory = open_memstream(&text, &size);
-    if (!memory) return maelys_cli_fail_errno(context,
-        MAELYS_CLI_CODE_UNEXPECTED, errno, "help buffer");
-    if (target) command_help_text(memory, context->app, target, width);
-    else if (family) family_help_text(memory, context->app, prefix, words, word_count, width);
-    else catalog_help_text(memory, context->app, width);
-    if (fclose(memory) != 0 || !text) {
-        free(text);
+    char *text = help_render(context->app, target, prefix, words, word_count, width,
+        &help_plain);
+    if (!text) {
         return maelys_cli_fail(context, MAELYS_CLI_CODE_UNEXPECTED, NULL,
             "Could not render help.");
     }
@@ -3610,9 +3724,16 @@ static int help_reply(
         return maelys_cli_fail(context, MAELYS_CLI_CODE_UNEXPECTED, NULL,
             "Could not describe the catalog.");
     }
-    char *shown = context->invocation &&
-        context->invocation->format == MAELYS_CLI_FORMAT_TEXT &&
-        context->terminal.color_stdout ? help_emphasized(text) : NULL;
+    char *shown = NULL;
+    if (context->invocation && context->invocation->format == MAELYS_CLI_FORMAT_TEXT &&
+        context->terminal.color_stdout) {
+        help_style_t style;
+        help_style_init(&style, context->app->help_palette);
+        char *colored = help_render(context->app, target, prefix, words, word_count,
+            width, &style);
+        shown = colored ? help_headings(colored, style.heading) : NULL;
+        free(colored);
+    }
     int result = maelys_cli_succeed_writer(context, &writer, shown ? shown : text,
         MAELYS_CLI_EXIT_OK);
     free(shown);

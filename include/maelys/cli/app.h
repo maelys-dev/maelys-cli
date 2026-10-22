@@ -28,6 +28,21 @@ extern "C" {
  * belongs to the protocol.
  */
 
+/* The colors of help, on a terminal that accepts them: whether any is shown
+ * is decided by --color, NO_COLOR, TERM=dumb and CLICOLOR_FORCE, never by
+ * the product, and data.text is never colored. Each member is the
+ * parameters of one SGR sequence, digits and ';' only, at most 16 bytes:
+ * "1" bold, "36" cyan, "1;34" bold blue. NULL keeps the framework's choice
+ * for that role, "" shows it plain. The framework's choice is bold
+ * headings and nothing else. */
+typedef struct maelys_cli_help_palette {
+    const char *heading;      /* section titles: USAGE, COMMANDS, OPTIONS... */
+    const char *command;      /* a command's pattern in a list of commands */
+    const char *option;       /* an option's name, --name */
+    const char *placeholder;  /* what the reader replaces: VALUE, FILE, a|b */
+    const char *example;      /* a line of an example, to copy */
+} maelys_cli_help_palette_t;
+
 typedef struct maelys_cli_app {
     const char *program;   /* executable name shown in usage */
     const char *product;   /* human product name */
@@ -55,6 +70,10 @@ typedef struct maelys_cli_app {
      * validation refuses any other, an `execute` command included, since a
      * line that names nothing is no consent to an action. */
     const char *default_command;
+    /* The colors of help (maelys_cli_help_palette_t), or NULL for the
+     * framework's: bold headings. The catalog validation refuses a member
+     * that is not SGR parameters. */
+    const maelys_cli_help_palette_t *help_palette;
 } maelys_cli_app_t;
 
 typedef struct maelys_cli_context {

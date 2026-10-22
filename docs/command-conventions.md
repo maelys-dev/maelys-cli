@@ -400,9 +400,13 @@ options stay as written; a hidden option is never there. `describe` keeps
 the whole usage.
 
 On a terminal that accepts color (`--color`, `NO_COLOR`, `TERM=dumb`,
-`CLICOLOR_FORCE`), the headings are in bold. Without color the headings in
-capitals, the blank lines and the indentation carry the same hierarchy.
-`data.text` is never colored.
+`CLICOLOR_FORCE`), the headings are in bold. A product may give the help
+its own colors, role by role (`.help_palette`: headings, command patterns,
+option names, what the reader replaces, example lines); whether color is
+shown stays the framework's decision. A label is measured without its
+colors, so color moves no column. Without color the headings in capitals,
+the blank lines and the indentation carry the same hierarchy. `data.text`
+is never colored.
 
 `PROGRAM COMMAND --help` answers exactly as `PROGRAM help COMMAND_ID` does,
 envelope included: under `--format json` its `command` is `help`, whose

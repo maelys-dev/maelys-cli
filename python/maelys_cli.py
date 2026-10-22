@@ -541,23 +541,43 @@ def _help_wrap(text: str, column: int, indent: int, width: int, groups: bool = F
     return out
 
 
-def _help_entry(label: str, text: str, label_width: int, width: int, groups: bool = False) -> str:
-    """One entry of a list: the text beside the label when the label fits its column, below it otherwise."""
+HELP_PALETTE_ROLES = ("heading", "command", "option", "placeholder", "example")
+_SGR_PARAMETERS = re.compile(r"[0-9;]{0,16}")
+_HELP_PLAIN = {role: "" for role in HELP_PALETTE_ROLES}
+
+
+def _help_styled(style: str, text: str) -> str:
+    return f"{style}{text}\033[0m" if style and text else text
+
+
+def _help_entry_parts(parts: list, text: str, label_width: int, width: int, groups: bool = False) -> str:
+    """One entry of a list (C: help_entry_parts): the label, made of (text, style) parts measured plain,
+    then the text beside it when the label fits its column, below it otherwise. A label wider than the
+    line is wrapped between its groups, and then shown plain."""
+    label = "".join(part for part, _ in parts)
     wide = display_width(label)
+    if wide <= label_width or 2 + wide <= width:
+        head = "  " + "".join(_help_styled(style, part) for part, style in parts)
+    else:
+        head = "  " + _help_wrap(label, 2, 8, width, groups)
     if wide <= label_width:
         column = label_width + 4
-        return "  " + label + " " * (label_width - wide + 2) + _help_wrap(text, column, column, width) + "\n"
-    return "  " + _help_wrap(label, 2, 8, width, groups) + "\n" + " " * 6 + _help_wrap(text, 6, 6, width) + "\n"
+        return head + " " * (label_width - wide + 2) + _help_wrap(text, column, column, width) + "\n"
+    return head + "\n" + " " * 6 + _help_wrap(text, 6, 6, width) + "\n"
 
 
-def _help_emphasized(text: str) -> str:
-    """The help as a terminal shows it when color is on (C: help_emphasized):
-    each heading, a line of capitals at the margin, in bold. data.text stays
-    plain; without color the headings, blank lines and indentation carry the
-    hierarchy."""
-    lines = text.split("\n")
-    return "\n".join(f"\033[1m{line}\033[0m" if line and line[0] != " " and all("A" <= c <= "Z" or c == " " for c in line)
-                     else line for line in lines)
+def _help_entry(label: str, text: str, label_width: int, width: int, groups: bool = False, style: str = "") -> str:
+    """One entry of a list: the text beside the label when the label fits its column, below it otherwise."""
+    return _help_entry_parts([(label, style)], text, label_width, width, groups)
+
+
+def _help_headings(text: str, heading: str) -> str:
+    """Each heading of `text` -- a line of capitals at the margin -- in the `heading` sequence (C:
+    help_headings). The other roles are styled as they are written."""
+    if not heading:
+        return text
+    return "\n".join(f"{heading}{line}\033[0m" if line and line[0] != " " and all("A" <= c <= "Z" or c == " " for c in line)
+                     else line for line in text.split("\n"))
 
 
 def _help_paragraph(text: str, width: int, groups: bool = False) -> str:
@@ -1568,7 +1588,7 @@ class Invocation:
 class Program:
     def __init__(self, program: str, product: str, version: str, commands: list, guide: str = "",
                  text: Optional[dict] = None, framework: str = FRAMEWORK, static_completion: bool = True,
-                 default_command: Optional[str] = None) -> None:
+                 default_command: Optional[str] = None, help_palette: Optional[dict] = None) -> None:
         self.program = program
         self.product = product
         self.version = version
@@ -1626,6 +1646,16 @@ class Program:
         self.default_command = default_command
         if default_command is not None:
             self._check_default_command(default_command)
+        # The colors of help (C: maelys_cli_help_palette_t): SGR parameters per role, None or absent
+        # for the framework's choice, "" for plain. Anything else could move a terminal's cursor.
+        for role, value in (help_palette or {}).items():
+            if role not in HELP_PALETTE_ROLES:
+                raise ValueError(f"Help palette has no role {role!r}: the roles are {', '.join(HELP_PALETTE_ROLES)}.")
+            if value is not None and not (isinstance(value, str) and _SGR_PARAMETERS.fullmatch(value)):
+                raise ValueError(f"Help palette {role} {value!r} is not the parameters of an SGR sequence.")
+        self.help_palette = dict(help_palette or {})
+        self._style = _HELP_PLAIN
+        self._help_rendering: Optional[Callable[[], str]] = None
         # The examples last: parsing one needs the whole catalog.
         for command in self.catalog:
             self._check_examples(command)
@@ -1650,7 +1680,9 @@ class Program:
     def _default_forms(self, pattern: str) -> str:
         """The two ways to invoke the default command (C: default_forms), each a line to copy and so,
         as an example, never wrapped."""
-        return f"  {self.program} [options] [-- OPERANDS]\n  {self.program} {pattern} [options] [-- OPERANDS]\n"
+        example = self._style["example"]
+        return (f"  {_help_styled(example, f'{self.program} [options] [-- OPERANDS]')}\n"
+                f"  {_help_styled(example, f'{self.program} {pattern} [options] [-- OPERANDS]')}\n")
 
     def _default(self) -> Optional[dict]:
         return self.command_by_id(self.default_command) if self.default_command is not None else None
@@ -1765,6 +1797,19 @@ class Program:
                 best = command
         return best, len(best["pattern"]) if best else 0
 
+    def _help_style(self) -> dict:
+        """The escape sequences of the product's palette, each role it leaves out taking the
+        framework's choice: bold headings, everything else plain (C: help_style_init)."""
+        chosen = {"heading": "1", **{role: value for role, value in self.help_palette.items() if value is not None}}
+        return {role: f"\033[{chosen[role]}m" if chosen.get(role) else "" for role in HELP_PALETTE_ROLES}
+
+    @staticmethod
+    def _option_parts(item: dict) -> "tuple[str, str, str]":
+        """An option's label in three parts: its name, what the reader replaces, and " (repeatable)"."""
+        value = item.get("argument")
+        replaced = "|".join(value["choices"]) if value and value.get("choices") else value["name"] if value else ""
+        return item["long"], replaced, " (repeatable)" if item["repeatable"] else ""
+
     @staticmethod
     def _option_label(item: dict) -> str:
         value = item.get("argument")
@@ -1788,9 +1833,13 @@ class Program:
         return text
 
     def _options_help(self, options: list, width: int) -> str:
-        shown = [(self._option_label(item), self._option_text(item)) for item in options if not item.get("hidden")]
-        column = max([display_width(label) for label, _ in shown if display_width(label) <= HELP_LABEL_MAXIMUM] or [0])
-        return "".join(_help_entry(label, text, column, width) for label, text in shown)
+        shown = [(self._option_parts(item), self._option_text(item)) for item in options if not item.get("hidden")]
+        labels = [name + (f" {value}" if value else "") + suffix for (name, value, suffix), _ in shown]
+        column = max([display_width(label) for label in labels if display_width(label) <= HELP_LABEL_MAXIMUM] or [0])
+        style = self._style
+        return "".join(_help_entry_parts([(name, style["option"]), (" " if value else "", ""),
+                                          (value, style["placeholder"]), (suffix, "")], text, column, width)
+                       for (name, value, suffix), text in shown)
 
     @staticmethod
     def _effect_sentence(command: dict) -> Optional[str]:
@@ -1827,7 +1876,8 @@ class Program:
             # And spelled for a shell: a word holding `$`, `*` or a quote,
             # copied as declared, would be another word once pasted.
             text += "\nEXAMPLES\n" + "".join(
-                f"  {self.program} {' '.join(_shell_word(word) for word in item['words'])}\n"
+                "  " + _help_styled(self._style["example"],
+                                    f"{self.program} {' '.join(_shell_word(word) for word in item['words'])}") + "\n"
                 + " " * 6 + _help_wrap(item["summary"], 6, 6, width) + "\n"
                 for item in command["examples"])
         if self.default_command == command["id"]:
@@ -1839,7 +1889,8 @@ class Program:
             column = max([display_width(item["name"]) for item in command["operands"]
                           if display_width(item["name"]) <= HELP_LABEL_MAXIMUM] or [0])
             text += "\nOPERANDS\n" + "".join(
-                _help_entry(item["name"], item["summary"] + ("" if item["required"] else " Optional."), column, width)
+                _help_entry(item["name"], item["summary"] + ("" if item["required"] else " Optional."), column, width,
+                            style=self._style["placeholder"])
                 for item in command["operands"])
         if any(not item.get("hidden") for item in command["options"]):
             text += "\nOPTIONS\n" + self._options_help(command["options"], width)
@@ -1863,7 +1914,7 @@ class Program:
         text = f"{self.program} {name} - commands\n\nCOMMANDS\n"
         for command in commands:
             purpose = command["purpose"] + (" (unavailable in this build)" if command["unavailable"] is not None else "")
-            text += _help_entry(command["helpUsage"], purpose, 0, width, groups=True)
+            text += _help_entry(command["helpUsage"], purpose, 0, width, groups=True, style=self._style["command"])
         return text + "\n" + _help_wrap(
             f"Run '{self.program} help COMMAND_ID' or '{self.program} COMMAND --help' for the operands and options "
             "of one command.", 0, 0, width) + "\n"
@@ -1900,7 +1951,8 @@ class Program:
         column = max([display_width(" ".join(command["pattern"])) for command in own
                       if display_width(" ".join(command["pattern"])) <= HELP_LABEL_MAXIMUM] or [0])
         text += "\nCOMMANDS\n" + "".join(
-            _help_entry(" ".join(command["pattern"]), command["purpose"], column, width) for command in own)
+            _help_entry(" ".join(command["pattern"]), command["purpose"], column, width, style=self._style["command"])
+            for command in own)
         if built_in or unavailable:
             text += "\n"
         if built_in:
@@ -1928,24 +1980,32 @@ class Program:
     def _help(self, invocation: Invocation) -> "tuple[dict, int]":
         width = help_width(invocation.format)
         words, self._family_words = self._family_words, None
+        render: Callable[[], str]
         if words:
             # `PROGRAM note --help`: the words named no command, but a family.
             family = self._family(words=words)
-            return {"text": self.family_help(" ".join(words), family, width),
-                    "commands": [command["id"] for command in family]}, EXIT_OK
-        if invocation.operands:
+            commands = [command["id"] for command in family]
+            render = lambda: self.family_help(" ".join(words), family, width)  # noqa: E731
+        elif invocation.operands:
             query = invocation.operands[0]
             command = next((item for item in self.catalog if item["id"] == query), None)
             if command is not None:
-                return {"text": self.command_help(command, width), "commands": [command["id"]]}, EXIT_OK
-            # Not a command: a family, the namespace describe --prefix selects.
-            family = self._family(prefix=query)
-            if not family:
-                raise Failure("INVALID_COMMAND", f"Unknown command identifier or family: {query}.",
-                              "Run 'help' without operands to list the commands and their families.")
-            return {"text": self.family_help(query, family, width),
-                    "commands": [command["id"] for command in family]}, EXIT_OK
-        return {"text": self.guide(width), "commands": [c["id"] for c in self.catalog if not c["hidden"]]}, EXIT_OK
+                commands = [command["id"]]
+                render = lambda: self.command_help(command, width)  # noqa: E731
+            else:
+                # Not a command: a family, the namespace describe --prefix selects.
+                family = self._family(prefix=query)
+                if not family:
+                    raise Failure("INVALID_COMMAND", f"Unknown command identifier or family: {query}.",
+                                  "Run 'help' without operands to list the commands and their families.")
+                commands = [item["id"] for item in family]
+                render = lambda: self.family_help(query, family, width)  # noqa: E731
+        else:
+            commands = [c["id"] for c in self.catalog if not c["hidden"]]
+            render = lambda: self.guide(width)  # noqa: E731
+        # data.text is the plain rendering; a terminal with color is shown the palette's (C: help_reply).
+        self._help_rendering = render
+        return {"text": render(), "commands": commands}, EXIT_OK
 
     def _describe(self, invocation: Invocation) -> "tuple[dict, int]":
         data: dict = {"schemaVersion": CATALOG_SCHEMA, "program": self.program, "product": self.product,
@@ -2554,8 +2614,13 @@ class Program:
                         sys.stdout.write(text)
             elif fmt == "text":
                 text = self.render_text(command, data)
-                if command_id == "help" and invocation.color_stdout:
-                    text = _help_emphasized(text)
+                if command_id == "help" and invocation.color_stdout and self._help_rendering is not None:
+                    style = self._help_style()
+                    self._style = style
+                    try:
+                        text = _help_headings(self._help_rendering(), style["heading"])
+                    finally:
+                        self._style = _HELP_PLAIN
                 if not page_text(text, invocation):
                     sys.stdout.write(text)
             elif fmt == "jsonl":

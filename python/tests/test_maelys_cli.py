@@ -108,6 +108,44 @@ class Contract(unittest.TestCase):
         self.assertEqual(run("greet", "-", "--json", "--compact")[0], 0)
         self.assertEqual(json.loads(run("greet", "--json", "--", "-5")[1])["data"]["greeting"], "Hello, -5!")
 
+    def test_help_palette(self) -> None:
+        """The colors of help (C: maelys_cli_help_palette_t): each role in the product's color where the
+        terminal accepts color, nothing elsewhere, data.text never colored, and a color is SGR parameters."""
+        def program(palette: "dict | None") -> cli.Program:
+            return cli.Program("p", "P", "1", [
+                cli.read("pick", "pick", "Choices.", lambda i: ({}, 0),
+                         operands=[cli.operand("SHELL", "Shell.", choices=["bash", "zsh"])],
+                         options=[cli.option("--mode", "Mode.", cli.argument("MODE", "choice", choices=["fast", "safe"]))])],
+                help_palette=palette)
+
+        def shown(target: cli.Program, *argv: str, env: "dict | None" = None) -> str:
+            out = io.StringIO()
+            saved = dict(os.environ)
+            os.environ.pop("NO_COLOR", None)
+            os.environ.update(env or {})
+            try:
+                with contextlib.redirect_stdout(out):
+                    target.main(list(argv))
+            finally:
+                os.environ.clear()
+                os.environ.update(saved)
+            return out.getvalue()
+        colored = program({"heading": "1;34", "command": "36", "option": "33", "placeholder": "4", "example": "32"})
+        forced = {"CLICOLOR_FORCE": "1"}
+        page = shown(colored, "help", "pick", env=forced)
+        self.assertIn("\033[1;34mUSAGE\033[0m\n", page)
+        self.assertIn("\n  \033[33m--mode\033[0m \033[4mfast|safe\033[0m", page)
+        self.assertIn("\n  \033[4mSHELL\033[0m", page)
+        self.assertIn("\n  \033[36mpick\033[0m", shown(colored, "help", env=forced))
+        self.assertNotIn("\033", json.loads(shown(colored, "help", "pick", "--json", env=forced))["data"]["text"])
+        self.assertNotIn("\033", shown(colored, "help", "pick", "--color", "never", env=forced))
+        plain = shown(program(None), "help", "pick", env=forced)                  # the framework's choice: bold headings
+        self.assertIn("\033[1mUSAGE\033[0m", plain)
+        self.assertNotIn("\033[33m", plain)
+        for palette in ({"option": "2J\033[H"}, {"colour": "1"}, {"heading": 1}):
+            with self.assertRaises(ValueError):
+                program(palette)
+
     def test_default_command(self) -> None:
         """The default command (spec, section 8; C: default_command): what a program may name, and the
         parts of its reading no line of tests/test_cli.sh shows. The lines are held there, on

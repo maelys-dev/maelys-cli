@@ -102,6 +102,12 @@ static const maelys_cli_command_t commands[] = {
     {MAELYS_CLI_STREAM("watch", "watch", "Watch the entries on stdout.", command_watch)},
 };
 
+/* A palette for every role, so that tests/test_cli.sh holds the colored
+ * help of C and Python to the same bytes. */
+static const maelys_cli_help_palette_t palette = {
+    .heading = "1;34", .command = "36", .option = "33", .placeholder = "4", .example = "32",
+};
+
 static const maelys_cli_app_t default_app = {
     .program = "default-surface",
     .product = "Default surface",
@@ -110,6 +116,7 @@ static const maelys_cli_app_t default_app = {
     .commands = commands,
     .command_count = MAELYS_CLI_COUNT(commands),
     .default_command = "show",
+    .help_palette = &palette,
 };
 
 int main(int argc, char **argv) {
