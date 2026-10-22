@@ -11,6 +11,7 @@ include("${CMAKE_CURRENT_LIST_DIR}/maelys-cli-targets.cmake")
 #   ${MAELYS_CLI_REFERENCE}  generates the CLI reference from `describe`
 set_and_check(MAELYS_CLI_EMBED "@PACKAGE_CMAKE_INSTALL_BINDIR@/maelys-cli-embed")
 set_and_check(MAELYS_CLI_REFERENCE "@PACKAGE_CMAKE_INSTALL_BINDIR@/maelys-cli-reference")
+set_and_check(MAELYS_CLI_MAN "@PACKAGE_CMAKE_INSTALL_BINDIR@/maelys-cli-man")
 set(MAELYS_CLI_AGENTS_DIR "@PACKAGE_CMAKE_INSTALL_DATADIR@/maelys-cli/agents")
 set(MAELYS_CLI_TEMPLATES_DIR "@PACKAGE_CMAKE_INSTALL_DATADIR@/maelys-cli/templates")
 

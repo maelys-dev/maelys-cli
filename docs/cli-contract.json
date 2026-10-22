@@ -879,7 +879,9 @@
       },
       "product": "Maelys CLI",
       "program": "maelys",
-      "schemaVersion": 1
+      "schemaVersion": 1,
+      "x-maelys-guidance": "EXTERNAL COMMANDS\n  External commands come only from manifests installed in the command directories (see 'maelys commands list'). Their arguments are passed verbatim; run 'maelys COMMAND describe' to inspect their own catalog.",
+      "x-maelys-summary": "dispatcher for Maelys command-line tools"
     },
     "maelys-hello": {
       "cliApi": 1,
@@ -2082,7 +2084,8 @@
       },
       "product": "Maelys Hello",
       "program": "maelys-hello",
-      "schemaVersion": 1
+      "schemaVersion": 1,
+      "x-maelys-summary": "reference CLI built on libmaelys_cli"
     }
   }
 }

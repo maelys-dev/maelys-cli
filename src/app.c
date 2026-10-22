@@ -2515,6 +2515,17 @@ static int describe_data(
     if (maelys_cli_json_key(writer, "globalOptions") != 0 ||
         describe_global_options(writer) != 0)
         return -1;
+    /* What a manual page needs and the contract does not carry: the line
+     * under the program's name and its guidance, extension members a
+     * generic agent ignores (agent-cli/v2, section 1). The guidance is prose
+     * for humans and agents, never a source of command lines: those are
+     * built from `input`. The catalog form alone, which a manual reads. */
+    if (app->summary && *app->summary &&
+        maelys_cli_json_key_string(writer, "x-maelys-summary", app->summary) != 0)
+        return -1;
+    if (app->agent_guidance && *app->agent_guidance &&
+        maelys_cli_json_key_string(writer, "x-maelys-guidance", app->agent_guidance) != 0)
+        return -1;
     if (!summary) {
         if (maelys_cli_json_key(writer, "output") != 0 ||
             maelys_cli_json_begin_object(writer) != 0 ||

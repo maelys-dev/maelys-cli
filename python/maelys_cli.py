@@ -2035,6 +2035,9 @@ class Program:
         else:
             data["kind"] = "catalog"
             data["globalOptions"] = GLOBAL_OPTIONS
+            # What a manual page needs and the contract does not carry (C: x-maelys-summary), an extension
+            # member a generic agent ignores; the catalog form alone, which a manual reads.
+            data["x-maelys-summary"] = self.guide_line
             data["invariants"] = INVARIANTS
             data["output"] = {"contract": CONTRACT, "schemaVersion": SCHEMA_VERSION,
                               "stdout": "success data only; protocol streams are explicit exceptions",

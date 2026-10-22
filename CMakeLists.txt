@@ -137,6 +137,7 @@ elseif(MAELYS_CLI_HAVE_JSON)
 endif()
 install(DIRECTORY include/maelys DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 install(PROGRAMS tools/maelys-cli-embed DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(PROGRAMS tools/maelys-cli-man DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(PROGRAMS tools/generate_cli_reference.py
     DESTINATION ${CMAKE_INSTALL_BINDIR} RENAME maelys-cli-reference)
 install(DIRECTORY share/agents share/templates

@@ -254,6 +254,16 @@ decide it, and `data.text` is never colored. A command's own text output
 colors itself with `maelys_cli_style(context->terminal.color_stdout, ...)`
 (`invocation.color_stdout` in Python).
 
+### Ship a manual page (optional)
+
+`maelys-cli-man PROGRAM > PROGRAM.1` renders the program's manual page in
+roff from its own `describe` catalog: commands, options, global options,
+examples, exit status, environment, and the guidance as NOTES. Nothing is
+written by hand. Pass `--date YYYY-MM-DD` (or set `SOURCE_DATE_EPOCH`) for
+a reproducible page, install it under `share/man/man1`, and lint it with
+`mandoc -T lint`. It runs the program, so a cross-compiled product renders
+its page where it runs.
+
 ### Compose the catalog from parts (build variants)
 
 A product that ships several build variants (a public build and an

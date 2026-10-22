@@ -408,6 +408,19 @@ colors, so color moves no column. Without color the headings in capitals,
 the blank lines and the indentation carry the same hierarchy. `data.text`
 is never colored.
 
+The manual page is a fourth rendering of the same catalog:
+`maelys-cli-man PROGRAM` reads `PROGRAM describe --format json`, the catalog
+form, and writes roff (man(7), section 1): NAME from `x-maelys-summary`,
+SYNOPSIS, DESCRIPTION, COMMANDS with their usage, operands and options,
+GLOBAL OPTIONS, EXAMPLES, EXIT STATUS (0, 1, 2; a stream or a delegate
+exits with the status of what it runs), ENVIRONMENT, NOTES from
+`x-maelys-guidance`, SEE ALSO. It follows the rules of the help: no hidden
+command or option, an unavailable command marked with its reason. The
+source is the same on Linux and macOS for the same catalog and date.
+`x-maelys-summary` and `x-maelys-guidance` are extension members of the
+catalog form; the guidance is prose for humans and agents, never a source
+of command lines, which an agent builds from `input`.
+
 `PROGRAM COMMAND --help` answers exactly as `PROGRAM help COMMAND_ID` does,
 envelope included: under `--format json` its `command` is `help`, whose
 `data` this is, and `data.commands` names the command asked about. Nothing

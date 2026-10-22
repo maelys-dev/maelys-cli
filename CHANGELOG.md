@@ -25,6 +25,15 @@
   validation refuses a color that is not SGR parameters. `help_palette` is
   a new last field of `maelys_cli_app_t`: a positional initializer built
   with `-Wextra -Werror` reports it until it names its fields.
+- **A manual page from the catalog.** `maelys-cli-man PROGRAM` renders
+  the program's page in roff from its own `describe` catalog, with the
+  rules of the help: no hidden command or option, an unavailable one
+  marked. It is installed beside `maelys-cli-embed`; `make check` lints the
+  pages of the reference programs with `mandoc -T lint` where mandoc is
+  installed. `describe` gains, in its catalog form, `x-maelys-summary` (the
+  line under the program's name) and `x-maelys-guidance` (the product's
+  guidance, prose never to build a line from): extension members a generic
+  agent ignores, which change a product's generated reference.
 - **`help conventions` is gone.** It was a topic of the help, and `help`
   names only commands and their families (agent-cli/v2, section 6): it is
   now `INVALID_COMMAND` like any word the catalog does not have. The global

@@ -60,7 +60,7 @@ texte que l'absence des options cachées ; il vérifie `data.commands`.
 
 | Information | Courte | Détails | man | describe |
 |---|---|---|---|---|
-| Codes de sortie (0, 1, 2 et ceux d'une commande) | — | — | CODES DE SORTIE | `exitCodes` |
+| Codes de sortie : toujours 0, 1 et 2 ; un flux ou un délégué sort avec le statut de ce qu'il lance | — | — | EXIT STATUS | `exitCodes` |
 | Variables d'environnement (`MAELYS_CLI_FORMAT`, `NO_COLOR`, `TERM`, `PAGER`, `COLUMNS`) | — | `help conventions` | ENVIRONNEMENT | en partie (`globalOptions`) |
 | Bornes et grammaire des valeurs (min, max, taille, durée, empreinte) | — | — | oui, une ligne par option typée | `input.options` |
 | Contraintes de lignes (`group`, `depends_on_all`, contraintes d'opérandes) | — | oui, en mots | oui | `input.constraints` |

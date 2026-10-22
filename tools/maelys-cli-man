@@ -1,0 +1,227 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: MPL-2.0
+"""maelys-cli-man: the manual page of a program built on maelys-cli, in roff
+(man(7), section 1), rendered from its own catalog.
+
+usage: maelys-cli-man [--date YYYY-MM-DD] PROGRAM [WORD...]
+
+The program is run once, as `PROGRAM [WORD...] describe --format json`, and
+its catalog form is the only source: the help is a rendering of describe,
+and so is this page. Nothing is written by hand and nothing is guessed.
+
+The page follows the rules of the help, which is for humans too: a hidden
+command or a hidden option is never on it, and a command this build cannot
+run is marked as such with its reason. EXIT STATUS is the contract's 0, 1
+and 2, every command having those three; a stream or a delegate exits with
+the status of what it runs. The line under the program's name comes from
+`x-maelys-summary`, and the product's guidance (`x-maelys-guidance`) is
+prose for humans and agents, never a source of command lines: an agent
+builds those from `input`.
+
+The tool runs the product, so it runs where the product runs: a product
+cross-compiled for another machine renders its page on that machine, or
+from a native build of the same tag. The date defaults to the day of
+SOURCE_DATE_EPOCH when it is set, to today otherwise; --date fixes it. The
+source is the same on Linux and macOS for the same catalog and date.
+
+Validate the result with `mandoc -T lint` or `groff -ww -man -z`.
+"""
+
+from __future__ import annotations
+
+import datetime
+import json
+import os
+import re
+import subprocess
+import sys
+
+ENVIRONMENT = (
+    ("MAELYS_CLI_FORMAT", "The format when no option names one: text, json or jsonl."),
+    ("NO_COLOR", "Set and not empty: no color, unless --color always or CLICOLOR_FORCE."),
+    ("CLICOLOR_FORCE", "Set and neither empty nor 0: color even into a pipe, unless --color never."),
+    ("TERM", "Unset, empty or dumb: no color, unless --color always or CLICOLOR_FORCE."),
+    ("PAGER", "The pager of a long text on a terminal; empty disables it."),
+    ("COLUMNS", "The width of the help on a terminal, read before the terminal's own."),
+)
+
+
+def escape(text: str) -> str:
+    """Text safe in a roff line: a backslash written as itself, a minus as
+    the character a reader copies into a shell, and no line read as a
+    request."""
+    text = text.replace("\\", "\\e").replace("-", "\\-")
+    return "\\&" + text if text[:1] in (".", "'") else text
+
+
+def prose(words: str) -> list[str]:
+    """Escaped text as source lines of at most 80 bytes, broken between
+    words: roff joins them again, and a reviewer reads the source."""
+    lines: list[str] = []
+    for word in escape(words).split(" "):
+        if lines and len(lines[-1]) + 1 + len(word) <= 80:
+            lines[-1] += " " + word
+        else:
+            lines.append(word)
+    return ["\\&" + line if line[:1] in (".", "'") else line for line in lines if line]
+
+
+def paragraphs(text: str) -> list[str]:
+    """The paragraphs of a prose member: each of its lines is one, as the
+    help reads it; blank lines are dropped, roff separates paragraphs."""
+    return [line.strip() for line in text.split("\n") if line.strip()]
+
+
+def shell_word(word: str) -> str:
+    """A word spelled as a shell reads it back, as the help writes an
+    example (C: help_shell_words)."""
+    if word and re.fullmatch(r"[A-Za-z0-9_@%+=:,./-]+", word):
+        return word
+    return "'" + word.replace("'", "'\\''") + "'"
+
+
+def effect_sentence(command: dict) -> str | None:
+    """What changes what the reader types, in the words of the help."""
+    effect = command["effect"]
+    if command.get("external"):
+        return "The rest of the line goes to another program, word for word."
+    if isinstance(effect, dict):
+        return f"It shows a plan; --apply {'commits' if effect.get('apply') == 'commit' else 'applies'} it."
+    if effect == "execute":
+        return "It acts at once, without a plan."
+    if effect == "stream" and command.get("protocol"):
+        return f"Its output is the {command['protocol']} protocol: --format and the other rendering options do not apply."
+    if effect == "stream":
+        return "Its output is its own: --format and the other rendering options do not apply."
+    return None
+
+
+def option_label(item: dict) -> str:
+    value = item.get("argument")
+    if value and value.get("choices"):
+        spelled = f"{item['long']} {'|'.join(value['choices'])}"
+    elif value:
+        spelled = f"{item['long']} {value.get('name', 'VALUE')}"
+    else:
+        spelled = item["long"]
+    return spelled + (" (repeatable)" if item.get("repeatable") else "")
+
+
+def option_text(item: dict) -> str:
+    text = item.get("summary", "")
+    if "default" in item:
+        text += f" Default: {item['default']}."
+    if item.get("required"):
+        text += " Required."
+    text += "".join(f" Requires {name}." for name in item.get("requires", []))
+    text += "".join(f" Conflicts with {name}." for name in item.get("conflictsWith", []))
+    return text
+
+
+def tagged(label: str, description: str) -> list[str]:
+    return [".TP", f".B {escape(label)}", *prose(description)]
+
+
+def page(data: dict, date: str) -> str:
+    program = data["program"]
+    # The product's commands first, then the ones every program has (section 6 of the contract), as the
+    # help lists them.
+    built_in = {"help", "version", "describe", "completion", "complete.candidates", "completion.install"}
+    visible = [command for command in data["commands"] if not command.get("hidden")]
+    shown = [command for command in visible if command["id"] not in built_in] + \
+        [command for command in visible if command["id"] in built_in]
+    by_id = {command["id"]: command for command in data["commands"]}
+    lines = [f'.TH {escape(program.upper())} 1 {date} "{escape(data["product"])} {escape(data["version"])}"'
+             f' "{escape(data["product"])} Manual"']
+    lines += [".SH NAME", f"{escape(program)} \\- {escape(data.get('x-maelys-summary') or data['product'])}"]
+    lines += [".SH SYNOPSIS", f".B {escape(program)}", *prose("COMMAND [OPERANDS] [options]")]
+    default = by_id.get(data.get("defaultCommand", ""))
+    if default is not None:
+        lines += [".br", f".B {escape(program)}", *prose("[options] [-- OPERANDS]")]
+    lines += [".SH DESCRIPTION"]
+    lines += prose(f"{data['product']} {data['version']}, a program of the agent-cli/v2 contract: "
+                  f"'{program} help' shows the help, '{program} describe --format json' the catalog this "
+                  "page is rendered from.")
+    if default is not None:
+        pattern = " ".join(default["pattern"])
+        lines += [".PP", *prose(f"{program} [options] runs '{pattern}', as {program} {pattern} [options] does: the "
+                               "options in front, other than --help and --version, are its, and its operands come "
+                               "after --.")]
+    lines += [".SH COMMANDS"]
+    for command in shown:
+        lines += [f'.SS "{escape(" ".join(command["pattern"]))}"', f".B {escape(program)}",
+                  *prose(command["usage"]), ".PP"]
+        sentence = effect_sentence(command)
+        lines += prose(command["purpose"] + (f" {sentence}" if sentence else ""))
+        if command.get("available") is False:
+            lines += [".PP", *prose(f"Not available in this build: {command.get('unavailableReason', '')}")]
+        operands = command["input"].get("operands", [])
+        for item in operands:
+            lines += tagged(item["name"], item.get("summary", "") + ("" if item.get("required") else " Optional."))
+        for item in command["input"].get("options", []):
+            if not item.get("hidden"):
+                lines += tagged(option_label(item), option_text(item))
+    lines += [".SH GLOBAL OPTIONS"]
+    for item in data.get("globalOptions", []):
+        if not item.get("hidden"):
+            lines += tagged(option_label(item), option_text(item))
+    examples = [(command, item) for command in shown for item in command.get("examples", [])]
+    if examples:
+        lines += [".SH EXAMPLES"]
+        for index, (_, item) in enumerate(examples):
+            # A line to copy stays one line, as in the help, whatever its length.
+            lines += [".PP"] * bool(index) + [*prose(item.get("summary", "")), ".PP", ".RS 4", ".nf",
+                      escape(f"{program} {' '.join(shell_word(word) for word in item['words'])}"), ".fi", ".RE"]
+    lines += [".SH EXIT STATUS"]
+    codes = next((command.get("exitCodes") for command in data["commands"] if command.get("exitCodes")),
+                 {"0": "command completed", "1": "execution failed", "2": "valid report with violations"})
+    for code in sorted(codes, key=int):
+        lines += tagged(code, codes[code].capitalize() + ".")
+    if any(command["effect"] == "stream" or command.get("external") for command in shown):
+        lines += [".PP", *prose("A stream command and a delegate exit with the status of what they run.")]
+    lines += [".SH ENVIRONMENT"]
+    for name, text in ENVIRONMENT:
+        lines += tagged(name, text)
+    guidance = data.get("x-maelys-guidance")
+    if guidance:
+        lines += [".SH NOTES"]
+        for index, paragraph in enumerate(paragraphs(guidance)):
+            lines += ([".PP"] if index else []) + prose(paragraph)
+    lines += [".SH SEE ALSO", *prose(f"{program} help, {program} help COMMAND, {program} describe --format json")]
+    return "\n".join(lines) + "\n"
+
+
+def main(argv: list[str]) -> int:
+    date = None
+    if argv[:1] == ["--date"] and len(argv) >= 2:
+        date, argv = argv[1], argv[2:]
+        if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", date):
+            sys.stderr.write("maelys-cli-man: --date takes YYYY-MM-DD\n")
+            return 1
+    if not argv or argv[0].startswith("-"):
+        sys.stderr.write("usage: maelys-cli-man [--date YYYY-MM-DD] PROGRAM [WORD...]\n")
+        return 1
+    if date is None:
+        epoch = os.environ.get("SOURCE_DATE_EPOCH")
+        moment = datetime.datetime.fromtimestamp(int(epoch), datetime.timezone.utc) if epoch else \
+            datetime.datetime.now(datetime.timezone.utc)
+        date = moment.strftime("%Y-%m-%d")
+    environment = dict(os.environ, NO_COLOR="1")
+    environment.pop("MAELYS_CLI_FORMAT", None)
+    completed = subprocess.run([*argv, "describe", "--format", "json", "--compact", "--non-interactive"],
+                               stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=environment,
+                               check=False)
+    try:
+        envelope = json.loads(completed.stdout)
+        data = envelope["data"]
+        if envelope.get("ok") is not True or data.get("kind") != "catalog":
+            raise ValueError("not a catalog")
+    except (ValueError, KeyError, TypeError):
+        sys.stderr.write(f"maelys-cli-man: {' '.join(argv)} gave no describe catalog\n{completed.stderr}")
+        return 1
+    sys.stdout.write(page(data, date))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
