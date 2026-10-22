@@ -20,6 +20,12 @@ const maelys_cli_command_t *maelys_cli_app_find_command(
 
 size_t maelys_cli_pattern_words(const char *pattern);
 
+/* The synopsis help shows, owned by the caller: the pattern, the operands
+ * with their arity, the required options and "[options]" for the others;
+ * a declared synopsis as written. describe keeps the full one. NULL when it
+ * does not fit or memory runs out. */
+char *maelys_cli_command_help_synopsis_alloc(const maelys_cli_command_t *command);
+
 /* The rendering refusals of `command` for the options `invocation` holds: a
  * stream refuses every rendering flag, --format jsonl is for records unless
  * --field is given, --field conflicts with an explicit json. Sets `error`

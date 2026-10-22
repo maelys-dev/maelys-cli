@@ -110,13 +110,11 @@ which ran `list`, selects the default command and is refused: `PROGRAM list
 ## Help
 
 `help`, `help COMMAND_ID`, `help FAMILY` and their `--help` spellings are
-generated from the catalog and laid out as the C library lays them out
-(`docs/command-conventions.md`, "Help"): within 80 columns where stdout is
-no terminal, the terminal's width between 60 and 100 where it is one.
-`program.guide(width)`, `program.command_help(command, width)`,
-`program.family_help(name, commands, width)` and
-`program.conventions_help(width)` return the four texts, the last being what
-`help conventions` prints: the global options and the agent contract whole;
+generated from the catalog and laid out as the C library lays them out,
+byte for byte (`docs/command-conventions.md`, "Help"): within 80 columns
+where stdout is no terminal, the terminal's width between 60 and 100 where
+it is one. `program.guide(width)`, `program.command_help(command, width)`
+and `program.family_help(name, commands, width)` return the three texts;
 `help_width(fmt)` is the width the built-in uses and `display_width(text)`
 counts columns, an accented letter being one, a CJK character two and a
 combining mark none.

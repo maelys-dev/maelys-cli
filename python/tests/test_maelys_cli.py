@@ -510,20 +510,20 @@ class Contract(unittest.TestCase):
         self.assertLessEqual(widest(guide), 80)
         self.assertIn("\n  note write  Store a note in a file.\n", guide)
         self.assertNotIn("note write FILE", guide)
-        self.assertIn("maelys-hello-py help COMMAND_ID", guide)
+        self.assertIn("maelys-hello-py help COMMAND ", guide)
         self.assertIn("maelys-hello-py help FAMILY", guide)
-        self.assertIn("AGENT CONTRACT", guide)
-        # What every program has in common is named, not repeated; `help conventions` has it whole.
-        self.assertIn("maelys-hello-py help conventions", guide)
-        self.assertIn("--format, --json,", guide)
-        self.assertNotIn("Exact alias of --format json", guide)
+        # The global options whole; the agent contract is describe's, one line points there.
+        self.assertIn("\nGLOBAL OPTIONS\n  --format text|json|jsonl", guide)
+        self.assertIn("Exact alias of --format json", guide)
+        self.assertIn("\nAGENTS\n", guide)
+        self.assertNotIn("AGENT CONTRACT", guide)
         self.assertNotIn("Exit 0 is success", guide)
-        conventions = run("help", "conventions")[1]
-        self.assertLessEqual(widest(conventions), 80)
-        self.assertIn("Exact alias of --format json", conventions)
-        self.assertIn("Exit 0 is success", conventions)
-        self.assertEqual(json.loads(run("help", "conventions", "--json")[1])["data"]["commands"], [])
-        # A command of that name is a command first: the topic does not take an identifier away.
+        self.assertNotIn("help conventions", guide)
+        # `conventions` is no topic: refused like any word the catalog does not have (spec, section 6).
+        code, _, err = run("help", "conventions")
+        self.assertEqual(code, 1)
+        self.assertIn("[INVALID_COMMAND]", err)
+        # A product's command of that name is a command like any other.
         shadowing = cli.Program("p", "P", "0", [cli.read("conventions", "conventions", "A product's own.",
                                                          lambda i: ({}, 0))])
         self.assertTrue(shadowing.command_help(shadowing.command_by_id("conventions")).startswith("USAGE\n  p conventions"))
@@ -531,22 +531,23 @@ class Contract(unittest.TestCase):
         with contextlib.redirect_stdout(out):
             self.assertEqual(shadowing.main(["help", "conventions"]), 0)
         self.assertIn("A product's own.", out.getvalue())
-        self.assertLess(guide.index("\n  greet"), guide.index("\n  describe"))    # the product's commands first
+        self.assertLess(guide.index("\n  greet"), guide.index("\n  Also: help, version, describe, completion."))
         self.assertNotIn("__complete", guide)
         for identifier in ("limits", "note.write", "describe"):
             self.assertLessEqual(widest(run("help", identifier)[1]), 80, identifier)
         limits = run("help", "limits")[1]
-        self.assertIn("EFFECT\n  read\n", limits)
-        self.assertIn("OUTPUT\n  json-envelope\n", limits)
-        self.assertNotIn("[--offset\n", limits)                                    # a usage breaks between groups
+        # What describe says of effect and output is not on a human's page; a read says nothing.
+        self.assertNotIn("EFFECT", limits)
+        self.assertNotIn("OUTPUT", limits)
+        self.assertIn("USAGE\n  maelys-hello-py limits [options]\n", limits)     # the optional options become [options]
         self.assertIn("--tag TEXT (repeatable)", limits)
         self.assertIn("Requires --level.", limits)
-        self.assertIn("preview by default; apply with --apply", run("help", "note.write")[1])
+        self.assertIn("Store a note in a file. It shows a plan; --apply applies it.", run("help", "note.write")[1])
         # A family: `help FAMILY` and `FAMILY --help` say the same, and data.commands lists it.
         code, family, err = run("note", "--help")
         self.assertEqual((code, err), (0, ""))
         self.assertIn("maelys-hello-py note - commands", family)
-        self.assertIn("\n  note write FILE --content TEXT", family)
+        self.assertIn("\n  note write FILE --content TEXT [options]\n", family)
         self.assertIn("\n      Store a note in a file.\n", family)
         self.assertEqual(run("help", "note")[1], family)
         self.assertEqual(json.loads(run("help", "note", "--json")[1])["data"]["commands"], ["note.write"])
@@ -573,9 +574,10 @@ class Contract(unittest.TestCase):
             cli.read("wide", "wide", " ".join(["\u00e9t\u00e9\u00e9t\u00e9"] * 12) + " \u65e5\u672c\u8a9e.",
                      lambda i: ({}, 0))])
         entry = next(line for line in accented.guide().splitlines() if line.startswith("  wide"))
-        # The label and its column take 14, nine words of six columns and their spaces 62: the same
-        # line src/app.c writes, which tests/test_app.c measures in bytes.
-        self.assertEqual((cli.display_width(entry), len(entry.encode("utf-8"))), (76, 112))
+        # The label and its column take 8, the column being that of the product's commands; ten words
+        # of six columns and their spaces 69: the same line src/app.c writes, which tests/test_app.c
+        # measures in bytes.
+        self.assertEqual((cli.display_width(entry), len(entry.encode("utf-8"))), (77, 117))
         self.assertLessEqual(widest(accented.guide()), 80)
 
     def test_completion(self) -> None:

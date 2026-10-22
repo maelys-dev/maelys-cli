@@ -413,14 +413,110 @@ static const maelys_cli_app_t accented_app = {
     "prog", "Test Product", "9.9.9", NULL, accented_commands, 1u, NULL, 0u, NULL, NULL, NULL
 };
 
+/* The synopsis of help, one rule over usage (agent-cli/v2, section 10): the
+ * optional options become "[options]", in each alternative; the operands,
+ * their choices and the required options stay exactly as usage has them. */
+static const char *const synopsis_modes[] = {"fast", "safe", NULL};
+static const maelys_cli_operand_t synopsis_alt_operands[] = {
+    {MAELYS_CLI_OPERAND("PROGRAM", "Program.")},
+    {MAELYS_CLI_OPERAND_REST("ARG", "Argument.")},
+};
+static const maelys_cli_option_t synopsis_alt_options[] = {
+    {MAELYS_CLI_STRING("env", "NAME", "Variable.")},
+};
+static const maelys_cli_operand_t synopsis_pick_operands[] = {
+    {MAELYS_CLI_OPERAND_CHOICE("SHELL", "Shell.", shells)},
+};
+static const maelys_cli_option_t synopsis_pick_options[] = {
+    {MAELYS_CLI_SIZE("size", "BYTES", "Size.", 1u, 0u), .required = 1},
+    {MAELYS_CLI_CHOICE("mode", "Mode.", synopsis_modes)},
+    {MAELYS_CLI_STRING("tag", "TEXT", "Tag."), .repeatable = 1},
+};
+static const maelys_cli_option_t synopsis_quiet_options[] = {
+    {MAELYS_CLI_FLAG("secret", "Secret."), .hidden = 1},
+};
+static const maelys_cli_command_t synopsis_commands[] = {
+    {MAELYS_CLI_READ("alt", "alt", "Alternatives.", command_make),
+     MAELYS_CLI_OPERANDS(synopsis_alt_operands), MAELYS_CLI_OPTIONS(synopsis_alt_options),
+     .synopsis = "alt PROGRAM [ARG...] | alt -- PROGRAM [ARG...]"},
+    {MAELYS_CLI_READ("pick", "pick", "Choices.", command_make),
+     MAELYS_CLI_OPERANDS(synopsis_pick_operands), MAELYS_CLI_OPTIONS(synopsis_pick_options)},
+    {MAELYS_CLI_READ("quiet", "quiet", "Only a hidden option.", command_make),
+     MAELYS_CLI_OPTIONS(synopsis_quiet_options)},
+};
+static const maelys_cli_app_t synopsis_app = {
+    .program = "prog", .product = "Test Product", .version = "9.9.9",
+    .commands = synopsis_commands, .command_count = MAELYS_CLI_COUNT(synopsis_commands),
+};
+
+static char *synopsis_run(const char *a, const char *b) {
+    char *out = NULL, *err = NULL;
+    size_t out_size = 0u, err_size = 0u;
+    FILE *out_stream = open_memstream(&out, &out_size);
+    FILE *err_stream = open_memstream(&err, &err_size);
+    char *argv[] = {(char *)a, (char *)b, NULL};
+    (void)maelys_cli_run(&synopsis_app, 2, argv, out_stream, err_stream);
+    (void)fclose(out_stream);
+    (void)fclose(err_stream);
+    free(err);
+    return out;
+}
+
+static int test_help_synopsis(void) {
+    struct { const char *id, *usage, *help; } cases[] = {
+        {"alt", "\"usage\":\"alt PROGRAM [ARG...] | alt -- PROGRAM [ARG...]\"",
+         "USAGE\n  prog alt PROGRAM [ARG...] | alt -- PROGRAM [ARG...] [options]\n"},
+        {"pick", "\"usage\":\"pick SHELL --size BYTES [--mode fast|safe] [--tag TEXT...]\"",
+         "USAGE\n  prog pick SHELL --size BYTES [options]\n"},
+        {"quiet", "\"usage\":\"quiet\"", "USAGE\n  prog quiet\n"},
+    };
+    for (size_t i = 0u; i < sizeof(cases) / sizeof(cases[0]); ++i) {
+        char *help = synopsis_run("help", cases[i].id);
+        CHECK(help && strstr(help, cases[i].help));
+        free(help);
+        /* describe keeps the whole usage. */
+        char *argv[] = {(char *)"describe", (char *)cases[i].id, (char *)"--json",
+                        (char *)"--compact", NULL};
+        char *out = NULL, *err = NULL;
+        size_t out_size = 0u, err_size = 0u;
+        FILE *out_stream = open_memstream(&out, &out_size);
+        FILE *err_stream = open_memstream(&err, &err_size);
+        (void)maelys_cli_run(&synopsis_app, 4, argv, out_stream, err_stream);
+        (void)fclose(out_stream);
+        (void)fclose(err_stream);
+        CHECK(out && strstr(out, cases[i].usage));
+        free(out);
+        free(err);
+    }
+    return 1;
+}
+
 static int test_help_and_version(void) {
     run_result_t result = run(0, NULL);
     CHECK(result.code == 0 && strstr(result.out, "COMMANDS") && !result.err[0]);
     /* The general help names a command by its pattern and its purpose; its
      * usage is in its own help and in its family's. */
     CHECK(strstr(result.out, "\n  thing make") && !strstr(result.out, "thing make ROOT NAME"));
-    CHECK(strstr(result.out, "prog help COMMAND_ID") && strstr(result.out, "prog help FAMILY"));
-    CHECK(strstr(result.out, "EXTRA GUIDANCE"));
+    CHECK(strstr(result.out, "prog help COMMAND ") && strstr(result.out, "prog help FAMILY"));
+    CHECK(!strstr(result.out, "badjson")); /* hidden */
+    /* The product's commands first; the ones every program has are named on
+     * one line after them, not described. */
+    const char *own = strstr(result.out, "\n  thing make");
+    const char *built_in = strstr(result.out, "\n  Also: help, version, describe, completion");
+    CHECK(own && built_in && own < built_in);
+    CHECK(!strstr(result.out, "\n  describe "));
+    /* It fits eighty columns where it is not written to a terminal: no
+     * description is pushed to the right of the longest usage. */
+    CHECK(widest_line(result.out) <= 80u);
+    /* The options every command takes are given whole: the general help is
+     * where a human reads them. The contract an agent relies on is
+     * describe's; one line points there, and the product's guidance to
+     * agents is not on this screen. */
+    CHECK(strstr(result.out, "\nGLOBAL OPTIONS\n  --format text|json|jsonl") &&
+        strstr(result.out, "Exact alias of --format json"));
+    CHECK(strstr(result.out, "\nAGENTS\n") && strstr(result.out, "describe --summary"));
+    CHECK(!strstr(result.out, "AGENT CONTRACT") && !strstr(result.out, "Exit 0 is success") &&
+        !strstr(result.out, "help conventions"));
     /* The product's guidance follows the width like the rest: each of its
      * lines is a paragraph wrapped at that line's indentation. 0.6.0 printed
      * it as written, so a paragraph on one line was one line of any length
@@ -429,28 +525,11 @@ static int test_help_and_version(void) {
         "  line is, and the help wraps it to its width at the indentation it was given.\n"));
     CHECK(strstr(result.out, "given.\n\n    Deeper: a second paragraph, indented by four, is wrapped at four and never\n"
         "    brought back to the margin of the first one.\n"));
-    CHECK(!strstr(result.out, "badjson")); /* hidden */
-    /* The product's commands come first, then the ones every program has. */
-    const char *own = strstr(result.out, "\n  thing make");
-    const char *built_in = strstr(result.out, "\n  describe");
-    CHECK(own && built_in && own < built_in);
-    /* It fits eighty columns where it is not written to a terminal: no
-     * description is pushed to the right of the longest usage. */
-    CHECK(widest_line(result.out) <= 80u);
-    /* What every program has in common is named, not repeated: the options
-     * by their names, the contract by its first rule, the rest one command
-     * away. Spelled out, they were two thirds of the screen. */
-    CHECK(strstr(result.out, "prog help conventions") && strstr(result.out, "--format, --json,"));
-    CHECK(strstr(result.out, "AGENT CONTRACT") && strstr(result.out, "describe --summary"));
-    CHECK(!strstr(result.out, "Exact alias of --format json") && !strstr(result.out, "Exit 0 is success"));
     release(&result);
-    result = RUNV("help", "conventions");
-    CHECK(result.code == 0 && !result.err[0] && widest_line(result.out) <= 80u &&
-        strstr(result.out, "prog - conventions") &&
-        strstr(result.out, "Exact alias of --format json") && strstr(result.out, "Exit 0 is success"));
-    release(&result);
+    /* `conventions` is no topic: like any word the catalog does not have,
+     * it is refused (agent-cli/v2, section 6). */
     result = RUNV("help", "conventions", "--json", "--compact");
-    CHECK(result.code == 0 && strstr(result.out, "\"commands\":[]"));   /* a topic holds no command */
+    CHECK(result.code == 1 && strstr(result.err, "INVALID_COMMAND"));
     release(&result);
     /* An example is a line to copy: on one line, even past the width. 0.6.1
      * wrapped it without a mark, and each half ran as a command of its own. */
@@ -535,10 +614,11 @@ static int test_help_and_version(void) {
         CHECK(wide.code == 0 && entry);
         const char *end = strchr(entry + 1, '\n');
         size_t bytes = (size_t)(end - entry - 1);
-        /* The label and its column take 14; nine words of six columns and
-         * their eight spaces take 62: 76 columns, in 112 bytes, each word
-         * being ten bytes. Wrapped by bytes, six words would fit. */
-        CHECK(bytes == 112u);
+        /* The label and its column take 8, the column being that of the
+         * product's own commands; ten words of six columns and their nine
+         * spaces take 69: 77 columns, in 117 bytes, each word being ten
+         * bytes. Wrapped by bytes, six words would fit. */
+        CHECK(bytes == 117u);
         /* The last line carries three CJK characters, six columns. */
         CHECK(strstr(wide.out, "\xe6\x97\xa5\xe6\x9c\xac\xe8\xaa\x9e.\n"));
         release(&wide);
@@ -547,11 +627,12 @@ static int test_help_and_version(void) {
     CHECK(result.code == 0 && strstr(result.out, "USAGE"));
     release(&result);
     result = RUNV("thing", "make", "--help");
-    CHECK(result.code == 0 && strstr(result.out, "--memory BYTES") && strstr(result.out, "preview by default"));
+    CHECK(result.code == 0 && strstr(result.out, "--memory BYTES") && strstr(result.out, "It shows a plan; --apply applies it.") &&
+        !strstr(result.out, "EFFECT") && !strstr(result.out, "OUTPUT"));
     CHECK(!strstr(result.out, "--legacy")); /* hidden option: absent from usage and help */
     release(&result);
     result = RUNV("help", "exec");
-    CHECK(result.code == 0 && strstr(result.out, "protocol-stream owned by protocol test-jsonl"));
+    CHECK(result.code == 0 && strstr(result.out, "Its output is the test-jsonl protocol"));
     release(&result);
     /* `COMMAND --help` answers as `help COMMAND_ID` does, envelope included:
      * `command` names help, whose data this is, and data.commands the
@@ -1106,8 +1187,13 @@ static int test_groups_defaults_unavailable(void) {
     result = RUNV("describe", "cloud", "--json", "--compact");
     CHECK(result.code == 0 && strstr(result.out, "\"available\":false,\"unavailableReason\":\"built without the Cloud agent\""));
     release(&result);
+    /* A command this build cannot run is named after the others, never
+     * listed among them, and its own help says why. */
     result = RUNV("help");
-    CHECK(strstr(result.out, "Cloud sync. (unavailable in this build)"));
+    CHECK(strstr(result.out, "\n  Not available in this build: cloud") && !strstr(result.out, "Cloud sync."));
+    release(&result);
+    result = RUNV("help", "cloud");
+    CHECK(result.code == 0 && strstr(result.out, "\nUNAVAILABLE IN THIS BUILD\n  built without the Cloud agent"));
     release(&result);
     /* The declared code answers instead of UNSUPPORTED, which would have
      * said absence where the cause is a refusal of trust. */
@@ -1578,6 +1664,7 @@ static int test_invalid_catalog(void) {
 int main(void) {
     int failures = 0;
     RUN(test_help_and_version);
+    RUN(test_help_synopsis);
     RUN(test_describe);
     RUN(test_parsing_success);
     RUN(test_parsing_failures);

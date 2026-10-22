@@ -1,4 +1,5 @@
 #include "maelys/cli/catalog.h"
+#include "internal.h"
 
 #include <errno.h>
 
@@ -114,6 +115,78 @@ static void render_synopsis(const maelys_cli_command_t *command, sink_t *sink) {
     for (size_t i = 0u; i < command->option_count; ++i)
         if (!command->options[i].required && !command->options[i].hidden)
             put_option(sink, &command->options[i]);
+}
+
+/* The synopsis help shows, one rule over the usage describe gives (agent-cli
+ * v2, section 10: a rendering of the declaration, never a second string):
+ * in each alternative a " | " separates, every optional option -- a
+ * bracketed group that starts with "--" -- leaves the line, and one
+ * "[options]" closes the alternative that lost any. The pattern, the
+ * operands with their arity or their choices, and the required options
+ * stay as usage writes them. A command whose usage names none of its
+ * optional options gets "[options]" at the end. */
+static void render_help_synopsis(const char *usage, int optional, sink_t *sink) {
+    int dropped_any = 0;
+    for (const char *alternative = usage; *alternative;) {
+        const char *next = strstr(alternative, " | ");
+        const char *end = next ? next : alternative + strlen(alternative);
+        int dropped = 0, first = 1;
+        for (const char *cursor = alternative; cursor < end;) {
+            while (cursor < end && *cursor == ' ') ++cursor;
+            if (cursor >= end) break;
+            const char *stop = cursor;
+            int depth = 0;
+            for (; stop < end && (*stop != ' ' || depth > 0); ++stop) {
+                if (*stop == '[') ++depth;
+                else if (*stop == ']' && depth > 0) --depth;
+            }
+            if (cursor[0] == '[' && stop - cursor > 3 && cursor[1] == '-' && cursor[2] == '-') {
+                dropped = 1;
+            } else {
+                char unit[MAELYS_CLI_MAX_SYNOPSIS + 1u];
+                size_t length = (size_t)(stop - cursor);
+                if (length > MAELYS_CLI_MAX_SYNOPSIS) length = MAELYS_CLI_MAX_SYNOPSIS;
+                memcpy(unit, cursor, length);
+                unit[length] = '\0';
+                if (!first) put(sink, " ");
+                put(sink, unit);
+                first = 0;
+            }
+            cursor = stop;
+        }
+        if (dropped) put(sink, " [options]");
+        dropped_any |= dropped;
+        if (!next) {
+            if (optional && !dropped_any) put(sink, " [options]");
+            break;
+        }
+        put(sink, " | ");
+        alternative = next + 3;
+    }
+}
+
+char *maelys_cli_command_help_synopsis_alloc(const maelys_cli_command_t *command) {
+    if (!command) return NULL;
+    char *usage = maelys_cli_command_synopsis_alloc(command);
+    if (!usage) return NULL;
+    int optional = 0;
+    for (size_t i = 0u; i < command->option_count; ++i)
+        if (!command->options[i].hidden && !command->options[i].required) optional = 1;
+    char *buffer = malloc(MAELYS_CLI_MAX_SYNOPSIS + 1u);
+    if (!buffer) {
+        free(usage);
+        return NULL;
+    }
+    sink_t sink = {buffer, MAELYS_CLI_MAX_SYNOPSIS + 1u, 0u, 0};
+    buffer[0] = '\0';
+    render_help_synopsis(usage, optional, &sink);
+    free(usage);
+    if (sink.truncated) {
+        free(buffer);
+        return NULL;
+    }
+    char *result = realloc(buffer, sink.used + 1u);
+    return result ? result : buffer;
 }
 
 int maelys_cli_command_synopsis(

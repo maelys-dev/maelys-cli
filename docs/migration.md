@@ -147,6 +147,17 @@ command when either is wrong:
   into one line per paragraph, or each hand-made line is wrapped on its own
   and the paragraph reads ragged at another width.
 
+## Every consumer, at the human help
+
+- **A test that reads the text of `help`** changes: `EFFECT`, `OUTPUT`,
+  `AGENT CONTRACT` and the full usage of a command are no longer in it.
+  `describe --format json` has all of them, and its shape is the contract;
+  test that instead. The usage of the help ends in `[options]` where
+  `describe` lists each optional option.
+- **`help conventions`** is refused with `INVALID_COMMAND`. A script or a
+  document that sent a reader there points to `PROGRAM --help`, which now
+  lists the global options whole.
+
 ## Every consumer, at agent-cli-spec 2.16.0
 
 A program may now name a default command; one that names none is read as

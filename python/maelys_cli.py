@@ -328,12 +328,44 @@ def _command(identifier: str, pattern: str, purpose: str, handler: Optional[Hand
             synopsis += " [ARGUMENTS...]"
     elif not synopsis.startswith(pattern):
         raise ValueError(f"{identifier}: a synopsis starts with the pattern {pattern!r}, not {synopsis!r}")
-    return {"id": identifier, "pattern": words, "usage": synopsis, "purpose": purpose, "effect": effect,
+    help_usage = _help_synopsis(synopsis, any(not item["required"] and not item.get("hidden") for item in options))
+    return {"id": identifier, "pattern": words, "usage": synopsis, "helpUsage": help_usage, "purpose": purpose,
+            "effect": effect,
             "outputMode": mode, "protocol": protocol, "external": external, "hidden": hidden,
             "unavailable": unavailable, "unavailableCode": unavailable_code,
             "operands": operands, "options": options, "passthrough": passthrough,
             "constraints": list(constraints), "examples": list(examples),
             "outputSchema": schema or {"type": "object"}, "handler": handler}
+
+
+def _help_synopsis(usage: str, optional: bool) -> str:
+    """The synopsis help shows, one rule over the usage describe gives (C:
+    maelys_cli_command_help_synopsis_alloc; spec, section 10): in each
+    alternative a " | " separates, every optional option -- a bracketed group
+    that starts with "--" -- leaves the line, and one "[options]" closes the
+    alternative that lost any. The pattern, the operands with their arity or
+    their choices, and the required options stay as usage writes them. A
+    command whose usage names none of its optional options gets "[options]"
+    at the end."""
+    alternatives = []
+    dropped_any = False
+    for alternative in usage.split(" | "):
+        units, unit, depth = [], "", 0
+        for char in alternative + " ":
+            if char == " " and depth == 0:
+                if unit:
+                    units.append(unit)
+                unit = ""
+                continue
+            depth += 1 if char == "[" else -1 if char == "]" and depth > 0 else 0
+            unit += char
+        kept = [item for item in units if not (item.startswith("[--") and len(item) > 3)]
+        dropped = len(kept) != len(units)
+        dropped_any = dropped_any or dropped
+        alternatives.append(" ".join(kept) + (" [options]" if dropped else ""))
+    if optional and not dropped_any:
+        alternatives[-1] += " [options]"
+    return " | ".join(alternatives)
 
 
 def read(identifier: str, pattern: str, purpose: str, handler: Handler, **keywords: Any) -> dict:
@@ -516,6 +548,16 @@ def _help_entry(label: str, text: str, label_width: int, width: int, groups: boo
         column = label_width + 4
         return "  " + label + " " * (label_width - wide + 2) + _help_wrap(text, column, column, width) + "\n"
     return "  " + _help_wrap(label, 2, 8, width, groups) + "\n" + " " * 6 + _help_wrap(text, 6, 6, width) + "\n"
+
+
+def _help_emphasized(text: str) -> str:
+    """The help as a terminal shows it when color is on (C: help_emphasized):
+    each heading, a line of capitals at the margin, in bold. data.text stays
+    plain; without color the headings, blank lines and indentation carry the
+    hierarchy."""
+    lines = text.split("\n")
+    return "\n".join(f"\033[1m{line}\033[0m" if line and line[0] != " " and all("A" <= c <= "Z" or c == " " for c in line)
+                     else line for line in lines)
 
 
 def _help_paragraph(text: str, width: int, groups: bool = False) -> str:
@@ -1539,8 +1581,8 @@ class Program:
         self.text = dict(text or {})
         self.catalog = [
             read("help", "help", "Show the help of the program or of one command.", self._help,
-                 operands=[operand("COMMAND_ID", "Command identifier, the family of commands under one, "
-                                   "or `conventions`.", required=False)],
+                 operands=[operand("COMMAND_ID", "Command identifier, or the family of commands under one.",
+                                   required=False)],
                  schema={"type": "object", "required": ["text", "commands"],
                          "properties": {"text": {"type": "string"},
                                         "commands": {"type": "array", "items": {"type": "string"}}}}),
@@ -1608,7 +1650,7 @@ class Program:
     def _default_forms(self, pattern: str) -> str:
         """The two ways to invoke the default command (C: default_forms), each a line to copy and so,
         as an example, never wrapped."""
-        return f"  {self.program} [OPTIONS] [-- OPERANDS]\n  {self.program} {pattern} [OPTIONS] [-- OPERANDS]\n"
+        return f"  {self.program} [options] [-- OPERANDS]\n  {self.program} {pattern} [options] [-- OPERANDS]\n"
 
     def _default(self) -> Optional[dict]:
         return self.command_by_id(self.default_command) if self.default_command is not None else None
@@ -1750,32 +1792,34 @@ class Program:
         column = max([display_width(label) for label, _ in shown if display_width(label) <= HELP_LABEL_MAXIMUM] or [0])
         return "".join(_help_entry(label, text, column, width) for label, text in shown)
 
-    def command_help(self, command: dict, width: int = HELP_WIDTH) -> str:
-        """The help of one command: its usage, purpose, effect, output mode,
-        operands and options, laid out within `width` columns."""
-        text = "USAGE\n" + _help_paragraph(f"{self.program} {command['usage']}", width, groups=True)
-        text += "\n" + _help_wrap(command["purpose"], 0, 0, width) + "\n\n"
-        if self.default_command == command["id"]:
-            text += "DEFAULT COMMAND\n" + _help_paragraph(
-                "A line that names no command runs this one: an empty line, or one that starts with an option "
-                "other than --help and --version. Its operands come after --:", width) \
-                + self._default_forms(" ".join(command["pattern"])) + "\n"
-        if command["unavailable"] is not None:
-            text += "UNAVAILABLE IN THIS BUILD\n" + _help_paragraph(command["unavailable"], width) + "\n"
+    @staticmethod
+    def _effect_sentence(command: dict) -> Optional[str]:
+        """What a command does that changes what its reader types, in words
+        (C: effect_sentence): a transaction plans until --apply, an execute
+        command acts at once, a stream and a delegate own their output."""
         effect = command["effect"]
-        text += "EFFECT\n  " + (f"{effect['plan']} by default; {effect['apply']} with --apply"
-                                if isinstance(effect, dict) else effect) + "\n"
-        output = command["outputMode"] + (f" owned by protocol {command['protocol']}" if command["protocol"] else "") \
-            + (" (arguments are passed to an external program)" if command["external"] else "")
-        text += "\nOUTPUT\n" + _help_paragraph(output, width)
-        if command["operands"]:
-            column = max([display_width(item["name"]) for item in command["operands"]
-                          if display_width(item["name"]) <= HELP_LABEL_MAXIMUM] or [0])
-            text += "\nOPERANDS\n" + "".join(
-                _help_entry(item["name"], item["summary"] + ("" if item["required"] else " Optional."), column, width)
-                for item in command["operands"])
-        if any(not item.get("hidden") for item in command["options"]):
-            text += "\nOPTIONS\n" + self._options_help(command["options"], width)
+        if command["external"]:
+            return "The rest of the line goes to another program, word for word."
+        if isinstance(effect, dict):
+            return f"It shows a plan; --apply {'commits' if effect['apply'] == 'commit' else 'applies'} it."
+        if effect == "execute":
+            return "It acts at once, without a plan."
+        if effect == "stream" and command["protocol"]:
+            return f"Its output is the {command['protocol']} protocol: --format and the other rendering options " \
+                "do not apply."
+        if effect == "stream":
+            return "Its output is its own: --format and the other rendering options do not apply."
+        return None
+
+    def command_help(self, command: dict, width: int = HELP_WIDTH) -> str:
+        """The help of one command (C: command_help_text): its usage, what it
+        is for, its examples, then its operands and options, laid out within
+        `width` columns."""
+        text = "USAGE\n" + _help_paragraph(f"{self.program} {command['helpUsage']}", width, groups=True)
+        effect = self._effect_sentence(command)
+        text += "\n" + _help_wrap(command["purpose"] + (f" {effect}" if effect else ""), 0, 0, width) + "\n"
+        if command["unavailable"] is not None:
+            text += "\nUNAVAILABLE IN THIS BUILD\n" + _help_paragraph(command["unavailable"], width)
         if command["examples"]:
             # A line to copy: on one line whatever the width, the one place
             # the help passes it on purpose. Wrapped, the first half was a
@@ -1786,8 +1830,21 @@ class Program:
                 f"  {self.program} {' '.join(_shell_word(word) for word in item['words'])}\n"
                 + " " * 6 + _help_wrap(item["summary"], 6, 6, width) + "\n"
                 for item in command["examples"])
+        if self.default_command == command["id"]:
+            text += "\nDEFAULT COMMAND\n" + _help_paragraph(
+                "A line that names no command runs this one: an empty line, or one that starts with an option "
+                "other than --help and --version. Its operands come after --:", width) \
+                + self._default_forms(" ".join(command["pattern"]))
+        if command["operands"]:
+            column = max([display_width(item["name"]) for item in command["operands"]
+                          if display_width(item["name"]) <= HELP_LABEL_MAXIMUM] or [0])
+            text += "\nOPERANDS\n" + "".join(
+                _help_entry(item["name"], item["summary"] + ("" if item["required"] else " Optional."), column, width)
+                for item in command["operands"])
+        if any(not item.get("hidden") for item in command["options"]):
+            text += "\nOPTIONS\n" + self._options_help(command["options"], width)
         text += "\nGLOBAL OPTIONS\n" + _help_paragraph(
-            f"Run '{self.program} help conventions' for --format, --json, --compact, --non-interactive, --color "
+            f"Run '{self.program} --help' for --format, --json, --compact, --non-interactive, --color "
             "and the others.", width)
         return text
 
@@ -1806,7 +1863,7 @@ class Program:
         text = f"{self.program} {name} - commands\n\nCOMMANDS\n"
         for command in commands:
             purpose = command["purpose"] + (" (unavailable in this build)" if command["unavailable"] is not None else "")
-            text += _help_entry(command["usage"], purpose, 0, width, groups=True)
+            text += _help_entry(command["helpUsage"], purpose, 0, width, groups=True)
         return text + "\n" + _help_wrap(
             f"Run '{self.program} help COMMAND_ID' or '{self.program} COMMAND --help' for the operands and options "
             "of one command.", 0, 0, width) + "\n"
@@ -1817,55 +1874,50 @@ class Program:
         sys.stderr.flush()
 
     def guide(self, width: int = HELP_WIDTH) -> str:
-        """The general help: each command by its pattern and its purpose, the
-        product's first, then the ones every program has; the usage of a
-        command is in its own help, the usage of a family in the family's."""
+        """The general help, a screen for a human (C: catalog_help_text): what
+        the program is, how a line is written, the product's commands by their
+        pattern and purpose. What every program has is named in a line: the
+        built-in commands, the global options, the agent contract. A command
+        this build cannot run is named at the end, never mixed with the rest."""
         text = _help_wrap(f"{self.program} {self.version} - {self.guide_line}", 0, 0, width) + "\n\n"
-        text += f"USAGE\n  {self.program} COMMAND [OPERANDS] [OPTIONS]\n"
-        column = display_width(f"{self.program} help conventions")
-        text += _help_entry(f"{self.program} help COMMAND_ID", "the operands and options of one command", column, width)
-        text += _help_entry(f"{self.program} help FAMILY", "the commands of one family, with their usage", column, width)
-        text += _help_entry(f"{self.program} help conventions",
-                            "the options every command takes, and the agent contract", column, width)
-        text += "\nCOMMANDS\n"
-        visible = [(index, command) for index, command in enumerate(self.catalog) if not command["hidden"]]
-        column = max([display_width(" ".join(command["pattern"])) for _, command in visible
-                      if display_width(" ".join(command["pattern"])) <= HELP_LABEL_MAXIMUM] or [0])
-        own = [command for index, command in visible if index >= self._builtin_count]
-        built_in = [command for index, command in visible if index < self._builtin_count]
-        for group in (own, built_in):
-            if group is built_in and own and built_in:
-                text += "\n"
-            for command in group:
-                purpose = command["purpose"] + (" (unavailable in this build)" if command["unavailable"] is not None else "")
-                text += _help_entry(" ".join(command["pattern"]), purpose, column, width)
+        text += f"USAGE\n  {self.program} COMMAND [OPERANDS] [options]\n"
+        column = display_width(f"{self.program} help COMMAND")
+        text += _help_entry(f"{self.program} help COMMAND", "one command, its options and examples", column, width)
+        text += _help_entry(f"{self.program} help FAMILY", "the commands of one family", column, width)
+        # The default command in one sentence that says the three things the
+        # spec (section 8) asks of help; where its operands go is in its help.
         default = self._default()
         if default is not None:
             pattern = " ".join(default["pattern"])
-            text += "\nDEFAULT COMMAND\n" + _help_paragraph(
-                f"A line that names no command runs '{pattern}': an empty line, or one that starts with an option "
-                "other than --help and --version. Its operands come after --:", width) \
-                + self._default_forms(pattern)
-        # What every program has in common is named, not repeated: spelled
-        # out, the options and the contract were two thirds of this screen.
-        names = ", ".join(item["long"] for item in GLOBAL_OPTIONS if not item.get("hidden"))
-        text += "\nGLOBAL OPTIONS\n" + _help_paragraph(
-            f"{names}. Run '{self.program} help conventions' for what each one does.", width)
-        text += "\nAGENT CONTRACT\n" + _help_paragraph(
-            f"Use --format json --non-interactive, and run '{self.program} describe --summary --format json' first. "
-            f"'{self.program} help conventions' has the rest of the contract.", width)
+            text += "\n" + _help_paragraph(
+                f"{self.program} [options] runs '{pattern}', as {self.program} {pattern} [options] does: the options "
+                "in front, other than --help and --version, are its.", width)
+        visible = [(index, command) for index, command in enumerate(self.catalog) if not command["hidden"]]
+        own = [command for index, command in visible if index >= self._builtin_count and command["unavailable"] is None]
+        built_in = [command for index, command in visible if index < self._builtin_count]
+        unavailable = [command for index, command in visible
+                       if index >= self._builtin_count and command["unavailable"] is not None]
+        column = max([display_width(" ".join(command["pattern"])) for command in own
+                      if display_width(" ".join(command["pattern"])) <= HELP_LABEL_MAXIMUM] or [0])
+        text += "\nCOMMANDS\n" + "".join(
+            _help_entry(" ".join(command["pattern"]), command["purpose"], column, width) for command in own)
+        if built_in or unavailable:
+            text += "\n"
+        if built_in:
+            text += _help_paragraph("Also: " + ", ".join(" ".join(command["pattern"]) for command in built_in) + ".",
+                                    width)
+        if unavailable:
+            text += _help_paragraph(
+                "Not available in this build: " + ", ".join(" ".join(command["pattern"]) for command in unavailable)
+                + f". '{self.program} help COMMAND' says why.", width)
+        # The options every command takes, whole: a human reads them here and
+        # nowhere else. The contract an agent relies on is describe's
+        # (`invariants`, `output`) and the manual's; one line points there.
+        text += "\nGLOBAL OPTIONS\n" + self._options_help(GLOBAL_OPTIONS, width)
+        text += "\nAGENTS\n" + _help_paragraph(
+            f"Run '{self.program} describe --summary --format json' first, and build every line from its input, "
+            "never from this text.", width)
         return text
-
-    def conventions_help(self, width: int = HELP_WIDTH) -> str:
-        """What every program built on the framework has in common: the options
-        every command takes and the contract an agent relies on, whole."""
-        return f"{self.program} - conventions\n\nGLOBAL OPTIONS\n" + self._options_help(GLOBAL_OPTIONS, width) \
-            + "\nAGENT CONTRACT\n" + _help_paragraph(
-                f"Use --format json --non-interactive. Run '{self.program} describe --summary --format json' first, "
-                f"then '{self.program} describe COMMAND_ID --format json' for the exact input and output contract. "
-                "Exit 0 is success, 1 is execution failure, and 2 is a completed validation report with violations. "
-                "Transactions plan by default and require --apply. Stream commands reserve stdout for their "
-                "protocol. Success data is written to stdout only; diagnostics and failures go to stderr.", width)
 
     # ---- built-in handlers ----
 
@@ -1886,11 +1938,8 @@ class Program:
             command = next((item for item in self.catalog if item["id"] == query), None)
             if command is not None:
                 return {"text": self.command_help(command, width), "commands": [command["id"]]}, EXIT_OK
-            # Not a command: a family, the namespace describe --prefix selects;
-            # or the one topic, which a command or a family of that name hides.
+            # Not a command: a family, the namespace describe --prefix selects.
             family = self._family(prefix=query)
-            if not family and query == "conventions":
-                return {"text": self.conventions_help(width), "commands": []}, EXIT_OK
             if not family:
                 raise Failure("INVALID_COMMAND", f"Unknown command identifier or family: {query}.",
                               "Run 'help' without operands to list the commands and their families.")
@@ -2505,6 +2554,8 @@ class Program:
                         sys.stdout.write(text)
             elif fmt == "text":
                 text = self.render_text(command, data)
+                if command_id == "help" and invocation.color_stdout:
+                    text = _help_emphasized(text)
                 if not page_text(text, invocation):
                     sys.stdout.write(text)
             elif fmt == "jsonl":

@@ -364,23 +364,45 @@ between words, a usage between its groups, never inside `[--option VALUE]`;
 widths are counted in columns, an accented letter being one and a CJK
 character two.
 
-Four forms, all generated from the catalog:
+Three forms, all generated from the catalog:
 
-- `PROGRAM help` names each command by its pattern and its purpose, the
-  product's commands first, then the ones every program has. It does not
-  repeat every usage: a catalog of forty commands stays a screen. What every
-  program has in common is named there and not repeated: the global options
-  by their names, the agent contract by its first rule.
-- `PROGRAM help conventions` has that common part whole: each global option
-  with what it does, and the agent contract. A product's own command or
-  family of that name is shown instead; the topic takes no identifier away.
+- `PROGRAM help` names each command by its pattern and its purpose. It
+  does not repeat every usage: a catalog of forty commands stays a screen.
+  The product's commands come first; the ones every program has are named
+  on one line after them (`Also: help, version, describe, completion.`), and
+  a command this build cannot run is named on a line of its own after that,
+  never mixed with the rest. A default command is told in one sentence:
+  which command it is, both ways to invoke it, and that the options in
+  front are its. The global options follow whole, then one line for an
+  agent, then the product's own guidance (`agent_guidance`).
 - `PROGRAM help COMMAND_ID`, or `PROGRAM COMMAND --help`, gives one command:
-  usage, purpose, effect, output mode, operands, options.
+  its usage, its purpose, its examples, then its operands and options. What
+  `describe` says of the effect and the output mode is not repeated; a
+  sentence after the purpose says what changes what the reader types: a
+  transaction shows a plan and `--apply` applies it, an `execute` command
+  acts at once, a stream and a delegate own their output. A read says
+  nothing.
 - `PROGRAM help FAMILY`, or `PROGRAM FAMILY --help`, gives a family: the
   commands under an identifier (`note` holds `note.write`), which is the
   namespace `describe --summary --prefix` selects, each with its usage and
   its purpose below. Words that name no command are still an error without
   `--help`.
+
+Any other word after `help` is `INVALID_COMMAND`, as for `describe`: a
+program has no topics of its own (agent-cli/v2, section 6).
+
+The usage `help` shows is computed from the usage `describe` gives, by one
+rule, never written by hand: in each alternative a ` | ` separates, every
+optional option -- a bracketed group that starts with `--` -- leaves the
+line, and one `[options]` closes the alternative that lost any. The
+pattern, the operands with their arity or their choices, and the required
+options stay as written; a hidden option is never there. `describe` keeps
+the whole usage.
+
+On a terminal that accepts color (`--color`, `NO_COLOR`, `TERM=dumb`,
+`CLICOLOR_FORCE`), the headings are in bold. Without color the headings in
+capitals, the blank lines and the indentation carry the same hierarchy.
+`data.text` is never colored.
 
 `PROGRAM COMMAND --help` answers exactly as `PROGRAM help COMMAND_ID` does,
 envelope included: under `--format json` its `command` is `help`, whose

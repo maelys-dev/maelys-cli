@@ -1,5 +1,27 @@
 # Changelog
 
+## Unreleased
+
+- **Help is laid out for a person.** The page of a command gives its usage,
+  its purpose and its examples first, then its operands and options; the
+  `EFFECT` and `OUTPUT` sections leave it, `describe` keeps them, and a
+  sentence after the purpose says what changes what the reader types (a
+  transaction shows a plan, `--apply` applies it; an `execute` command acts
+  at once; a stream or a delegate owns its output). The usage `help` shows
+  is computed from `describe`'s by one rule: the optional options become
+  `[options]` in each alternative, the operands, their choices and the
+  required options stay; `describe` keeps the whole usage. The general help
+  names the built-in commands on one line after the product's, a command
+  this build cannot run on a line of its own after them, a default command
+  in one sentence, and gives the global options whole. Headings are bold on
+  a terminal that accepts color; `data.text` never is. C and Python render
+  the same bytes.
+- **`help conventions` is gone.** It was a topic of the help, and `help`
+  names only commands and their families (agent-cli/v2, section 6): it is
+  now `INVALID_COMMAND` like any word the catalog does not have. The global
+  options it held are in the general help; the agent contract is
+  `describe`'s. The Python `Program.conventions_help` goes with it.
+
 ## 0.8.0 - 2026-10-22
 
 This release adds the default command of agent-cli-spec 2.16.0, which it

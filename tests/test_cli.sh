@@ -48,10 +48,10 @@ check "describe is valid json and silent on stderr" '[ "$code" = 0 ] && [ -z "$e
 check "describe usage equals synopsis" 'printf "%s" "$out" | grep -q "\"usage\":\"note write FILE --content TEXT \[--replace\] \[--apply\] \[--expect FINGERPRINT\]\",.*\"synopsis\":\"note write FILE --content TEXT \[--replace\] \[--apply\] \[--expect FINGERPRINT\]\""'
 
 run help "$hello" help
-check "help lists commands" '[ "$code" = 0 ] && printf "%s" "$out" | grep -q "^  note write  Store a note in a file.$" && printf "%s" "$out" | grep -q "AGENT CONTRACT"'
-check "help names what every program has in common, and says where it is spelled out" 'printf "%s" "$out" | grep -q "help conventions" && ! printf "%s" "$out" | grep -q "Exact alias of --format json"'
+check "help lists commands" '[ "$code" = 0 ] && printf "%s" "$out" | grep -q "^  note write  Store a note in a file.$" && printf "%s" "$out" | grep -q "^AGENTS$"'
+check "help gives the global options whole, and the agent contract to describe" 'printf "%s" "$out" | grep -q "Exact alias of --format json" && ! printf "%s" "$out" | grep -q "Exit 0 is success" && ! printf "%s" "$out" | grep -q "help conventions"'
 run help-conventions "$hello" help conventions
-check "help conventions has the global options and the agent contract" '[ "$code" = 0 ] && printf "%s" "$out" | grep -q "Exact alias of --format json" && printf "%s" "$out" | grep -q "Exit 0 is success"'
+check "conventions is no topic of help: it is refused like any unknown word" '[ "$code" = 1 ] && [ -z "$out" ] && printf "%s" "$err" | grep -q "\[INVALID_COMMAND\]"'
 run help "$hello" help
 check "help fits eighty columns" '[ "$(printf "%s\n" "$out" | awk "{ if (length(\$0) > m) m = length(\$0) } END { print m }")" -le 80 ]'
 run help-family "$hello" note --help
@@ -564,12 +564,17 @@ for form in "describe" "describe --summary" "describe --summary --prefix list" "
     run "describe-default-$form" "$dflt_c" $form --json --compact
     check "every form of describe names the default command: $form" '[ "$code" = 0 ] && printf "%s" "$out" | grep -q "\"defaultCommand\":\"show\""'
 done
+# The general help says it in one sentence: which command, both ways to
+# invoke it, and that the options in front are its (section 8); where its
+# operands go is in its own help, with both forms on lines of their own.
 run help-default "$dflt_c" help
-check "help names the default command and shows both forms" '[ "$code" = 0 ] && printf "%s" "$out" | grep -q "^  default-surface \[OPTIONS\] \[-- OPERANDS\]$" && printf "%s" "$out" | grep -q "^  default-surface show \[OPTIONS\] \[-- OPERANDS\]$"'
+check "help names the default command and shows both forms" '[ "$code" = 0 ] && printf "%s" "$out" | tr "\n" " " | grep -q "default-surface \[options\] runs .show., as *default-surface show \[options\] does"'
+run help-default-own "$dflt_c" show --help
+check "the default command's help shows both forms, operands after --" '[ "$code" = 0 ] && printf "%s" "$out" | grep -q "^  default-surface \[options\] \[-- OPERANDS\]$" && printf "%s" "$out" | grep -q "^  default-surface show \[options\] \[-- OPERANDS\]$"'
 run help-no-default "$hello" help
 check "a program without a default command says nothing of one" '[ "$code" = 0 ] && ! printf "%s" "$out" | grep -q "DEFAULT COMMAND"'
 run help-says-options "$dflt_c" help
-check "help says a line that starts with an option is the default command's" 'printf "%s" "$out" | tr "\n" " " | grep -q "starts *with an option other than --help *and --version"'
+check "help says a line that starts with an option is the default command's" 'printf "%s" "$out" | tr "\n" " " | grep -q "the options in front, other than --help and --version, are its"'
 run help-says-options-py $dflt_py show --help
 check "the default command's help says it too" 'printf "%s" "$out" | tr "\n" " " | grep -q "starts *with an option other than --help *and --version"'
 

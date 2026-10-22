@@ -197,9 +197,14 @@ L'export `man` sort sans elles ; il les rendra quand l'une sera adoptée.
   contrôle. Tant que D5 n'est pas tranché, le rendu garde `help
   conventions` et `help FAMILLE` tels quels.
 
-Non soumis : `CLICOLOR_FORCE` n'a pas d'effet (la spec ne connaît que
-`--color`, `NO_COLOR`, `TERM=dumb`) ; il est seulement relevé dans les
-preuves.
+Constat, pas une proposition : `CLICOLOR_FORCE` a **déjà** un effet,
+en C (`maelys_cli_terminal_detect`) comme en Python (`terminal_color`) :
+une valeur non vide autre que `0` force la couleur sur les deux flux, même
+dans un tube et même avec `NO_COLOR` ; seul `--color never` l'emporte.
+C'est documenté (`docs/api-reference.md`, `docs/python.md`), mais la spec
+ne connaît que `--color`, `NO_COLOR` et `TERM=dumb`. Le rendu de l'aide
+suit cette décision existante sans l'étendre ; l'écart avec la spec est
+signalé à la session spec, il ne bloque rien ici.
 
 ## Pour les preuves
 
