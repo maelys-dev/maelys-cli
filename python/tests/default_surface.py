@@ -3,7 +3,14 @@
 """A program that declares a default command (spec, section 8, "A line that
 names no command"), the catalog of tests/default_surface.c word for word:
 tests/test_cli.sh holds the two implementations to the same answers. Nothing
-here writes: `save` plans and applies nothing."""
+here writes: `save` plans and applies nothing.
+
+Two variables serve the migration tests, as in C. DEFAULT_SURFACE_DEFAULT
+names the default command (`show` when unset, `none` for no default), so that
+the same catalog answers before and after a default is declared.
+DEFAULT_SURFACE_TRACE names a file every handler appends its command to, the
+one thing a handler writes: a refused line leaves it empty."""
+import os
 import pathlib
 import sys
 
@@ -11,19 +18,38 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 import maelys_cli as cli  # noqa: E402
 
 
+def trace(command: str) -> None:
+    path = os.environ.get("DEFAULT_SURFACE_TRACE")
+    if path:
+        with open(path, "a", encoding="utf-8") as file:
+            file.write(command + "\n")
+
+
 def show(invocation: cli.Invocation) -> "tuple[dict, int]":
+    trace("show")
     return {"label": invocation.option("--label") or "", "level": invocation.option("--level") or "",
             "file": invocation.operands[0] if invocation.operands else ""}, cli.EXIT_OK
 
 
 def listing(invocation: cli.Invocation) -> "tuple[dict, int]":
+    trace("list")
     limit = invocation.option("--limit")
     return {"limit": "" if limit is None else str(limit)}, cli.EXIT_OK
 
 
 def save(invocation: cli.Invocation) -> "tuple[dict, int]":
+    trace("save")
     return {"mode": "apply" if invocation.apply else "plan", "changed": False}, cli.EXIT_OK
 
+
+def watch(invocation: cli.Invocation) -> int:
+    trace("watch")
+    sys.stdout.write("watching\n")
+    sys.stdout.flush()
+    return cli.EXIT_OK
+
+
+NAMED = os.environ.get("DEFAULT_SURFACE_DEFAULT") or "show"
 
 PROGRAM = cli.Program("default-surface", "Default surface", "1.0.0", [
     cli.read("show", "show", "Show a file, the default command.", show,
@@ -37,7 +63,8 @@ PROGRAM = cli.Program("default-surface", "Default surface", "1.0.0", [
     cli.transaction("save", "save", "Save a text; plans by default.", save,
                     options=[cli.option("--content", "Text to save.", cli.argument("TEXT"), required=True)],
                     schema={"type": "object", "required": ["mode", "changed"]}),
-], guide="a program whose lines may name no command", default_command="show")
+    cli.stream("watch", "watch", "Watch the entries on stdout.", watch),
+], guide="a program whose lines may name no command", default_command=None if NAMED == "none" else NAMED)
 
 if __name__ == "__main__":
     sys.exit(PROGRAM.main(sys.argv[1:]))

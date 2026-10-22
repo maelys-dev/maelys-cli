@@ -236,7 +236,9 @@ refused, and an unknown first word is still `INVALID_COMMAND`. It must be
 the product's own command, shown, available, not a delegate, and a read, a
 stream or a transaction: the catalog validation refuses `execute`, since a
 line that names nothing is no consent to an action. Declare none unless one
-command is what the program is for.
+command is what the program is for: a line that put options before the
+command name (`PROGRAM --json list`) then selects the default command and is
+refused, and must be written `PROGRAM list --json`.
 
 ### Compose the catalog from parts (build variants)
 

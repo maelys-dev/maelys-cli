@@ -13,14 +13,23 @@
   The rest of the line is then the default command's: a word an option
   takes is its value, a bare word before `--` is refused in its name, its
   operands come after `--`. It is the command in every respect, help,
-  effect and envelope included. `describe` carries `defaultCommand` in
-  every form; `help` names it and shows both ways to invoke it;
-  `__complete` completes a line of it. The catalog validation refuses a
+  effect and envelope included; a refusal or a failure of it tries no
+  other command. `describe` carries `defaultCommand` in every form; `help`
+  names it, says that a line starting with an option other than `--help`
+  and `--version` is its, and shows both ways to invoke it; `__complete`
+  completes a line of it. The catalog validation refuses a
   default command that is not the product's, is hidden, unavailable or a
   delegate, or whose effect is `execute`. A program that declares none is
-  read exactly as before. `tests/default_surface.c` and
-  `python/tests/default_surface.py` declare one, and `tests/test_cli.sh`
-  asks every line of both.
+  read exactly as before. Declaring one can stop a line that ran: in
+  Python, `PROGRAM --json list` ran `list` and is then refused in the
+  default command's name; `PROGRAM list --json` runs it. `default_command`
+  is the last field of `maelys_cli_app_t`: a product that initializes the
+  structure by position and builds with `-Wextra -Werror` gets
+  `-Wmissing-field-initializers` until it names its fields.
+  `tests/default_surface.c` and `python/tests/default_surface.py` declare
+  one; `tests/test_cli.sh` asks every line of both, and sets fourteen lines
+  side by side before and after the default is declared, with a trace
+  showing that no handler runs on a refusal, `--help` or `--version`.
 
 ## 0.7.0 - 2026-10-09
 

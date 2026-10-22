@@ -3262,8 +3262,9 @@ static void command_help_text(
     (void)fputs("\n\n", stream);
     if (app->default_command && !strcmp(app->default_command, command->id)) {
         (void)fputs("DEFAULT COMMAND\n", stream);
-        help_paragraph(stream, "A line that names no command runs this one, its "
-            "operands after --:", width, 0);
+        help_paragraph(stream, "A line that names no command runs this one: an "
+            "empty line, or one that starts with an option other than --help "
+            "and --version. Its operands come after --:", width, 0);
         default_forms(stream, app->program, command->pattern);
         (void)fputc('\n', stream);
     }
@@ -3428,13 +3429,14 @@ static void catalog_help_text(FILE *stream, const maelys_cli_app_t *app, size_t 
         }
     }
     /* The default command, named and shown both ways (agent-cli/v2, section
-     * 8): which one a line that names no command runs, and how its operands
-     * are then written. */
+     * 8): which one a line that names no command runs, which lines those
+     * are, and how its operands are then written. */
     const maelys_cli_command_t *fallback = app->default_command ?
         maelys_cli_app_find_command(app, app->default_command) : NULL;
     if (fallback) {
         (void)snprintf(line, sizeof(line), "A line that names no command runs "
-            "'%s', its operands after --:", fallback->pattern);
+            "'%s': an empty line, or one that starts with an option other than "
+            "--help and --version. Its operands come after --:", fallback->pattern);
         (void)fputs("\nDEFAULT COMMAND\n", stream);
         help_paragraph(stream, line, width, 0);
         default_forms(stream, app->program, fallback->pattern);

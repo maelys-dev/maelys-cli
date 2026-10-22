@@ -293,9 +293,11 @@ name of the default command (`PROGRAM --json list` fails, `PROGRAM list
 Once selected, the default command is the command in every respect: its
 validation, its help (`PROGRAM --label x --help`), its effect -- a
 transaction plans without `--apply`, a stream keeps its stdout -- and the
-envelope, which names it. `describe` carries `defaultCommand` in every
-form. `help` names it and shows the two ways to invoke it; its own help
-says so. `__complete` completes the words after a first option as the
+envelope, which names it. A refusal or a failure is its own: no other
+command is tried, before the handler or after it. `describe` carries
+`defaultCommand` in every form. `help` names it, says that a line starting
+with an option other than `--help` and `--version` is its, and shows the
+two ways to invoke it; its own help says so. `__complete` completes the words after a first option as the
 default command's, and offers its options at the root after a dash. A
 Python program with a default command gets the completion script that
 calls `__complete`: the static table resolves a command by its pattern
@@ -305,6 +307,16 @@ The catalog validation refuses a default command that is not a command of
 the product, that is a built-in, hidden, unavailable or a delegate, or whose
 effect is `execute`: a line that names nothing is no consent to an action.
 A read, a stream and a transaction are allowed.
+
+Declaring a default command can stop a line that ran. A Python program
+without one reads `PROGRAM --json list` as `list`; with one, that line
+selects the default command and is refused, and `PROGRAM list --json` is the
+form that runs `list`. A C program refuses `PROGRAM --json list` either way.
+How a program without a default reads an empty line, or a line that starts
+with an option, is left as it was: C shows the help for the first and
+refuses the second, Python refuses the first and looks for the command
+further on in the second. `tests/test_cli.sh` sets the two answers side by
+side on one catalog, before and after a default is declared.
 
 ## Examples
 

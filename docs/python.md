@@ -102,7 +102,9 @@ refused in its name. `Program` raises `ValueError` when the identifier is
 not a command of the program, is a built-in, hidden, unavailable or a
 delegate, or is an `execute` command. `describe` carries `defaultCommand`,
 `help` names it, and the completion script is the one that calls
-`__complete`. Without it nothing changes. The rules are those of
+`__complete`. Without it nothing changes; with it, `PROGRAM --json list`,
+which ran `list`, selects the default command and is refused: `PROGRAM list
+--json` runs `list`. The rules are those of
 `docs/command-conventions.md`, "A default command".
 
 ## Help

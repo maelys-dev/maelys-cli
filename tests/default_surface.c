@@ -4,14 +4,31 @@
  * an option, `--` or a word with one dash, and for an empty line.
  * python/tests/default_surface.py declares the same catalog, word for word,
  * so that tests/test_cli.sh holds the two implementations to the same
- * answers. Nothing here writes: `save` plans and applies nothing. */
+ * answers. Nothing here writes: `save` plans and applies nothing.
+ *
+ * Two variables serve the migration tests. DEFAULT_SURFACE_DEFAULT names
+ * the default command (`show` when unset, `none` for no default), so that
+ * the same catalog answers before and after a default is declared.
+ * DEFAULT_SURFACE_TRACE names a file every handler appends its command to,
+ * the one thing a handler writes: a refused line leaves it empty. */
 #include "maelys/cli.h"
 
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 static const char *const levels[] = {"low", "high", NULL};
 
+static void trace(const char *command) {
+    const char *path = getenv("DEFAULT_SURFACE_TRACE");
+    FILE *file = path && *path ? fopen(path, "a") : NULL;
+    if (!file) return;
+    (void)fprintf(file, "%s\n", command);
+    (void)fclose(file);
+}
+
 static int command_show(maelys_cli_context_t *context) {
+    trace("show");
     const char *label = maelys_cli_option(context, "label");
     const char *level = maelys_cli_option(context, "level");
     const char *file = maelys_cli_operand(context, 0u);
@@ -29,6 +46,7 @@ static int command_show(maelys_cli_context_t *context) {
 }
 
 static int command_list(maelys_cli_context_t *context) {
+    trace("list");
     const char *limit = maelys_cli_option(context, "limit");
     maelys_cli_json_writer_t data;
     maelys_cli_json_writer_init(&data);
@@ -39,6 +57,7 @@ static int command_list(maelys_cli_context_t *context) {
 }
 
 static int command_save(maelys_cli_context_t *context) {
+    trace("save");
     int apply = maelys_cli_flag(context, "apply");
     maelys_cli_json_writer_t data;
     maelys_cli_json_writer_init(&data);
@@ -48,6 +67,12 @@ static int command_save(maelys_cli_context_t *context) {
     (void)maelys_cli_json_end_object(&data);
     return maelys_cli_succeed_writer(context, &data,
         apply ? "Nothing to save." : "Plan only.", MAELYS_CLI_EXIT_OK);
+}
+
+static int command_watch(maelys_cli_context_t *context) {
+    (void)context;
+    trace("watch");
+    return fputs("watching\n", stdout) == EOF ? MAELYS_CLI_EXIT_FAILURE : MAELYS_CLI_EXIT_OK;
 }
 
 static const maelys_cli_operand_t show_operands[] = {
@@ -74,6 +99,7 @@ static const maelys_cli_command_t commands[] = {
     {MAELYS_CLI_TRANSACTION("save", "save", "Save a text; plans by default.", command_save),
      MAELYS_CLI_OPTIONS(save_options),
      MAELYS_CLI_SCHEMA("{\"type\":\"object\",\"required\":[\"mode\",\"changed\"]}")},
+    {MAELYS_CLI_STREAM("watch", "watch", "Watch the entries on stdout.", command_watch)},
 };
 
 static const maelys_cli_app_t default_app = {
@@ -87,5 +113,8 @@ static const maelys_cli_app_t default_app = {
 };
 
 int main(int argc, char **argv) {
-    return maelys_cli_main(&default_app, argc, argv);
+    maelys_cli_app_t app = default_app;
+    const char *named = getenv("DEFAULT_SURFACE_DEFAULT");
+    if (named && *named) app.default_command = strcmp(named, "none") ? named : NULL;
+    return maelys_cli_main(&app, argc, argv);
 }

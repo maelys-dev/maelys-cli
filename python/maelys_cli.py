@@ -1757,7 +1757,8 @@ class Program:
         text += "\n" + _help_wrap(command["purpose"], 0, 0, width) + "\n\n"
         if self.default_command == command["id"]:
             text += "DEFAULT COMMAND\n" + _help_paragraph(
-                "A line that names no command runs this one, its operands after --:", width) \
+                "A line that names no command runs this one: an empty line, or one that starts with an option "
+                "other than --help and --version. Its operands come after --:", width) \
                 + self._default_forms(" ".join(command["pattern"])) + "\n"
         if command["unavailable"] is not None:
             text += "UNAVAILABLE IN THIS BUILD\n" + _help_paragraph(command["unavailable"], width) + "\n"
@@ -1842,7 +1843,8 @@ class Program:
         if default is not None:
             pattern = " ".join(default["pattern"])
             text += "\nDEFAULT COMMAND\n" + _help_paragraph(
-                f"A line that names no command runs '{pattern}', its operands after --:", width) \
+                f"A line that names no command runs '{pattern}': an empty line, or one that starts with an option "
+                "other than --help and --version. Its operands come after --:", width) \
                 + self._default_forms(pattern)
         # What every program has in common is named, not repeated: spelled
         # out, the options and the contract were two thirds of this screen.
