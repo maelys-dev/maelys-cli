@@ -4,8 +4,8 @@
 
 - **A program may name a default command.** `.default_command` on
   `maelys_cli_app_t`, `default_command=` on a Python `Program`, names the
-  command a line that names no command runs, as the next minor of
-  agent-cli-spec writes it ("A line that names no command", section 8). The
+  command a line that names no command runs, as agent-cli-spec 2.16.0
+  writes it ("A line that names no command", section 8). The
   first word of the line, and it only, decides: `--help` and `--version` are
   the help and the version; the first word of a pattern resolves as usual;
   an option, `--`, a word with one dash or an empty line select the default
@@ -30,6 +30,16 @@
   one; `tests/test_cli.sh` asks every line of both, and sets fourteen lines
   side by side before and after the default is declared, with a trace
   showing that no handler runs on a refusal, `--help` or `--version`.
+- agent-cli-spec pinned at v2.16.0 (from v2.15.0). It adds the default
+  command; the entry above is what it asks of this framework. As for
+  2.15.0, the text and the tools were worked out before any tag, each
+  repository testing the other's commits, and the tag carries the tree both
+  agreed on. How a program without a default command reads an empty line,
+  or a line that starts with an option, is left as it was: C and Python
+  read them apart today, and that is for a later decision.
+  `conformance-check` now runs the kit on the two programs that declare a
+  default command too; `docs/migration.md` lists what changes for a
+  product.
 
 ## 0.7.0 - 2026-10-09
 
