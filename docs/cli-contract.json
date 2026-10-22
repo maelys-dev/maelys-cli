@@ -21,7 +21,7 @@
               {
                 "name": "COMMAND_ID",
                 "required": false,
-                "summary": "Stable command identifier whose help is shown, the family of commands under an identifier, or `conventions`.",
+                "summary": "Stable command identifier whose help is shown, or the family of commands under an identifier.",
                 "variadic": false
               }
             ],
@@ -901,7 +901,7 @@
               {
                 "name": "COMMAND_ID",
                 "required": false,
-                "summary": "Stable command identifier whose help is shown, the family of commands under an identifier, or `conventions`.",
+                "summary": "Stable command identifier whose help is shown, or the family of commands under an identifier.",
                 "variadic": false
               }
             ],
