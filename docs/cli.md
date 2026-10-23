@@ -8,9 +8,9 @@ Common contract: `agent-cli/v2`. For the machine-readable detail run
 
 | Identifier | Usage | Effect | Output | Purpose |
 | --- | --- | --- | --- | --- |
-| help | `help [COMMAND_ID] \| --help` | read | json-envelope | Show the generated CLI guide or one command's help. |
-| version | `version \| --version` | read | json-envelope | Return product identity. |
-| describe | `describe [COMMAND_ID] [--summary] [--prefix PREFIX]` | read | json-envelope | Return the machine-readable catalog, summary or one descriptor. |
+| help | `help [COMMAND_ID] \| --help` | read | json-envelope | Show the help of the program, of one command or of one family. |
+| version | `version \| --version` | read | json-envelope | Show the product, program, version and contract. |
+| describe | `describe [COMMAND_ID] [--summary] [--prefix PREFIX]` | read | json-envelope | Show the machine-readable catalog, its summary or one descriptor. |
 | completion | `completion SHELL` | read | json-envelope | Print the shell completion script generated from the catalog. |
 | complete.candidates | `__complete [WORDS...]` | read | json-records | Return completion candidates for a partial command line. |
 | commands.list | `commands list` | read | json-records | List the external commands declared by installed manifests. |
@@ -35,9 +35,9 @@ Global options:
 
 | Identifier | Usage | Effect | Output | Purpose |
 | --- | --- | --- | --- | --- |
-| help | `help [COMMAND_ID] \| --help` | read | json-envelope | Show the generated CLI guide or one command's help. |
-| version | `version \| --version` | read | json-envelope | Return product identity. |
-| describe | `describe [COMMAND_ID] [--summary] [--prefix PREFIX]` | read | json-envelope | Return the machine-readable catalog, summary or one descriptor. |
+| help | `help [COMMAND_ID] \| --help` | read | json-envelope | Show the help of the program, of one command or of one family. |
+| version | `version \| --version` | read | json-envelope | Show the product, program, version and contract. |
+| describe | `describe [COMMAND_ID] [--summary] [--prefix PREFIX]` | read | json-envelope | Show the machine-readable catalog, its summary or one descriptor. |
 | completion | `completion SHELL` | read | json-envelope | Print the shell completion script generated from the catalog. |
 | complete.candidates | `__complete [WORDS...]` | read | json-records | Return completion candidates for a partial command line. |
 | greet | `greet NAME [--shout] [--times N]` | read | json-envelope | Greet someone. |

@@ -387,7 +387,7 @@ def transaction(identifier: str, pattern: str, purpose: str, handler: Handler, c
     computes the fingerprint with Fingerprint and calls
     invocation.expect(fingerprint) before it writes anything."""
     effect = {"plan": "preview", "apply": "commit" if commit else "apply"}
-    options = list(options) + [flag("--apply", "Apply the reviewed plan instead of only planning it.")]
+    options = list(options) + [flag("--apply", "Apply the reviewed plan; without it the command only plans.")]
     if expect:
         options.append(option("--expect", "Apply only the plan this fingerprint names; a plan that has changed "
                               "since is refused before anything is written.",
@@ -1619,28 +1619,45 @@ class Program:
         self.static_completion = static_completion
         self.guide_line = guide or product
         self.text = dict(text or {})
+        # The built-ins are declared word for word as src/app.c declares them -- purposes, operands,
+        # options and schemas -- so that describe says the same of them in C and in Python.
         self.catalog = [
-            read("help", "help", "Show the help of the program or of one command.", self._help,
-                 operands=[operand("COMMAND_ID", "Command identifier, or the family of commands under one.",
-                                   required=False)],
-                 schema={"type": "object", "required": ["text", "commands"],
+            read("help", "help", "Show the help of the program, of one command or of one family.", self._help,
+                 operands=[operand("COMMAND_ID", "Stable command identifier whose help is shown, or the family of "
+                                   "commands under an identifier.", required=False)],
+                 schema={"type": "object", "additionalProperties": False, "required": ["text", "commands"],
                          "properties": {"text": {"type": "string"},
                                         "commands": {"type": "array", "items": {"type": "string"}}}}),
             read("version", "version", "Show the product, program, version and contract.", self._version,
-                 schema={"type": "object", "required": ["product", "program", "version", "contract", "cliApi", "framework"]}),
-            read("describe", "describe", "Show the machine-readable catalog, or one descriptor.", self._describe,
-                 operands=[operand("COMMAND_ID", "Command identifier.", required=False)],
-                 options=[flag("--summary", "Every descriptor without its schema and exit codes."),
-                          option("--prefix", "Select the command namespace PREFIX.",
+                 schema={"type": "object", "additionalProperties": False,
+                         "required": ["product", "program", "version", "contract", "cliApi", "framework"],
+                         "properties": {"product": {"type": "string"}, "program": {"type": "string"},
+                                        "version": {"type": "string"}, "contract": {"const": CONTRACT},
+                                        "cliApi": {"type": "integer"}, "framework": {"type": "string"}}}),
+            read("describe", "describe", "Show the machine-readable catalog, its summary or one descriptor.",
+                 self._describe,
+                 operands=[operand("COMMAND_ID", "Stable command identifier returned by the catalog.", required=False)],
+                 options=[flag("--summary", "Return the compact command inventory without output schemas."),
+                          option("--prefix", "Restrict the summary to one command namespace: the command named PREFIX "
+                                 "and every command whose identifier starts with PREFIX followed by a dot.",
                                  argument("PREFIX", "string", pattern=PREFIX_GRAMMAR.pattern),
                                  requires=("--summary",), conflicts_with=("COMMAND_ID",))],
-                 schema={"type": "object", "required": ["schemaVersion", "kind", "program", "commands"]}),
+                 schema={"type": "object", "description": "Command catalog, summary or single descriptor.",
+                         "additionalProperties": True, "required": ["schemaVersion", "kind", "program", "commands"]}),
             read("completion", "completion", "Print the shell completion script generated from the catalog.",
-                 self._completion, operands=[operand("SHELL", "Shell.", choices=list(SHELLS))],
-                 schema={"type": "object", "required": ["shell", "script"]}),
-            records("complete.candidates", "__complete", "Completion candidates for the words given after --.",
-                    self._complete, operands=[operand("WORDS", "Words typed so far.", required=False, variadic=True)],
-                    hidden=True, schema={"type": "object", "required": ["count", "records"]}),
+                 self._completion, operands=[operand("SHELL", "Shell whose completion script is printed.",
+                                                     choices=list(SHELLS))],
+                 schema={"type": "object", "additionalProperties": False, "required": ["shell", "script"],
+                         "properties": {"shell": {"enum": list(SHELLS)}, "script": {"type": "string"}}}),
+            records("complete.candidates", "__complete", "Return completion candidates for a partial command line.",
+                    self._complete,
+                    operands=[operand("WORDS", "Command line words after the program name; the last one is the prefix "
+                                      "being completed.", required=False, variadic=True)],
+                    hidden=True,
+                    schema={"type": "object", "additionalProperties": False, "required": ["count", "records"],
+                            "properties": {"count": {"type": "integer"},
+                                           "records": {"type": "array", "items": {"type": "object",
+                                                                                  "required": ["word"]}}}}),
         ]
         self._builtin_count = len(self.catalog)
         self._family_words: Optional[list] = None

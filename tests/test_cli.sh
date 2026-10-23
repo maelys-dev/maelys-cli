@@ -657,6 +657,20 @@ check "--color never shows no color, CLICOLOR_FORCE notwithstanding" '! printf "
 run palette-json env CLICOLOR_FORCE=1 "$dflt_c" help --json --compact
 check "data.text is never colored" '! printf "%s" "$out" | grep -q "u001b"'
 
+# The built-ins are declared alike in C and in Python: purposes, operands,
+# options, schemas, and the --apply every transaction takes. describe of a C
+# product and of a Python one say the same of them.
+builtins_of() { # builtins_of COMMAND...: the built-in descriptors and --apply, as one JSON
+    "$@" describe --json --compact | python3 -c 'import json, sys
+commands = json.load(sys.stdin)["data"]["commands"]
+kept = {c["id"]: c for c in commands if c["id"] in ("help", "version", "describe", "completion", "complete.candidates")}
+kept["--apply"] = next(o for c in commands for o in c["input"]["options"] if o["long"] == "--apply")
+print(json.dumps(kept, sort_keys=True))'
+}
+c_builtins=$(builtins_of "$dflt_c")
+py_builtins=$(builtins_of $dflt_py)
+check "C and Python declare the built-ins and --apply alike" '[ -n "$c_builtins" ] && [ "$c_builtins" = "$py_builtins" ]'
+
 if [ "$failures" -ne 0 ]; then
     printf '%s CLI test(s) failed\n' "$failures" >&2
     exit 1

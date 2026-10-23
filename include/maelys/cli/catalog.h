@@ -287,7 +287,7 @@ typedef struct maelys_cli_example {
 /* The standard transactional switch, shared by every plan/apply command. */
 #define MAELYS_CLI_APPLY_OPTION \
     {MAELYS_CLI_FLAG("apply", \
-     "Apply the reviewed transaction; omission returns a read-only plan.")}
+     "Apply the reviewed plan; without it the command only plans.")}
 
 /* The reserved binding of a plan to its application (agent-cli/v2 2.9,
  * section 4), for a transaction whose plan has a stable identity:

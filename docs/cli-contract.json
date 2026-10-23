@@ -52,7 +52,7 @@
           "pattern": [
             "help"
           ],
-          "purpose": "Show the generated CLI guide or one command's help.",
+          "purpose": "Show the help of the program, of one command or of one family.",
           "usage": "help [COMMAND_ID] | --help"
         },
         {
@@ -109,7 +109,7 @@
           "pattern": [
             "version"
           ],
-          "purpose": "Return product identity.",
+          "purpose": "Show the product, program, version and contract.",
           "usage": "version | --version"
         },
         {
@@ -186,7 +186,7 @@
           "pattern": [
             "describe"
           ],
-          "purpose": "Return the machine-readable catalog, summary or one descriptor.",
+          "purpose": "Show the machine-readable catalog, its summary or one descriptor.",
           "usage": "describe [COMMAND_ID] [--summary] [--prefix PREFIX]"
         },
         {
@@ -496,7 +496,7 @@
                 "repeatable": false,
                 "required": false,
                 "requires": [],
-                "summary": "Apply the reviewed transaction; omission returns a read-only plan."
+                "summary": "Apply the reviewed plan; without it the command only plans."
               },
               {
                 "argument": {
@@ -934,7 +934,7 @@
           "pattern": [
             "help"
           ],
-          "purpose": "Show the generated CLI guide or one command's help.",
+          "purpose": "Show the help of the program, of one command or of one family.",
           "usage": "help [COMMAND_ID] | --help"
         },
         {
@@ -991,7 +991,7 @@
           "pattern": [
             "version"
           ],
-          "purpose": "Return product identity.",
+          "purpose": "Show the product, program, version and contract.",
           "usage": "version | --version"
         },
         {
@@ -1068,7 +1068,7 @@
           "pattern": [
             "describe"
           ],
-          "purpose": "Return the machine-readable catalog, summary or one descriptor.",
+          "purpose": "Show the machine-readable catalog, its summary or one descriptor.",
           "usage": "describe [COMMAND_ID] [--summary] [--prefix PREFIX]"
         },
         {
@@ -1564,7 +1564,7 @@
                 "repeatable": false,
                 "required": false,
                 "requires": [],
-                "summary": "Apply the reviewed transaction; omission returns a read-only plan."
+                "summary": "Apply the reviewed plan; without it the command only plans."
               },
               {
                 "argument": {

@@ -83,14 +83,14 @@ static const maelys_cli_option_t describe_options[] = {
 
 static const maelys_cli_command_t builtins[] = {
     {MAELYS_CLI_READ("help", "help",
-     "Show the generated CLI guide or one command's help.", builtin_help),
+     "Show the help of the program, of one command or of one family.", builtin_help),
      MAELYS_CLI_OPERANDS(help_operands), MAELYS_CLI_SCHEMA(HELP_SCHEMA),
      .synopsis = "help [COMMAND_ID] | --help"},
-    {MAELYS_CLI_READ("version", "version", "Return product identity.",
+    {MAELYS_CLI_READ("version", "version", "Show the product, program, version and contract.",
      builtin_version), MAELYS_CLI_SCHEMA(VERSION_SCHEMA),
      .synopsis = "version | --version"},
     {MAELYS_CLI_READ("describe", "describe",
-     "Return the machine-readable catalog, summary or one descriptor.",
+     "Show the machine-readable catalog, its summary or one descriptor.",
      builtin_describe), MAELYS_CLI_OPERANDS(describe_operands),
      MAELYS_CLI_OPTIONS(describe_options), MAELYS_CLI_SCHEMA(DESCRIBE_SCHEMA)},
     {MAELYS_CLI_READ("completion", "completion",
