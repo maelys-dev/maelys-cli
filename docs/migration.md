@@ -147,6 +147,25 @@ command when either is wrong:
   into one line per paragraph, or each hand-made line is wrapped on its own
   and the paragraph reads ragged at another width.
 
+## Every consumer, at agent-cli-spec 2.18.0
+
+This pin comes with the release that lays the help out for a person; the
+section below says what that changes. Two minors of the contract arrive
+with it:
+
+- **2.17.0** admits `help FAMILY` and nothing else that is not a command:
+  `help conventions`, or any topic of a program's own, is `INVALID_COMMAND`.
+  `help COMMAND_ID` must show the command's examples, the general help names
+  no hidden command, and completion offers only identifiers after `help`
+  and `describe`. A C or Python product on this release has all of it.
+- **2.18.0** writes the order of colors: `--color always|never`, then
+  `CLICOLOR_FORCE`, then `NO_COLOR`, then `TERM=dumb`, then whether the
+  stream is a terminal; nothing in JSON is ever colored. It is the order
+  this framework already followed.
+- **Pin 2.18.0 with or after the release that carries this section**: the
+  kit of 2.17.0 refuses `help conventions`, which an earlier framework
+  answered.
+
 ## Every consumer, at the human help
 
 - **A test that reads the text of `help`** changes: `EFFECT`, `OUTPUT`,

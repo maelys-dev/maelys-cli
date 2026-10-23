@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- agent-cli-spec pinned at v2.18.0 (from v2.16.0). 2.17.0 admits `help
+  FAMILY` and no other topic, makes the examples of `help COMMAND_ID`
+  mandatory and keeps hidden commands out of the general help; 2.18.0 writes
+  the order of colors, `CLICOLOR_FORCE` included, which this framework
+  already followed. As before, the text and the tools were worked out
+  before any tag, each repository testing the other's commits. The kit of
+  2.18.0 passes on the seven programs of conformance-check, and on cx and
+  maelys-egress rebuilt with this release. `docs/migration.md` lists what
+  changes for a product.
+- What a product meets when it moves to this release: `help conventions`
+  is refused; `describe` carries `x-maelys-summary` and `x-maelys-guidance`,
+  so its generated reference changes; `help_palette` is a new last field of
+  `maelys_cli_app_t` (`-Wmissing-field-initializers` on a positional
+  initializer built with `-Wextra -Werror`); `maelys-cli-man` renders its
+  manual page; a test that read `EFFECT`, `OUTPUT` or the full usage in the
+  text of `help` reads `describe` instead.
+
 - **Help is laid out for a person.** The page of a command gives its usage,
   its purpose and its examples first, then its operands and options; the
   `EFFECT` and `OUTPUT` sections leave it, `describe` keeps them, and a
@@ -34,6 +51,14 @@
   line under the program's name) and `x-maelys-guidance` (the product's
   guidance, prose never to build a line from): extension members a generic
   agent ignores, which change a product's generated reference.
+- **C and Python declare the built-ins alike.** The purposes of `help`,
+  `version`, `describe` and `__complete`, their operands and options, their
+  output schemas and the summary of `--apply` were written twice and had
+  drifted; Python now declares them word for word as C does, and the texts
+  of `help`, `version`, `describe` and `--apply` read better on both sides
+  (`help` names families, which agent-cli-spec 2.17.0 admits). describe of
+  every product changes there; `tests/test_cli.sh` holds the two to the same
+  bytes.
 - **`help conventions` is gone.** It was a topic of the help, and `help`
   names only commands and their families (agent-cli/v2, section 6): it is
   now `INVALID_COMMAND` like any word the catalog does not have. The global
