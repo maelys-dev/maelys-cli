@@ -1,6 +1,14 @@
 # Changelog
 
-## Unreleased
+## 0.9.0 - 2026-10-23
+
+This release lays the help out for a person and renders each program's
+manual page from its catalog; it pins agent-cli-spec 2.18.0. A product sees
+its help change shape, `help conventions` refused, and its `describe` change
+in the texts of the built-ins and in two `x-maelys-*` members, so its
+generated reference changes. `help_palette` is a new last field of
+`maelys_cli_app_t`. `docs/migration.md`, "Every consumer, at agent-cli-spec
+2.18.0" and "Every consumer, at the human help", says what to search for.
 
 - agent-cli-spec pinned at v2.18.0 (from v2.16.0). 2.17.0 admits `help
   FAMILY` and no other topic, makes the examples of `help COMMAND_ID`
