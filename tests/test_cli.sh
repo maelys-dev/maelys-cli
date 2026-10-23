@@ -48,10 +48,10 @@ check "describe is valid json and silent on stderr" '[ "$code" = 0 ] && [ -z "$e
 check "describe usage equals synopsis" 'printf "%s" "$out" | grep -q "\"usage\":\"note write FILE --content TEXT \[--replace\] \[--apply\] \[--expect FINGERPRINT\]\",.*\"synopsis\":\"note write FILE --content TEXT \[--replace\] \[--apply\] \[--expect FINGERPRINT\]\""'
 
 run help "$hello" help
-check "help lists commands" '[ "$code" = 0 ] && printf "%s" "$out" | grep -q "^  note write  Store a note in a file.$" && printf "%s" "$out" | grep -q "AGENT CONTRACT"'
-check "help names what every program has in common, and says where it is spelled out" 'printf "%s" "$out" | grep -q "help conventions" && ! printf "%s" "$out" | grep -q "Exact alias of --format json"'
+check "help lists commands" '[ "$code" = 0 ] && printf "%s" "$out" | grep -q "^  note write  Store a note in a file.$" && printf "%s" "$out" | grep -q "^AGENTS$"'
+check "help gives the global options whole, and the agent contract to describe" 'printf "%s" "$out" | grep -q "Exact alias of --format json" && ! printf "%s" "$out" | grep -q "Exit 0 is success" && ! printf "%s" "$out" | grep -q "help conventions"'
 run help-conventions "$hello" help conventions
-check "help conventions has the global options and the agent contract" '[ "$code" = 0 ] && printf "%s" "$out" | grep -q "Exact alias of --format json" && printf "%s" "$out" | grep -q "Exit 0 is success"'
+check "conventions is no topic of help: it is refused like any unknown word" '[ "$code" = 1 ] && [ -z "$out" ] && printf "%s" "$err" | grep -q "\[INVALID_COMMAND\]"'
 run help "$hello" help
 check "help fits eighty columns" '[ "$(printf "%s\n" "$out" | awk "{ if (length(\$0) > m) m = length(\$0) } END { print m }")" -le 80 ]'
 run help-family "$hello" note --help
@@ -564,12 +564,17 @@ for form in "describe" "describe --summary" "describe --summary --prefix list" "
     run "describe-default-$form" "$dflt_c" $form --json --compact
     check "every form of describe names the default command: $form" '[ "$code" = 0 ] && printf "%s" "$out" | grep -q "\"defaultCommand\":\"show\""'
 done
+# The general help says it in one sentence: which command, both ways to
+# invoke it, and that the options in front are its (section 8); where its
+# operands go is in its own help, with both forms on lines of their own.
 run help-default "$dflt_c" help
-check "help names the default command and shows both forms" '[ "$code" = 0 ] && printf "%s" "$out" | grep -q "^  default-surface \[OPTIONS\] \[-- OPERANDS\]$" && printf "%s" "$out" | grep -q "^  default-surface show \[OPTIONS\] \[-- OPERANDS\]$"'
+check "help names the default command and shows both forms" '[ "$code" = 0 ] && printf "%s" "$out" | tr "\n" " " | grep -q "default-surface \[options\] runs .show., as *default-surface show \[options\] does"'
+run help-default-own "$dflt_c" show --help
+check "the default command's help shows both forms, operands after --" '[ "$code" = 0 ] && printf "%s" "$out" | grep -q "^  default-surface \[options\] \[-- OPERANDS\]$" && printf "%s" "$out" | grep -q "^  default-surface show \[options\] \[-- OPERANDS\]$"'
 run help-no-default "$hello" help
 check "a program without a default command says nothing of one" '[ "$code" = 0 ] && ! printf "%s" "$out" | grep -q "DEFAULT COMMAND"'
 run help-says-options "$dflt_c" help
-check "help says a line that starts with an option is the default command's" 'printf "%s" "$out" | tr "\n" " " | grep -q "starts *with an option other than --help *and --version"'
+check "help says a line that starts with an option is the default command's" 'printf "%s" "$out" | tr "\n" " " | grep -q "the options in front, other than --help and --version, are its"'
 run help-says-options-py $dflt_py show --help
 check "the default command's help says it too" 'printf "%s" "$out" | tr "\n" " " | grep -q "starts *with an option other than --help *and --version"'
 
@@ -634,6 +639,37 @@ mig stream-json watch "unknown 1 INVALID_COMMAND" "unknown 1 INVALID_COMMAND" "w
 mig stream-empty watch "help 0 None" "unknown 1 INVALID_COMMAND" "stream 0 watching"
 mig transaction save "unknown 1 INVALID_COMMAND" "unknown 1 INVALID_COMMAND" "save 0 None" --content text
 check "a default transaction without --apply plans" 'printf "%s" "$out" | grep -q "\"mode\": *\"plan\""'
+
+# The help palette (maelys_cli_help_palette_t; help_palette= in Python):
+# default_surface declares one for every role. C and Python print the same
+# colored bytes where color is forced, the plain help once the colors are
+# taken out, and nothing colored under --color never or in data.text.
+for words in "help" "show --help" "list --help"; do
+    run "palette-$words" env CLICOLOR_FORCE=1 "$dflt_c" $words
+    c_colored=$out
+    run "palette-$words-py" env CLICOLOR_FORCE=1 $dflt_py $words
+    check "C and Python color the help alike: $words" '[ "$out" = "$c_colored" ] && printf "%s" "$out" | grep -q "$(printf "\033")\[33m--"'
+    run "palette-$words-plain" "$dflt_c" $words
+    check "the colored help is the plain one, colors taken out: $words" '[ "$(printf "%s" "$c_colored" | sed "s/$(printf "\033")\[[0-9;]*m//g")" = "$out" ]'
+done
+run palette-never env CLICOLOR_FORCE=1 "$dflt_c" help --color never
+check "--color never shows no color, CLICOLOR_FORCE notwithstanding" '! printf "%s" "$out" | grep -q "$(printf "\033")"'
+run palette-json env CLICOLOR_FORCE=1 "$dflt_c" help --json --compact
+check "data.text is never colored" '! printf "%s" "$out" | grep -q "u001b"'
+
+# The built-ins are declared alike in C and in Python: purposes, operands,
+# options, schemas, and the --apply every transaction takes. describe of a C
+# product and of a Python one say the same of them.
+builtins_of() { # builtins_of COMMAND...: the built-in descriptors and --apply, as one JSON
+    "$@" describe --json --compact | python3 -c 'import json, sys
+commands = json.load(sys.stdin)["data"]["commands"]
+kept = {c["id"]: c for c in commands if c["id"] in ("help", "version", "describe", "completion", "complete.candidates")}
+kept["--apply"] = next(o for c in commands for o in c["input"]["options"] if o["long"] == "--apply")
+print(json.dumps(kept, sort_keys=True))'
+}
+c_builtins=$(builtins_of "$dflt_c")
+py_builtins=$(builtins_of $dflt_py)
+check "C and Python declare the built-ins and --apply alike" '[ -n "$c_builtins" ] && [ "$c_builtins" = "$py_builtins" ]'
 
 if [ "$failures" -ne 0 ]; then
     printf '%s CLI test(s) failed\n' "$failures" >&2

@@ -286,6 +286,17 @@ built on macOS) would make the described contract host-dependent;
 comma-separated identifiers given (`--neutral-availability unpack-rootfs`),
 so one committed contract is host-independent.
 
+The installed manual generator renders a program's page, in roff, from its
+own catalog; the product installs it under `share/man/man1`:
+
+```sh
+maelys-cli-man --date 2026-10-22 build/bin/my-program > share/man/man1/my-program.1
+```
+
+It runs the program once (`describe --format json`), so it runs where the
+program runs. The page follows the rules of the help: no hidden command or
+option, an unavailable command marked. `mandoc -T lint` validates it.
+
 ## Building and testing
 
 ```sh
@@ -294,7 +305,7 @@ make check           # unit tests, end-to-end CLI tests, C++ header gate
 make asan-ubsan      # the same under AddressSanitizer and UBSan
 make install-check   # install into a scratch prefix and build a consumer
 make cmake-check     # CMake package: build, install, find_package consumer
-make install PREFIX=/opt/homebrew   # lib, headers, maelys, maelys-cli-embed, maelys-cli-reference, agent texts
+make install PREFIX=/opt/homebrew   # lib, headers, maelys, maelys-cli-embed, maelys-cli-reference, maelys-cli-man, agent texts
 ```
 
 `docs/cli.md` and `docs/cli-contract.json`, the generated reference and its

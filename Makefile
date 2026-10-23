@@ -104,7 +104,7 @@ $(shell rm -rf $(BUILD)/src $(BUILD)/cli $(BUILD)/lib $(BUILD)/bin $(BUILD)/test
 endif
 endif
 
-.PHONY: all check test fuzz fuzz-smoke tsan-check header-check check-version cli-check embed-check commit-check api-doc-check agent-doc-check doc-topics-check python-check hello-parity-check completion-check python-doc-check install \
+.PHONY: all check test fuzz fuzz-smoke tsan-check header-check check-version cli-check embed-check commit-check api-doc-check agent-doc-check doc-topics-check python-check hello-parity-check completion-check python-doc-check man-check install \
 	install-check uninstall dist clean asan-ubsan analyze cmake-check describe-schema-check \
 	conformance-check agents-install
 
@@ -293,8 +293,8 @@ doc-topics-check:
 # longer verified here: maelys-release regenerates and compares both,
 # locally with 'maelys-release check .' and in CI through check-product.yml.
 check: test fuzz-smoke tsan-check cli-check embed-check commit-check header-check check-version api-doc-check agent-doc-check doc-topics-check python-doc-check
-	@if command -v python3 >/dev/null 2>&1; then $(MAKE) python-check hello-parity-check completion-check conformance-check describe-schema-check; \
-	else echo "python-check, hello-parity-check, completion-check, conformance-check, describe-schema-check: skipped (python3 not found)"; fi
+	@if command -v python3 >/dev/null 2>&1; then $(MAKE) python-check hello-parity-check completion-check conformance-check describe-schema-check man-check; \
+	else echo "python-check, hello-parity-check, completion-check, conformance-check, describe-schema-check, man-check: skipped (python3 not found)"; fi
 
 # The Python framework: python/maelys_cli.py, its reference product
 # python/examples/hello.py and its tests, run without writing bytecode so a
@@ -365,6 +365,11 @@ AGENT_CLI_SPEC_DIR ?= $(MAELYS_DEPENDENCIES_DIR)/agent-cli-spec
 # Part of `check` since 2.5.0 closed the last member it reported; a red run
 # means the framework emits a member the pinned contract refuses, and the
 # repair is never a change of the describe shape here first.
+# The manual page tools/maelys-cli-man renders from a catalog, held to the
+# rules of the help; mandoc lints it where it is installed.
+man-check: $(DISPATCHER) $(EXAMPLE) $(BUILD)/tests/catalog_surface $(BUILD)/tests/default_surface
+	./scripts/man-check.sh $(BUILD)
+
 describe-schema-check: $(BUILD)/tests/catalog_surface
 	@test -f $(AGENT_CLI_SPEC_DIR)/conformance/validate.py || \
 		{ echo "describe-schema-check: no pinned agent-cli-spec at '$(AGENT_CLI_SPEC_DIR)': MAELYS_DEPENDENCIES_DIR must name the root 'maelys-release dependencies . --apply' materialised, or AGENT_CLI_SPEC_DIR its pinned checkout" >&2; exit 1; }
@@ -403,6 +408,7 @@ install-sdk: $(LIB) $(EXTENSION_LIB) $(PC) $(EXTENSION_PC)
 	install -m 0644 $(EXTENSION_PC) $(DESTDIR)$(PREFIX)/lib/pkgconfig/maelys-cli-extension.pc
 	install -m 0755 $(EMBED) $(DESTDIR)$(PREFIX)/bin/maelys-cli-embed
 	install -m 0755 tools/generate_cli_reference.py $(DESTDIR)$(PREFIX)/bin/maelys-cli-reference
+	install -m 0755 tools/maelys-cli-man $(DESTDIR)$(PREFIX)/bin/maelys-cli-man
 	install -m 0644 include/maelys/cli.h $(DESTDIR)$(PREFIX)/include/maelys/cli.h
 	install -m 0644 include/maelys/cli/*.h $(DESTDIR)$(PREFIX)/include/maelys/cli/
 	install -m 0644 $(PC) $(DESTDIR)$(PREFIX)/lib/pkgconfig/maelys-cli.pc
@@ -430,6 +436,7 @@ uninstall:
 		$(DESTDIR)$(PREFIX)/bin/maelys \
 		$(DESTDIR)$(PREFIX)/bin/maelys-cli-embed \
 		$(DESTDIR)$(PREFIX)/bin/maelys-cli-reference \
+		$(DESTDIR)$(PREFIX)/bin/maelys-cli-man \
 		$(DESTDIR)$(PREFIX)/include/maelys/cli.h \
 		$(DESTDIR)$(PREFIX)/lib/pkgconfig/maelys-cli.pc
 	rm -rf $(DESTDIR)$(PREFIX)/include/maelys/cli \

@@ -89,11 +89,12 @@ command by `id`; never replay a `PRECONDITION_FAILED` blindly; prefer
   COMMAND_ID`, not in the summary. The program parsed each one when it
   started, so an example is a line the command accepts as it stands.
 - `PROGRAM help` is for a person: it names each command by its pattern and
-  its purpose within 80 columns, and `PROGRAM help conventions` spells out
-  the global options and the agent contract. `PROGRAM help COMMAND_ID` gives one
-  command, `PROGRAM help FAMILY` (or `PROGRAM FAMILY --help`) the commands
-  under an identifier with their usage. An agent reads `describe`, whose
-  shape is a contract; the text of `help` is not one.
+  its purpose within 80 columns, and gives the global options whole.
+  `PROGRAM help COMMAND_ID` gives one command, its examples first,
+  `PROGRAM help FAMILY` (or `PROGRAM FAMILY --help`) the commands under an
+  identifier with their usage. Any other word is `INVALID_COMMAND`. An agent
+  reads `describe`, whose shape is a contract, and builds its lines from
+  `input`; the text of `help` is not one.
 - `PROGRAM completion bash|zsh|fish` prints the shell completion generated
   from the catalog; candidates come from the hidden
   `PROGRAM __complete -- WORDS...` (a `json-records` command, usable with

@@ -1,5 +1,70 @@
 # Changelog
 
+## Unreleased
+
+- agent-cli-spec pinned at v2.18.0 (from v2.16.0). 2.17.0 admits `help
+  FAMILY` and no other topic, makes the examples of `help COMMAND_ID`
+  mandatory and keeps hidden commands out of the general help; 2.18.0 writes
+  the order of colors, `CLICOLOR_FORCE` included, which this framework
+  already followed. As before, the text and the tools were worked out
+  before any tag, each repository testing the other's commits. The kit of
+  2.18.0 passes on the seven programs of conformance-check, and on cx and
+  maelys-egress rebuilt with this release. `docs/migration.md` lists what
+  changes for a product.
+- What a product meets when it moves to this release: `help conventions`
+  is refused; `describe` carries `x-maelys-summary` and `x-maelys-guidance`,
+  so its generated reference changes; `help_palette` is a new last field of
+  `maelys_cli_app_t` (`-Wmissing-field-initializers` on a positional
+  initializer built with `-Wextra -Werror`); `maelys-cli-man` renders its
+  manual page; a test that read `EFFECT`, `OUTPUT` or the full usage in the
+  text of `help` reads `describe` instead.
+
+- **Help is laid out for a person.** The page of a command gives its usage,
+  its purpose and its examples first, then its operands and options; the
+  `EFFECT` and `OUTPUT` sections leave it, `describe` keeps them, and a
+  sentence after the purpose says what changes what the reader types (a
+  transaction shows a plan, `--apply` applies it; an `execute` command acts
+  at once; a stream or a delegate owns its output). The usage `help` shows
+  is computed from `describe`'s by one rule: the optional options become
+  `[options]` in each alternative, the operands, their choices and the
+  required options stay; `describe` keeps the whole usage. The general help
+  names the built-in commands on one line after the product's, a command
+  this build cannot run on a line of its own after them, a default command
+  in one sentence, and gives the global options whole. Headings are bold on
+  a terminal that accepts color; `data.text` never is. C and Python render
+  the same bytes.
+- **A product may color its help.** `.help_palette` on `maelys_cli_app_t`
+  (`help_palette=` on a Python `Program`) names a color per role -- headings,
+  command patterns, option names, what the reader replaces, example lines --
+  as SGR parameters; `NULL` keeps the framework's choice, bold headings.
+  Whether color is shown stays the framework's: `--color`, `NO_COLOR`,
+  `TERM=dumb`, `CLICOLOR_FORCE`; `data.text` is never colored. The catalog
+  validation refuses a color that is not SGR parameters. `help_palette` is
+  a new last field of `maelys_cli_app_t`: a positional initializer built
+  with `-Wextra -Werror` reports it until it names its fields.
+- **A manual page from the catalog.** `maelys-cli-man PROGRAM` renders
+  the program's page in roff from its own `describe` catalog, with the
+  rules of the help: no hidden command or option, an unavailable one
+  marked. It is installed beside `maelys-cli-embed`; `make check` lints the
+  pages of the reference programs with `mandoc -T lint` where mandoc is
+  installed. `describe` gains, in its catalog form, `x-maelys-summary` (the
+  line under the program's name) and `x-maelys-guidance` (the product's
+  guidance, prose never to build a line from): extension members a generic
+  agent ignores, which change a product's generated reference.
+- **C and Python declare the built-ins alike.** The purposes of `help`,
+  `version`, `describe` and `__complete`, their operands and options, their
+  output schemas and the summary of `--apply` were written twice and had
+  drifted; Python now declares them word for word as C does, and the texts
+  of `help`, `version`, `describe` and `--apply` read better on both sides
+  (`help` names families, which agent-cli-spec 2.17.0 admits). describe of
+  every product changes there; `tests/test_cli.sh` holds the two to the same
+  bytes.
+- **`help conventions` is gone.** It was a topic of the help, and `help`
+  names only commands and their families (agent-cli/v2, section 6): it is
+  now `INVALID_COMMAND` like any word the catalog does not have. The global
+  options it held are in the general help; the agent contract is
+  `describe`'s. The Python `Program.conventions_help` goes with it.
+
 ## 0.8.0 - 2026-10-22
 
 This release adds the default command of agent-cli-spec 2.16.0, which it

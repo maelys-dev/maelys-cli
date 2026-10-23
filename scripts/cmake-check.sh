@@ -21,6 +21,7 @@ cmake --install "$root/build" >/dev/null
 test -f "$root/prefix/lib/cmake/maelys-cli/maelys-cli-config.cmake"
 test -x "$root/prefix/bin/maelys-cli-embed"
 test -x "$root/prefix/bin/maelys-cli-reference"
+test -x "$root/prefix/bin/maelys-cli-man"
 
 # Core-only configuration must not touch maelys-json at all.
 cmake -S . -B "$root/core-only" -DMAELYS_CLI_BUILD_EXTENSION=OFF \
