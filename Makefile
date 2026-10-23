@@ -104,7 +104,7 @@ $(shell rm -rf $(BUILD)/src $(BUILD)/cli $(BUILD)/lib $(BUILD)/bin $(BUILD)/test
 endif
 endif
 
-.PHONY: all check test fuzz fuzz-smoke tsan-check header-check check-version cli-check embed-check commit-check api-doc-check agent-doc-check doc-topics-check python-check hello-parity-check completion-check python-doc-check man-check install \
+.PHONY: all check test fuzz fuzz-smoke tsan-check header-check check-version cli-check embed-check commit-check api-doc-check agent-doc-check doc-topics-check python-check hello-parity-check completion-check python-doc-check man-check envelope-schema-check install \
 	install-check uninstall dist clean asan-ubsan analyze cmake-check describe-schema-check \
 	conformance-check agents-install
 
@@ -293,8 +293,8 @@ doc-topics-check:
 # longer verified here: maelys-release regenerates and compares both,
 # locally with 'maelys-release check .' and in CI through check-product.yml.
 check: test fuzz-smoke tsan-check cli-check embed-check commit-check header-check check-version api-doc-check agent-doc-check doc-topics-check python-doc-check
-	@if command -v python3 >/dev/null 2>&1; then $(MAKE) python-check hello-parity-check completion-check conformance-check describe-schema-check man-check; \
-	else echo "python-check, hello-parity-check, completion-check, conformance-check, describe-schema-check, man-check: skipped (python3 not found)"; fi
+	@if command -v python3 >/dev/null 2>&1; then $(MAKE) python-check hello-parity-check completion-check conformance-check describe-schema-check envelope-schema-check man-check; \
+	else echo "python-check, hello-parity-check, completion-check, conformance-check, describe-schema-check, envelope-schema-check, man-check: skipped (python3 not found)"; fi
 
 # The Python framework: python/maelys_cli.py, its reference product
 # python/examples/hello.py and its tests, run without writing bytecode so a
@@ -369,6 +369,11 @@ AGENT_CLI_SPEC_DIR ?= $(MAELYS_DEPENDENCIES_DIR)/agent-cli-spec
 # rules of the help; mandoc lints it where it is installed.
 man-check: $(DISPATCHER) $(EXAMPLE) $(BUILD)/tests/catalog_surface $(BUILD)/tests/default_surface
 	./scripts/man-check.sh $(BUILD)
+
+# A failure envelope that carries extension members, held to the pinned
+# schemas/envelope.json.
+envelope-schema-check: $(BUILD)/tests/catalog_surface
+	python3 scripts/envelope-schema-check.py $(AGENT_CLI_SPEC_DIR) $(BUILD)/tests/catalog_surface refuse
 
 describe-schema-check: $(BUILD)/tests/catalog_surface
 	@test -f $(AGENT_CLI_SPEC_DIR)/conformance/validate.py || \

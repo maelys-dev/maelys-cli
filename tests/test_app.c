@@ -592,6 +592,74 @@ static int test_help_names_unbroken(void) {
     return 1;
 }
 
+/* Extension members of `error` (maelys_cli_fail_error_extended): carried
+ * in JSON beside a stable code, absent from the text rendering, and a
+ * defect answered UNEXPECTED when the members or the code break the rule. */
+static const char *extended_members;
+static const char *extended_code;
+
+static int command_fail_extended(maelys_cli_context_t *context) {
+    maelys_cli_error_t error;
+    maelys_cli_error_set(&error, extended_code, "Fix panes.conf.", "Unknown key 'colour'.");
+    return maelys_cli_fail_error_extended(context, &error, extended_members);
+}
+
+static const maelys_cli_command_t extended_commands[] = {
+    {MAELYS_CLI_READ("fail", "fail", "Fail with a domain cause.", command_fail_extended)},
+};
+static const maelys_cli_app_t extended_app = {
+    .program = "prog", .product = "Test Product", .version = "9.9.9",
+    .commands = extended_commands, .command_count = MAELYS_CLI_COUNT(extended_commands),
+};
+
+static char *extended_run(const char *format, int *code) {
+    char *out = NULL, *err = NULL;
+    size_t out_size = 0u, err_size = 0u;
+    FILE *out_stream = open_memstream(&out, &out_size);
+    FILE *err_stream = open_memstream(&err, &err_size);
+    char *argv[] = {(char *)"fail", (char *)"--format", (char *)format, (char *)"--compact", NULL};
+    *code = maelys_cli_run(&extended_app, 4, argv, out_stream, err_stream);
+    (void)fclose(out_stream);
+    (void)fclose(err_stream);
+    free(out);
+    return err;
+}
+
+static int test_fail_error_extended(void) {
+    int code = 0;
+    extended_code = MAELYS_CLI_CODE_VALIDATION_FAILED;
+    extended_members = "{ \"x-cx-code\" : \"PANES_CONFIG\", \"x-cx-line\": 12 }";
+    char *err = extended_run("json", &code);
+    CHECK(code == 1 && err && strstr(err, "\"error\":{\"code\":\"VALIDATION_FAILED\","
+        "\"message\":\"Unknown key 'colour'.\",\"hint\":\"Fix panes.conf.\","
+        "\"x-cx-code\":\"PANES_CONFIG\",\"x-cx-line\":12}"));
+    free(err);
+    err = extended_run("text", &code);
+    CHECK(code == 1 && err && !strcmp(err, "prog: [VALIDATION_FAILED] Unknown key 'colour'.\n"
+        "Hint: Fix panes.conf.\n"));
+    free(err);
+    extended_members = "{}";
+    err = extended_run("json", &code);
+    CHECK(code == 1 && err && strstr(err, "\"hint\":\"Fix panes.conf.\"}"));
+    free(err);
+    /* Names outside x-[a-z0-9][a-z0-9-]*, twice the same, or no object. */
+    const char *const refused[] = {"{\"code\":\"X\"}", "{\"x-\":1}", "{\"x-Cx\":1}", "{\"x_cx\":1}",
+                                   "{\"x-a\":1,\"x-a\":2}", "[1]", "{\"x-a\":", NULL};
+    for (size_t i = 0u; refused[i]; ++i) {
+        extended_members = refused[i];
+        err = extended_run("json", &code);
+        CHECK(code == 1 && err && strstr(err, "\"code\":\"UNEXPECTED\"") && !strstr(err, "PANES"));
+        free(err);
+    }
+    /* The members add to the contract's code, never replace it. */
+    extended_members = "{\"x-cx-code\":\"PANES_CONFIG\"}";
+    extended_code = "PANES_CONFIG";
+    err = extended_run("json", &code);
+    CHECK(code == 1 && err && strstr(err, "\"code\":\"UNEXPECTED\"") && strstr(err, "not a stable code"));
+    free(err);
+    return 1;
+}
+
 static int test_help_and_version(void) {
     run_result_t result = run(0, NULL);
     CHECK(result.code == 0 && strstr(result.out, "COMMANDS") && !result.err[0]);
@@ -1765,6 +1833,7 @@ static int test_invalid_catalog(void) {
 int main(void) {
     int failures = 0;
     RUN(test_help_and_version);
+    RUN(test_fail_error_extended);
     RUN(test_help_synopsis);
     RUN(test_help_palette);
     RUN(test_help_names_unbroken);

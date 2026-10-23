@@ -136,15 +136,51 @@ def _terminal_safe(text: str) -> str:
     return "".join(escaped)
 
 
-class Failure(Exception):
-    """A failure envelope: stable code, causal message, next safe action."""
+EXTENSION_NAME = re.compile(r"x-[a-z0-9][a-z0-9-]*")
 
-    def __init__(self, code: str, message: str, hint: str = "", issues: Optional[list] = None) -> None:
+
+class Failure(Exception):
+    """A failure envelope: stable code, causal message, next safe action. `extensions` adds members to
+    the envelope's `error` (C: maelys_cli_fail_error_extended): each named x- and then lowercase
+    letters, digits and dashes, a product's own detail beside a stable code, such as
+    {"x-cx-code": "PANES_CONFIG"} under VALIDATION_FAILED. JSON carries them; the text rendering is
+    unchanged. A name outside that rule, or a code outside STABLE_CODES, is a defect of the command:
+    the line is answered UNEXPECTED instead."""
+
+    def __init__(self, code: str, message: str, hint: str = "", issues: Optional[list] = None,
+                 extensions: Optional[dict] = None) -> None:
         super().__init__(message)
         self.code = code
         self.message = message
         self.hint = hint
         self.issues = issues
+        self.extensions = extensions
+
+
+def _extended_failure(failure: Failure, command_id: str) -> Failure:
+    """`failure` when its extensions follow the rule, else the UNEXPECTED that says why (C:
+    maelys_cli_fail_error_extended)."""
+    if failure.extensions is None:
+        return failure
+    hint = "Report this defect to the command implementation."
+    if failure.code not in STABLE_CODES:
+        return Failure("UNEXPECTED", f"Command '{command_id}' failed with '{failure.code}', which is not a stable "
+                       "code; a product's own code goes in an x- member beside a stable one.", hint)
+    problem = None
+    if not isinstance(failure.extensions, dict):
+        problem = "is not a JSON object"
+    elif any(not isinstance(name, str) or not EXTENSION_NAME.fullmatch(name) for name in failure.extensions):
+        problem = "has a member not named x- then lowercase letters, digits and dashes"
+    elif len(failure.extensions) > 64:
+        problem = "has more than 64 members"
+    else:
+        try:
+            json.dumps(failure.extensions, allow_nan=False)
+        except (TypeError, ValueError):
+            problem = "is not valid JSON"
+    if problem is not None:
+        return Failure("UNEXPECTED", f"Command '{command_id}' failed with extension members that {problem}.", hint)
+    return failure
 
 
 # ---- declarations ------------------------------------------------------------------
@@ -2669,11 +2705,13 @@ class Program:
             sys.stdout.flush()
             return exit_code
         except Failure as failure:
+            failure = _extended_failure(failure, command_id or self.resolved_command_id or "unknown")
             error: dict = {"code": failure.code, "message": failure.message}
             if failure.hint:
                 error["hint"] = failure.hint
             if failure.issues:
                 error["issues"] = failure.issues
+            error.update(failure.extensions or {})
             if fmt == "text":
                 sys.stderr.write(self._colored(
                     f"{self.program}: [{failure.code}] {_terminal_safe(failure.message)}",

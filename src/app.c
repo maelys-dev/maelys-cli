@@ -1928,9 +1928,89 @@ int maelys_cli_finish_records(maelys_cli_context_t *context, int exit_code) {
     return maelys_cli_succeed_writer(context, &data, NULL, exit_code);
 }
 
-static void emit_error(
+/* The members of `extensions`, an object every name of which is x-NAME,
+ * appended to the object `writer` holds open; 0, or -1 with `problem` set
+ * when `extensions` is not such an object. */
+static int write_error_extensions(maelys_cli_json_writer_t *writer,
+                                  const char *extensions, const char **problem) {
+    size_t length = strlen(extensions), offset = 0u;
+    *problem = NULL;
+    if (maelys_cli_json_validate(extensions, length, &offset) != 0) {
+        *problem = "is not valid JSON";
+        return -1;
+    }
+    size_t at = 0u;
+    while (at < length && (extensions[at] == ' ' || extensions[at] == '\t' ||
+                           extensions[at] == '\n' || extensions[at] == '\r')) ++at;
+    if (at >= length || extensions[at] != '{') {
+        *problem = "is not a JSON object";
+        return -1;
+    }
+    ++at;
+    char *names[64];
+    size_t count = 0u;
+    int failed = 0;
+    for (;;) {
+        while (at < length && strchr(" \t\n\r,", extensions[at])) ++at;
+        if (at >= length || extensions[at] == '}') break;
+        char *name = maelys_cli_json_string_decode(extensions, length, at);
+        size_t name_end = maelys_cli_json_value_end(extensions, length, at);
+        if (!name || name_end == 0u) {
+            free(name);
+            *problem = "has a member that cannot be read";
+            failed = 1;
+            break;
+        }
+        size_t name_length = strlen(name);
+        int valid = name_length > 2u && name[0] == 'x' && name[1] == '-' &&
+            ((name[2] >= 'a' && name[2] <= 'z') || (name[2] >= '0' && name[2] <= '9'));
+        for (size_t i = 3u; valid && i < name_length; ++i)
+            valid = (name[i] >= 'a' && name[i] <= 'z') || (name[i] >= '0' && name[i] <= '9') ||
+                name[i] == '-';
+        for (size_t i = 0u; valid && i < count; ++i)
+            if (!strcmp(names[i], name)) {
+                *problem = "names a member twice";
+                valid = 0;
+            }
+        if (!valid || count == sizeof(names) / sizeof(names[0])) {
+            if (!*problem) *problem = count == sizeof(names) / sizeof(names[0]) ?
+                "has more than 64 members" :
+                "has a member not named x- then lowercase letters, digits and dashes";
+            free(name);
+            failed = 1;
+            break;
+        }
+        names[count++] = name;
+        at = name_end;
+        while (at < length && extensions[at] != ':') ++at;
+        size_t value_start = at + 1u;
+        size_t value_end = maelys_cli_json_value_end(extensions, length, value_start);
+        if (value_end == 0u) {
+            *problem = "has a member that cannot be read";
+            failed = 1;
+            break;
+        }
+        while (value_start < value_end && strchr(" \t\n\r", extensions[value_start])) ++value_start;
+        char *value = malloc(value_end - value_start + 1u);
+        if (!value) {
+            *problem = "could not be held in memory";
+            failed = 1;
+            break;
+        }
+        memcpy(value, extensions + value_start, value_end - value_start);
+        value[value_end - value_start] = '\0';
+        if (writer && maelys_cli_json_key_raw(writer, name, value) != 0) failed = 1;
+        free(value);
+        if (failed) break;
+        at = value_end;
+    }
+    for (size_t i = 0u; i < count; ++i) free(names[i]);
+    return failed ? -1 : 0;
+}
+
+static void emit_error_with(
     maelys_cli_context_t *context, const maelys_cli_error_t *error,
-    int exit_code) {
+    int exit_code, const char *extensions) {
     maelys_cli_progress_done(context);
     FILE *err = context && context->err ? context->err : stderr;
     const char *program = context && context->app && context->app->program ?
@@ -1946,6 +2026,7 @@ static void emit_error(
             maelys_cli_json_key_string(&writer, "message", error->message) == 0 &&
             (!error->hint[0] ||
              maelys_cli_json_key_string(&writer, "hint", error->hint) == 0) &&
+            (!extensions || write_error_extensions(&writer, extensions, &(const char *){NULL}) == 0) &&
             maelys_cli_json_end_object(&writer) == 0 &&
             maelys_cli_json_end_object(&writer) == 0) {
             char *envelope = maelys_cli_json_finish(&writer);
@@ -1970,6 +2051,43 @@ static void emit_error(
         (void)fputc('\n', err);
     }
     (void)fflush(err);
+}
+
+static void emit_error(
+    maelys_cli_context_t *context, const maelys_cli_error_t *error,
+    int exit_code) {
+    emit_error_with(context, error, exit_code, NULL);
+}
+
+int maelys_cli_fail_error_extended(
+    maelys_cli_context_t *context, const maelys_cli_error_t *error,
+    const char *extensions_json) {
+    if (!error) return MAELYS_CLI_EXIT_FAILURE;
+    const char *problem = NULL;
+    int stable = code_is_stable(error->code);
+    if (extensions_json && stable)
+        (void)write_error_extensions(NULL, extensions_json, &problem);
+    if (!stable || problem) {
+        maelys_cli_error_t defect;
+        if (!stable)
+            maelys_cli_error_set(&defect, MAELYS_CLI_CODE_UNEXPECTED,
+                "Report this defect to the command implementation.",
+                "Command '%s' failed with '%s', which is not a stable code; a "
+                "product's own code goes in an x- member beside a stable one.",
+                command_id(context), error->code);
+        else
+            maelys_cli_error_set(&defect, MAELYS_CLI_CODE_UNEXPECTED,
+                "Report this defect to the command implementation.",
+                "Command '%s' failed with extension members that %s.",
+                command_id(context), problem);
+        return maelys_cli_fail_error(context, &defect);
+    }
+    if (context) {
+        if (context->replied) return MAELYS_CLI_EXIT_FAILURE;
+        context->replied = 1;
+    }
+    emit_error_with(context, error, MAELYS_CLI_EXIT_FAILURE, extensions_json);
+    return MAELYS_CLI_EXIT_FAILURE;
 }
 
 int maelys_cli_fail_error(

@@ -351,6 +351,12 @@ Handler rules:
   `maelys_cli_fail()` / `maelys_cli_fail_errno()` / `maelys_cli_fail_error()`,
   or `maelys_cli_fail_file()` for an errno and explanation left by a
   `maelys/cli/files.h` function (it picks the stable code itself).
+  A cause of the product's own (a domain code, a line number) never
+  replaces the stable code: `maelys_cli_fail_error_extended(context,
+  &error, "{\"x-cx-code\":\"PANES_CONFIG\"}")` keeps
+  `VALIDATION_FAILED` and adds the member to `error` in JSON
+  (`cli.Failure(..., extensions={...})` in Python). Names are `x-` and then
+  lowercase letters, digits and dashes; the text rendering is unchanged.
   A helper that may reply returns the exit code and the caller checks
   `maelys_cli_replied(context)` before replying itself. Behind a JSON
   library that guarantees validity, `maelys_cli_succeed_trusted()` and

@@ -353,6 +353,22 @@ lists them as `{"words": [...], "summary": "..."}` in the catalog and in
 output schema. Examples written in a README drift from the binary a user
 has; a declared one cannot name an option the command has lost.
 
+## A cause of the product's own
+
+`error.code` is always one of the stable codes of agent-cli/v2 section 8.
+A product that has a finer cause of its own -- a domain code, the line of a
+configuration file -- carries it in an extension member of `error`, which
+the contract admits under names starting with `x-`
+(`schemas/envelope.json`): `maelys_cli_fail_error_extended()` in C,
+`cli.Failure(..., extensions=)` in Python. The code an agent branches on
+stays the contract's; the member is detail for whoever knows the product,
+`{"code": "VALIDATION_FAILED", ..., "x-cx-code": "PANES_CONFIG"}`.
+A name is `x-` and then lowercase letters, digits and dashes, starting with
+a letter or a digit, given once; JSON and JSONL carry the members, the text
+rendering does not change. A member named otherwise, or a code outside the
+stable list, is a defect of the command: the line is answered `UNEXPECTED`,
+never with an envelope the contract refuses.
+
 ## Help
 
 `help` is read by a person, in a terminal, and is laid out for one. It is

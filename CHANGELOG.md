@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+- **A failure may carry a cause of the product's own.**
+  `maelys_cli_fail_error_extended(context, &error, extensions_json)` and
+  `cli.Failure(..., extensions={...})` add extension members to the
+  envelope's `error`, which agent-cli/v2 admits under names starting with
+  `x-`: cx answers `VALIDATION_FAILED` and carries `x-cx-code:
+  PANES_CONFIG` beside it, instead of a code outside section 8. Names are
+  `x-` and then lowercase letters, digits and dashes, given once; the code
+  stays a stable one; JSON and JSONL carry the members, the text rendering
+  is unchanged. A name or a code that breaks the rule is a defect of the
+  command, answered `UNEXPECTED`. C and Python give the same bytes;
+  `catalog_surface refuse` is held to the pinned `schemas/envelope.json` by
+  `make check`.
+
 ## 0.9.0 - 2026-10-23
 
 This release lays the help out for a person and renders each program's

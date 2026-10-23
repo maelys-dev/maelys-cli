@@ -158,6 +158,38 @@ class Contract(unittest.TestCase):
             with self.assertRaises(ValueError):
                 program(palette)
 
+    def test_failure_extensions(self) -> None:
+        """Extension members of `error` (C: maelys_cli_fail_error_extended, tests/test_app.c
+        test_fail_error_extended): the same envelope byte for byte, the text unchanged, a defect
+        answered UNEXPECTED when the names or the code break the rule."""
+        state = {"code": "VALIDATION_FAILED", "extensions": {"x-cx-code": "PANES_CONFIG", "x-cx-line": 12}}
+
+        def fail(invocation: cli.Invocation) -> "tuple[dict, int]":
+            raise cli.Failure(state["code"], "Unknown key 'colour'.", "Fix panes.conf.",
+                              extensions=state["extensions"])
+        program = cli.Program("prog", "Test Product", "9.9.9", [cli.read("fail", "fail", "Fail with a domain cause.", fail)])
+
+        def failed(fmt: str) -> "tuple[int, str]":
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
+                code = program.main(["fail", "--format", fmt, "--compact"])
+            return code, err.getvalue()
+        code, err = failed("json")
+        self.assertEqual(code, 1)
+        self.assertIn('"error":{"code":"VALIDATION_FAILED","message":"Unknown key \'colour\'.","hint":"Fix panes.conf.",'
+                      '"x-cx-code":"PANES_CONFIG","x-cx-line":12}', err)
+        self.assertEqual(failed("text"), (1, "prog: [VALIDATION_FAILED] Unknown key 'colour'.\nHint: Fix panes.conf.\n"))
+        for extensions in ({"code": "X"}, {"x-": 1}, {"x-Cx": 1}, {"x_cx": 1}, [1], {"x-a": float("nan")}):
+            state["extensions"] = extensions
+            code, err = failed("json")
+            self.assertEqual(code, 1)
+            self.assertIn('"code":"UNEXPECTED"', err)
+            self.assertNotIn("PANES", err)
+        state.update(code="PANES_CONFIG", extensions={"x-cx-code": "PANES_CONFIG"})
+        code, err = failed("json")
+        self.assertIn('"code":"UNEXPECTED"', err)
+        self.assertIn("not a stable code", err)
+
     def test_default_command(self) -> None:
         """The default command (spec, section 8; C: default_command): what a program may name, and the
         parts of its reading no line of tests/test_cli.sh shows. The lines are held there, on
