@@ -1,6 +1,13 @@
 # Changelog
 
-## Unreleased
+## 0.10.0 - 2026-10-23
+
+This release lets a failure carry its detail as agent-cli/v2 admits it, in
+C as in Python, and pins agent-cli-spec 2.19.0, which recommends it: a
+listed code for a listed boundary, the product's own cause in
+`error.issues` or an `x-` member. `maelys_cli_fail_error_extended()` is new
+in C; nothing a product does today stops working. `docs/migration.md`,
+"Every consumer, at agent-cli-spec 2.19.0", has cx's case.
 
 - agent-cli-spec pinned at v2.19.0 (from v2.18.0). It adds a SHOULD to
   section 8: keep a listed code when the boundary is among them, the
