@@ -142,16 +142,18 @@ static const maelys_cli_example_t records_examples[] = {
     {MAELYS_CLI_EXAMPLE("records --format=json --compact", "One envelope, on one line.")},
 };
 
-/* A failure that carries a product's own cause beside a stable code, in an
- * extension member of `error` (maelys_cli_fail_error_extended):
- * scripts/envelope-schema-check.py holds its envelope to the pinned
- * schemas/envelope.json. */
+/* A failure with the detail agent-cli/v2 admits in `error`: the cause
+ * under the code in `issues`, machine detail in extension members
+ * (maelys_cli_fail_error_extended). scripts/envelope-schema-check.py holds
+ * its envelope to the pinned schemas/envelope.json. */
 static int refuse_extended(maelys_cli_context_t *context) {
     maelys_cli_error_t error;
     maelys_cli_error_set(&error, MAELYS_CLI_CODE_VALIDATION_FAILED,
-        "Fix the surface configuration.", "Unknown surface key.");
+        "Fix the surface configuration.", "The surface configuration is refused.");
     return maelys_cli_fail_error_extended(context, &error,
-        "{\"x-surface-code\":\"SURFACE_KEY\",\"x-surface-line\":12}");
+        "[{\"code\":\"SURFACE_KEY\",\"path\":[\"surface\",\"keys\",2],"
+        "\"message\":\"Unknown key 'colour'.\"}]",
+        "{\"x-surface-revision\":7}");
 }
 
 static const maelys_cli_command_t commands[] = {

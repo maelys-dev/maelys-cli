@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Holds the failure envelope of PROGRAM WORDS... to the pinned specification's
-schemas/envelope.json, in both JSON layouts: extension members of `error`
-(maelys_cli_fail_error_extended) must be what the schema admits.
+schemas/envelope.json, in both JSON layouts: the issues and the extension
+members of `error` (maelys_cli_fail_error_extended) must be what the schema
+admits, and both must be there.
 
 usage: envelope-schema-check.py SPEC_DIR PROGRAM WORDS...
 """
@@ -24,14 +25,15 @@ def main() -> int:
         envelope = json.loads(done.stderr)
         error = envelope.get("error", {})
         problems = list(validate(envelope, schema, schema))
-        if done.returncode != 1 or done.stdout or not any(name.startswith("x-") for name in error):
+        if done.returncode != 1 or done.stdout or not error.get("issues") or \
+                not any(name.startswith("x-") for name in error):
             problems.append(f"exit {done.returncode}, stdout {done.stdout[:40]!r}, error {sorted(error)}")
         for problem in problems:
             print(f"{' '.join(argv)} {layout}: {problem}", file=sys.stderr)
         failed += len(problems)
     if failed:
         return 1
-    print("envelope-schema-check: ok (an error with extension members, both layouts)")
+    print("envelope-schema-check: ok (an error with issues and extension members, both layouts)")
     return 0
 
 

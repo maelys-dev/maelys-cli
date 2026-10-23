@@ -353,21 +353,31 @@ lists them as `{"words": [...], "summary": "..."}` in the catalog and in
 output schema. Examples written in a README drift from the binary a user
 has; a declared one cannot name an option the command has lost.
 
-## A cause of the product's own
+## The detail of a failure
 
-`error.code` is always one of the stable codes of agent-cli/v2 section 8.
-A product that has a finer cause of its own -- a domain code, the line of a
-configuration file -- carries it in an extension member of `error`, which
-the contract admits under names starting with `x-`
-(`schemas/envelope.json`): `maelys_cli_fail_error_extended()` in C,
-`cli.Failure(..., extensions=)` in Python. The code an agent branches on
-stays the contract's; the member is detail for whoever knows the product,
-`{"code": "VALIDATION_FAILED", ..., "x-cx-code": "PANES_CONFIG"}`.
-A name is `x-` and then lowercase letters, digits and dashes, starting with
-a letter or a digit, given once; JSON and JSONL carry the members, the text
-rendering does not change. A member named otherwise, or a code outside the
-stable list, is a defect of the command: the line is answered `UNEXPECTED`,
-never with an envelope the contract refuses.
+`error.code` is a stable code of agent-cli/v2 section 8, or a code of the
+product's own domain, which it documents (`REVISION_CONFLICT` in Hermes):
+keep the stable one when the boundary is among them, since an agent
+branches on it. Under the code, two places hold detail, both admitted by
+`schemas/envelope.json`:
+
+- `issues`, the causes, each `{"code", "message"}` with an optional `path`
+  (a string, or segments: strings and integers). A product's finer cause
+  goes there. cx refuses a configuration with `VALIDATION_FAILED` and the
+  issue `{"code": "PANES_CONFIG", "path": "panes.conf:12", "message":
+  "Unknown key 'colour'."}`, and an unknown machine with `NOT_FOUND`.
+- members named `x-` and then lowercase letters, digits and dashes:
+  machine detail an agent may act on -- the revisions of a conflict
+  (`x-revision-seen`, `x-revision-current`), an expected value, the
+  identifier of an object, a delay before retrying. A member that repeats
+  the code says the code was ill chosen.
+
+`maelys_cli_fail_error_extended()` in C, `cli.Failure(..., issues=,
+extensions=)` in Python. JSON and JSONL carry the detail; the text
+rendering does not change. Both go into JSON that agents log and keep: no
+absolute path, no environment, no file content without a reason. A code, an
+issue or a member the schema refuses is a defect of the command: the line
+is answered `UNEXPECTED`, never with an envelope the contract refuses.
 
 ## Help
 

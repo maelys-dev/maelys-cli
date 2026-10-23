@@ -231,22 +231,36 @@ int maelys_cli_fail_errno(
     const char *what);
 int maelys_cli_fail_error(
     maelys_cli_context_t *context, const maelys_cli_error_t *error);
-/* maelys_cli_fail_error() with extension members for the `error` object of
- * the envelope, which agent-cli/v2 admits there under names starting with
- * `x-` (schemas/envelope.json): a product's own detail beside a code of the
- * contract, such as its domain cause, `{"x-cx-code":"PANES_CONFIG"}` under
- * VALIDATION_FAILED. `extensions_json` is a JSON object; each member is
- * named `x-` and then lowercase letters, digits and dashes, starting with a
- * letter or a digit, and appears once. error->code stays a stable code
- * (MAELYS_CLI_CODE_*): the members add to the contract, never replace it.
- * JSON and JSONL carry them; the text rendering, `PROGRAM: [CODE] message`
- * and `Hint:`, is unchanged. An object that breaks these rules, or a code
- * outside the stable list, is a defect of the command: the line is answered
- * UNEXPECTED instead, never with an envelope the contract refuses. NULL or
- * "{}" adds nothing. */
+/* maelys_cli_fail_error() with the detail agent-cli/v2 admits in the `error`
+ * object of the envelope (schemas/envelope.json), as JSON text; NULL adds
+ * nothing.
+ *
+ * `issues_json` is an array of objects `{"code", "message", "path"}`: the
+ * causes under the code, each with a code of its own, what went wrong and,
+ * optionally, where (a string, or an array of strings and integers). It is
+ * where a product's domain detail goes under a code of the contract:
+ * VALIDATION_FAILED with `{"code":"PANES_CONFIG","path":"panes.conf:12",
+ * "message":"Unknown key 'colour'."}`.
+ *
+ * `extensions_json` is an object of extension members, each named `x-` and
+ * then lowercase letters, digits and dashes, starting with a letter or a
+ * digit, given once: machine detail an agent may act on, such as the
+ * revisions of a REVISION_CONFLICT (`x-revision-seen`, `x-revision-current`)
+ * or a delay before retrying. A member that repeats the code says the code
+ * was ill chosen. Both go into JSON that agents log: no absolute path, no
+ * environment and no file content without a reason.
+ *
+ * error->code is a stable code, or a code of the product's own domain
+ * (`^[A-Z][A-Z0-9_]*$`, agent-cli/v2 section 8), which it documents; keep
+ * the stable one when the boundary is among them. JSON and JSONL carry the
+ * detail after code, message and hint; the text rendering, `PROGRAM: [CODE]
+ * message` and `Hint:`, is unchanged. A code, an issue or a member that
+ * breaks these rules is a defect of the command: the line is answered
+ * UNEXPECTED instead, never with an envelope the contract refuses. At most
+ * 64 issues and 64 members. */
 int maelys_cli_fail_error_extended(
     maelys_cli_context_t *context, const maelys_cli_error_t *error,
-    const char *extensions_json);
+    const char *issues_json, const char *extensions_json);
 /* Failure from an errno left by maelys/cli/files.h: the code comes from
  * maelys_cli_file_error_code(), the message is `what: strerror(errno)` and
  * the hint is the explanation the file function returned (or a generic one

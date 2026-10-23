@@ -246,12 +246,16 @@ rendering constraints. `--help` is answered after the value checks and
 before the rest (`docs/command-conventions.md`, "What the parser enforces").
 Inside the handler, raise
 `cli.Failure(code, message, hint)` with one of the eleven stable codes.
-`cli.Failure(code, message, hint, extensions={"x-cx-code": "PANES_CONFIG"})`
-adds extension members to the envelope's `error` (C:
-`maelys_cli_fail_error_extended`): each name matches `EXTENSION_NAME`, `x-`
-then lowercase letters, digits and dashes, and the code stays a stable one;
-the text rendering is unchanged. A name or a code that breaks the rule is a
-defect of the command, answered `UNEXPECTED`.
+`cli.Failure(code, message, hint, issues=[...], extensions={...})` adds the
+detail the envelope schema admits (C: `maelys_cli_fail_error_extended`):
+`issues`, each `{"code", "message"}` with an optional `"path"`, string or
+list of strings and integers, is the cause under the code -- cx's
+`VALIDATION_FAILED` with `{"code": "PANES_CONFIG", "path": "panes.conf:12",
+"message": ...}`; `extensions`, each named per `EXTENSION_NAME`, is machine
+detail, such as the revisions of a `REVISION_CONFLICT`. The code matches
+`CODE_GRAMMAR`: a stable one, or one of the product's own domain, which it
+documents. The text rendering is unchanged. A code, an issue or a member
+that breaks the rule is a defect of the command, answered `UNEXPECTED`.
 
 ## Color
 

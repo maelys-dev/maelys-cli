@@ -592,16 +592,18 @@ static int test_help_names_unbroken(void) {
     return 1;
 }
 
-/* Extension members of `error` (maelys_cli_fail_error_extended): carried
- * in JSON beside a stable code, absent from the text rendering, and a
- * defect answered UNEXPECTED when the members or the code break the rule. */
+/* The detail of `error` (maelys_cli_fail_error_extended): issues and
+ * extension members carried in JSON after code, message and hint, absent
+ * from the text rendering, and a defect answered UNEXPECTED when the code,
+ * an issue or a member breaks the rule. */
+static const char *extended_issues;
 static const char *extended_members;
 static const char *extended_code;
 
 static int command_fail_extended(maelys_cli_context_t *context) {
     maelys_cli_error_t error;
     maelys_cli_error_set(&error, extended_code, "Fix panes.conf.", "Unknown key 'colour'.");
-    return maelys_cli_fail_error_extended(context, &error, extended_members);
+    return maelys_cli_fail_error_extended(context, &error, extended_issues, extended_members);
 }
 
 static const maelys_cli_command_t extended_commands[] = {
@@ -627,36 +629,59 @@ static char *extended_run(const char *format, int *code) {
 
 static int test_fail_error_extended(void) {
     int code = 0;
+    /* cx: a code of the contract, the domain cause in issues. */
     extended_code = MAELYS_CLI_CODE_VALIDATION_FAILED;
-    extended_members = "{ \"x-cx-code\" : \"PANES_CONFIG\", \"x-cx-line\": 12 }";
+    extended_issues = "[ {\"code\": \"PANES_CONFIG\", \"path\": \"panes.conf:12\", "
+        "\"message\": \"Unknown key 'colour'.\"} ]";
+    extended_members = NULL;
     char *err = extended_run("json", &code);
     CHECK(code == 1 && err && strstr(err, "\"error\":{\"code\":\"VALIDATION_FAILED\","
-        "\"message\":\"Unknown key 'colour'.\",\"hint\":\"Fix panes.conf.\","
-        "\"x-cx-code\":\"PANES_CONFIG\",\"x-cx-line\":12}"));
+        "\"message\":\"Unknown key 'colour'.\",\"hint\":\"Fix panes.conf.\",\"issues\":"
+        "[{\"code\":\"PANES_CONFIG\",\"path\":\"panes.conf:12\",\"message\":\"Unknown key 'colour'.\"}]}"));
     free(err);
     err = extended_run("text", &code);
     CHECK(code == 1 && err && !strcmp(err, "prog: [VALIDATION_FAILED] Unknown key 'colour'.\n"
         "Hint: Fix panes.conf.\n"));
     free(err);
-    extended_members = "{}";
+    /* A code of the product's own domain, machine detail in x- members, a
+     * path as segments. */
+    extended_code = "REVISION_CONFLICT";
+    extended_issues = "[{\"code\":\"STALE\",\"message\":\"Read at 3.\",\"path\":[\"notes\",0,\"revision\"]}]";
+    extended_members = "{ \"x-revision-seen\" : 3, \"x-revision-current\": 5 }";
     err = extended_run("json", &code);
-    CHECK(code == 1 && err && strstr(err, "\"hint\":\"Fix panes.conf.\"}"));
+    CHECK(code == 1 && err && strstr(err, "\"code\":\"REVISION_CONFLICT\"") &&
+        strstr(err, "\"path\":[\"notes\",0,\"revision\"]}],\"x-revision-seen\":3,\"x-revision-current\":5}"));
     free(err);
-    /* Names outside x-[a-z0-9][a-z0-9-]*, twice the same, or no object. */
-    const char *const refused[] = {"{\"code\":\"X\"}", "{\"x-\":1}", "{\"x-Cx\":1}", "{\"x_cx\":1}",
-                                   "{\"x-a\":1,\"x-a\":2}", "[1]", "{\"x-a\":", NULL};
-    for (size_t i = 0u; refused[i]; ++i) {
-        extended_members = refused[i];
+    /* What the schema refuses is a defect, answered UNEXPECTED. */
+    const char *const codes[] = {"revision_conflict", "1CODE", "CODE-X", "", NULL};
+    extended_issues = NULL;
+    extended_members = NULL;
+    for (size_t i = 0u; codes[i]; ++i) {
+        extended_code = codes[i];
         err = extended_run("json", &code);
-        CHECK(code == 1 && err && strstr(err, "\"code\":\"UNEXPECTED\"") && !strstr(err, "PANES"));
+        CHECK(code == 1 && err && strstr(err, "\"code\":\"UNEXPECTED\"") && strstr(err, "a code that is not"));
         free(err);
     }
-    /* The members add to the contract's code, never replace it. */
-    extended_members = "{\"x-cx-code\":\"PANES_CONFIG\"}";
-    extended_code = "PANES_CONFIG";
-    err = extended_run("json", &code);
-    CHECK(code == 1 && err && strstr(err, "\"code\":\"UNEXPECTED\"") && strstr(err, "not a stable code"));
-    free(err);
+    extended_code = MAELYS_CLI_CODE_VALIDATION_FAILED;
+    const char *const issues[] = {"{}", "[1]", "[{\"message\":\"m\"}]", "[{\"code\":\"C\"}]",
+        "[{\"code\":1,\"message\":\"m\"}]", "[{\"code\":\"C\",\"message\":\"m\",\"why\":\"w\"}]",
+        "[{\"code\":\"C\",\"message\":\"m\",\"path\":[1.5]}]", "[{\"code\":\"C\",\"message\":\"m\",\"path\":{}}]",
+        "[{\"code\":\"C\",\"message\":\"m\",\"path\":[true]}]", "[", NULL};
+    for (size_t i = 0u; issues[i]; ++i) {
+        extended_issues = issues[i];
+        err = extended_run("json", &code);
+        CHECK(code == 1 && err && strstr(err, "\"code\":\"UNEXPECTED\"") && strstr(err, "issue"));
+        free(err);
+    }
+    extended_issues = NULL;
+    const char *const members[] = {"{\"code\":\"X\"}", "{\"x-\":1}", "{\"x-Cx\":1}", "{\"x_cx\":1}",
+                                   "{\"x-a\":1,\"x-a\":2}", "[1]", "{\"x-a\":", NULL};
+    for (size_t i = 0u; members[i]; ++i) {
+        extended_members = members[i];
+        err = extended_run("json", &code);
+        CHECK(code == 1 && err && strstr(err, "\"code\":\"UNEXPECTED\"") && strstr(err, "extension member"));
+        free(err);
+    }
     return 1;
 }
 

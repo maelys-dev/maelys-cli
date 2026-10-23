@@ -2,18 +2,20 @@
 
 ## Unreleased
 
-- **A failure may carry a cause of the product's own.**
-  `maelys_cli_fail_error_extended(context, &error, extensions_json)` and
-  `cli.Failure(..., extensions={...})` add extension members to the
-  envelope's `error`, which agent-cli/v2 admits under names starting with
-  `x-`: cx answers `VALIDATION_FAILED` and carries `x-cx-code:
-  PANES_CONFIG` beside it, instead of a code outside section 8. Names are
-  `x-` and then lowercase letters, digits and dashes, given once; the code
-  stays a stable one; JSON and JSONL carry the members, the text rendering
-  is unchanged. A name or a code that breaks the rule is a defect of the
-  command, answered `UNEXPECTED`. C and Python give the same bytes;
-  `catalog_surface refuse` is held to the pinned `schemas/envelope.json` by
-  `make check`.
+- **A failure carries its detail as the contract admits it.**
+  `maelys_cli_fail_error_extended(context, &error, issues_json,
+  extensions_json)` and `cli.Failure(..., issues=[...], extensions={...})`
+  add to the envelope's `error` the causes under the code (`issues`, each
+  `{code, message, path?}`, which C could not emit until now) and extension
+  members named `x-` for machine detail. cx answers `VALIDATION_FAILED` with
+  the issue `PANES_CONFIG` at `panes.conf:12`, instead of a code that
+  repeated its domain; a `REVISION_CONFLICT` carries `x-revision-seen` and
+  `x-revision-current`. The code is a stable one or a product's own
+  (`^[A-Z][A-Z0-9_]*$`, agent-cli/v2 section 8). JSON and JSONL carry the
+  detail; the text rendering is unchanged. A code, an issue or a member the
+  schema refuses is a defect of the command, answered `UNEXPECTED`. C and
+  Python give the same bytes; `catalog_surface refuse` is held to the
+  pinned `schemas/envelope.json` by `make check`.
 
 ## 0.9.0 - 2026-10-23
 
