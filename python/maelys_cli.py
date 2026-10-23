@@ -136,15 +136,76 @@ def _terminal_safe(text: str) -> str:
     return "".join(escaped)
 
 
-class Failure(Exception):
-    """A failure envelope: stable code, causal message, next safe action."""
+EXTENSION_NAME = re.compile(r"x-[a-z0-9][a-z0-9-]*")
+CODE_GRAMMAR = re.compile(r"[A-Z][A-Z0-9_]*")
 
-    def __init__(self, code: str, message: str, hint: str = "", issues: Optional[list] = None) -> None:
+
+class Failure(Exception):
+    """A failure envelope: stable code, causal message, next safe action.
+
+    `issues` are the causes under the code, each {"code", "message"} with an optional "path" (a string,
+    or a list of strings and integers): where a product's domain detail goes under a code of the
+    contract, such as {"code": "PANES_CONFIG", "path": "panes.conf:12", "message": ...} under
+    VALIDATION_FAILED. `extensions` are members of the envelope's `error`, each named x- and then
+    lowercase letters, digits and dashes: machine detail an agent may act on, such as the revisions of
+    a REVISION_CONFLICT. The code is a stable one or a code of the product's own domain (CODE_GRAMMAR).
+    Both go into JSON that agents log: no absolute path, environment or file content without a reason.
+    JSON carries them; the text rendering is unchanged. A code, an issue or a member that breaks the
+    rule is a defect of the command: the line is answered UNEXPECTED instead (C:
+    maelys_cli_fail_error_extended)."""
+
+    def __init__(self, code: str, message: str, hint: str = "", issues: Optional[list] = None,
+                 extensions: Optional[dict] = None) -> None:
         super().__init__(message)
         self.code = code
         self.message = message
         self.hint = hint
         self.issues = issues
+        self.extensions = extensions
+
+
+def _failure_problem(failure: Failure) -> Optional[str]:
+    """What makes `failure` an envelope the contract refuses, or None (C: maelys_cli_fail_error_extended)."""
+    if not isinstance(failure.code, str) or not CODE_GRAMMAR.fullmatch(failure.code):
+        return "a code that is not capitals, digits and underscores after a capital"
+    if failure.issues is not None:
+        if not isinstance(failure.issues, list):
+            return "issues that are not a JSON array"
+        if len(failure.issues) > 64:
+            return "more than 64 issues"
+        for issue in failure.issues:
+            if not isinstance(issue, dict):
+                return "an issue that is not an object"
+            path = issue.get("path", "")
+            if set(issue) - {"code", "message", "path"} or not isinstance(issue.get("code", ""), str) \
+                    or not isinstance(issue.get("message", ""), str) \
+                    or not (isinstance(path, str) or (isinstance(path, list) and all(
+                        isinstance(item, str) or (isinstance(item, int) and not isinstance(item, bool))
+                        for item in path))):
+                return "an issue whose members are not code, message and path as the schema has them"
+            if "code" not in issue or "message" not in issue:
+                return "an issue without a code or a message"
+    if failure.extensions is not None:
+        if not isinstance(failure.extensions, dict):
+            return "extension members that are not a JSON object"
+        if len(failure.extensions) > 64:
+            return "more than 64 extension members"
+        if any(not isinstance(name, str) or not EXTENSION_NAME.fullmatch(name) for name in failure.extensions):
+            return "an extension member not named x- then lowercase letters, digits and dashes"
+        try:
+            json.dumps(failure.extensions, allow_nan=False)
+        except (TypeError, ValueError):
+            return "extension members that are not valid JSON"
+    return None
+
+
+def _checked_failure(failure: Failure, command_id: str) -> Failure:
+    """`failure`, or the UNEXPECTED that says which of its parts the contract refuses."""
+    problem = _failure_problem(failure)
+    if problem is None:
+        return failure
+    return Failure("UNEXPECTED", f"Command '{command_id}' failed with {problem}.",
+                   "Report this defect to the command implementation.")
 
 
 # ---- declarations ------------------------------------------------------------------
@@ -2669,11 +2730,13 @@ class Program:
             sys.stdout.flush()
             return exit_code
         except Failure as failure:
+            failure = _checked_failure(failure, command_id or self.resolved_command_id or "unknown")
             error: dict = {"code": failure.code, "message": failure.message}
             if failure.hint:
                 error["hint"] = failure.hint
             if failure.issues:
                 error["issues"] = failure.issues
+            error.update(failure.extensions or {})
             if fmt == "text":
                 sys.stderr.write(self._colored(
                     f"{self.program}: [{failure.code}] {_terminal_safe(failure.message)}",

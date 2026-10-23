@@ -1,5 +1,36 @@
 # Changelog
 
+## Unreleased
+
+- agent-cli-spec pinned at v2.19.0 (from v2.18.0). It adds a SHOULD to
+  section 8: keep a listed code when the boundary is among them, the
+  product's own cause in `error.issues` or an `x-` member. Nothing fails
+  for it; the entry below is what it asked of this framework, worked out
+  with agent-cli-spec commit by commit before either tagged. The kit of
+  2.19.0 passes on the seven programs of conformance-check.
+- What a product meets in this release:
+  `maelys_cli_fail_error_extended(context, &error, issues_json,
+  extensions_json)` is new in C, and `cli.Failure(..., issues=,
+  extensions=)` in Python checks what it is given; a code of the product's
+  own domain is still accepted when well formed. cx's case: answer
+  `VALIDATION_FAILED` (a bad `panes.conf`) or `NOT_FOUND` (an unknown
+  machine) and carry `PANES_CONFIG` or `PANES_MACHINE_UNKNOWN` in
+  `error.issues`, with the path of the cause.
+- **A failure carries its detail as the contract admits it.**
+  `maelys_cli_fail_error_extended(context, &error, issues_json,
+  extensions_json)` and `cli.Failure(..., issues=[...], extensions={...})`
+  add to the envelope's `error` the causes under the code (`issues`, each
+  `{code, message, path?}`, which C could not emit until now) and extension
+  members named `x-` for machine detail. cx answers `VALIDATION_FAILED` with
+  the issue `PANES_CONFIG` at `panes.conf:12`, instead of a code that
+  repeated its domain; a `REVISION_CONFLICT` carries `x-revision-seen` and
+  `x-revision-current`. The code is a stable one or a product's own
+  (`^[A-Z][A-Z0-9_]*$`, agent-cli/v2 section 8). JSON and JSONL carry the
+  detail; the text rendering is unchanged. A code, an issue or a member the
+  schema refuses is a defect of the command, answered `UNEXPECTED`. C and
+  Python give the same bytes; `catalog_surface refuse` is held to the
+  pinned `schemas/envelope.json` by `make check`.
+
 ## 0.9.0 - 2026-10-23
 
 This release lays the help out for a person and renders each program's

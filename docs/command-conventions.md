@@ -353,6 +353,32 @@ lists them as `{"words": [...], "summary": "..."}` in the catalog and in
 output schema. Examples written in a README drift from the binary a user
 has; a declared one cannot name an option the command has lost.
 
+## The detail of a failure
+
+`error.code` is a stable code of agent-cli/v2 section 8, or a code of the
+product's own domain, which it documents (`REVISION_CONFLICT` in Hermes):
+keep the stable one when the boundary is among them, since an agent
+branches on it, as agent-cli/v2 2.19.0 section 8 asks (SHOULD). Under the code, two places hold detail, both admitted by
+`schemas/envelope.json`:
+
+- `issues`, the causes, each `{"code", "message"}` with an optional `path`
+  (a string, or segments: strings and integers). A product's finer cause
+  goes there. cx refuses a configuration with `VALIDATION_FAILED` and the
+  issue `{"code": "PANES_CONFIG", "path": "panes.conf:12", "message":
+  "Unknown key 'colour'."}`, and an unknown machine with `NOT_FOUND`.
+- members named `x-` and then lowercase letters, digits and dashes:
+  machine detail an agent may act on -- the revisions of a conflict
+  (`x-revision-seen`, `x-revision-current`), an expected value, the
+  identifier of an object, a delay before retrying. A member that repeats
+  the code says the code was ill chosen.
+
+`maelys_cli_fail_error_extended()` in C, `cli.Failure(..., issues=,
+extensions=)` in Python. JSON and JSONL carry the detail; the text
+rendering does not change. Both go into JSON that agents log and keep: no
+absolute path, no environment, no file content without a reason. A code, an
+issue or a member the schema refuses is a defect of the command: the line
+is answered `UNEXPECTED`, never with an envelope the contract refuses.
+
 ## Help
 
 `help` is read by a person, in a terminal, and is laid out for one. It is

@@ -142,7 +142,23 @@ static const maelys_cli_example_t records_examples[] = {
     {MAELYS_CLI_EXAMPLE("records --format=json --compact", "One envelope, on one line.")},
 };
 
+/* A failure with the detail agent-cli/v2 admits in `error`: the cause
+ * under the code in `issues`, machine detail in extension members
+ * (maelys_cli_fail_error_extended). scripts/envelope-schema-check.py holds
+ * its envelope to the pinned schemas/envelope.json. */
+static int refuse_extended(maelys_cli_context_t *context) {
+    maelys_cli_error_t error;
+    maelys_cli_error_set(&error, MAELYS_CLI_CODE_VALIDATION_FAILED,
+        "Fix the surface configuration.", "The surface configuration is refused.");
+    return maelys_cli_fail_error_extended(context, &error,
+        "[{\"code\":\"SURFACE_KEY\",\"path\":[\"surface\",\"keys\",2],"
+        "\"message\":\"Unknown key 'colour'.\"}]",
+        "{\"x-surface-revision\":7}");
+}
+
 static const maelys_cli_command_t commands[] = {
+    {MAELYS_CLI_READ("refuse", "refuse", "Fails with a cause of the product beside a stable code.",
+     refuse_extended)},
     /* Every output mode and effect, with the fields that only some carry:
      * an output schema, an explicit synopsis, hidden, a protocol name, an
      * unavailable reason and a delegate. */

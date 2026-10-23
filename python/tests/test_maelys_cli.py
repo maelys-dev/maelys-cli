@@ -158,6 +158,54 @@ class Contract(unittest.TestCase):
             with self.assertRaises(ValueError):
                 program(palette)
 
+    def test_failure_detail(self) -> None:
+        """Issues and extension members of `error` (C: maelys_cli_fail_error_extended, tests/test_app.c
+        test_fail_error_extended): the same envelope byte for byte, the text unchanged, a code of the
+        product's own admitted, and UNEXPECTED for what the schema refuses."""
+        state: dict = {"code": "VALIDATION_FAILED",
+                       "issues": [{"code": "PANES_CONFIG", "path": "panes.conf:12", "message": "Unknown key 'colour'."}],
+                       "extensions": None}
+
+        def fail(invocation: cli.Invocation) -> "tuple[dict, int]":
+            raise cli.Failure(state["code"], "Unknown key 'colour'.", "Fix panes.conf.", issues=state["issues"],
+                              extensions=state["extensions"])
+        program = cli.Program("prog", "Test Product", "9.9.9", [cli.read("fail", "fail", "Fail with a domain cause.", fail)])
+
+        def failed(fmt: str) -> "tuple[int, str]":
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
+                code = program.main(["fail", "--format", fmt, "--compact"])
+            return code, err.getvalue()
+        code, err = failed("json")
+        self.assertEqual(code, 1)
+        self.assertIn('"error":{"code":"VALIDATION_FAILED","message":"Unknown key \'colour\'.","hint":"Fix panes.conf.",'
+                      '"issues":[{"code":"PANES_CONFIG","path":"panes.conf:12","message":"Unknown key \'colour\'."}]}', err)
+        self.assertEqual(failed("text"), (1, "prog: [VALIDATION_FAILED] Unknown key 'colour'.\nHint: Fix panes.conf.\n"))
+        state.update(code="REVISION_CONFLICT",
+                     issues=[{"code": "STALE", "message": "Read at 3.", "path": ["notes", 0, "revision"]}],
+                     extensions={"x-revision-seen": 3, "x-revision-current": 5})
+        code, err = failed("json")
+        self.assertIn('"code":"REVISION_CONFLICT"', err)
+        self.assertIn('"path":["notes",0,"revision"]}],"x-revision-seen":3,"x-revision-current":5}', err)
+        state.update(issues=None, extensions=None)
+        for wrong in ("revision_conflict", "1CODE", "CODE-X", ""):
+            state["code"] = wrong
+            self.assertIn("a code that is not", failed("json")[1])
+        state["code"] = "VALIDATION_FAILED"
+        for issues in ({}, [1], [{"message": "m"}], [{"code": "C"}], [{"code": 1, "message": "m"}],
+                       [{"code": "C", "message": "m", "why": "w"}], [{"code": "C", "message": "m", "path": [1.5]}],
+                       [{"code": "C", "message": "m", "path": {}}], [{"code": "C", "message": "m", "path": [True]}]):
+            state["issues"] = issues
+            code, err = failed("json")
+            self.assertIn('"code":"UNEXPECTED"', err)
+            self.assertIn("issue", err)
+        state["issues"] = None
+        for extensions in ({"code": "X"}, {"x-": 1}, {"x-Cx": 1}, {"x_cx": 1}, [1], {"x-a": float("nan")}):
+            state["extensions"] = extensions
+            code, err = failed("json")
+            self.assertIn('"code":"UNEXPECTED"', err)
+            self.assertIn("extension member", err)
+
     def test_default_command(self) -> None:
         """The default command (spec, section 8; C: default_command): what a program may name, and the
         parts of its reading no line of tests/test_cli.sh shows. The lines are held there, on
