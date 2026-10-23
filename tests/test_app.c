@@ -554,6 +554,44 @@ static int test_help_palette(void) {
     return 1;
 }
 
+/* The line that names the commands this build cannot run never breaks a
+ * name of several words: cx's `record stop` once read "record" at the end
+ * of one line and "stop" at the start of the next. */
+static const maelys_cli_command_t gone_commands[] = {
+    {MAELYS_CLI_READ("record.start", "record start", "Start.", NULL), .unavailable = "absent"},
+    {MAELYS_CLI_READ("record.stop", "record stop", "Stop.", NULL), .unavailable = "absent"},
+    {MAELYS_CLI_READ("record.status", "record status", "Status.", NULL), .unavailable = "absent"},
+    {MAELYS_CLI_READ("capture.screen", "capture screen", "Capture.", NULL), .unavailable = "absent"},
+    {MAELYS_CLI_READ("bridge.relay", "bridge relay", "Relay.", NULL), .unavailable = "absent"},
+    {MAELYS_CLI_READ("watch.inventory", "watch inventory", "Watch.", NULL), .unavailable = "absent"},
+};
+static const maelys_cli_app_t gone_app = {
+    .program = "prog", .product = "Test Product", .version = "9.9.9",
+    .commands = gone_commands, .command_count = MAELYS_CLI_COUNT(gone_commands),
+};
+
+static int test_help_names_unbroken(void) {
+    char *general[] = {(char *)"help", NULL};
+    char *out = palette_run(&gone_app, 1, general);
+
+    CHECK(out && strstr(out, "\n  Not available in this build: record start, record stop,"));
+    for (const char *line = out; line && *line;) {
+        const char *end = strchr(line, '\n');
+        size_t length = end ? (size_t)(end - line) : strlen(line);
+        int broken = 0;
+        for (size_t i = 0u; i < sizeof(gone_commands) / sizeof(gone_commands[0]); ++i) {
+            const char *pattern = gone_commands[i].pattern;
+            size_t first = strcspn(pattern, " ");
+            broken |= length >= first + 1u && !strncmp(line + length - first, pattern, first) &&
+                line[length - first - 1u] == ' ';
+        }
+        CHECK(!broken);
+        line = end ? end + 1 : line + length;
+    }
+    free(out);
+    return 1;
+}
+
 static int test_help_and_version(void) {
     run_result_t result = run(0, NULL);
     CHECK(result.code == 0 && strstr(result.out, "COMMANDS") && !result.err[0]);
@@ -1729,6 +1767,7 @@ int main(void) {
     RUN(test_help_and_version);
     RUN(test_help_synopsis);
     RUN(test_help_palette);
+    RUN(test_help_names_unbroken);
     RUN(test_describe);
     RUN(test_parsing_success);
     RUN(test_parsing_failures);

@@ -580,6 +580,26 @@ def _help_headings(text: str, heading: str) -> str:
                      else line for line in text.split("\n"))
 
 
+def _help_names(lead: str, names: list, tail: str, width: int) -> str:
+    """`lead`, then `names` joined by ", " and closed by a period, then `tail`, as one paragraph wrapped
+    at the width (C: help_names). A name is never broken: `record stop` stays on one line."""
+    units = lead.split() + [name + ("," if index + 1 < len(names) else ".") for index, name in enumerate(names)] \
+        + tail.split()
+    out, at, first = "  ", 2, True
+    for unit in units:
+        wide = display_width(unit)
+        if not first and at + 1 + wide > width:
+            out += "\n  "
+            at = 2
+        elif not first:
+            out += " "
+            at += 1
+        out += unit
+        at += wide
+        first = False
+    return out + "\n"
+
+
 def _help_paragraph(text: str, width: int, groups: bool = False) -> str:
     return "  " + _help_wrap(text, 2, 6 if groups else 2, width, groups) + "\n"
 
@@ -1956,12 +1976,10 @@ class Program:
         if built_in or unavailable:
             text += "\n"
         if built_in:
-            text += _help_paragraph("Also: " + ", ".join(" ".join(command["pattern"]) for command in built_in) + ".",
-                                    width)
+            text += _help_names("Also:", [" ".join(command["pattern"]) for command in built_in], "", width)
         if unavailable:
-            text += _help_paragraph(
-                "Not available in this build: " + ", ".join(" ".join(command["pattern"]) for command in unavailable)
-                + f". '{self.program} help COMMAND' says why.", width)
+            text += _help_names("Not available in this build:", [" ".join(command["pattern"]) for command in unavailable],
+                                f"'{self.program} help COMMAND' says why.", width)
         # The options every command takes, whole: a human reads them here and
         # nowhere else. The contract an agent relies on is describe's
         # (`invariants`, `output`) and the manual's; one line points there.

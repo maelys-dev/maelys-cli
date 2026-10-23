@@ -108,6 +108,18 @@ class Contract(unittest.TestCase):
         self.assertEqual(run("greet", "-", "--json", "--compact")[0], 0)
         self.assertEqual(json.loads(run("greet", "--json", "--", "-5")[1])["data"]["greeting"], "Hello, -5!")
 
+    def test_help_names_unbroken(self) -> None:
+        """The line that names the commands this build cannot run never breaks a name of several words
+        (C: test_help_names_unbroken)."""
+        gone = cli.Program("prog", "P", "1", [
+            cli.read(f"{a}.{b}", f"{a} {b}", "X.", lambda i: ({}, 0), unavailable="absent")
+            for a, b in (("record", "start"), ("record", "stop"), ("record", "status"), ("capture", "screen"),
+                         ("bridge", "relay"), ("watch", "inventory"))])
+        guide = gone.guide()
+        self.assertIn("\n  Not available in this build: record start, record stop,", guide)
+        for line in guide.splitlines():
+            self.assertFalse(line.endswith((" record", " capture", " bridge", " watch")), line)
+
     def test_help_palette(self) -> None:
         """The colors of help (C: maelys_cli_help_palette_t): each role in the product's color where the
         terminal accepts color, nothing elsewhere, data.text never colored, and a color is SGR parameters."""

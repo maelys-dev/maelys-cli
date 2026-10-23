@@ -3509,19 +3509,52 @@ static void family_help_text(
     (void)fputc('\n', stream);
 }
 
-/* The words of `names`, joined by ", " after `lead` and closed by a period,
- * as one paragraph: the commands a line names without describing them. */
+/* `lead`, then `names` joined by ", " and closed by a period, then `tail`,
+ * as one paragraph wrapped at the width: the commands a line names without
+ * describing them. A name is never broken, `record stop` staying on one
+ * line, as a label of the list of commands would. */
 static void help_names(FILE *stream, const char *lead, const char *const *names,
                        size_t count, const char *tail, size_t width) {
-    char line[2048];
-    size_t used = (size_t)snprintf(line, sizeof(line), "%s", lead);
-    for (size_t i = 0u; i < count && used < sizeof(line); ++i)
-        used += (size_t)snprintf(line + used, sizeof(line) - used, "%s%s",
-            i ? ", " : " ", names[i]);
-    if (used < sizeof(line))
-        (void)snprintf(line + used, sizeof(line) - used, ".%s%s",
-            tail ? " " : "", tail ? tail : "");
-    help_paragraph(stream, line, width, 0);
+    char unit[512];
+    size_t at = 2u;
+    int first = 1;
+    (void)fputs("  ", stream);
+    for (size_t part = 0u; part < 3u; ++part) {
+        const char *text = part == 0u ? lead : part == 2u ? tail : NULL;
+        size_t items = part == 1u ? count : 0u;
+        for (size_t i = 0u; part == 1u && i < items; ++i) {
+            (void)snprintf(unit, sizeof(unit), "%s%s", names[i], i + 1u < items ? "," : ".");
+            size_t wide = display_width(unit, strlen(unit));
+            if (!first && at + 1u + wide > width) {
+                (void)fputs("\n  ", stream);
+                at = 2u;
+            } else if (!first) {
+                (void)fputc(' ', stream);
+                ++at;
+            }
+            (void)fputs(unit, stream);
+            at += wide;
+            first = 0;
+        }
+        for (const char *cursor = text; cursor && *cursor;) {
+            while (*cursor == ' ') ++cursor;
+            size_t length = strcspn(cursor, " ");
+            if (!length) break;
+            size_t wide = display_width(cursor, length);
+            if (!first && at + 1u + wide > width) {
+                (void)fputs("\n  ", stream);
+                at = 2u;
+            } else if (!first) {
+                (void)fputc(' ', stream);
+                ++at;
+            }
+            (void)fwrite(cursor, 1u, length, stream);
+            at += wide;
+            first = 0;
+            cursor += length;
+        }
+    }
+    (void)fputc('\n', stream);
 }
 
 /* The general help, a screen for a human: what the program is, how a line
