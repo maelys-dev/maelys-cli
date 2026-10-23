@@ -147,6 +147,21 @@ command when either is wrong:
   into one line per paragraph, or each hand-made line is wrapped on its own
   and the paragraph reads ragged at another width.
 
+## Every consumer, at agent-cli-spec 2.19.0
+
+- Nothing a product does stops working: 2.19.0 adds one SHOULD to section
+  8. Keep a listed code when the boundary is among them, and put the
+  product's own cause in `error.issues` or in an `x-` member of `error`; a
+  code of the product's own stays for a boundary the list does not name.
+- **A product that answered a code of its own for a listed boundary**
+  moves the code to the listed one and the cause into an issue, with
+  `maelys_cli_fail_error_extended()` (C, from this release) or
+  `cli.Failure(..., issues=[...])` (Python). cx: `VALIDATION_FAILED` with
+  the issue `PANES_CONFIG` at `panes.conf:12`, `NOT_FOUND` with
+  `PANES_MACHINE_UNKNOWN` for an unknown machine.
+- The invocation generator of 2.19.0 holds a program to the eleven codes
+  only under `--reference`; elsewhere a code must be well formed.
+
 ## Every consumer, at agent-cli-spec 2.18.0
 
 This pin comes with the release that lays the help out for a person; the

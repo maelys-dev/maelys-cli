@@ -358,7 +358,7 @@ has; a declared one cannot name an option the command has lost.
 `error.code` is a stable code of agent-cli/v2 section 8, or a code of the
 product's own domain, which it documents (`REVISION_CONFLICT` in Hermes):
 keep the stable one when the boundary is among them, since an agent
-branches on it. Under the code, two places hold detail, both admitted by
+branches on it, as agent-cli/v2 2.19.0 section 8 asks (SHOULD). Under the code, two places hold detail, both admitted by
 `schemas/envelope.json`:
 
 - `issues`, the causes, each `{"code", "message"}` with an optional `path`
