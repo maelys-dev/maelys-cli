@@ -750,7 +750,11 @@ int maelys_cli_parse(
         }
         switch (rule->kind) {
         case MAELYS_CLI_CONSTRAINT_REQUIRES:
-            if (!option_enabled(out, rule->options[0])) break;
+            /* A rule naming no option is refused by the catalog validation,
+             * which maelys_cli_parse() does not presuppose: it requires
+             * nothing here rather than reading through NULL. */
+            if (!rule->options || !rule->options[0] ||
+                !option_enabled(out, rule->options[0])) break;
             for (size_t o = 1u; rule->options[o]; ++o) {
                 if (option_enabled(out, rule->options[o])) continue;
                 maelys_cli_error_set(error, MAELYS_CLI_CODE_VALIDATION_FAILED,
