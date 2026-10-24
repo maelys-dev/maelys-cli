@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+- `python/maelys_cli.py`: **the usage of a command spells its options as
+  C does** (`put_option()`, `src/catalog.c`), so describe, help and the
+  page `tools/maelys-cli-man` renders say the same line from either side:
+  the required options before the optional ones, `...` after a repeatable
+  one, and a value declared `VALUE` -- what describe gives when C declares
+  no `.value_name` -- spelled by its choices joined by `|`, or
+  `ALGORITHM:HEX` for a digest. Python wrote `[--level LEVEL]` where C
+  writes `[--level low|high]`, and `[--tag TEXT]` where C writes
+  `[--tag TEXT...]`. Any other name is the declared
+  value name, written as such in the usage and now in help too, where a
+  choice showed its choices whatever its name: `argument("MODE", "choice",
+  ...)` reads `--mode MODE`, as `.value_name = "MODE"` does in C. The hello
+  and default-surface fixtures declare `VALUE` for `--level`, as their C
+  counterparts declare no value name.
+
 ## 0.12.0 - 2026-10-24
 
 This release writes the human text in the language a person asks for, as
