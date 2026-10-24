@@ -42,11 +42,15 @@ void maelys_cli_fprint_terminal_safe(FILE *stream, const char *text);
 /* True when text contains valid UTF-8 without terminal control code points. */
 int maelys_cli_text_is_terminal_safe(const char *text);
 
-/* Compiles an argument.pattern as POSIX ERE. The motif is written in the
- * common subset of ECMA-262 and ERE (spec 2.3.1 excludes `(?:`); a product
- * that still writes the non-capturing group `(?:` gets it rewritten to `(`,
- * which means the same. Returns 0, or -1 when the pattern does not compile. */
-int maelys_cli_pattern_compile(const char *pattern, void *out_regex);
+/* argument.pattern: the common subset of ECMA-262 and POSIX ERE (spec 2.3),
+ * read and matched by src/pattern.c itself, no regcomp(). check returns 0,
+ * or -1 with the reason the pattern is outside the subset written in
+ * `reason` (MAELYS_CLI_PATTERN_REASON_SIZE bytes suffice); match returns 1
+ * when the value matches (a search, as regexec() and re.search() do), 0 when
+ * it does not, -1 when the pattern is outside the subset. */
+#define MAELYS_CLI_PATTERN_REASON_SIZE 128u
+int maelys_cli_pattern_check(const char *pattern, char *reason, size_t reason_size);
+int maelys_cli_pattern_match(const char *pattern, const char *value);
 
 /* JSON spans for the text rendering of records: the end of the value that
  * starts at `offset` (0 when malformed), and a decoded copy of a string. */

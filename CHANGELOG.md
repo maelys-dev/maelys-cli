@@ -1,5 +1,41 @@
 # Changelog
 
+## Unreleased
+
+- **The library reads and matches `argument.pattern` itself.** A pattern is
+  written in the common subset of ECMA-262 and POSIX ERE (agent-cli/v2 2.3,
+  which lets an implementation enforce it "by the means of its choice, a
+  regex engine or code"); `src/pattern.c` is the code: a reader of that
+  subset and a matcher that walks the value once (Thompson), no `regcomp()`.
+  cx measured what the libc cost: the catalog validation compiled every
+  pattern at every start, and the TRE of macOS expands a bounded repetition
+  into its copies, 5.6 MiB of peak memory and a millisecond for `{0,254}`
+  on `cx --version` as on any command, and reported it. A repetition now
+  costs its text, the subset has one reading on every platform where each
+  libc read the forms outside it its own way (`\d` was a digit for Python
+  and a `d` for TRE), and a pattern outside the subset -- `(?:`, `\d`,
+  `[[:alpha:]]`, a lazy `*?`, a bound above 255, what POSIX guarantees of
+  an ERE engine -- is refused at startup with the reason, in C and in
+  Python, which checks the motif the same way before handing it to `re`
+  (`$` spelled `\Z`, so that it holds at the end of the value only).
+  `tests/patterns.tsv` is the corpus both sides answer, and three engines
+  with them: the libc's `regexec()` on the cases it reads right, V8 for
+  ECMA-262 (`make pattern-ecma-check`, in `make check` where Node is
+  installed), and RE2 under `make fuzz` on every pattern libFuzzer
+  generates (`libre2-dev` in `dependencies/packages`, for that job only).
+  RE2 found two forms the dialects read differently, now outside the
+  subset: a `-` after a range (`[a-z-9]`) and a bound with a leading zero
+  (`{0,054}`). glibc is no witness: its `regcomp` spends gigabytes on
+  nested bounds and exponential time on a repeated group that can match
+  nothing, and it reads `^(ab|cd$){1,3}e$` as matching `abcdabe`, which no
+  other engine does. `fuzz_pattern` joins `make fuzz-smoke`. `docs/migration.md`, "Every consumer, at the pattern
+  the library reads itself", says what to search for; no product known to
+  this repository declares a pattern outside the subset.
+- The catalog validation at every start stays: without the regex it is
+  string checks and the parse of the examples, microseconds, and it is what
+  guarantees that `describe`, the parser and the help agree on a build of a
+  product nobody ran `make check` on.
+
 ## 0.10.0 - 2026-10-23
 
 This release lets a failure carry its detail as agent-cli/v2 admits it, in

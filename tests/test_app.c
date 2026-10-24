@@ -1612,7 +1612,7 @@ static int test_operand_pattern(void) {
     result = RUNV("named", "label-1", "dead");
     CHECK(expect_failure(&result, "[VALIDATION_FAILED]", "Operand SUM expects"));
     /* Refused at startup as an option's would be: a pattern on a kind that
-     * is not string or path, and a pattern that does not compile. */
+     * is not string or path, and a pattern outside the common subset. */
     maelys_cli_operand_t operands[2];
     memcpy(operands, named_operands, sizeof(operands));
     maelys_cli_command_t broken = commands[0];
@@ -1623,7 +1623,8 @@ static int test_operand_pattern(void) {
     CHECK(refused_at_startup(&broken, "operand SUM declares a pattern on a kind"));
     operands[1].pattern = NULL;
     operands[0].pattern = "^[a-z";
-    CHECK(refused_at_startup(&broken, "operand LABEL declares a pattern that is not"));
+    CHECK(refused_at_startup(&broken, "operand LABEL declares a pattern outside the "
+        "common subset of ECMA-262 and POSIX ERE: an unclosed bracket expression."));
 
     /* An unavailable code must be one of the stable codes, and needs a
      * reason: a catalog cannot invent a code an agent would read. */

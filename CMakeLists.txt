@@ -46,6 +46,7 @@ endif()
 add_library(maelys_cli STATIC
     src/version.c src/values.c src/environment.c src/files.c src/digest.c
     src/json.c src/terminal.c src/process.c src/catalog.c src/invocation.c
+    src/pattern.c
     src/app.c)
 add_library(maelys::cli ALIAS maelys_cli)
 set_target_properties(maelys_cli PROPERTIES EXPORT_NAME cli OUTPUT_NAME maelys_cli)
@@ -101,7 +102,7 @@ endif()
 
 if(MAELYS_CLI_BUILD_TESTS)
     enable_testing()
-    set(test_names values json files digest process catalog app)
+    set(test_names values pattern json files digest process catalog app)
     if(MAELYS_CLI_HAVE_JSON)
         list(APPEND test_names extension)
     endif()
@@ -121,7 +122,13 @@ if(MAELYS_CLI_BUILD_TESTS)
         target_include_directories(test_${name} PRIVATE src)
         target_compile_definitions(test_${name} PRIVATE
             _POSIX_C_SOURCE=200809L _XOPEN_SOURCE=700 _DEFAULT_SOURCE _DARWIN_C_SOURCE)
-        add_test(NAME ${name} COMMAND test_${name})
+        if(name STREQUAL "pattern")
+            # The corpus both C and Python answer, read from the source tree.
+            add_test(NAME ${name} COMMAND test_${name}
+                ${CMAKE_CURRENT_SOURCE_DIR}/tests/patterns.tsv)
+        else()
+            add_test(NAME ${name} COMMAND test_${name})
+        endif()
     endforeach()
 endif()
 

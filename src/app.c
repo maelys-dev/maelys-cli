@@ -9,7 +9,6 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
-#include <regex.h>
 #include <signal.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -426,15 +425,13 @@ static int validate_command(
             return -1;
         }
         if (operand->pattern) {
-            regex_t compiled;
-            int compiled_result = maelys_cli_pattern_compile(operand->pattern,
-                &compiled);
-            if (compiled_result == 0) regfree(&compiled);
-            else {
+            char reason[MAELYS_CLI_PATTERN_REASON_SIZE];
+            if (maelys_cli_pattern_check(operand->pattern, reason,
+                    sizeof(reason)) != 0) {
                 maelys_cli_error_set(error, MAELYS_CLI_CODE_UNEXPECTED, hint,
-                    "Catalog command '%s' operand %s declares a pattern that "
-                    "is not a valid extended regular expression.", id,
-                    operand->name);
+                    "Catalog command '%s' operand %s declares a pattern "
+                    "outside the common subset of ECMA-262 and POSIX ERE: "
+                    "%s.", id, operand->name, reason);
                 return -1;
             }
         }
@@ -521,15 +518,13 @@ static int validate_command(
             return -1;
         }
         if (option->pattern) {
-            regex_t compiled;
-            int compiled_result = maelys_cli_pattern_compile(option->pattern,
-                &compiled);
-            if (compiled_result == 0) regfree(&compiled);
-            else {
+            char reason[MAELYS_CLI_PATTERN_REASON_SIZE];
+            if (maelys_cli_pattern_check(option->pattern, reason,
+                    sizeof(reason)) != 0) {
                 maelys_cli_error_set(error, MAELYS_CLI_CODE_UNEXPECTED, hint,
-                    "Catalog command '%s' option --%s declares a pattern that "
-                    "is not a valid extended regular expression.", id,
-                    option->name);
+                    "Catalog command '%s' option --%s declares a pattern "
+                    "outside the common subset of ECMA-262 and POSIX ERE: "
+                    "%s.", id, option->name, reason);
                 return -1;
             }
         }

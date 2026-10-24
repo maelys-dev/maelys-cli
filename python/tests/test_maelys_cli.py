@@ -1070,6 +1070,45 @@ class Contract(unittest.TestCase):
         code, out, err = run("greet", env={"MAELYS_CLI_FORMAT": "json"})
         self.assertEqual(json.loads(err)["error"]["code"], "VALIDATION_FAILED")
 
+    def test_pattern_corpus(self) -> None:
+        """tests/patterns.tsv, the corpus tests/test_pattern.c answers: the Python reader admits and
+        refuses the same patterns and `re`, handed what it admitted, matches the same values."""
+        checks = matches = 0
+        for number, line in enumerate(
+                (HERE.parent.parent / "tests" / "patterns.tsv").read_text(encoding="utf-8").split("\n"), 1):
+            if not line or line.startswith("#"):
+                continue
+            fields = line.split("\t")
+            where = f"tests/patterns.tsv:{number}"
+            if fields[0] == "check":
+                checks += 1
+                try:
+                    cli._pattern_check(fields[1])
+                    verdict = "ok"
+                except ValueError as error:
+                    self.assertTrue(str(error), where)
+                    verdict = "refused"
+                self.assertEqual(verdict, fields[2], where)
+            else:
+                matches += 1
+                value = fields[2].replace("\\n", "\n").replace("\\\\", "\\")
+                self.assertEqual(cli._pattern_search(fields[1], value), fields[3] == "yes", where)
+        self.assertGreaterEqual(checks, 60)
+        self.assertGreaterEqual(matches, 80)
+        # What the file cannot carry: control characters, and the byte argv's
+        # surrogateescape hands a Python program for what is not UTF-8.
+        with self.assertRaises(ValueError):
+            cli._pattern_check("^a\tb$")
+        self.assertTrue(cli._pattern_search("^.$", "\udcff"))
+        self.assertTrue(cli._pattern_search("^[^a]$", "\udcff"))
+        self.assertFalse(cli._pattern_search("^[a-z]$", "\udcff"))
+        # An operand's pattern is read as an option's.
+        with self.assertRaises(ValueError) as caught:
+            cli.Program("p", "P", "1", [cli.read("t", "t", "x", lambda i: ({}, 0),
+                                              operands=[cli.operand("N", "Name.", kind="string", pattern="^\\d+$")])])
+        self.assertIn("operand N declares a pattern outside the common subset", str(caught.exception))
+        self.assertIn("not of a metacharacter", str(caught.exception))
+
     def test_pattern_is_enforced_and_prefix_is_validated(self) -> None:
         program = cli.Program("p", "P", "1", [cli.read("tag", "tag", "x", lambda i: ({"v": i.option("--name")}, 0),
                                                    options=[cli.option("--name", "n", cli.argument("NAME", "string", pattern="^[a-z]+$"))])])
