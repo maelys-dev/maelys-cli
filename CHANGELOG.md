@@ -1,6 +1,18 @@
 # Changelog
 
-## Unreleased
+## 0.11.0 - 2026-10-24
+
+This release reads `argument.pattern` itself, as agent-cli/v2 section 3
+writes it, and pins agent-cli-spec 2.20.0, which writes that section from
+this repository's measurements. No `regcomp()` any more: a bounded
+repetition costs its text where cx paid 5.6 MiB and a millisecond at every
+start for `{0,254}`, a value is searched in linear time in C and in Python,
+and the subset has one reading on every platform. A product meets a
+pattern outside the subset refused at startup, `.` matching none of the
+four line terminators and `$` no longer holding before a final newline; no
+pattern of a product known to this repository is affected.
+`docs/migration.md`, "Every consumer, at agent-cli-spec 2.20.0", says what
+to search for.
 
 - agent-cli-spec pinned at v2.20.0 (from v2.19.0). Its section 3 writes the
   subset an `argument.pattern` is written in, worked out with this
