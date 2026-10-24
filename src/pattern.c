@@ -46,6 +46,7 @@
 #define PATTERN_MAX_DEPTH 32u
 #define PATTERN_MAX_BOUND 255u
 #define PATTERN_UNBOUNDED UINT32_MAX
+#define PATTERN_NO_TARGET UINT32_MAX
 
 typedef enum {
     NODE_CHAR, NODE_ANY, NODE_CLASS, NODE_BOL, NODE_EOL, NODE_CAT, NODE_ALT,
@@ -57,8 +58,9 @@ typedef struct node {
     uint32_t cp;              /* CHAR */
     uint32_t bits[4];         /* CLASS: one bit per ASCII code point */
     int negated;              /* CLASS */
-    struct node *left;        /* CAT, ALT: first; REPEAT: the repeated */
-    struct node *right;       /* CAT, ALT: second */
+    struct node *child;       /* REPEAT: the repeated */
+    struct node **children;   /* CAT, ALT: in order, owned by the node */
+    size_t child_count;       /* CAT, ALT: two or more */
     uint32_t min, max;        /* REPEAT */
 } node_t;
 
@@ -98,7 +100,10 @@ static node_t *node_new(parser_t *p, node_kind_t kind) {
 }
 
 static void nodes_free(parser_t *p) {
-    for (size_t i = 0u; i < p->count; ++i) free(p->nodes[i]);
+    for (size_t i = 0u; i < p->count; ++i) {
+        free(p->nodes[i]->children);
+        free(p->nodes[i]);
+    }
     free(p->nodes);
     p->nodes = NULL;
     p->count = p->capacity = 0u;
@@ -293,42 +298,73 @@ static node_t *parse_piece(parser_t *p, unsigned depth) {
             "'*?', which POSIX ERE lacks");
     node_t *repeat = node_new(p, NODE_REPEAT);
     if (!repeat) return NULL;
-    repeat->left = atom;
+    repeat->child = atom;
     repeat->min = min;
     repeat->max = max;
     return repeat;
 }
 
+/* A sequence or an alternation is one node holding its items in order: the
+ * depth of the tree, and of every recursion over it (node_size, emit_node,
+ * the parser itself), is bounded by the nesting of groups,
+ * PATTERN_MAX_DEPTH, never by the length of the pattern. */
+typedef struct {
+    node_t **items;
+    size_t count;
+    size_t capacity;
+} items_t;
+
+static int items_push(parser_t *p, items_t *list, node_t *item) {
+    if (list->count == list->capacity) {
+        size_t capacity = list->capacity ? list->capacity * 2u : 4u;
+        node_t **grown = realloc(list->items, capacity * sizeof(*grown));
+        if (!grown) { fail(p, "out of memory"); return -1; }
+        list->items = grown;
+        list->capacity = capacity;
+    }
+    list->items[list->count++] = item;
+    return 0;
+}
+
+/* The single item itself, or a node of the kind that owns the list. */
+static node_t *items_join(parser_t *p, items_t *list, node_kind_t kind) {
+    if (list->count == 1u) {
+        node_t *only = list->items[0];
+        free(list->items);
+        return only;
+    }
+    node_t *node = node_new(p, kind);
+    if (!node) { free(list->items); return NULL; }
+    node->children = list->items;
+    node->child_count = list->count;
+    return node;
+}
+
 static node_t *parse_sequence(parser_t *p, unsigned depth) {
-    node_t *sequence = NULL;
+    items_t pieces = {NULL, 0u, 0u};
     while (!at_end(p) && peek(p) != '|' && peek(p) != ')') {
         node_t *piece = parse_piece(p, depth);
-        if (!piece) return NULL;
-        if (!sequence) { sequence = piece; continue; }
-        node_t *cat = node_new(p, NODE_CAT);
-        if (!cat) return NULL;
-        cat->left = sequence;
-        cat->right = piece;
-        sequence = cat;
+        if (!piece || items_push(p, &pieces, piece) != 0) {
+            free(pieces.items);
+            return NULL;
+        }
     }
-    if (!sequence) return fail(p, "an empty alternative or group");
-    return sequence;
+    if (pieces.count == 0u) return fail(p, "an empty alternative or group");
+    return items_join(p, &pieces, NODE_CAT);
 }
 
 static node_t *parse_alternation(parser_t *p, unsigned depth) {
-    node_t *left = parse_sequence(p, depth);
-    if (!left) return NULL;
-    while (peek(p) == '|') {
+    items_t alternatives = {NULL, 0u, 0u};
+    for (;;) {
+        node_t *alternative = parse_sequence(p, depth);
+        if (!alternative || items_push(p, &alternatives, alternative) != 0) {
+            free(alternatives.items);
+            return NULL;
+        }
+        if (peek(p) != '|') break;
         p->at++;
-        node_t *right = parse_sequence(p, depth);
-        if (!right) return NULL;
-        node_t *alt = node_new(p, NODE_ALT);
-        if (!alt) return NULL;
-        alt->left = left;
-        alt->right = right;
-        left = alt;
     }
-    return left;
+    return items_join(p, &alternatives, NODE_ALT);
 }
 
 /* ---- the program ------------------------------------------------------- */
@@ -348,16 +384,16 @@ typedef struct {
 static uint32_t node_size(const node_t *node) {
     const uint32_t cap = PATTERN_MAX_INSTRUCTIONS + 1u;
     switch (node->kind) {
-    case NODE_CAT: {
-        uint32_t l = node_size(node->left), r = node_size(node->right);
-        return l + r > cap ? cap : l + r;
-    }
+    case NODE_CAT:
     case NODE_ALT: {
-        uint32_t l = node_size(node->left), r = node_size(node->right);
-        return l + r + 2u > cap ? cap : l + r + 2u;
+        /* An alternation of k items adds k - 1 splits and k - 1 jumps. */
+        uint64_t total = node->kind == NODE_ALT ? 2u * (uint64_t)(node->child_count - 1u) : 0u;
+        for (size_t i = 0u; i < node->child_count && total <= cap; ++i)
+            total += node_size(node->children[i]);
+        return total > cap ? cap : (uint32_t)total;
     }
     case NODE_REPEAT: {
-        uint64_t c = node_size(node->left);
+        uint64_t c = node_size(node->child);
         uint64_t total;
         if (node->max == PATTERN_UNBOUNDED) total = (uint64_t)node->min * c + c + 2u;
         else total = (uint64_t)node->min * c + (uint64_t)(node->max - node->min) * (c + 1u);
@@ -394,48 +430,52 @@ static void emit_node(emitter_t *e, const node_t *node) {
         return;
     }
     case NODE_CAT:
-        emit_node(e, node->left);
-        emit_node(e, node->right);
+        for (size_t i = 0u; i < node->child_count; ++i) emit_node(e, node->children[i]);
         return;
     case NODE_ALT: {
-        uint32_t split = emit(e, OP_SPLIT, 0u, 0u);
-        e->code[split].x = e->count;
-        emit_node(e, node->left);
-        uint32_t jump = emit(e, OP_JMP, 0u, 0u);
-        e->code[split].y = e->count;
-        emit_node(e, node->right);
-        e->code[jump].x = e->count;
+        /* split L1, M1; L1: a; jmp END; M1: split L2, M2; ...; z; END:
+         * The jumps to END are chained through their x until END is known:
+         * emission allocates nothing. */
+        uint32_t chain = PATTERN_NO_TARGET;
+        for (size_t i = 0u; i + 1u < node->child_count; ++i) {
+            uint32_t split = emit(e, OP_SPLIT, 0u, 0u);
+            e->code[split].x = e->count;
+            emit_node(e, node->children[i]);
+            chain = emit(e, OP_JMP, chain, 0u);
+            e->code[split].y = e->count;
+        }
+        emit_node(e, node->children[node->child_count - 1u]);
+        while (chain != PATTERN_NO_TARGET) {
+            uint32_t next = e->code[chain].x;
+            e->code[chain].x = e->count;
+            chain = next;
+        }
         return;
     }
     case NODE_REPEAT: {
-        for (uint32_t i = 0u; i < node->min; ++i) emit_node(e, node->left);
+        for (uint32_t i = 0u; i < node->min; ++i) emit_node(e, node->child);
         if (node->max == PATTERN_UNBOUNDED) {
             /* L1: split L2, L3; L2: e; jmp L1; L3: */
             uint32_t split = emit(e, OP_SPLIT, 0u, 0u);
             e->code[split].x = e->count;
-            emit_node(e, node->left);
+            emit_node(e, node->child);
             emit(e, OP_JMP, split, 0u);
             e->code[split].y = e->count;
             return;
         }
-        /* (max - min) optional copies, each split skipping to the end. */
-        uint32_t optional = node->max - node->min;
-        uint32_t *splits = optional ? malloc(optional * sizeof(*splits)) : NULL;
-        if (optional && !splits) {
-            /* The size was bounded before emission; without memory for the
-             * patch list, emit the copies as required ones: a program that
-             * is still a program, never one that reads out of bounds. Not a
-             * reachable path in practice: the list is a few hundred bytes. */
-            for (uint32_t i = 0u; i < optional; ++i) emit_node(e, node->left);
-            return;
+        /* (max - min) optional copies, each split skipping to the end; the
+         * splits are chained through their y until the end is known. */
+        uint32_t chain = PATTERN_NO_TARGET;
+        for (uint32_t i = 0u; i < node->max - node->min; ++i) {
+            chain = emit(e, OP_SPLIT, 0u, chain);
+            e->code[chain].x = e->count;
+            emit_node(e, node->child);
         }
-        for (uint32_t i = 0u; i < optional; ++i) {
-            splits[i] = emit(e, OP_SPLIT, 0u, 0u);
-            e->code[splits[i]].x = e->count;
-            emit_node(e, node->left);
+        while (chain != PATTERN_NO_TARGET) {
+            uint32_t next = e->code[chain].y;
+            e->code[chain].y = e->count;
+            chain = next;
         }
-        for (uint32_t i = 0u; i < optional; ++i) e->code[splits[i]].y = e->count;
-        free(splits);
         return;
     }
     }
@@ -452,6 +492,7 @@ typedef struct {
     uint32_t *stack;
     uint32_t generation;
     int matched;
+    uint64_t steps;           /* positions popped and threads tried: the work */
 } machine_t;
 
 /* Follows the empty moves from pc and records every position that consumes
@@ -463,6 +504,7 @@ static void add_thread(machine_t *m, int which, uint32_t pc, int at_start, int a
     m->stack[top++] = pc;
     while (top) {
         pc = m->stack[--top];
+        m->steps++;
         if (m->mark[pc] == m->generation) continue;
         m->mark[pc] = m->generation;
         const instruction_t *i = &m->code[pc];
@@ -515,6 +557,7 @@ static int run(machine_t *m, const char *value) {
         m->generation++;
         for (uint32_t t = 0u; t < m->size[which] && !m->matched; ++t) {
             const instruction_t *i = &m->code[m->list[which][t]];
+            m->steps++;
             if (instruction_accepts(i, cp))
                 add_thread(m, next, m->list[which][t] + 1u, 0, at == n);
         }
@@ -550,6 +593,13 @@ int maelys_cli_pattern_check(const char *pattern, char *reason, size_t reason_si
 }
 
 int maelys_cli_pattern_match(const char *pattern, const char *value) {
+    return maelys_cli_pattern_match_counted(pattern, value, NULL, NULL);
+}
+
+int maelys_cli_pattern_match_counted(const char *pattern, const char *value,
+                                     uint64_t *steps, uint32_t *states) {
+    if (steps) *steps = 0u;
+    if (states) *states = 0u;
     if (!value) return 0;
     parser_t p;
     node_t *root = parse(&p, pattern, NULL, 0u);
@@ -576,6 +626,8 @@ int maelys_cli_pattern_match(const char *pattern, const char *value) {
         m.stack = lists + 3u * (size_t)count;
         memset(m.mark, 0, count * sizeof(*m.mark));
         result = run(&m, value);
+        if (steps) *steps = m.steps;
+        if (states) *states = m.count;
     }
     free(lists);
     free(code);

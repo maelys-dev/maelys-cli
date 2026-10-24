@@ -67,9 +67,9 @@ under incompatible terms into the agent texts. See `LICENSING.md`.
   order of refusals, same `describe` shape, same errno-to-code table, same
   file primitives with the same requirements and explanations, same
   `MAELYS_CLI_FORMAT` values, `argument.pattern` read by the same reader of
-  the common subset of ECMA-262 and ERE (`src/pattern.c` matches it in C,
-  Python checks the motif alike then hands it to `re.search`;
-  `tests/patterns.tsv` is answered by both), same trunk diagnostics, pager
+  the common subset of ECMA-262 and ERE and searched by the same Thompson
+  simulation of the same program (`src/pattern.c` in C, never `re` in
+  Python; `tests/patterns.tsv` is answered by both), same trunk diagnostics, pager
   and `--field` rendering rules. A
   behavior that exists in one and not the other is a defect. It is held by
   `python/tests/test_maelys_cli.py`, by the conformance kit on

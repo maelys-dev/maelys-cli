@@ -11,6 +11,7 @@
 #include "check.h"
 #include "internal.h"
 
+#include <pthread.h>
 #include <regex.h>
 #include <stdlib.h>
 #include <string.h>
@@ -190,10 +191,85 @@ static int test_bytes(void) {
     return 1;
 }
 
+/* The work is O((length + 1) x states), counted by the matcher itself
+ * rather than timed: at most (length + 1) x (4 x states + 1) steps, on a
+ * pattern backtracking engines take exponential time on, (a+)+b against
+ * a...ac, and on the most expensive shapes the subset admits. */
+static int test_linear_work(void) {
+    static const char *const patterns[] = {
+        "^(a+)+b$", "^(a|a)*b$", "^(a*)*(a?){200}b$", "(a?){255}a{255}c",
+        "^[A-Za-z0-9_][A-Za-z0-9_.-]{0,254}$", "x(a|b|ab|ba)*y",
+    };
+    char *value = malloc(4097u);
+    if (!value) return 0;
+    for (size_t i = 0u; i < sizeof(patterns) / sizeof(patterns[0]); ++i) {
+        for (size_t length = 256u; length <= 4096u; length *= 2u) {
+            memset(value, 'a', length);
+            value[length] = '\0';
+            uint64_t steps = 0u;
+            uint32_t states = 0u;
+            int matched = maelys_cli_pattern_match_counted(patterns[i], value, &steps, &states);
+            CHECK(matched == 0 || matched == 1);
+            CHECK(steps > 0u && states > 0u);
+            CHECK(steps <= (uint64_t)(length + 1u) * (4u * (uint64_t)states + 1u));
+        }
+    }
+    free(value);
+    return 1;
+}
+
+/* The depth of every recursion is the nesting of groups, never the length:
+ * a pattern of two million bytes is refused by the state bound without a
+ * crash, a sequence of 30000 items and 20000 alternatives are read, and
+ * the deepest nesting admitted runs on a thread with a small stack. */
+static void *deep_on_small_stack(void *argument) {
+    int *ok = argument;
+    char pattern[200];
+    size_t at = 0u;
+    for (int i = 0; i < 32; ++i) pattern[at++] = '(';
+    pattern[at++] = 'a';
+    for (int i = 0; i < 32; ++i) { pattern[at++] = ')'; pattern[at++] = '*'; }
+    pattern[at] = '\0';
+    *ok = maelys_cli_pattern_check(pattern, NULL, 0u) == 0 &&
+        maelys_cli_pattern_match(pattern, "aaaa") == 1;
+    return NULL;
+}
+
+static int test_depth(void) {
+    size_t length = 2000000u;
+    char *pattern = malloc(length + 1u);
+    if (!pattern) return 0;
+    char reason[MAELYS_CLI_PATTERN_REASON_SIZE];
+    memset(pattern, 'a', length);
+    pattern[length] = '\0';
+    CHECK(maelys_cli_pattern_check(pattern, reason, sizeof(reason)) != 0);
+    CHECK(strstr(reason, "65536 states"));
+    /* 30000 items in a sequence; 20000 alternatives, under the state bound. */
+    memset(pattern, 'a', 30000u);
+    pattern[30000] = '\0';
+    CHECK(maelys_cli_pattern_check(pattern, NULL, 0u) == 0);
+    for (size_t i = 0u; i < 20000u; ++i) { pattern[2u * i] = 'a'; pattern[2u * i + 1u] = '|'; }
+    pattern[39999] = '\0';
+    CHECK(maelys_cli_pattern_match(pattern, "zza") == 1);
+    free(pattern);
+    pthread_attr_t attributes;
+    pthread_t thread;
+    int ok = 0;
+    CHECK(pthread_attr_init(&attributes) == 0);
+    CHECK(pthread_attr_setstacksize(&attributes, 256u * 1024u) == 0);
+    CHECK(pthread_create(&thread, &attributes, deep_on_small_stack, &ok) == 0);
+    CHECK(pthread_join(thread, NULL) == 0);
+    (void)pthread_attr_destroy(&attributes);
+    CHECK(ok);
+    return 1;
+}
+
 int main(int argc, char **argv) {
     if (argc > 1) corpus_path = argv[1];
     int failures = 0;
     RUN(test_corpus);
     RUN(test_bytes);
+    RUN(test_linear_work);
+    RUN(test_depth);
     return failures ? 1 : 0;
 }

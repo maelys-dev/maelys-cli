@@ -70,11 +70,14 @@ path value must match (spec 2.3): the parser refuses a mismatch with
 `VALIDATION_FAILED`, as a search (`^` and `$` anchor the value). It is
 written in the common subset of ECMA-262 and POSIX ERE, so that an agent,
 the kit, the C parser and the Python module read one motif, and the library
-reads and matches that subset itself (`src/pattern.c`; the Python module
-checks the motif the same way, then hands it to `re`): no `regcomp()`, no
-libc dialect, and a bounded repetition costs its text, where the regex of a
-libc expands `{0,254}` into 254 copies, 5.6 MiB and a millisecond on macOS
-at every start of the product. The subset: literals and `\` before one of
+reads and matches that subset itself (`src/pattern.c`, and the same reader
+and matcher in the Python module): no `regcomp()`, no libc dialect, no
+backtracking. A search is a Thompson simulation of the pattern's program,
+O((value length + 1) x states) in time and O(states) in memory, states
+being at most 65536; a bounded repetition costs its text, where the regex
+of a libc expands `{0,254}` into 254 copies, 5.6 MiB and a millisecond on
+macOS at every start of the product, and where `re` takes exponential time
+on `(a+)+b` against `aaa...c`. The subset: literals and `\` before one of
 `\ ^ $ . [ ] ( ) * + ? { } |`; `.`, any character but a newline; `[...]`
 and `[^...]` of printable ASCII and ranges, no `[`, `]` or `\` inside, a
 `-` first, last or ending a range only; `( )` groups and `|`, no empty
@@ -86,8 +89,9 @@ A pattern outside it, `(?:`, `\d`, `[[:alpha:]]`, a lazy `*?`, `[a-z-9]`,
 and in Python alike. `tests/patterns.tsv` is the corpus both answer, which
 V8 answers too (`make check`, where Node is installed), and `make fuzz`
 holds the matcher to RE2 on every pattern it generates. A value is read as UTF-8
-code points, a byte that is not UTF-8 counting as one character, as
-Python's `re` reads argv.
+code points, a byte that is not UTF-8 counting as one character that only
+`.` and a negated bracket expression match, as Python reads argv through
+surrogateescape.
 
 `.hidden` on an option (spec 2.2) marks a diagnostic or trial option that
 humans are not offered: the parser accepts it and applies its constraints,
