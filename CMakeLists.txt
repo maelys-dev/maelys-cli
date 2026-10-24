@@ -136,6 +136,9 @@ if(MAELYS_CLI_BUILD_TESTS)
             # The corpus both C and Python answer, read from the source tree.
             add_test(NAME ${name} COMMAND test_${name}
                 ${CMAKE_CURRENT_SOURCE_DIR}/tests/patterns.tsv)
+        elseif(name STREQUAL "language")
+            add_test(NAME ${name} COMMAND test_${name}
+                ${CMAKE_CURRENT_SOURCE_DIR}/tests/languages.tsv)
         else()
             add_test(NAME ${name} COMMAND test_${name})
         endif()

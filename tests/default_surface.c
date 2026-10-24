@@ -32,6 +32,10 @@ static int command_show(maelys_cli_context_t *context) {
     const char *label = maelys_cli_option(context, "label");
     const char *level = maelys_cli_option(context, "level");
     const char *file = maelys_cli_operand(context, 0u);
+    /* A failure of the product's own, whose template its table translates. */
+    if (label && label[0] == '!')
+        return maelys_cli_fail(context, MAELYS_CLI_CODE_PRECONDITION_FAILED,
+            "Choose a label that does not start with '!'.", "Label %s is reserved.", label);
     maelys_cli_json_writer_t data;
     maelys_cli_json_writer_init(&data);
     (void)maelys_cli_json_begin_object(&data);
@@ -103,9 +107,40 @@ static const maelys_cli_command_t commands[] = {
 };
 
 /* A palette for every role, so that tests/test_cli.sh holds the colored
- * help of C and Python to the same bytes. */
+ * help of C and Python to the same bytes; and French, so that it holds
+ * their help in another language to the same bytes too. */
 static const maelys_cli_help_palette_t palette = {
     .heading = "1;34", .command = "36", .option = "33", .placeholder = "4", .example = "32",
+};
+
+/* French for part of the catalog: the texts left out stay in English,
+ * as a product's do while it is translated. */
+static const maelys_cli_translation_t french[] = {
+    {"a program whose lines may name no command",
+     "un programme dont les lignes peuvent ne nommer aucune commande"},
+    {"Show a file, the default command.",
+     "Montrer un fichier ; c'est la commande par défaut."},
+    {"List the entries.",
+     "Lister les entrées."},
+    {"Save a text; plans by default.",
+     "Enregistrer un texte ; planifie par défaut."},
+    {"File to show.",
+     "Fichier à montrer."},
+    {"Label of what is shown.",
+     "Étiquette de ce qui est montré."},
+    {"How many lines.",
+     "Combien de lignes."},
+    {"Maximum number of entries.",
+     "Nombre maximal d'entrées."},
+    {"Text to save.",
+     "Texte à enregistrer."},
+    {"Label %s is reserved.",
+     "L'étiquette %s est réservée."},
+    {"Choose a label that does not start with '!'.",
+     "Choisissez une étiquette qui ne commence pas par '!'."},
+};
+static const maelys_cli_language_t languages[] = {
+    {"fr", french, MAELYS_CLI_COUNT(french)},
 };
 
 static const maelys_cli_app_t default_app = {
@@ -117,6 +152,8 @@ static const maelys_cli_app_t default_app = {
     .command_count = MAELYS_CLI_COUNT(commands),
     .default_command = "show",
     .help_palette = &palette,
+    .languages = languages,
+    .language_count = MAELYS_CLI_COUNT(languages),
 };
 
 int main(int argc, char **argv) {

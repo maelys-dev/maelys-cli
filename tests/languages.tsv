@@ -1,0 +1,123 @@
+# SPDX-License-Identifier: MPL-2.0
+# The language of human text: the corpus tests/test_language.c and python/tests/test_maelys_cli.py
+# both answer, so that C and Python resolve a request alike. One case per line, fields separated by
+# a tab; `-` is an absent value, "" an empty one.
+#   tag      TAG  yes|no                      RFC 5646 well-formedness, case ignored
+#   locale   LOCALE  TAG|C|-                  the tag a locale names; C the canonical language; - none
+#   lookup   TAG  AVAILABLE  RESULT|-         RFC 4647 Lookup; AVAILABLE comma-separated, - for none
+#   resolve  OPTION VARIABLE LC_ALL LC_MESSAGES LANG  AVAILABLE  RESULT|-
+#   conversions  TEMPLATE  CONVERSIONS       a template's printf conversions, space-separated, - none
+tag	en	yes
+tag	fr	yes
+tag	FR	yes
+tag	fr-CA	yes
+tag	FR-ca	yes
+tag	de-DE	yes
+tag	zh-Hant	yes
+tag	zh-Hant-TW	yes
+tag	sr-Latn-RS	yes
+tag	es-419	yes
+tag	de-CH-1901	yes
+tag	sl-rozaj-biske	yes
+tag	hy-Latn-IT-arevela	yes
+tag	en-US-u-islamcal	yes
+tag	de-DE-u-co-phonebk	yes
+tag	en-a-bbb-x-a-ccc	yes
+tag	x-whatever	yes
+tag	qaa-Qaaa-QM-x-southern	yes
+tag	zh-yue-HK	yes
+tag	i-klingon	yes
+tag	I-KLINGON	yes
+tag	en-GB-oed	yes
+tag	art-lojban	yes
+tag	zh-min-nan	yes
+tag	abcd	yes
+tag	abcdefgh	yes
+tag	de-1996	yes
+tag	english-language	yes
+tag	fr-x-a	yes
+tag	ar-aao-ajp-apc	yes
+tag	sgn-be-fr	yes
+tag	""	no
+tag	e	no
+tag	en-US-US	no
+tag	fr_FR	no
+tag	fr-	no
+tag	-fr	no
+tag	fr--CA	no
+tag	fr-CA-	no
+tag	123	no
+tag	fr-CA-x	no
+tag	en-a	no
+tag	en-a-x-b	no
+tag	fr.UTF-8	no
+tag	fr CA	no
+tag	abcdefghi	no
+tag	abcd-efg	no
+tag	en-US-x-toolongsubtag	no
+tag	de-419-DE	no
+tag	é	no
+tag	fr-é	no
+tag	i-unknown	no
+tag	x	no
+tag	ar-aao-ajp-apc-abc	no
+locale	fr_FR.UTF-8	fr-FR
+locale	fr_CA	fr-CA
+locale	fr	fr
+locale	FR_fr.utf8@euro	fr-FR
+locale	en_US.UTF-8	en-US
+locale	es_419.UTF-8	es-419
+locale	fra_FR	fra-FR
+locale	de_DE@euro	de-DE
+locale	C	C
+locale	POSIX	C
+locale	C.UTF-8	C
+locale	C.utf8	C
+locale	french	C
+locale	fr_FRANCE	C
+locale	fr-FR	C
+locale	f	C
+locale	abcd_FR	C
+locale	fr_F	C
+locale	fr_FR_x	C
+locale	é_FR	C
+locale	c	C
+locale	""	-
+lookup	fr	fr	fr
+lookup	FR	fr	fr
+lookup	fr-CA	fr	fr
+lookup	fr-Latn-CA-x-private	fr	fr
+lookup	de-DE	fr	-
+lookup	en	fr	-
+lookup	x-fr	fr	-
+lookup	fr-ca	fr,fr-CA	fr-CA
+lookup	fr-BE	fr,fr-CA	fr
+lookup	fr-a-bcd	fr	fr
+lookup	fr	-	-
+lookup	zh-Hant-TW	zh,zh-Hant	zh-Hant
+lookup	fr-CA	fr-CA	fr-CA
+lookup	fr	fr-CA	-
+resolve	fr	en	en_US	-	-	fr	fr
+resolve	en	fr	fr_FR	-	-	fr	-
+resolve	-	fr-CA	en_US	-	-	fr	fr
+resolve	-	-	fr_FR.UTF-8	en_US	en_US	fr	fr
+resolve	-	-	-	fr_FR	en_US	fr	fr
+resolve	-	-	-	-	fr_FR.UTF-8	fr	fr
+resolve	-	-	-	-	-	fr	-
+resolve	""	""	""	""	fr_FR	fr	fr
+resolve	-	-	de_DE	fr_FR	fr_FR	fr	-
+resolve	-	-	C	fr_FR	fr_FR	fr	-
+resolve	-	-	C.UTF-8	-	fr_FR	fr	-
+resolve	-	not a tag	fr_FR	-	-	fr	-
+resolve	-	de	fr_FR	-	-	fr	-
+resolve	fr	-	-	-	-	-	-
+resolve	FR-ca	-	-	-	-	fr	fr
+resolve	-	FR	-	-	-	fr	fr
+resolve	-	-	en_US.UTF-8	-	fr_FR	fr	-
+resolve	-	-	POSIX	-	-	fr	-
+resolve	-	-	fr_CA.UTF-8	-	-	fr,fr-CA	fr-CA
+conversions	Option --%s takes %s, not '%s'.	%s %s %s
+conversions	%zu of %llu, %5.2f%% done	%zu %llu %5.2f
+conversions	No conversion, 100%% sure.	-
+conversions	%-*d|%.*s	%-*d %.*s
+conversions	Plain text.	-

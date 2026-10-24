@@ -27,6 +27,11 @@ def trace(command: str) -> None:
 
 def show(invocation: cli.Invocation) -> "tuple[dict, int]":
     trace("show")
+    label = invocation.option("--label") or ""
+    if label.startswith("!"):
+        # A failure of the product's own, whose template its table translates.
+        raise cli.failure("PRECONDITION_FAILED", "Label %s is reserved.", label,
+                          hint="Choose a label that does not start with '!'.")
     return {"label": invocation.option("--label") or "", "level": invocation.option("--level") or "",
             "file": invocation.operands[0] if invocation.operands else ""}, cli.EXIT_OK
 
@@ -49,6 +54,32 @@ def watch(invocation: cli.Invocation) -> int:
     return cli.EXIT_OK
 
 
+# French for part of the catalog, the table of tests/default_surface.c: the texts left out stay in English.
+FRENCH = {
+    'a program whose lines may name no command':
+        'un programme dont les lignes peuvent ne nommer aucune commande',
+    'Show a file, the default command.':
+        "Montrer un fichier ; c'est la commande par défaut.",
+    'List the entries.':
+        'Lister les entrées.',
+    'Save a text; plans by default.':
+        'Enregistrer un texte ; planifie par défaut.',
+    'File to show.':
+        'Fichier à montrer.',
+    'Label of what is shown.':
+        'Étiquette de ce qui est montré.',
+    'How many lines.':
+        'Combien de lignes.',
+    'Maximum number of entries.':
+        "Nombre maximal d'entrées.",
+    'Text to save.':
+        'Texte à enregistrer.',
+    'Label %s is reserved.':
+        "L'étiquette %s est réservée.",
+    "Choose a label that does not start with '!'.":
+        "Choisissez une étiquette qui ne commence pas par '!'.",
+}
+
 NAMED = os.environ.get("DEFAULT_SURFACE_DEFAULT") or "show"
 
 PROGRAM = cli.Program("default-surface", "Default surface", "1.0.0", [
@@ -65,7 +96,8 @@ PROGRAM = cli.Program("default-surface", "Default surface", "1.0.0", [
                     schema={"type": "object", "required": ["mode", "changed"]}),
     cli.stream("watch", "watch", "Watch the entries on stdout.", watch),
 ], guide="a program whose lines may name no command", default_command=None if NAMED == "none" else NAMED,
-    help_palette={"heading": "1;34", "command": "36", "option": "33", "placeholder": "4", "example": "32"})
+    help_palette={"heading": "1;34", "command": "36", "option": "33", "placeholder": "4", "example": "32"},
+    translations={"fr": FRENCH})
 
 if __name__ == "__main__":
     sys.exit(PROGRAM.main(sys.argv[1:]))

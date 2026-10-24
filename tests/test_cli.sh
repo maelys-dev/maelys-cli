@@ -657,6 +657,59 @@ check "--color never shows no color, CLICOLOR_FORCE notwithstanding" '! printf "
 run palette-json env CLICOLOR_FORCE=1 "$dflt_c" help --json --compact
 check "data.text is never colored" '! printf "%s" "$out" | grep -q "u001b"'
 
+# The language of human text: default_surface declares French for part of
+# its catalog, in C and in Python alike, and maelys-hello declares none.
+# The first of LC_ALL, LC_MESSAGES and LANG that is not empty decides; a
+# language the program does not have, C or POSIX leaves it in English; the
+# texts left untranslated stay English; JSON and describe never change.
+lang_of() { # lang_of ENV...: the usage heading of default_surface's help
+    run "lang" env -u LC_ALL -u LC_MESSAGES -u LANG -u LANGUAGE "$@" "$dflt_c" help
+    printf '%s\n' "$out" | grep -x -e USAGE -e UTILISATION | head -n 1
+}
+check "LANG=fr_FR.UTF-8 shows the help in French" '[ "$(lang_of LANG=fr_FR.UTF-8)" = UTILISATION ]'
+check "LANG=en_US.UTF-8 shows it in English" '[ "$(lang_of LANG=en_US.UTF-8)" = USAGE ]'
+check "LANG=C shows it in English" '[ "$(lang_of LANG=C)" = USAGE ]'
+check "LANG=C.UTF-8 shows it in English" '[ "$(lang_of LANG=C.UTF-8)" = USAGE ]'
+check "no locale at all shows it in English" '[ "$(lang_of)" = USAGE ]'
+check "LC_ALL comes before LANG" '[ "$(lang_of LC_ALL=C LANG=fr_FR.UTF-8)" = USAGE ] && [ "$(lang_of LC_ALL=fr_FR.UTF-8 LANG=C)" = UTILISATION ]'
+check "LC_MESSAGES comes before LANG" '[ "$(lang_of LC_MESSAGES=fr_FR.UTF-8 LANG=en_US.UTF-8)" = UTILISATION ]'
+check "an empty LC_ALL is no source" '[ "$(lang_of LC_ALL= LANG=fr_FR.UTF-8)" = UTILISATION ]'
+check "fr_CA falls back to fr" '[ "$(lang_of LANG=fr_CA.UTF-8)" = UTILISATION ]'
+check "a language the program does not have is English, later sources unread" '[ "$(lang_of LC_ALL=de_DE.UTF-8 LANG=fr_FR.UTF-8)" = USAGE ]'
+check "LANGUAGE is not read" '[ "$(lang_of LANGUAGE=fr LANG=C)" = USAGE ]'
+for words in "help" "show --help" "list --help" "save --help" "watch --help" "help list" "show --label !x"; do
+    run "lang-$words" env LC_ALL=fr_FR.UTF-8 "$dflt_c" $words
+    c_french="$out$err"
+    run "lang-$words-py" env LC_ALL=fr_FR.UTF-8 $dflt_py $words
+    check "C and Python write the same French: $words" '[ "$out$err" = "$c_french" ]'
+    run "lang-$words-en" env LC_ALL=C "$dflt_c" $words
+    check "the French is another text than the English: $words" '[ "$out$err" != "$c_french" ]'
+done
+run lang-failure env LC_ALL=fr_FR.UTF-8 "$dflt_c" show --label '!x'
+check "a product's failure template is translated, its argument put back, Hint: kept" \
+    'printf "%s" "$err" | grep -q "^default-surface: \[PRECONDITION_FAILED\] L.étiquette !x est réservée\.$" && printf "%s" "$err" | grep -q "^Hint: Choisissez"'
+run lang-framework env LC_ALL=fr_FR.UTF-8 "$dflt_c" list --limit x
+check "a framework failure is translated" 'printf "%s" "$err" | grep -q "^default-surface: \[VALIDATION_FAILED\] L.option --limit attend"'
+run lang-framework-py env LC_ALL=fr_FR.UTF-8 $dflt_py list --limit x
+check "a Python framework failure is translated" 'printf "%s" "$err" | grep -q "^default-surface: \[VALIDATION_FAILED\] L.option --limit attend"'
+run lang-partial env LC_ALL=fr_FR.UTF-8 "$dflt_c" help
+check "a text the table leaves out stays in English" 'printf "%s" "$out" | grep -q "Watch the entries on stdout\."'
+for program in "$dflt_c" "$dflt_py"; do
+    for words in "help --json" "help show --json" "describe --format json" "describe --summary --format json" \
+            "show --label !x --json" "list --limit x --json" "nope --json" "help --field text" "show --json"; do
+        run "lang-json-fr" env LC_ALL=fr_FR.UTF-8 $program $words
+        french="$code|$out|$err"
+        run "lang-json-c" env LC_ALL=C $program $words
+        check "a machine form is the same bytes in every language: $program $words" '[ "$code|$out|$err" = "$french" ]'
+    done
+done
+for words in "--help" "help greet" "greet --times 99"; do
+    run "lang-hello-fr" env LC_ALL=fr_FR.UTF-8 "$hello" $words
+    french="$out$err"
+    run "lang-hello-c" env LC_ALL=C "$hello" $words
+    check "a product without a table stays in English: $words" '[ "$out$err" = "$french" ]'
+done
+
 # The built-ins are declared alike in C and in Python: purposes, operands,
 # options, schemas, and the --apply every transaction takes. describe of a C
 # product and of a Python one say the same of them.

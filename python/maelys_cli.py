@@ -584,9 +584,320 @@ _FRAMEWORK_TRANSLATIONS = {
             "La langue '%s' du catalogue traduit '%s' sans ses conversions, dans l'ordre.",
         'Declare each language once by a well-formed tag, and translate each text with the conversions of its source.':
             'Déclarez chaque langue une fois, par une étiquette bien formée, et traduisez chaque texte avec les conversions de sa source.',
+        "Option %s takes true, false, yes, no, on, off, 1 or 0, not '%s'.":
+            "L'option %s attend true, false, yes, no, on, off, 1 ou 0, et non '%s'.",
+        "Use '%s'.":
+            "Utilisez '%s'.",
+        "Unknown command identifier '%s'.":
+            "Identifiant de commande inconnu : '%s'.",
+        'Run describe --summary to list the command identifiers.':
+            'Lancez describe --summary pour lister les identifiants de commande.',
+        'No command given.':
+            'Aucune commande donnée.',
+        "Run '%s help' or 'describe --summary'.":
+            "Lancez '%s help' ou 'describe --summary'.",
+        "Unknown command '%s'.":
+            "Commande inconnue : '%s'.",
+        'Run describe --summary and use one of the listed command identifiers.':
+            'Lancez describe --summary et utilisez un des identifiants de commande listés.',
+        "Command '%s' is not available in this build: %s":
+            "La commande '%s' n'est pas disponible dans cette compilation : %s",
+        'Use another build of the product, or another command.':
+            'Utilisez une autre compilation du produit, ou une autre commande.',
+        "Command '%s' owns its stdout and refuses %s.":
+            "La commande '%s' possède sa sortie standard et refuse %s.",
+        'Set MAELYS_CLI_FORMAT=json in the environment to receive its failure envelope as JSON.':
+            "Définissez MAELYS_CLI_FORMAT=json dans l'environnement pour recevoir son enveloppe d'échec en JSON.",
+        "--format jsonl is accepted only by json-records commands, not '%s'; add --field to render one member in jsonl.":
+            "--format jsonl n'est accepté que par les commandes json-records, pas par '%s' ; ajoutez --field pour rendre un membre en jsonl.",
+        "--format jsonl is accepted only by json-records commands, not 'help'; add --field to render one member in jsonl.":
+            "--format jsonl n'est accepté que par les commandes json-records, pas par 'help' ; ajoutez --field pour rendre un membre en jsonl.",
+        'Use --format json.':
+            'Utilisez --format json.',
+        "Option --prefix takes a command identifier prefix, not '%s'.":
+            "L'option --prefix attend un préfixe d'identifiant de commande, et non '%s'.",
+        "Use lowercase letters, digits, '.' and '-', starting with a letter.":
+            "Utilisez des lettres minuscules, des chiffres, '.' et '-', en commençant par une lettre.",
+        'Option %s is given twice.':
+            "L'option %s est donnée deux fois.",
+        'Give each option once.':
+            'Donnez chaque option une seule fois.',
+        'Option %s needs a value %s.':
+            "L'option %s a besoin d'une valeur %s.",
+        "Run describe for this command and pass the option's argument.":
+            "Lancez describe pour cette commande et donnez l'argument de l'option.",
+        'Options %s are given together or not at all.':
+            'Les options %s se donnent ensemble ou pas du tout.',
+        "Option %s is required by '%s'.":
+            "L'option %s est obligatoire pour '%s'.",
+        'Option %s requires %s.':
+            "L'option %s exige %s.",
+        'Requires %s.':
+            'Exige %s.',
+        'Conflicts with %s.':
+            'Incompatible avec %s.',
+        'Option %s conflicts with %s.':
+            "L'option %s est incompatible avec %s.",
+        'Option %s conflicts with the %s operand.':
+            "L'option %s est incompatible avec l'opérande %s.",
+        'Value kind %s of %s is not known.':
+            'La sorte de valeur %s de %s est inconnue.',
+        'Fix the catalog.':
+            'Corrigez le catalogue.',
+        "Option %s is not supported by '%s': it plans by default.":
+            "L'option %s n'est pas acceptée par '%s' : elle planifie par défaut.",
+        'Run without --apply to plan, then add --apply to write.':
+            'Lancez sans --apply pour planifier, puis ajoutez --apply pour écrire.',
+        "Option %s is not supported by '%s'. Use '%s'.":
+            "L'option %s n'est pas acceptée par '%s'. Utilisez '%s'.",
+        "Option %s takes true or false, not '%s'.":
+            "L'option %s attend true ou false, et non '%s'.",
+        "%s takes true or false, not '%s'.":
+            "%s attend true ou false, et non '%s'.",
+        "Option %s takes a value matching %s, not '%s'.":
+            "L'option %s attend une valeur qui corresponde à %s, et non '%s'.",
+        "%s takes a value matching %s, not '%s'.":
+            "%s attend une valeur qui corresponde à %s, et non '%s'.",
+        "Option %s takes an integer, not '%s'.":
+            "L'option %s attend un entier, et non '%s'.",
+        "%s takes an integer, not '%s'.":
+            "%s attend un entier, et non '%s'.",
+        "Option %s takes an unsigned integer, not '%s'.":
+            "L'option %s attend un entier positif ou nul, et non '%s'.",
+        "%s takes an unsigned integer, not '%s'.":
+            "%s attend un entier positif ou nul, et non '%s'.",
+        "Option %s takes a size such as 512, 4K, 16M, 2G or 1T, not '%s'.":
+            "L'option %s attend une taille comme 512, 4K, 16M, 2G ou 1T, et non '%s'.",
+        "%s takes a size such as 512, 4K, 16M, 2G or 1T, not '%s'.":
+            "%s attend une taille comme 512, 4K, 16M, 2G ou 1T, et non '%s'.",
+        "Option %s takes a duration with its unit: ms, s, m, h or d, not '%s'.":
+            "L'option %s attend une durée avec son unité : ms, s, m, h ou d, et non '%s'.",
+        "%s takes a duration with its unit: ms, s, m, h or d, not '%s'.":
+            "%s attend une durée avec son unité : ms, s, m, h ou d, et non '%s'.",
+        "Option %s takes a non-empty path, not '%s'.":
+            "L'option %s attend un chemin non vide, et non '%s'.",
+        "%s takes a non-empty path, not '%s'.":
+            "%s attend un chemin non vide, et non '%s'.",
+        "Option %s takes an absolute path, not '%s'.":
+            "L'option %s attend un chemin absolu, et non '%s'.",
+        "%s takes an absolute path, not '%s'.":
+            "%s attend un chemin absolu, et non '%s'.",
+        "Option %s takes %s, not '%s'.":
+            "L'option %s attend l'une de ces valeurs : %s, et non '%s'.",
+        "%s takes %s, not '%s'.":
+            "%s attend l'une de ces valeurs : %s, et non '%s'.",
+        "Option %s takes %s lowercase hexadecimal digits, not '%s'.":
+            "L'option %s attend %s chiffres hexadécimaux en minuscules, et non '%s'.",
+        "%s takes %s lowercase hexadecimal digits, not '%s'.":
+            "%s attend %s chiffres hexadécimaux en minuscules, et non '%s'.",
+        "Option %s takes %s or %s lowercase hexadecimal digits, not '%s'.":
+            "L'option %s attend %s ou %s chiffres hexadécimaux en minuscules, et non '%s'.",
+        "%s takes %s or %s lowercase hexadecimal digits, not '%s'.":
+            "%s attend %s ou %s chiffres hexadécimaux en minuscules, et non '%s'.",
+        "Option %s takes a SHA-256 digest of 64 lowercase hexadecimal characters, not '%s'.":
+            "L'option %s attend une empreinte SHA-256 de 64 caractères hexadécimaux en minuscules, et non '%s'.",
+        "%s takes a SHA-256 digest of 64 lowercase hexadecimal characters, not '%s'.":
+            "%s attend une empreinte SHA-256 de 64 caractères hexadécimaux en minuscules, et non '%s'.",
+        "Option %s takes ALGORITHM:HEX with %s, not '%s'.":
+            "L'option %s attend ALGORITHME:HEX avec %s, et non '%s'.",
+        "%s takes ALGORITHM:HEX with %s, not '%s'.":
+            "%s attend ALGORITHME:HEX avec %s, et non '%s'.",
+        "Option %s takes ALGORITHM:HEX with a declared algorithm, not '%s'.":
+            "L'option %s attend ALGORITHME:HEX avec un algorithme déclaré, et non '%s'.",
+        "%s takes ALGORITHM:HEX with a declared algorithm, not '%s'.":
+            "%s attend ALGORITHME:HEX avec un algorithme déclaré, et non '%s'.",
+        'Option %s must be between %s and %s, not %s.':
+            "L'option %s doit être entre %s et %s, et non %s.",
+        '%s must be between %s and %s, not %s.':
+            '%s doit être entre %s et %s, et non %s.',
     },
 }
 # END translations
+
+
+# ---- the language of human text (C: src/language.c) -------------------------------
+#
+# A request is a language tag, well formed as RFC 5646 section 2.1 writes it, compared without regard to
+# case. A locale (LC_ALL, LC_MESSAGES, LANG) is converted by its own rule, language[_territory][.codeset]
+# [@modifier] giving language-territory; C, POSIX and C.* give the canonical language. The language a
+# request resolves to is the Lookup of RFC 4647 section 3.4. Nothing reads the locales installed on the
+# machine: the syntax is the RFCs', the same everywhere. tests/languages.tsv holds C and Python to the
+# same answers.
+_GRANDFATHERED = frozenset(tag.lower() for tag in (
+    "en-GB-oed", "i-ami", "i-bnn", "i-default", "i-enochian", "i-hak", "i-klingon", "i-lux", "i-mingo",
+    "i-navajo", "i-pwn", "i-tao", "i-tay", "i-tsu", "sgn-BE-FR", "sgn-BE-NL", "sgn-CH-DE", "art-lojban",
+    "cel-gaulish", "no-bok", "no-nyn", "zh-guoyu", "zh-hakka", "zh-min", "zh-min-nan", "zh-xiang"))
+_ASCII_ALPHA = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+_ASCII_DIGIT = frozenset("0123456789")
+_ASCII_ALNUM = _ASCII_ALPHA | _ASCII_DIGIT
+_CONVERSION = re.compile(r"%(?:[-+ #0]*(?:\*|[0-9]*)(?:\.(?:\*|[0-9]*))?[hljztL]*[diuoxXcspfFeEgGaA])")
+MAX_LANGUAGES = 32
+
+
+def _all_in(text: str, characters: frozenset) -> bool:
+    return all(c in characters for c in text)
+
+
+def _language_tag_is_well_formed(tag: Optional[str]) -> bool:
+    """RFC 5646's langtag, privateuse or grandfathered production (C: maelys_cli_language_tag_is_well_formed)."""
+    if not isinstance(tag, str) or not tag:
+        return False
+    if tag.lower() in _GRANDFATHERED:
+        return True
+    subtags = tag.split("-")
+    if len(subtags) > 64 or any(not 1 <= len(s) <= 8 or not _all_in(s, _ASCII_ALNUM) for s in subtags):
+        return False
+
+    def privateuse(at: int) -> bool:
+        return at + 1 < len(subtags) and subtags[at].lower() == "x"
+
+    if privateuse(0):
+        return True
+    if len(subtags[0]) < 2 or not _all_in(subtags[0], _ASCII_ALPHA):
+        return False
+    at = 1
+    if len(subtags[0]) <= 3:
+        for _ in range(3):
+            if at < len(subtags) and len(subtags[at]) == 3 and _all_in(subtags[at], _ASCII_ALPHA):
+                at += 1
+            else:
+                break
+    if at < len(subtags) and len(subtags[at]) == 4 and _all_in(subtags[at], _ASCII_ALPHA):
+        at += 1
+    if at < len(subtags) and ((len(subtags[at]) == 2 and _all_in(subtags[at], _ASCII_ALPHA))
+                              or (len(subtags[at]) == 3 and _all_in(subtags[at], _ASCII_DIGIT))):
+        at += 1
+    while at < len(subtags) and (len(subtags[at]) >= 5 or (len(subtags[at]) == 4 and subtags[at][0] in _ASCII_DIGIT)):
+        at += 1
+    while at < len(subtags) and len(subtags[at]) == 1 and subtags[at].lower() != "x":
+        at += 1
+        parts = 0
+        while at < len(subtags) and len(subtags[at]) >= 2:
+            at += 1
+            parts += 1
+        if parts == 0:
+            return False
+    if at < len(subtags) and privateuse(at):
+        return True
+    return at == len(subtags)
+
+
+def _language_from_locale(locale: Optional[str]) -> Optional[str]:
+    """The tag a locale names (C: maelys_cli_language_from_locale): fr_FR.UTF-8 gives fr-FR; "" for the
+    canonical language (C, POSIX, C.*, or a locale that does not convert); None for an empty value."""
+    if not locale:
+        return None
+    if locale in ("C", "POSIX") or locale.startswith("C."):
+        return ""
+    match = re.match(r"([A-Za-z]{2,3})(?:_([A-Za-z0-9]{2,3}))?(?=[.@]|$)", locale)
+    if match is None or not locale.isascii():
+        return ""
+    tag = match.group(1).lower() + (f"-{match.group(2).upper()}" if match.group(2) else "")
+    return tag if _language_tag_is_well_formed(tag) else ""
+
+
+def _language_lookup(tag: Optional[str], available: "list[str]") -> Optional[str]:
+    """The available language a tag resolves to by the Lookup of RFC 4647 (C: maelys_cli_language_lookup):
+    truncated from the right, a singleton left last with the subtag after it; None for the canonical one."""
+    if not tag or len(tag) >= 64:
+        return None
+    subtags = tag.split("-")
+    while subtags:
+        wanted = "-".join(subtags).lower()
+        for language in available:
+            if language.lower() == wanted:
+                return language
+        subtags.pop()
+        if subtags and len(subtags[-1]) == 1:
+            subtags.pop()
+    return None
+
+
+def _language_resolve(option: Optional[str], variable: Optional[str], lc_all: Optional[str],
+                      lc_messages: Optional[str], lang: Optional[str], available: "list[str]") -> Optional[str]:
+    """The language in force, from the first source that is not empty (C: maelys_cli_language_resolve): the
+    option, the implementation's variable, then LC_ALL, LC_MESSAGES and LANG. A request that names no
+    available language falls back to the canonical one: a later source is never read."""
+    if option:
+        return _language_lookup(option, available)
+    if variable:
+        return _language_lookup(variable, available) if _language_tag_is_well_formed(variable) else None
+    for locale in (lc_all, lc_messages, lang):
+        if locale:
+            tag = _language_from_locale(locale)
+            return _language_lookup(tag, available) if tag else None
+    return None
+
+
+def _template_conversions(template: str) -> "list[str]":
+    """The printf conversions of a template, "%%" left out (C: maelys_cli_template_conversions)."""
+    found, at = [], 0
+    while True:
+        at = template.find("%", at)
+        if at < 0:
+            return found
+        if template.startswith("%%", at):
+            at += 2
+            continue
+        match = _CONVERSION.match(template, at)
+        if match is None:
+            raise ValueError(f"'%' that is not a conversion at {at}")
+        found.append(match.group(0))
+        at = match.end()
+
+
+def _format_conversion(conversion: str, arguments: list) -> "tuple[str, int]":
+    """One C conversion applied to the arguments in front, as printf would; the count it took."""
+    spec = re.sub(r"[hljztL]", "", conversion)
+    if spec[-1] == "u":
+        spec = spec[:-1] + "d"
+    taken = 1 + spec.count("*")
+    if spec[-1] == "p":
+        return f"{arguments[0]:#x}" if isinstance(arguments[0], int) else str(arguments[0]), 1
+    return spec % tuple(arguments[:taken]), taken
+
+
+def _format_template(template: str, arguments: tuple) -> "tuple[str, list[str]]":
+    """A template with its arguments put in (C: maelys_cli_error_set), and each conversion's text, the way
+    C keeps them so that a translated template takes them back."""
+    out, texts, at, used = [], [], 0, 0
+    for match in re.finditer(r"%%|" + _CONVERSION.pattern, template):
+        out.append(template[at:match.start()])
+        at = match.end()
+        if match.group(0) == "%%":
+            out.append("%")
+            continue
+        text, taken = _format_conversion(match.group(0), list(arguments[used:]))
+        used += taken
+        out.append(text)
+        texts.append(text)
+    out.append(template[at:])
+    if used != len(arguments):
+        raise TypeError(f"template {template!r} takes {used} arguments, not {len(arguments)}")
+    return "".join(out), texts
+
+
+def _substitute(template: str, texts: "list[str]") -> Optional[str]:
+    """A translated template with the conversions' texts put back in order (C: maelys_cli_translate_error);
+    None when it does not take them all."""
+    out, at, taken = [], 0, 0
+    for match in re.finditer(r"%%|" + _CONVERSION.pattern, template):
+        out.append(template[at:match.start()])
+        at = match.end()
+        if match.group(0) == "%%":
+            out.append("%")
+            continue
+        if taken >= len(texts):
+            return None
+        out.append(texts[taken])
+        taken += 1
+    out.append(template[at:])
+    return "".join(out) if taken == len(texts) else None
+
+
+def _translation_text_is_safe(text: Any) -> bool:
+    """A text a table may hold: not empty, no control character but a newline (C: translation_text_is_safe)."""
+    return isinstance(text, str) and bool(text) and all(_terminal_safe(line) == line for line in text.split("\n"))
 
 
 # argument.pattern is written in a subset that ECMA-262 (u flag) and POSIX ERE
@@ -1059,6 +1370,35 @@ class Failure(Exception):
         self.hint = hint
         self.issues = issues
         self.extensions = extensions
+        # What failure() keeps for the text rendering in another language: the template and the text of
+        # each of its conversions. A message built otherwise is translated only when a table names it
+        # whole.
+        self.template: Optional[str] = None
+        self.arguments: "list[str]" = []
+        self._hint_template: Optional[str] = None
+        self._hint_arguments: "list[str]" = []
+
+
+def failure(code: str, template: str, *arguments: Any, hint: str = "", issues: Optional[list] = None,
+            extensions: Optional[dict] = None) -> Failure:
+    """A Failure whose message is `template` with printf conversions -- %s, %d, %zu, %llu as C writes
+    them -- filled by `arguments` (C: maelys_cli_fail). JSON carries the message in English; the text a
+    person reads takes the template's translation when the language of the invocation has one, its
+    arguments put back in order. Raise what it returns."""
+    message, texts = _format_template(template, arguments)
+    made = Failure(code, message, hint, issues, extensions)
+    made.template, made.arguments = template, texts
+    return made
+
+
+def _fail(code: str, template: str, *arguments: Any, hint: str = "", hint_arguments: tuple = ()) -> Failure:
+    """The framework's own failure(): its hint may be a template too, "Use '%s'." with the usage, which a
+    table translates before the usage is put back."""
+    made = failure(code, template, *arguments, hint=_format_template(hint, hint_arguments)[0] if hint_arguments
+                   else hint)
+    if hint_arguments:
+        made._hint_template, made._hint_arguments = hint, _format_template(hint, hint_arguments)[1]
+    return made
 
 
 def _failure_problem(failure: Failure) -> Optional[str]:
@@ -1101,8 +1441,8 @@ def _checked_failure(failure: Failure, command_id: str) -> Failure:
     problem = _failure_problem(failure)
     if problem is None:
         return failure
-    return Failure("UNEXPECTED", f"Command '{command_id}' failed with {problem}.",
-                   "Report this defect to the command implementation.")
+    return _fail("UNEXPECTED", "Command '%s' failed with %s.", command_id, problem,
+                 hint="Report this defect to the command implementation.")
 
 
 # ---- declarations ------------------------------------------------------------------
@@ -1531,11 +1871,12 @@ def _help_entry(label: str, text: str, label_width: int, width: int, groups: boo
 
 def _help_headings(text: str, heading: str) -> str:
     """Each heading of `text` -- a line of capitals at the margin -- in the `heading` sequence (C:
-    help_headings). The other roles are styled as they are written."""
+    help_headings). A character outside ASCII counts as a capital, so that a translated heading
+    (OPÉRANDES) is one. The other roles are styled as they are written."""
     if not heading:
         return text
-    return "\n".join(f"{heading}{line}\033[0m" if line and line[0] != " " and all("A" <= c <= "Z" or c == " " for c in line)
-                     else line for line in text.split("\n"))
+    return "\n".join(f"{heading}{line}\033[0m" if line and line[0] != " " and all(
+        "A" <= c <= "Z" or c == " " or ord(c) >= 0x80 for c in line) else line for line in text.split("\n"))
 
 
 def _help_names(lead: str, names: list, tail: str, width: int) -> str:
@@ -2024,8 +2365,13 @@ complete -c @PROG@ -f -a '(__@ID@_complete)'
 
 def parse_value(kind: str, text: str, spec: dict, where: str, usage: str) -> Any:
     """The typed value of one argument or operand, or a VALIDATION_FAILED."""
-    def refuse(what: str) -> Failure:
-        return Failure("VALIDATION_FAILED", f"{where} takes {what}, not '{text}'.", f"Use '{usage}'.")
+    # Each refusal is one sentence a table can translate whole: "Option %s" names an option, a bare name
+    # an operand, and what the value takes is written in the template, its own arguments put in.
+    subject, name = ("Option %s", where[len("Option "):]) if where.startswith("Option ") else ("%s", where)
+
+    def refuse(what: str, *arguments: Any) -> Failure:
+        return _fail("VALIDATION_FAILED", f"{subject} takes {what}, not '%s'.", name, *arguments, text,
+                     hint="Use '%s'.", hint_arguments=(usage,))
     if kind == "boolean":
         if text not in ("true", "false"):
             raise refuse("true or false")
@@ -2035,7 +2381,7 @@ def parse_value(kind: str, text: str, spec: dict, where: str, usage: str) -> Any
         # common subset of ECMA-262 and POSIX ERE and read by _pattern_check;
         # search semantics, as ERE.
         if "pattern" in spec and not _pattern_search(spec["pattern"], text):
-            raise refuse(f"a value matching {spec['pattern']}")
+            raise refuse("a value matching %s", spec["pattern"])
         return text
     # Digits are the ten ASCII ones: `\d` also reads the digits of other
     # scripts, which C refuses. And a number is one C holds in 64 bits.
@@ -2059,7 +2405,7 @@ def parse_value(kind: str, text: str, spec: dict, where: str, usage: str) -> Any
         if not text:
             raise refuse("a non-empty path")
         if "pattern" in spec and not _pattern_search(spec["pattern"], text):
-            raise refuse(f"a value matching {spec['pattern']}")
+            raise refuse("a value matching %s", spec["pattern"])
         return text
     elif kind == "absolute-path":
         if not text.startswith("/"):
@@ -2067,13 +2413,14 @@ def parse_value(kind: str, text: str, spec: dict, where: str, usage: str) -> Any
         return text
     elif kind == "choice":
         if text not in spec.get("choices", []):
-            raise refuse(", ".join(spec.get("choices", [])))
+            raise refuse("%s", ", ".join(spec.get("choices", [])))
         return text
     elif kind == "hex":
         # The width is `digits`, one or two, as the C parser reads it.
         widths = spec["digits"] if isinstance(spec["digits"], list) else [spec["digits"]]
         if not re.fullmatch(r"[0-9a-f]+", text) or len(text) not in widths:
-            raise refuse(" or ".join(str(w) for w in widths) + " lowercase hexadecimal digits")
+            raise refuse("%s lowercase hexadecimal digits", widths[0]) if len(widths) == 1 else \
+                refuse("%s or %s lowercase hexadecimal digits", widths[0], widths[1])
         return text
     elif kind == "sha256":
         if not re.fullmatch(r"[0-9a-f]{64}", text):
@@ -2084,13 +2431,15 @@ def parse_value(kind: str, text: str, spec: dict, where: str, usage: str) -> Any
         if not match or (spec.get("algorithms") and match.group(1) not in spec["algorithms"]) \
                 or len(match.group(2)) != DIGEST_DIGITS.get(match.group(1), len(match.group(2))):
             # The length is the algorithm's, as in C: `sha256:ab` is no digest.
-            raise refuse("ALGORITHM:HEX with " + ", ".join(spec.get("algorithms", ["a declared algorithm"])))
+            raise refuse("ALGORITHM:HEX with %s", ", ".join(spec["algorithms"])) if spec.get("algorithms") else \
+                refuse("ALGORITHM:HEX with a declared algorithm")
         return text
     else:
-        raise Failure("UNEXPECTED", f"Value kind {kind!r} of {where} is not known.", "Fix the catalog.")
+        raise _fail("UNEXPECTED", "Value kind %s of %s is not known.", repr(kind), where, hint="Fix the catalog.")
     if ("minimum" in spec and value < spec["minimum"]) or ("maximum" in spec and value > spec["maximum"]):
-        bounds = f"between {spec.get('minimum', '-inf')} and {spec.get('maximum', '+inf')}"
-        raise Failure("VALIDATION_FAILED", f"{where} must be {bounds}, not {text}.", f"Use '{usage}'.")
+        raise _fail("VALIDATION_FAILED", f"{subject} must be between %s and %s, not %s.", name,
+                    spec.get("minimum", "-inf"), spec.get("maximum", "+inf"), text, hint="Use '%s'.",
+                    hint_arguments=(usage,))
     return value
 
 
@@ -2102,9 +2451,8 @@ def _parse_flag(value: Optional[str], name: str, usage: str) -> bool:
         return True
     if value in ("false", "no", "off", "0"):
         return False
-    raise Failure("VALIDATION_FAILED",
-                  f"Option {name} takes true, false, yes, no, on, off, 1 or 0, not '{value}'.",
-                  f"Use '{usage}'.")
+    raise _fail("VALIDATION_FAILED", "Option %s takes true, false, yes, no, on, off, 1 or 0, not '%s'.", name, value,
+                hint="Use '%s'.", hint_arguments=(usage,))
 
 
 # ---- files -----------------------------------------------------------------------
@@ -2503,20 +2851,25 @@ class Invocation:
             return False
         return self.progress == "always" or sys.stderr.isatty()
 
-    def detail(self, message: str) -> None:
+    def detail(self, message: str, *arguments: Any) -> None:
         """One detail line `PROGRAM: message` on stderr when --verbose is active in
-        text mode (maelys_cli_detail); nothing in JSON; never a failure rendering."""
+        text mode (maelys_cli_detail); nothing in JSON; never a failure rendering.
+        With `arguments`, `message` is a printf template, translated before they
+        are put in; without, a text translated when a table names it whole."""
         if not self.verbose:
             return
         self.progress_done()
+        message = self.program._human(message, *arguments)
         sys.stderr.write(f"{self.program.program}: {_terminal_safe(message)}\n")
         sys.stderr.flush()
 
-    def show_progress(self, message: str) -> None:
+    def show_progress(self, message: str, *arguments: Any) -> None:
         """Transient progress (maelys_cli_progress): rewritten in place on a terminal
-        and erased by progress_done(); one line per call on another stderr."""
+        and erased by progress_done(); one line per call on another stderr. The
+        message is translated as detail() translates it."""
         if not self.progress_wanted:
             return
+        message = self.program._human(message, *arguments)
         if sys.stderr.isatty():
             sys.stderr.write(f"\r{_terminal_safe(message)}\033[K")
             self._progress_shown = True
@@ -2558,16 +2911,18 @@ class Invocation:
         self._expect_checked = True
         expected = self.options.get("--expect")
         if expected is not None and expected != fingerprint:
-            raise Failure("PRECONDITION_FAILED",
-                          f"The plan --expect names is no longer the one '{self.command['id']}' would apply: "
-                          "the action or the state it touches has changed. Nothing was written.",
-                          "Plan again without --apply, review the new plan, then apply it with its fingerprint.")
+            raise _fail("PRECONDITION_FAILED",
+                        "The plan --expect names is no longer the one '%s' would apply: the action or the state it "
+                        "touches has changed. Nothing was written.",
+                        self.command['id'],
+                        hint="Plan again without --apply, review the new plan, then apply it with its fingerprint.")
 
 
 class Program:
     def __init__(self, program: str, product: str, version: str, commands: list, guide: str = "",
                  text: Optional[dict] = None, framework: str = FRAMEWORK, static_completion: bool = True,
-                 default_command: Optional[str] = None, help_palette: Optional[dict] = None) -> None:
+                 default_command: Optional[str] = None, help_palette: Optional[dict] = None,
+                 translations: Optional[dict] = None) -> None:
         self.program = program
         self.product = product
         self.version = version
@@ -2661,10 +3016,100 @@ class Program:
                 raise ValueError(f"Help palette {role} {value!r} is not the parameters of an SGR sequence.")
         self.help_palette = dict(help_palette or {})
         self._style = _HELP_PLAIN
+        # The languages of human text (C: maelys_cli_app_t.languages): {tag: {English text: translation}}.
+        self.translations = self._checked_translations(translations)
+        # The tables help is rendered with for a person, the product's then the framework's; none while
+        # data.text, which stays English, is rendered.
+        self._tables: tuple = ()
+        self._language: Optional[str] = None
         self._help_rendering: Optional[Callable[[], str]] = None
         # The examples last: parsing one needs the whole catalog.
         for command in self.catalog:
             self._check_examples(command)
+
+    @staticmethod
+    def _checked_translations(translations: Optional[dict]) -> dict:
+        """The languages a product declares (C: validate_languages): each tag well formed and named once,
+        English left out since it is the canonical language, every translation a text with the
+        conversions of its source in the same order. The messages are those of the C catalog validation."""
+        if translations is None:
+            return {}
+        if not isinstance(translations, dict) or not translations or len(translations) > MAX_LANGUAGES:
+            raise ValueError(f"Catalog languages are declared incorrectly: a mapping of at most {MAX_LANGUAGES} "
+                             "languages to their tables.")
+        seen: set = set()
+        checked = {}
+        for tag, table in translations.items():
+            if not _language_tag_is_well_formed(tag):
+                raise ValueError(f"Catalog language '{tag}' is not a well-formed language tag.")
+            if _language_lookup(tag, ["en"]):
+                raise ValueError(f"Catalog language '{tag}' is English, the canonical language, which has no table.")
+            if tag.lower() in seen:
+                raise ValueError(f"Catalog language '{tag}' is declared twice.")
+            seen.add(tag.lower())
+            if not isinstance(table, dict):
+                raise ValueError(f"Catalog language '{tag}' is not a table of texts.")
+            for index, (source, text) in enumerate(table.items()):
+                if not _translation_text_is_safe(source) or not _translation_text_is_safe(text):
+                    raise ValueError(f"Catalog language '{tag}' translation {index} is empty or holds a control "
+                                     "character.")
+                try:
+                    same = _template_conversions(source) == _template_conversions(text)
+                except ValueError:
+                    same = False
+                if not same:
+                    raise ValueError(f"Catalog language '{tag}' translates '{source}' without its conversions, "
+                                     "in order.")
+            checked[tag] = dict(table)
+        return checked
+
+    def _human_tables(self) -> tuple:
+        """The tables a person's text is translated with in this invocation: the product's for the language
+        resolved, then the framework's own for it; none in the canonical language."""
+        if self._language is None:
+            return ()
+        framework = _language_lookup(self._language, list(_FRAMEWORK_TRANSLATIONS))
+        return (self.translations[self._language],) + \
+            ((_FRAMEWORK_TRANSLATIONS[framework],) if framework is not None else ())
+
+    def _resolve_language(self) -> None:
+        """The language of human text for this invocation, among those the product declares (C:
+        resolve_language): the first of LC_ALL, LC_MESSAGES and LANG that is not empty decides, and a
+        request the product cannot answer leaves it in English."""
+        self._language = _language_resolve(None, None, os.environ.get("LC_ALL"), os.environ.get("LC_MESSAGES"),
+                                           os.environ.get("LANG"), list(self.translations))
+
+    def _human(self, template: str, *arguments: Any) -> str:
+        """`template` in the language of the invocation, its printf arguments put in after the translation
+        (C: human_vformat): the text of a detail, a progress line or a warning. Without arguments the text
+        is not formatted, and is translated only when a table names it whole."""
+        tables = self._human_tables()
+        translated = next((table[template] for table in tables if template in table), template)
+        return _format_template(translated, arguments)[0] if arguments else translated
+
+    def _human_failure(self, failure: Failure) -> "tuple[str, str]":
+        """The message and hint of `failure` as a person reads them in the language of the invocation (C:
+        maelys_cli_translate_error): the template translated and its arguments put back, or a message a
+        table names whole; the hint translated whole. JSON keeps both in English."""
+        tables = self._human_tables()
+        message, hint = failure.message, failure.hint
+        if not tables:
+            return message, hint
+
+        def lookup(source: str) -> Optional[str]:
+            return next((table[source] for table in tables if source in table), None)
+
+        translated = lookup(failure.template) if failure.template is not None else None
+        if translated is not None:
+            message = _substitute(translated, failure.arguments) or message
+        else:
+            message = lookup(message) or message
+        if failure._hint_template is not None:
+            translated = lookup(failure._hint_template)
+            hint = (_substitute(translated, failure._hint_arguments) if translated else None) or hint
+        elif hint:
+            hint = lookup(hint) or hint
+        return message, hint
 
     def _check_default_command(self, identifier: str) -> None:
         """A command of the product that a line naming nothing may run: not a built-in, not hidden or
@@ -2792,8 +3237,8 @@ class Program:
         for command in self.catalog:
             if command["id"] == identifier:
                 return command
-        raise Failure("INVALID_COMMAND", f"Unknown command identifier '{identifier}'.",
-                      "Run describe --summary to list the command identifiers.")
+        raise _fail("INVALID_COMMAND", "Unknown command identifier '%s'.", identifier,
+                    hint="Run describe --summary to list the command identifiers.")
 
     def resolve(self, words: list) -> "tuple[Optional[dict], int]":
         best = None
@@ -2809,12 +3254,23 @@ class Program:
         chosen = {"heading": "1", **{role: value for role, value in self.help_palette.items() if value is not None}}
         return {role: f"\033[{chosen[role]}m" if chosen.get(role) else "" for role in HELP_PALETTE_ROLES}
 
-    @staticmethod
-    def _option_parts(item: dict) -> "tuple[str, str, str]":
+    def _tr(self, source: str) -> str:
+        """`source` in the language the help is rendered in for a person: the product's table, then the
+        framework's, then `source` itself (C: tr). English while data.text is rendered."""
+        for table in self._tables:
+            if source in table:
+                return table[source]
+        return source
+
+    def _trf(self, template: str, *arguments: Any) -> str:
+        """A template of the help translated before its arguments are put in (C: trf)."""
+        return _format_template(self._tr(template), arguments)[0]
+
+    def _option_parts(self, item: dict) -> "tuple[str, str, str]":
         """An option's label in three parts: its name, what the reader replaces, and " (repeatable)"."""
         value = item.get("argument")
         replaced = "|".join(value["choices"]) if value and value.get("choices") else value["name"] if value else ""
-        return item["long"], replaced, " (repeatable)" if item["repeatable"] else ""
+        return item["long"], replaced, " " + self._tr("(repeatable)") if item["repeatable"] else ""
 
     @staticmethod
     def _option_label(item: dict) -> str:
@@ -2827,15 +3283,17 @@ class Program:
             spelled = item["long"]
         return spelled + (" (repeatable)" if item["repeatable"] else "")
 
-    @staticmethod
-    def _option_text(item: dict) -> str:
-        text = item["summary"]
+    def _option_text(self, item: dict) -> str:
+        text = self._tr(item["summary"])
         if "default" in item:
-            text += f" Default: {item['default']}."
+            text += " " + self._trf("Default: %s.", item["default"])
         if item["required"]:
-            text += " Required."
-        text += "".join(f" Requires {name}." for name in item["requires"])
-        text += "".join(f" Conflicts with {name}." for name in item["conflictsWith"])
+            text += " " + self._tr("Required.")
+        # C names an option without its dashes in these two sentences: "Requires --%s.".
+        text += "".join(" " + (self._trf("Requires --%s.", name[2:]) if name.startswith("--")
+                               else self._trf("Requires %s.", name)) for name in item["requires"])
+        text += "".join(" " + (self._trf("Conflicts with --%s.", name[2:]) if name.startswith("--")
+                               else self._trf("Conflicts with %s.", name)) for name in item["conflictsWith"])
         return text
 
     def _options_help(self, options: list, width: int) -> str:
@@ -2847,62 +3305,64 @@ class Program:
                                           (value, style["placeholder"]), (suffix, "")], text, column, width)
                        for (name, value, suffix), text in shown)
 
-    @staticmethod
-    def _effect_sentence(command: dict) -> Optional[str]:
+    def _effect_sentence(self, command: dict) -> Optional[str]:
         """What a command does that changes what its reader types, in words
         (C: effect_sentence): a transaction plans until --apply, an execute
         command acts at once, a stream and a delegate own their output."""
         effect = command["effect"]
         if command["external"]:
-            return "The rest of the line goes to another program, word for word."
+            return self._tr("The rest of the line goes to another program, word for word.")
         if isinstance(effect, dict):
-            return f"It shows a plan; --apply {'commits' if effect['apply'] == 'commit' else 'applies'} it."
+            return self._tr("It shows a plan; --apply commits it." if effect["apply"] == "commit"
+                            else "It shows a plan; --apply applies it.")
         if effect == "execute":
-            return "It acts at once, without a plan."
+            return self._tr("It acts at once, without a plan.")
         if effect == "stream" and command["protocol"]:
-            return f"Its output is the {command['protocol']} protocol: --format and the other rendering options " \
-                "do not apply."
+            return self._trf("Its output is the %s protocol: --format and the other rendering options do not apply.",
+                             command["protocol"])
         if effect == "stream":
-            return "Its output is its own: --format and the other rendering options do not apply."
+            return self._tr("Its output is its own: --format and the other rendering options do not apply.")
         return None
 
     def command_help(self, command: dict, width: int = HELP_WIDTH) -> str:
         """The help of one command (C: command_help_text): its usage, what it
         is for, its examples, then its operands and options, laid out within
         `width` columns."""
-        text = "USAGE\n" + _help_paragraph(f"{self.program} {command['helpUsage']}", width, groups=True)
+        tr = self._tr
+        text = tr("USAGE") + "\n" + _help_paragraph(f"{self.program} {command['helpUsage']}", width, groups=True)
         effect = self._effect_sentence(command)
-        text += "\n" + _help_wrap(command["purpose"] + (f" {effect}" if effect else ""), 0, 0, width) + "\n"
+        text += "\n" + _help_wrap(tr(command["purpose"]) + (f" {effect}" if effect else ""), 0, 0, width) + "\n"
         if command["unavailable"] is not None:
-            text += "\nUNAVAILABLE IN THIS BUILD\n" + _help_paragraph(command["unavailable"], width)
+            text += f"\n{tr('UNAVAILABLE IN THIS BUILD')}\n" + _help_paragraph(tr(command["unavailable"]), width)
         if command["examples"]:
             # A line to copy: on one line whatever the width, the one place
             # the help passes it on purpose. Wrapped, the first half was a
             # command of its own and the second another. The sentence wraps.
             # And spelled for a shell: a word holding `$`, `*` or a quote,
             # copied as declared, would be another word once pasted.
-            text += "\nEXAMPLES\n" + "".join(
+            text += f"\n{tr('EXAMPLES')}\n" + "".join(
                 "  " + _help_styled(self._style["example"],
                                     f"{self.program} {' '.join(_shell_word(word) for word in item['words'])}") + "\n"
-                + " " * 6 + _help_wrap(item["summary"], 6, 6, width) + "\n"
+                + " " * 6 + _help_wrap(tr(item["summary"]), 6, 6, width) + "\n"
                 for item in command["examples"])
         if self.default_command == command["id"]:
-            text += "\nDEFAULT COMMAND\n" + _help_paragraph(
+            text += f"\n{tr('DEFAULT COMMAND')}\n" + _help_paragraph(tr(
                 "A line that names no command runs this one: an empty line, or one that starts with an option "
-                "other than --help and --version. Its operands come after --:", width) \
+                "other than --help and --version. Its operands come after --:"), width) \
                 + self._default_forms(" ".join(command["pattern"]))
         if command["operands"]:
             column = max([display_width(item["name"]) for item in command["operands"]
                           if display_width(item["name"]) <= HELP_LABEL_MAXIMUM] or [0])
-            text += "\nOPERANDS\n" + "".join(
-                _help_entry(item["name"], item["summary"] + ("" if item["required"] else " Optional."), column, width,
+            text += f"\n{tr('OPERANDS')}\n" + "".join(
+                _help_entry(item["name"], tr(item["summary"]) + ("" if item["required"] else " " + tr("Optional.")),
+                            column, width,
                             style=self._style["placeholder"])
                 for item in command["operands"])
         if any(not item.get("hidden") for item in command["options"]):
-            text += "\nOPTIONS\n" + self._options_help(command["options"], width)
-        text += "\nGLOBAL OPTIONS\n" + _help_paragraph(
-            f"Run '{self.program} --help' for --format, --json, --compact, --non-interactive, --color "
-            "and the others.", width)
+            text += f"\n{tr('OPTIONS')}\n" + self._options_help(command["options"], width)
+        text += f"\n{tr('GLOBAL OPTIONS')}\n" + _help_paragraph(self._trf(
+            "Run '%s --help' for --format, --json, --compact, --non-interactive, --color and the others.",
+            self.program), width)
         return text
 
     def _family(self, prefix: Optional[str] = None, words: Optional[list] = None) -> list:
@@ -2917,16 +3377,20 @@ class Program:
 
     def family_help(self, name: str, commands: list, width: int = HELP_WIDTH) -> str:
         """The help of a family: each of its commands with its usage, the purpose below."""
-        text = f"{self.program} {name} - commands\n\nCOMMANDS\n"
+        tr = self._tr
+        text = self._trf("%s - commands", f"{self.program} {name}") + f"\n\n{tr('COMMANDS')}\n"
         for command in commands:
-            purpose = command["purpose"] + (" (unavailable in this build)" if command["unavailable"] is not None else "")
+            purpose = tr(command["purpose"]) + (" " + tr("(unavailable in this build)")
+                                                if command["unavailable"] is not None else "")
             text += _help_entry(command["helpUsage"], purpose, 0, width, groups=True, style=self._style["command"])
-        return text + "\n" + _help_wrap(
-            f"Run '{self.program} help COMMAND_ID' or '{self.program} COMMAND --help' for the operands and options "
-            "of one command.", 0, 0, width) + "\n"
+        return text + "\n" + _help_wrap(self._trf(
+            "Run '%s help COMMAND_ID' or '%s COMMAND --help' for the operands and options of one command.",
+            self.program, self.program), 0, 0, width) + "\n"
 
-    def warn(self, message: str) -> None:
-        """A diagnostic on stderr, `program: warning: message`, as maelys_cli_warn(); never stdout."""
+    def warn(self, message: str, *arguments: Any) -> None:
+        """A diagnostic on stderr, `program: warning: message`, as maelys_cli_warn(); never stdout. The
+        message is translated as Invocation.detail() translates it."""
+        message = self._human(message, *arguments)
         sys.stderr.write(f"{self.program}: warning: {_terminal_safe(message)}\n")
         sys.stderr.flush()
 
@@ -2936,19 +3400,20 @@ class Program:
         pattern and purpose. What every program has is named in a line: the
         built-in commands, the global options, the agent contract. A command
         this build cannot run is named at the end, never mixed with the rest."""
-        text = _help_wrap(f"{self.program} {self.version} - {self.guide_line}", 0, 0, width) + "\n\n"
-        text += f"USAGE\n  {self.program} COMMAND [OPERANDS] [options]\n"
+        tr = self._tr
+        text = _help_wrap(f"{self.program} {self.version} - {tr(self.guide_line)}", 0, 0, width) + "\n\n"
+        text += f"{tr('USAGE')}\n  {self.program} COMMAND [OPERANDS] [options]\n"
         column = display_width(f"{self.program} help COMMAND")
-        text += _help_entry(f"{self.program} help COMMAND", "one command, its options and examples", column, width)
-        text += _help_entry(f"{self.program} help FAMILY", "the commands of one family", column, width)
+        text += _help_entry(f"{self.program} help COMMAND", tr("one command, its options and examples"), column, width)
+        text += _help_entry(f"{self.program} help FAMILY", tr("the commands of one family"), column, width)
         # The default command in one sentence that says the three things the
         # spec (section 8) asks of help; where its operands go is in its help.
         default = self._default()
         if default is not None:
             pattern = " ".join(default["pattern"])
-            text += "\n" + _help_paragraph(
-                f"{self.program} [options] runs '{pattern}', as {self.program} {pattern} [options] does: the options "
-                "in front, other than --help and --version, are its.", width)
+            text += "\n" + _help_paragraph(self._trf(
+                "%s [options] runs '%s', as %s %s [options] does: the options in front, other than --help and "
+                "--version, are its.", self.program, pattern, self.program, pattern), width)
         visible = [(index, command) for index, command in enumerate(self.catalog) if not command["hidden"]]
         own = [command for index, command in visible if index >= self._builtin_count and command["unavailable"] is None]
         built_in = [command for index, command in visible if index < self._builtin_count]
@@ -2956,23 +3421,25 @@ class Program:
                        if index >= self._builtin_count and command["unavailable"] is not None]
         column = max([display_width(" ".join(command["pattern"])) for command in own
                       if display_width(" ".join(command["pattern"])) <= HELP_LABEL_MAXIMUM] or [0])
-        text += "\nCOMMANDS\n" + "".join(
-            _help_entry(" ".join(command["pattern"]), command["purpose"], column, width, style=self._style["command"])
+        text += f"\n{tr('COMMANDS')}\n" + "".join(
+            _help_entry(" ".join(command["pattern"]), tr(command["purpose"]), column, width,
+                        style=self._style["command"])
             for command in own)
         if built_in or unavailable:
             text += "\n"
         if built_in:
-            text += _help_names("Also:", [" ".join(command["pattern"]) for command in built_in], "", width)
+            text += _help_names(tr("Also:"), [" ".join(command["pattern"]) for command in built_in], "", width)
         if unavailable:
-            text += _help_names("Not available in this build:", [" ".join(command["pattern"]) for command in unavailable],
-                                f"'{self.program} help COMMAND' says why.", width)
+            text += _help_names(tr("Not available in this build:"),
+                                [" ".join(command["pattern"]) for command in unavailable],
+                                self._trf("'%s help COMMAND' says why.", self.program), width)
         # The options every command takes, whole: a human reads them here and
         # nowhere else. The contract an agent relies on is describe's
         # (`invariants`, `output`) and the manual's; one line points there.
-        text += "\nGLOBAL OPTIONS\n" + self._options_help(GLOBAL_OPTIONS, width)
-        text += "\nAGENTS\n" + _help_paragraph(
-            f"Run '{self.program} describe --summary --format json' first, and build every line from its input, "
-            "never from this text.", width)
+        text += f"\n{tr('GLOBAL OPTIONS')}\n" + self._options_help(GLOBAL_OPTIONS, width)
+        text += f"\n{tr('AGENTS')}\n" + _help_paragraph(self._trf(
+            "Run '%s describe --summary --format json' first, and build every line from its input, never from "
+            "this text.", self.program), width)
         return text
 
     # ---- built-in handlers ----
@@ -3000,8 +3467,8 @@ class Program:
                 # Not a command: a family, the namespace describe --prefix selects.
                 family = self._family(prefix=query)
                 if not family:
-                    raise Failure("INVALID_COMMAND", f"Unknown command identifier or family: {query}.",
-                                  "Run 'help' without operands to list the commands and their families.")
+                    raise _fail("INVALID_COMMAND", "Unknown command identifier or family: %s.", query,
+                                hint="Run 'help' without operands to list the commands and their families.")
                 commands = [item["id"] for item in family]
                 render = lambda: self.family_help(query, family, width)  # noqa: E731
         else:
@@ -3020,13 +3487,14 @@ class Program:
         prefix = invocation.option("--prefix")
         if prefix is not None:
             if not PREFIX_GRAMMAR.fullmatch(prefix):
-                raise Failure("VALIDATION_FAILED", f"Option --prefix takes a command identifier prefix, not '{prefix}'.",
-                              "Use lowercase letters, digits, '.' and '-', starting with a letter.")
+                raise _fail("VALIDATION_FAILED", "Option --prefix takes a command identifier prefix, not '%s'.",
+                            prefix,
+                            hint="Use lowercase letters, digits, '.' and '-', starting with a letter.")
             selected = [self.descriptor(c, summary=True) for c in self.catalog
                         if c["id"] == prefix or c["id"].startswith(f"{prefix}.")]
             if not selected:
-                raise Failure("INVALID_COMMAND", f"No command in namespace: {prefix}.",
-                              "Run describe --summary --format json and select a returned command identifier.")
+                raise _fail("INVALID_COMMAND", "No command in namespace: %s.", prefix,
+                            hint="Run describe --summary --format json and select a returned command identifier.")
             data.update({"kind": "summary", "filter": {"kind": "command-prefix", "value": prefix},
                          "commands": selected})
             return data, EXIT_OK
@@ -3318,7 +3786,8 @@ class Program:
             words = ["help"] if any(name == "--help" for name, _ in raw) else ["version"]
             raw = [(name, value) for name, value in raw if name not in ("--help", "--version")]
         if not words:
-            raise Failure("INVALID_COMMAND", "No command given.", f"Run '{self.program} help' or 'describe --summary'.")
+            raise _fail("INVALID_COMMAND", "No command given.", hint="Run '%s help' or 'describe --summary'.",
+                        hint_arguments=(self.program,))
         command, consumed = self.resolve(words)
         if command is None and any(name == "--help" for name, _ in raw) and self._family(words=words):
             # `PROGRAM note --help`: the words name no command, but a family of
@@ -3328,8 +3797,8 @@ class Program:
             raw = [(name, value) for name, value in raw if name != "--help"]
             command, consumed = self.resolve(words)
         if command is None:
-            raise Failure("INVALID_COMMAND", f"Unknown command '{' '.join(words)}'.",
-                          "Run describe --summary and use one of the listed command identifiers.")
+            raise _fail("INVALID_COMMAND", "Unknown command '%s'.", ' '.join(words),
+                        hint="Run describe --summary and use one of the listed command identifiers.")
         # A failure envelope names the resolved command from here on (section 7).
         self.resolved_command_id = command["id"]
         raw_operands = words[consumed:] + passthrough
@@ -3350,20 +3819,21 @@ class Program:
         known = {item["long"]: item for item in command["options"]}
         for name, value in raw:
             if name in seen and not (name in known and known[name]["repeatable"]):
-                raise Failure("VALIDATION_FAILED", f"Option {name} is given twice.", "Give each option once.")
+                raise _fail("VALIDATION_FAILED", "Option %s is given twice.", name, hint="Give each option once.")
             if value is _DASH_WORD:
-                raise Failure("VALIDATION_FAILED", f"Option {name} is not supported: options are spelled --name.",
-                              "Spell an option --name; write an operand that starts with a dash after --.")
+                raise _fail("VALIDATION_FAILED", "Option %s is not supported: options are spelled --name.", name,
+                            hint="Spell an option --name; write an operand that starts with a dash after --.")
             if value is _BARE_WORD:
-                raise Failure("VALIDATION_FAILED",
-                              f"'{name}' is neither an option nor the value of one: the line names no command and runs "
-                              f"the default command '{command['id']}', whose operands are written after --.",
-                              "Write the command's pattern first, or the operands of the default command after --.")
+                raise _fail("VALIDATION_FAILED",
+                            "'%s' is neither an option nor the value of one: the line names no command and runs the "
+                            "default command '%s', whose operands are written after --.",
+                            name, command['id'],
+                            hint="Write the command's pattern first, or the operands of the default command after --.")
             seen.add(name)
             declared = known.get(name) or next((item for item in GLOBAL_OPTIONS if item["long"] == name), None)
             if declared is not None and "argument" in declared and value is None:
-                raise Failure("VALIDATION_FAILED", f"Option {name} needs a value {declared['argument']['name']}.",
-                              "Run describe for this command and pass the option's argument.")
+                raise _fail("VALIDATION_FAILED", "Option %s needs a value %s.", name, declared['argument']['name'],
+                            hint="Run describe for this command and pass the option's argument.")
             if name in RENDERING:
                 rendering.append(name)
             if name == "--format":
@@ -3391,11 +3861,13 @@ class Program:
             elif name == "--help":
                 help_requested = _parse_flag(value, name, usage)
             elif name in ("--dry-run", "--plan") and isinstance(command["effect"], dict):
-                raise Failure("VALIDATION_FAILED", f"Option {name} is not supported by '{command['id']}': it plans by default.",
-                              "Run without --apply to plan, then add --apply to write.")
+                raise _fail("VALIDATION_FAILED", "Option %s is not supported by '%s': it plans by default.", name,
+                            command['id'],
+                            hint="Run without --apply to plan, then add --apply to write.")
             elif name not in known:
-                raise Failure("VALIDATION_FAILED", f"Option {name} is not supported by '{command['id']}'. Use '{usage}'.",
-                              "Run describe for this command and use only its declared options.")
+                raise _fail("VALIDATION_FAILED", "Option %s is not supported by '%s'. Use '%s'.", name, command['id'],
+                            usage,
+                            hint="Run describe for this command and use only its declared options.")
             else:
                 definition = known[name]
                 if "argument" in definition:
@@ -3432,16 +3904,18 @@ class Program:
                 continue
             for other in definition["requires"]:
                 if not enabled(other):
-                    raise Failure("VALIDATION_FAILED", f"Option {name} requires {other}.", f"Use '{usage}'.")
+                    raise _fail("VALIDATION_FAILED", "Option %s requires %s.", name, other, hint="Use '%s'.",
+                                hint_arguments=(usage,))
             for other in definition["conflictsWith"]:
                 if other.startswith("--"):
                     if enabled(other):
-                        raise Failure("VALIDATION_FAILED", f"Option {name} conflicts with {other}.", f"Use '{usage}'.")
+                        raise _fail("VALIDATION_FAILED", "Option %s conflicts with %s.", name, other,
+                                    hint="Use '%s'.", hint_arguments=(usage,))
                 else:
                     position = next((i for i, item in enumerate(command["operands"]) if item["name"] == other), None)
                     if position is not None and len(raw_operands) > position:
-                        raise Failure("VALIDATION_FAILED", f"Option {name} conflicts with the {other} operand.",
-                                      f"Use '{usage}'.")
+                        raise _fail("VALIDATION_FAILED", "Option %s conflicts with the %s operand.", name, other,
+                                    hint="Use '%s'.", hint_arguments=(usage,))
         groups: dict = {}
         for definition in command["options"]:
             if "group" in definition:
@@ -3449,8 +3923,8 @@ class Program:
         for members in groups.values():
             present = [name for name in members if enabled(name)]
             if present and len(present) != len(members):
-                raise Failure("VALIDATION_FAILED", f"Options {', '.join(members)} are given together or not at all.",
-                              f"Use '{usage}'.")
+                raise _fail("VALIDATION_FAILED", "Options %s are given together or not at all.", ', '.join(members),
+                            hint="Use '%s'.", hint_arguments=(usage,))
         # The rules the command states itself (spec 2.5), in the same causal
         # slot as the dependencies they extend; exactly-one refuses zero as
         # it refuses two.
@@ -3460,23 +3934,25 @@ class Program:
             if rule["kind"] == "requires" and enabled(rule["options"][0]):
                 for other in rule["options"][1:]:
                     if not enabled(other):
-                        raise Failure("VALIDATION_FAILED", f"Option {rule['options'][0]} requires {other}.",
-                                      f"Use '{usage}'.")
+                        raise _fail("VALIDATION_FAILED", "Option %s requires %s.", rule['options'][0], other,
+                                    hint="Use '%s'.", hint_arguments=(usage,))
             elif rule["kind"] == "at-most-one" and len(present) > 1:
-                raise Failure("VALIDATION_FAILED", f"At most one of {listed} may be given.", f"Use '{usage}'.")
+                raise _fail("VALIDATION_FAILED", "At most one of %s may be given.", listed, hint="Use '%s'.",
+                            hint_arguments=(usage,))
             elif rule["kind"] == "exactly-one" and len(present) != 1:
-                raise Failure("VALIDATION_FAILED", f"Exactly one of {listed} must be given.", f"Use '{usage}'.")
+                raise _fail("VALIDATION_FAILED", "Exactly one of %s must be given.", listed, hint="Use '%s'.",
+                            hint_arguments=(usage,))
         for definition in command["options"]:
             if definition["required"] and definition["long"] not in options:
-                raise Failure("VALIDATION_FAILED", f"Option {definition['long']} is required by '{command['id']}'.",
-                              f"Use '{usage}'.")
+                raise _fail("VALIDATION_FAILED", "Option %s is required by '%s'.", definition['long'], command['id'],
+                            hint="Use '%s'.", hint_arguments=(usage,))
         operands: list = []
         if not command["passthrough"]:
             required = sum(1 for item in command["operands"] if item["required"])
             variadic = any(item["variadic"] for item in command["operands"])
             if len(raw_operands) < required or (not variadic and len(raw_operands) > len(command["operands"])):
-                raise Failure("VALIDATION_FAILED", f"Operands do not match '{command['id']}'. Use '{usage}'.",
-                              "Use the synopsis returned by describe and retry.")
+                raise _fail("VALIDATION_FAILED", "Operands do not match '%s'. Use '%s'.", command['id'], usage,
+                            hint="Use the synopsis returned by describe and retry.")
             for position, value in enumerate(raw_operands):
                 item = command["operands"][min(position, len(command["operands"]) - 1)]
                 kind = item.get("type")
@@ -3487,16 +3963,19 @@ class Program:
         # is refused as such first, and a rendering flag is not what stops a
         # command that cannot run at all.
         if command["unavailable"] is not None:
-            raise Failure(command.get("unavailableCode") or "UNSUPPORTED",
-                          f"Command '{command['id']}' is not available in this build: {command['unavailable']}",
-                          "Use another build of the product, or another command.")
+            raise _fail(command.get("unavailableCode") or "UNSUPPORTED",
+                        "Command '%s' is not available in this build: %s", command['id'],
+                        command['unavailable'],
+                        hint="Use another build of the product, or another command.")
         if command["outputMode"] == "protocol-stream" and rendering:
-            raise Failure("VALIDATION_FAILED", f"Command '{command['id']}' owns its stdout and refuses {rendering[0]}.",
-                          "Set MAELYS_CLI_FORMAT=json in the environment to receive its failure envelope as JSON.")
+            raise _fail("VALIDATION_FAILED", "Command '%s' owns its stdout and refuses %s.", command['id'],
+                        rendering[0],
+                        hint="Set MAELYS_CLI_FORMAT=json in the environment to receive its failure envelope as JSON.")
         if fmt == "jsonl" and field is None and command["outputMode"] != "json-records":
-            raise Failure("VALIDATION_FAILED", f"--format jsonl is accepted only by json-records commands, not "
-                          f"'{command['id']}'; add --field to render one member in jsonl.",
-                          "Use --format json.")
+            raise _fail("VALIDATION_FAILED",
+                        "--format jsonl is accepted only by json-records commands, not '%s'; add --field to render "
+                        "one member in jsonl.",
+                        command['id'], hint="Use --format json.")
         # data is governed by outputSchema; a filtered envelope would not validate
         # against it (spec 2.4). An environment MAELYS_CLI_FORMAT=json applies after
         # parsing and cannot be caught here; main() refuses it too, defensively.
@@ -3550,6 +4029,7 @@ class Program:
         argv = list(sys.argv[1:] if argv is None else argv)
         command_id = ""
         self.resolved_command_id = ""
+        self._resolve_language()
         invocation: Optional[Invocation] = None
         fmt = environment_format()
         for index, word in enumerate(argv):
@@ -3583,16 +4063,17 @@ class Program:
                     # refused even when this run would have carried it.
                     required = command["outputSchema"].get("required")
                     if not isinstance(required, list) or not required:
-                        raise Failure("VALIDATION_FAILED",
-                                      f"Option --field is not accepted by '{command_id}': the command can "
-                                      "write and its output schema requires no member.",
-                                      "Run the command without --field and read the member from its result.")
+                        raise _fail("VALIDATION_FAILED",
+                                    "Option --field is not accepted by '%s': the command can write and its output "
+                                    "schema requires no member.",
+                                    command_id,
+                                    hint="Run the command without --field and read the member from its result.")
                     if invocation.field not in required:
-                        raise Failure("VALIDATION_FAILED",
-                                      f"Option --field names '{invocation.field}', which '{command_id}' does "
-                                      "not always return: a command that can write accepts only a member "
-                                      "its output schema requires.",
-                                      "Use a member the command's output schema requires; describe lists them.")
+                        raise _fail("VALIDATION_FAILED",
+                                    "Option --field names '%s', which '%s' does not always return: a command that "
+                                    "can write accepts only a member its output schema requires.",
+                                    invocation.field, command_id,
+                                    hint="Use a member the command's output schema requires; describe lists them.")
             data, exit_code = command["handler"](invocation)
             invocation.progress_done()
             if invocation.options.get("--expect") is not None and not invocation._expect_checked \
@@ -3600,18 +4081,18 @@ class Program:
                 # --expect was given and the handler answers without having
                 # asked invocation.expect(): the caller would believe a
                 # binding nobody checked (C: succeed_with).
-                raise Failure("UNEXPECTED",
-                              f"Command '{command_id}' answered without checking --expect: what it did is "
-                              "not known to be the plan the fingerprint names.",
-                              "Report this defect to the command implementation.")
+                raise _fail("UNEXPECTED",
+                            "Command '%s' answered without checking --expect: what it did is not known to be the "
+                            "plan the fingerprint names.",
+                            command_id,
+                            hint="Report this defect to the command implementation.")
             if invocation.field is not None:
                 # A name absent from data is discoverable only now, once the
                 # handler has run.
                 if invocation.field not in data:
-                    raise Failure("VALIDATION_FAILED",
-                                  f"Option --field names '{invocation.field}', which "
-                                  f"'{command_id}' does not have.",
-                                  "Use a top-level member of the command's data.")
+                    raise _fail("VALIDATION_FAILED", "Option --field names '%s', which '%s' does not have.",
+                                invocation.field, command_id,
+                                hint="Use a top-level member of the command's data.")
                 value = data[invocation.field]
                 if fmt == "jsonl":
                     sys.stdout.write(field_jsonl(value))
@@ -3621,13 +4102,16 @@ class Program:
                         sys.stdout.write(text)
             elif fmt == "text":
                 text = self.render_text(command, data)
-                if command_id == "help" and invocation.color_stdout and self._help_rendering is not None:
-                    style = self._help_style()
-                    self._style = style
+                # What a person reads: colored on a terminal that takes color, and in the language of the
+                # invocation; data.text stays plain and English (C: help_reply).
+                color = invocation.color_stdout
+                if command_id == "help" and self._help_rendering is not None and (color or self._language):
+                    style = self._help_style() if color else _HELP_PLAIN
+                    self._style, self._tables = style, self._human_tables()
                     try:
                         text = _help_headings(self._help_rendering(), style["heading"])
                     finally:
-                        self._style = _HELP_PLAIN
+                        self._style, self._tables = _HELP_PLAIN, ()
                 if not page_text(text, invocation):
                     sys.stdout.write(text)
             elif fmt == "jsonl":
@@ -3646,11 +4130,14 @@ class Program:
                 error["issues"] = failure.issues
             error.update(failure.extensions or {})
             if fmt == "text":
+                # A person reads it in the language of the invocation; the "Hint:" label stays, as the
+                # contract writes it (section 8).
+                message, hint = self._human_failure(failure)
                 sys.stderr.write(self._colored(
-                    f"{self.program}: [{failure.code}] {_terminal_safe(failure.message)}",
+                    f"{self.program}: [{failure.code}] {_terminal_safe(message)}",
                     self._failure_color(invocation, argv)) + "\n")
-                if failure.hint:
-                    sys.stderr.write(f"Hint: {_terminal_safe(failure.hint)}\n")
+                if hint:
+                    sys.stderr.write(f"Hint: {_terminal_safe(hint)}\n")
             else:
                 sys.stderr.write(self.envelope(command_id or self.resolved_command_id or "unknown", False,
                                                EXIT_FAILURE, error, compact))
@@ -3660,10 +4147,11 @@ class Program:
             failure = file_failure(error)
             payload = {"code": failure.code, "message": failure.message, "hint": failure.hint}
             if fmt == "text":
+                message, hint = self._human_failure(failure)
                 sys.stderr.write(self._colored(
-                    f"{self.program}: [{failure.code}] {_terminal_safe(failure.message)}",
+                    f"{self.program}: [{failure.code}] {_terminal_safe(message)}",
                     self._failure_color(invocation, argv)) + "\n")
-                sys.stderr.write(f"Hint: {_terminal_safe(failure.hint)}\n")
+                sys.stderr.write(f"Hint: {_terminal_safe(hint)}\n")
             else:
                 sys.stderr.write(self.envelope(command_id or self.resolved_command_id or "unknown", False,
                                                EXIT_FAILURE, payload, compact))
