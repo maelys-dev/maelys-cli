@@ -147,6 +147,21 @@ command when either is wrong:
   into one line per paragraph, or each hand-made line is wrapped on its own
   and the paragraph reads ragged at another width.
 
+## Every consumer, at agent-cli-spec 2.20.0
+
+The pin comes with the pattern the library reads itself, the section
+below. 2.20.0 writes, in its section 3, the subset an `argument.pattern`
+is written in and how it reads; this release reads it so in C and in
+Python, and its kit holds a product to it:
+
+- the kit checks that every pattern of a value, options, operands and
+  global options, is in the subset: a product whose catalog declares one
+  outside it fails there, as it fails at startup with this release;
+- the kit sends a value with a final newline to a pattern that ends in
+  `$` and expects `VALIDATION_FAILED`;
+- a pattern beyond the budget (32 nested groups, 65 536 atoms expanded) is
+  a check the kit skips, and a startup this release refuses.
+
 ## Every consumer, at the pattern the library reads itself
 
 `argument.pattern` is no longer compiled with the libc's `regcomp()`: the

@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+- agent-cli-spec pinned at v2.20.0 (from v2.19.0). Its section 3 writes the
+  subset an `argument.pattern` is written in, worked out with this
+  repository from its measurements, commit by commit, before the tag; the
+  kit of 2.20.0 passes on the seven programs of conformance-check. What a
+  product meets when it moves to this pin:
+  - **a pattern outside the subset is refused at startup**, `UNEXPECTED`
+    with the reason, where the libc accepted it and read it its own way:
+    `\d`, `\w`, `\s`, `\t`, `\-`, `\/`, `(?:`, `[[:alpha:]]`, a non-ASCII
+    literal, a lazy `*?`, `[a-z-9]`, `{0,054}`, a bare `]`, `{` or `}`,
+    a bound above 255;
+  - **`.` matches none of the four line terminators** of ECMA-262, U+000A,
+    U+000D, U+2028 and U+2029 (the libc's `.` matched all four, Python's
+    all but U+000A);
+  - **`$` no longer holds before a final newline**, which Python's `re`
+    allowed: `^abc$` refuses `abc` followed by a newline in Python as in C;
+  - **the budget**: every implementation accepts a pattern of at most 32
+    nested groups and 65 536 atoms once its bounds are expanded, and may
+    refuse a larger one when it starts; this one does, with the reason. A
+    catalog should stay within it, which every product known here does.
+  `docs/migration.md`, "Every consumer, at agent-cli-spec 2.20.0", says
+  what to search for.
 - **The library reads and matches `argument.pattern` itself.** A pattern is
   written in the common subset of ECMA-262 and POSIX ERE (agent-cli/v2 2.3,
   which lets an implementation enforce it "by the means of its choice, a
