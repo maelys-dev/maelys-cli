@@ -1725,6 +1725,31 @@ static int test_constraints(void) {
     CHECK(refused_at_startup(&broken, "names unknown option --elsewhere"));
     rule.options = twice;
     CHECK(refused_at_startup(&broken, "names --ro twice"));
+    /* A rule that names no option, its list NULL or empty, is refused like
+     * a rule of one. */
+    static const char *const none[] = {NULL};
+    rule.kind = MAELYS_CLI_CONSTRAINT_REQUIRES;
+    rule.options = NULL;
+    CHECK(refused_at_startup(&broken, "fewer than two options"));
+    rule.options = none;
+    CHECK(refused_at_startup(&broken, "fewer than two options"));
+    /* maelys_cli_parse() is public and does not presuppose the validation:
+     * on a catalog nobody validated, such a rule requires nothing, and the
+     * parser does not read through it. */
+    maelys_cli_app_t unvalidated = app;
+    unvalidated.commands = &broken;
+    unvalidated.command_count = 1u;
+    char policy_word[] = "policy";
+    char rw_word[] = "--rw";
+    char *line[] = {policy_word, rw_word};
+    maelys_cli_invocation_t invocation;
+    maelys_cli_error_t error;
+    rule.options = NULL;
+    CHECK(maelys_cli_parse(&unvalidated, 2, line, &invocation, &error) == 0 &&
+        !strcmp(invocation.command->id, "policy"));
+    rule.options = none;
+    CHECK(maelys_cli_parse(&unvalidated, 2, line, &invocation, &error) == 0 &&
+        !strcmp(invocation.command->id, "policy"));
     return 1;
 }
 

@@ -16,6 +16,16 @@
   ...)` reads `--mode MODE`, as `.value_name = "MODE"` does in C. The hello
   and default-surface fixtures declare `VALUE` for `--level`, as their C
   counterparts declare no value name.
+- **`maelys_cli_parse()` no longer reads through a `requires` constraint
+  that names no option.** The catalog validation refuses such a rule
+  (`options` NULL or an empty list: "names fewer than two options"), but
+  `maelys_cli_parse()` is public and does not presuppose it: called
+  directly on a catalog nobody validated, it dereferenced the NULL list,
+  or passed a NULL name to `strcmp()`, as soon as the line held an option.
+  Such a rule now requires nothing; on a validated catalog nothing
+  changes. `make analyze` reported it, unchanged since at least 0.10.0,
+  as its one warning. No Python counterpart: `constraint()` refuses a rule
+  of fewer than two options when it is written.
 
 ## 0.12.0 - 2026-10-24
 
