@@ -733,9 +733,11 @@ static int translation_text_is_safe(const char *text) {
     return 1;
 }
 
-/* The language the product's catalog is written in: its own, or English. */
+/* The language the product's catalog is written in: its own, or English.
+ * NULL is English: the catalog validation refuses a NULL app before any
+ * caller, which this function does not presuppose. */
 static const char *canonical_language(const maelys_cli_app_t *app) {
-    return app->canonical_language ? app->canonical_language : MAELYS_CLI_CANONICAL_LANGUAGE;
+    return app && app->canonical_language ? app->canonical_language : MAELYS_CLI_CANONICAL_LANGUAGE;
 }
 
 /* The languages a product declares: each tag well formed and named once,
@@ -767,8 +769,11 @@ static int validate_languages(const maelys_cli_app_t *app, maelys_cli_error_t *e
                 tag, canonical[0]);
             return -1;
         }
+        /* Every earlier tag was found well formed, so none is NULL; the
+         * comparison says so rather than relying on it. */
         for (size_t j = 0u; j < i; ++j) {
-            if (strcasecmp(app->languages[j].tag, language->tag) == 0) {
+            if (app->languages[j].tag && language->tag &&
+                strcasecmp(app->languages[j].tag, language->tag) == 0) {
                 maelys_cli_error_set(error, MAELYS_CLI_CODE_UNEXPECTED, hint,
                     "Catalog language '%s' is declared twice.", tag);
                 return -1;
@@ -2307,7 +2312,7 @@ static void resolve_language(maelys_cli_context_t *context, const maelys_cli_app
     const char *available[MAELYS_CLI_MAX_LANGUAGES + 1u];
     size_t count = 0u;
     available[count++] = canonical_language(app);
-    for (size_t i = 0u; app->languages && i < app->language_count &&
+    for (size_t i = 0u; app && app->languages && i < app->language_count &&
             count <= MAELYS_CLI_MAX_LANGUAGES; ++i)
         available[count++] = app->languages[i].tag;
     const char *tag = maelys_cli_language_resolve(option, getenv("MAELYS_CLI_LANG"),
