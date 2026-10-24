@@ -374,6 +374,23 @@ Python judges a file exactly as a C product does:
 | `file_failure(error, what=None)` | The `Failure` for an `OSError`, as `maelys_cli_fail_file()`: code from the table, message `what: strerror`, hint from the explanation. An `OSError` a handler lets escape is reported the same way. |
 | `environment_format()` | The format `MAELYS_CLI_FORMAT` selects: `json`, `text`, or `text` for any other value. |
 
+## Regular expressions
+
+The counterpart of `maelys/cli/regex.h`: the reader of every
+`argument.pattern`, open to a product for any other pattern written in the
+subset of agent-cli/v2 section 3, with C's answers on the corpus
+`tests/patterns.tsv`, refusals included.
+
+| Name | Contract |
+| --- | --- |
+| `Regex(pattern)` | Compiles a pattern given as a `str`; `TypeError` otherwise, `RegexError` outside the subset. Never changed once built. |
+| `Regex.search(value)` | Whether some part of the value matches, `^` and `$` holding at its two ends. A `str` is a sequence of code points, a lone surrogate (what `surrogateescape` makes of a byte that is not UTF-8) matched only by `.` and a negated class; `bytes`, `bytearray` or `memoryview` are read as UTF-8 as they are searched, never copied whole, a byte of no valid sequence being the character U+DC00 + the byte, so that a value and its `surrogateescape` decoding give the same answer. `.` matches all but U+000A, U+000D, U+2028 and U+2029. A Thompson simulation, never `re`: the work is O((len + 1) x states), with no backtracking. |
+| `Regex.states` | The size of the compiled program, C's `maelys_cli_regex_states()`. |
+| `RegexError` | The `ValueError` a refusal raises: `.code` the family (`empty`, `encoding`, `escape`, `bracket`, `group`, `quantifier`, `bound`, `limit`), `.status` its value in C, `.offset` the byte of the pattern, in UTF-8, where reading stopped, `.message` a sentence for a person whose wording may change. |
+| `REGEX_MAX_BOUND`, `REGEX_MAX_DEPTH`, `REGEX_MAX_STATES` | 255, 32 and 65536, as in C. |
+
+`MemoryError` propagates as anywhere in Python: it is C's `NO_MEMORY`.
+
 ## Proving it
 
 `python/tests/test_maelys_cli.py` exercises the contract from the inside

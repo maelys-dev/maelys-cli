@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+- **The reader of `argument.pattern` is public**: `maelys/cli/regex.h` in C,
+  `Regex` and `RegexError` in Python, for any pattern written in the subset
+  of agent-cli/v2 section 3, a refex of Maelys Git for one. A compiled
+  handle, never written after compile and searched by several threads at
+  once (`maelys_cli_regex_compile`, `_search`, `_states`, `_free`); a value
+  given as a pointer and a length, NUL bytes included; a refusal as one of
+  eight families whose values never change, with the byte where reading
+  stopped and a sentence for a person, the first refusal met from the left
+  winning; the limits as constants (`MAELYS_CLI_REGEX_MAX_BOUND`, `_DEPTH`,
+  `_STATES`). A search is O((length + 1) x states) in time and O(states) in
+  memory, in C and in Python, which reads `bytes` as it searches them.
+  `tests/patterns.tsv` now names the family and the offset of each refusal,
+  and bytes in its values (`\xHH`): C and Python give the same answers;
+  `test_pattern` fails every allocation in turn and searches one handle from
+  eight threads under ThreadSanitizer. Nothing a product does changes.
+- `python/maelys_cli.py`: `Regex`, `RegexError`, `REGEX_MAX_BOUND`,
+  `REGEX_MAX_DEPTH` and `REGEX_MAX_STATES` are new; nothing else moves.
+
 ## 0.11.0 - 2026-10-24
 
 This release reads `argument.pattern` itself, as agent-cli/v2 section 3

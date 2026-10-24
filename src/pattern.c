@@ -38,18 +38,38 @@
  * A value is read as UTF-8 code points; a byte that is not UTF-8 is one
  * character, which only `.` and a negated class match, as Python's
  * surrogateescape reads argv. */
+#include "maelys/cli/regex.h"
 #include "internal.h"
 
+#include <errno.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+/* Allocation faults: a test build defines MAELYS_CLI_ALLOC_HOOK to a
+ * function int hook(void) returning nonzero to fail the allocation about to
+ * be made, so that every NO_MEMORY and ENOMEM path is reached. A release
+ * build compiles it away. */
+#ifdef MAELYS_CLI_ALLOC_HOOK
+int MAELYS_CLI_ALLOC_HOOK(void);
+static void *hooked_malloc(size_t size) { return MAELYS_CLI_ALLOC_HOOK() ? NULL : malloc(size); }
+static void *hooked_calloc(size_t count, size_t size) {
+    return MAELYS_CLI_ALLOC_HOOK() ? NULL : calloc(count, size);
+}
+static void *hooked_realloc(void *old, size_t size) {
+    return MAELYS_CLI_ALLOC_HOOK() ? NULL : realloc(old, size);
+}
+#define malloc hooked_malloc
+#define calloc hooked_calloc
+#define realloc hooked_realloc
+#endif
+
 /* Copies of a repeated group multiply: the program a pattern expands to is
  * bounded, and a pattern above the bound is refused where the pattern is. */
-#define PATTERN_MAX_INSTRUCTIONS 65536u
-#define PATTERN_MAX_DEPTH 32u
-#define PATTERN_MAX_BOUND 255u
+#define PATTERN_MAX_INSTRUCTIONS MAELYS_CLI_REGEX_MAX_STATES
+#define PATTERN_MAX_DEPTH MAELYS_CLI_REGEX_MAX_DEPTH
+#define PATTERN_MAX_BOUND MAELYS_CLI_REGEX_MAX_BOUND
 #define PATTERN_UNBOUNDED UINT32_MAX
 #define PATTERN_NO_TARGET UINT32_MAX
 
@@ -63,6 +83,7 @@ typedef struct node {
     uint32_t cp;              /* CHAR */
     uint32_t bits[4];         /* CLASS: one bit per ASCII code point */
     int negated;              /* CLASS */
+    uint32_t class_index;     /* CLASS: its place in the compiled classes */
     struct node *child;       /* REPEAT: the repeated */
     struct node **children;   /* CAT, ALT: in order, owned by the node */
     size_t child_count;       /* CAT, ALT: two or more */
@@ -76,14 +97,21 @@ typedef struct {
     node_t **nodes;
     size_t count;
     size_t capacity;
-    char *reason;
-    size_t reason_size;
+    uint32_t classes;         /* class nodes numbered so far */
+    maelys_cli_regex_status_t status;
+    const char *message;      /* a static sentence, never freed */
+    size_t offset;            /* where the reading stopped */
     int failed;
 } parser_t;
 
-static node_t *fail(parser_t *p, const char *reason) {
-    if (!p->failed && p->reason && p->reason_size)
-        (void)snprintf(p->reason, p->reason_size, "%s", reason);
+/* The first refusal is the one reported, at the place reading stopped: the
+ * refusals of a pattern are met from left to right. */
+static node_t *fail(parser_t *p, maelys_cli_regex_status_t status, const char *message) {
+    if (!p->failed) {
+        p->status = status;
+        p->message = message;
+        p->offset = p->at < p->length ? p->at : p->length;
+    }
     p->failed = 1;
     return NULL;
 }
@@ -93,12 +121,12 @@ static node_t *node_new(parser_t *p, node_kind_t kind) {
     if (p->count == p->capacity) {
         size_t capacity = p->capacity ? p->capacity * 2u : 16u;
         node_t **grown = realloc(p->nodes, capacity * sizeof(*grown));
-        if (!grown) return fail(p, "out of memory");
+        if (!grown) return fail(p, MAELYS_CLI_REGEX_NO_MEMORY, "out of memory");
         p->nodes = grown;
         p->capacity = capacity;
     }
     node_t *node = calloc(1u, sizeof(*node));
-    if (!node) return fail(p, "out of memory");
+    if (!node) return fail(p, MAELYS_CLI_REGEX_NO_MEMORY, "out of memory");
     node->kind = kind;
     p->nodes[p->count++] = node;
     return node;
@@ -154,34 +182,35 @@ static node_t *parse_class(parser_t *p) {
     /* p->at is after '['. */
     node_t *node = node_new(p, NODE_CLASS);
     if (!node) return NULL;
+    node->class_index = p->classes++;
     if (peek(p) == '^') { node->negated = 1; p->at++; }
     size_t items = 0u;
     int after_range = 0;
     for (;;) {
-        if (at_end(p)) return fail(p, "an unclosed bracket expression");
+        if (at_end(p)) return fail(p, MAELYS_CLI_REGEX_BRACKET, "an unclosed bracket expression");
         unsigned char c = p->text[p->at];
         /* POSIX reads '-' as itself first, last or as the end of a range
          * only; after a range, ECMA-262 takes it for itself and RE2 for the
          * start of another range: [a-z-9] has no common reading. */
         if (c == '-' && after_range && p->at + 1u < p->length &&
             p->text[p->at + 1u] != ']')
-            return fail(p, "a '-' after a range that is not the last character "
+            return fail(p, MAELYS_CLI_REGEX_BRACKET, "a '-' after a range that is not the last character "
                 "of the bracket expression, which the two dialects read differently");
         if (c == ']') {
             if (items == 0u)
-                return fail(p, "an empty bracket expression, or ']' where the "
+                return fail(p, MAELYS_CLI_REGEX_BRACKET, "an empty bracket expression, or ']' where the "
                     "two dialects read it differently");
             p->at++;
             return node;
         }
         if (c == '[')
-            return fail(p, "'[' inside a bracket expression, as a POSIX class "
+            return fail(p, MAELYS_CLI_REGEX_BRACKET, "'[' inside a bracket expression, as a POSIX class "
                 "such as [:alpha:] starts");
         if (c == '\\')
-            return fail(p, "'\\' inside a bracket expression, an escape for "
+            return fail(p, MAELYS_CLI_REGEX_BRACKET, "'\\' inside a bracket expression, an escape for "
                 "ECMA-262 and a character for POSIX ERE");
         if (c < 0x20u || c >= 0x7fu)
-            return fail(p, "a character outside printable ASCII in a bracket "
+            return fail(p, MAELYS_CLI_REGEX_ENCODING, "a character outside printable ASCII in a bracket "
                 "expression");
         p->at++;
         uint32_t low = c;
@@ -190,11 +219,11 @@ static node_t *parse_class(parser_t *p) {
         if (peek(p) == '-' && p->at + 1u < p->length && p->text[p->at + 1u] != ']') {
             unsigned char h = p->text[p->at + 1u];
             if (h == '[' || h == '\\')
-                return fail(p, "a range that ends on '[' or '\\'");
+                return fail(p, MAELYS_CLI_REGEX_BRACKET, "a range that ends on '[' or '\\'");
             if (h < 0x20u || h >= 0x7fu)
-                return fail(p, "a character outside printable ASCII in a bracket "
+                return fail(p, MAELYS_CLI_REGEX_ENCODING, "a character outside printable ASCII in a bracket "
                     "expression");
-            if (h < c) return fail(p, "a range whose ends are reversed");
+            if (h < c) return fail(p, MAELYS_CLI_REGEX_BRACKET, "a range whose ends are reversed");
             high = h;
             p->at += 2u;
             after_range = 1;
@@ -210,13 +239,13 @@ static int parse_bound(parser_t *p, uint32_t *min, uint32_t *max) {
     int digits[2] = {0, 0};
     size_t part = 0u;
     for (;;) {
-        if (at_end(p)) { fail(p, "an unclosed bound: write {m}, {m,} or {m,n}"); return -1; }
+        if (at_end(p)) { fail(p, MAELYS_CLI_REGEX_BOUND, "an unclosed bound: write {m}, {m,} or {m,n}"); return -1; }
         unsigned char c = p->text[p->at++];
         if (c >= '0' && c <= '9') {
             /* A number is written in its decimal form: RE2 refuses {0,054},
              * ECMA-262 reads it as 54. */
             if (digits[part] == 1 && values[part] == 0u) {
-                fail(p, "a bound written with a leading zero");
+                fail(p, MAELYS_CLI_REGEX_BOUND, "a bound written with a leading zero");
                 return -1;
             }
             if (values[part] > PATTERN_MAX_BOUND) continue; /* already too large */
@@ -226,17 +255,17 @@ static int parse_bound(parser_t *p, uint32_t *min, uint32_t *max) {
         }
         if (c == ',' && part == 0u) { part = 1u; continue; }
         if (c == '}') break;
-        fail(p, "'{' that does not open a bound {m}, {m,} or {m,n}");
+        fail(p, MAELYS_CLI_REGEX_BOUND, "'{' that does not open a bound {m}, {m,} or {m,n}");
         return -1;
     }
-    if (!digits[0]) { fail(p, "a bound without its minimum: write {m}, {m,} or {m,n}"); return -1; }
+    if (!digits[0]) { fail(p, MAELYS_CLI_REGEX_BOUND, "a bound without its minimum: write {m}, {m,} or {m,n}"); return -1; }
     *min = values[0];
     *max = part == 0u ? values[0] : digits[1] ? values[1] : PATTERN_UNBOUNDED;
     if (*min > PATTERN_MAX_BOUND || (*max != PATTERN_UNBOUNDED && *max > PATTERN_MAX_BOUND)) {
-        fail(p, "a bound above 255, more than POSIX guarantees of an ERE engine");
+        fail(p, MAELYS_CLI_REGEX_LIMIT, "a bound above 255, more than POSIX guarantees of an ERE engine");
         return -1;
     }
-    if (*max != PATTERN_UNBOUNDED && *min > *max) { fail(p, "a bound {m,n} with m above n"); return -1; }
+    if (*max != PATTERN_UNBOUNDED && *min > *max) { fail(p, MAELYS_CLI_REGEX_BOUND, "a bound {m,n} with m above n"); return -1; }
     return 0;
 }
 
@@ -245,11 +274,11 @@ static node_t *parse_atom(parser_t *p, unsigned depth) {
     if (c == '(') {
         p->at++;
         if (peek(p) == '?')
-            return fail(p, "'(?', a group ECMA-262 names and POSIX ERE lacks");
-        if (depth + 1u > PATTERN_MAX_DEPTH) return fail(p, "more than 32 nested groups");
+            return fail(p, MAELYS_CLI_REGEX_GROUP, "'(?', a group ECMA-262 names and POSIX ERE lacks");
+        if (depth + 1u > PATTERN_MAX_DEPTH) return fail(p, MAELYS_CLI_REGEX_LIMIT, "more than 32 nested groups");
         node_t *inner = parse_alternation(p, depth + 1u);
         if (!inner) return NULL;
-        if (peek(p) != ')') return fail(p, "an unclosed group");
+        if (peek(p) != ')') return fail(p, MAELYS_CLI_REGEX_GROUP, "an unclosed group");
         p->at++;
         return inner;
     }
@@ -257,26 +286,26 @@ static node_t *parse_atom(parser_t *p, unsigned depth) {
     if (c == '.') { p->at++; return node_new(p, NODE_ANY); }
     if (c == '^') { p->at++; return node_new(p, NODE_BOL); }
     if (c == '$') { p->at++; return node_new(p, NODE_EOL); }
-    if (c == ')') return fail(p, "a ')' that closes no group");
+    if (c == ')') return fail(p, MAELYS_CLI_REGEX_GROUP, "a ')' that closes no group");
     if (c == ']' || c == '}')
-        return fail(p, "an unescaped ']' or '}', which the two dialects read "
+        return fail(p, MAELYS_CLI_REGEX_GROUP, "an unescaped ']' or '}', which the two dialects read "
             "differently: write \\] or \\}");
     if (c == '*' || c == '+' || c == '?' || c == '{')
-        return fail(p, "a quantifier that follows nothing");
+        return fail(p, MAELYS_CLI_REGEX_QUANTIFIER, "a quantifier that follows nothing");
     uint32_t cp;
     if (c == '\\') {
         p->at++;
-        if (at_end(p)) return fail(p, "a '\\' that ends the pattern");
+        if (at_end(p)) return fail(p, MAELYS_CLI_REGEX_ESCAPE, "a '\\' that ends the pattern");
         unsigned char e = p->text[p->at];
         if (!is_meta(e))
-            return fail(p, "an escape that is not of a metacharacter: '\\d', "
+            return fail(p, MAELYS_CLI_REGEX_ESCAPE, "an escape that is not of a metacharacter: '\\d', "
                 "'\\n' and the like are not in the subset");
         p->at++;
         cp = e;
     } else {
-        if (is_control(c)) return fail(p, "a control character");
+        if (is_control(c)) return fail(p, MAELYS_CLI_REGEX_ENCODING, "a control character");
         if (c >= 0x80u)
-            return fail(p, "a character outside printable ASCII, which a libc "
+            return fail(p, MAELYS_CLI_REGEX_ENCODING, "a character outside printable ASCII, which a libc "
                 "in the C locale reads byte by byte");
         p->at++;
         cp = c;
@@ -292,7 +321,7 @@ static node_t *parse_piece(parser_t *p, unsigned depth) {
     unsigned char c = peek(p);
     if (c != '*' && c != '+' && c != '?' && c != '{') return atom;
     if (atom->kind == NODE_BOL || atom->kind == NODE_EOL)
-        return fail(p, "a quantified anchor");
+        return fail(p, MAELYS_CLI_REGEX_QUANTIFIER, "a quantified anchor");
     uint32_t min, max;
     p->at++;
     if (c == '*') { min = 0u; max = PATTERN_UNBOUNDED; }
@@ -301,7 +330,7 @@ static node_t *parse_piece(parser_t *p, unsigned depth) {
     else if (parse_bound(p, &min, &max) != 0) return NULL;
     c = peek(p);
     if (c == '*' || c == '+' || c == '?' || c == '{')
-        return fail(p, "two quantifiers in a row, or a lazy quantifier such as "
+        return fail(p, MAELYS_CLI_REGEX_QUANTIFIER, "two quantifiers in a row, or a lazy quantifier such as "
             "'*?', which POSIX ERE lacks");
     node_t *repeat = node_new(p, NODE_REPEAT);
     if (!repeat) return NULL;
@@ -325,7 +354,7 @@ static int items_push(parser_t *p, items_t *list, node_t *item) {
     if (list->count == list->capacity) {
         size_t capacity = list->capacity ? list->capacity * 2u : 4u;
         node_t **grown = realloc(list->items, capacity * sizeof(*grown));
-        if (!grown) { fail(p, "out of memory"); return -1; }
+        if (!grown) { fail(p, MAELYS_CLI_REGEX_NO_MEMORY, "out of memory"); return -1; }
         list->items = grown;
         list->capacity = capacity;
     }
@@ -356,7 +385,7 @@ static node_t *parse_sequence(parser_t *p, unsigned depth) {
             return NULL;
         }
     }
-    if (pieces.count == 0u) return fail(p, "an empty alternative or group");
+    if (pieces.count == 0u) return fail(p, MAELYS_CLI_REGEX_EMPTY, "an empty alternative or group");
     return items_join(p, &pieces, NODE_CAT);
 }
 
@@ -382,10 +411,20 @@ typedef enum {
 
 typedef struct {
     uint8_t op;
-    uint32_t x;               /* CHAR: the code point; SPLIT/JMP: a target */
+    uint32_t x;               /* CHAR: the code point; SPLIT/JMP: a target;
+                                 CLASS: its index in the classes */
     uint32_t y;               /* SPLIT: the other target; CLASS: negated */
-    const uint32_t *bits;     /* CLASS */
 } instruction_t;
+
+/* A compiled pattern: its program and the classes the program reads, owned
+ * by the handle and never written after compile, so that searches share it
+ * across threads. */
+struct maelys_cli_regex {
+    instruction_t *code;
+    uint32_t count;
+    uint32_t (*classes)[4];
+    uint32_t class_count;
+};
 
 /* Instructions a node emits, saturating above the bound. */
 static uint32_t node_size(const node_t *node) {
@@ -421,7 +460,6 @@ static uint32_t emit(emitter_t *e, op_t op, uint32_t x, uint32_t y) {
     at->op = (uint8_t)op;
     at->x = x;
     at->y = y;
-    at->bits = NULL;
     return e->count++;
 }
 
@@ -431,11 +469,7 @@ static void emit_node(emitter_t *e, const node_t *node) {
     case NODE_ANY: emit(e, OP_ANY, 0u, 0u); return;
     case NODE_BOL: emit(e, OP_BOL, 0u, 0u); return;
     case NODE_EOL: emit(e, OP_EOL, 0u, 0u); return;
-    case NODE_CLASS: {
-        uint32_t at = emit(e, OP_CLASS, 0u, (uint32_t)node->negated);
-        e->code[at].bits = node->bits;
-        return;
-    }
+    case NODE_CLASS: emit(e, OP_CLASS, node->class_index, (uint32_t)node->negated); return;
     case NODE_CAT:
         for (size_t i = 0u; i < node->child_count; ++i) emit_node(e, node->children[i]);
         return;
@@ -492,6 +526,7 @@ static void emit_node(emitter_t *e, const node_t *node) {
 
 typedef struct {
     const instruction_t *code;
+    const uint32_t (*classes)[4];
     uint32_t count;
     uint32_t *list[2];        /* the positions alive before and after a step */
     uint32_t size[2];
@@ -526,14 +561,14 @@ static void add_thread(machine_t *m, int which, uint32_t pc, int at_start, int a
     }
 }
 
-static int instruction_accepts(const instruction_t *i, uint32_t cp) {
+static int instruction_accepts(const machine_t *m, const instruction_t *i, uint32_t cp) {
     switch ((op_t)i->op) {
     case OP_CHAR: return i->x == cp;
     case OP_ANY:
         /* The four line terminators of ECMA-262 (agent-cli/v2, section 3). */
         return cp != 0x0Au && cp != 0x0Du && cp != 0x2028u && cp != 0x2029u;
     case OP_CLASS: {
-        int in = cp < 0x80u && (i->bits[cp >> 5] & (1u << (cp & 31u))) != 0u;
+        int in = cp < 0x80u && (m->classes[i->x][cp >> 5] & (1u << (cp & 31u))) != 0u;
         return i->y ? !in : in;
     }
     default: return 0;
@@ -549,9 +584,8 @@ static size_t value_next(const unsigned char *s, size_t n, uint32_t *cp) {
     return 1u;
 }
 
-static int run(machine_t *m, const char *value) {
+static int run(machine_t *m, const char *value, size_t n) {
     const unsigned char *s = (const unsigned char *)value;
-    size_t n = strlen(value);
     size_t at = 0u;
     int which = 0;
     m->generation++;
@@ -567,7 +601,7 @@ static int run(machine_t *m, const char *value) {
         for (uint32_t t = 0u; t < m->size[which] && !m->matched; ++t) {
             const instruction_t *i = &m->code[m->list[which][t]];
             m->steps++;
-            if (instruction_accepts(i, cp))
+            if (instruction_accepts(m, i, cp))
                 add_thread(m, next, m->list[which][t] + 1u, 0, at == n);
         }
         /* A search: the pattern may also start here. */
@@ -577,28 +611,160 @@ static int run(machine_t *m, const char *value) {
     return m->matched;
 }
 
-/* ---- the two entry points ----------------------------------------------- */
+/* ---- the public entry points (maelys/cli/regex.h) -------------------- */
 
-static node_t *parse(parser_t *p, const char *pattern, char *reason, size_t reason_size) {
+static node_t *parse(parser_t *p, const char *pattern, size_t length) {
     memset(p, 0, sizeof(*p));
     p->text = (const unsigned char *)pattern;
-    p->length = pattern ? strlen(pattern) : 0u;
-    p->reason = reason;
-    p->reason_size = reason_size;
-    if (reason && reason_size) reason[0] = '\0';
-    if (!pattern || !*pattern) return fail(p, "an empty pattern");
+    p->length = length;
+    if (length == 0u) return fail(p, MAELYS_CLI_REGEX_EMPTY, "an empty pattern");
     node_t *root = parse_alternation(p, 0u);
-    if (root && !at_end(p)) root = fail(p, "a ')' that closes no group");
-    if (root && node_size(root) + 1u > PATTERN_MAX_INSTRUCTIONS)
-        root = fail(p, "a pattern that expands to more than 65536 states");
+    if (root && !at_end(p)) root = fail(p, MAELYS_CLI_REGEX_GROUP, "a ')' that closes no group");
+    /* The state bound is met once the whole pattern is read: a refusal of
+     * reading, met before, is the one reported. */
+    if (root && node_size(root) + 1u > PATTERN_MAX_INSTRUCTIONS) {
+        p->at = p->length;
+        root = fail(p, MAELYS_CLI_REGEX_LIMIT, "a pattern that expands to more than 65536 states");
+    }
     return p->failed ? NULL : root;
 }
 
-int maelys_cli_pattern_check(const char *pattern, char *reason, size_t reason_size) {
+static void diagnose(maelys_cli_regex_diagnostic_t *diagnostic,
+                     maelys_cli_regex_status_t status, size_t offset, const char *message) {
+    if (!diagnostic) return;
+    diagnostic->status = status;
+    diagnostic->offset = offset;
+    diagnostic->message = message;
+}
+
+maelys_cli_regex_status_t maelys_cli_regex_compile(
+    const char *pattern, size_t length, maelys_cli_regex_t **out,
+    maelys_cli_regex_diagnostic_t *diagnostic) {
+    if (out) *out = NULL;
+    if (!out || (!pattern && length > 0u)) {
+        diagnose(diagnostic, MAELYS_CLI_REGEX_INVALID_ARGUMENT, 0u,
+            "an argument the function does not accept: out is NULL, or the "
+            "pattern is NULL with a length");
+        return MAELYS_CLI_REGEX_INVALID_ARGUMENT;
+    }
     parser_t p;
-    node_t *root = parse(&p, pattern, reason, reason_size);
+    node_t *root = parse(&p, pattern, length);
+    if (!root) {
+        maelys_cli_regex_status_t status = p.status;
+        size_t offset = status == MAELYS_CLI_REGEX_NO_MEMORY ? 0u : p.offset;
+        diagnose(diagnostic, status, offset, p.message);
+        nodes_free(&p);
+        return status;
+    }
+    uint32_t count = node_size(root) + 1u;
+    maelys_cli_regex_t *regex = calloc(1u, sizeof(*regex));
+    instruction_t *code = regex ? malloc(count * sizeof(*code)) : NULL;
+    uint32_t (*classes)[4] = regex && code && p.classes ?
+        calloc(p.classes, sizeof(*classes)) : NULL;
+    if (!regex || !code || (p.classes && !classes)) {
+        free(classes);
+        free(code);
+        free(regex);
+        nodes_free(&p);
+        diagnose(diagnostic, MAELYS_CLI_REGEX_NO_MEMORY, 0u, "out of memory");
+        return MAELYS_CLI_REGEX_NO_MEMORY;
+    }
+    /* A pattern without a class has no class array, and no class node. */
+    for (size_t i = 0u; classes && i < p.count; ++i)
+        if (p.nodes[i]->kind == NODE_CLASS)
+            memcpy(classes[p.nodes[i]->class_index], p.nodes[i]->bits, sizeof(classes[0]));
+    emitter_t e = {code, 0u};
+    emit_node(&e, root);
+    emit(&e, OP_MATCH, 0u, 0u);
     nodes_free(&p);
-    return root ? 0 : -1;
+    regex->code = code;
+    regex->count = e.count;
+    regex->classes = classes;
+    regex->class_count = p.classes;
+    *out = regex;
+    diagnose(diagnostic, MAELYS_CLI_REGEX_OK, 0u, NULL);
+    return MAELYS_CLI_REGEX_OK;
+}
+
+static int search_counted(const maelys_cli_regex_t *regex, const char *value,
+                          size_t length, uint64_t *steps) {
+    if (steps) *steps = 0u;
+    if (!regex || (!value && length > 0u)) {
+        errno = EINVAL;
+        return -1;
+    }
+    if (!value) value = "";
+    uint32_t count = regex->count;
+    /* Two lists of positions, the marks, and the stack of add_thread: only a
+     * split deepens it (one popped, two pushed), a jump keeps its depth and
+     * every other position shortens it, and within one call each position
+     * is expanded once: count + 1 entries, the first push included. */
+    uint32_t *lists = malloc(((size_t)count * 4u + 1u) * sizeof(*lists));
+    if (!lists) {
+        errno = ENOMEM;
+        return -1;
+    }
+    machine_t m;
+    memset(&m, 0, sizeof(m));
+    m.code = regex->code;
+    m.classes = (const uint32_t (*)[4])regex->classes;
+    m.count = count;
+    m.list[0] = lists;
+    m.list[1] = lists + count;
+    m.mark = lists + 2u * (size_t)count;
+    m.stack = lists + 3u * (size_t)count;
+    memset(m.mark, 0, count * sizeof(*m.mark));
+    int result = run(&m, value, length);
+    if (steps) *steps = m.steps;
+    free(lists);
+    return result;
+}
+
+int maelys_cli_regex_search(const maelys_cli_regex_t *regex, const char *value, size_t length) {
+    return search_counted(regex, value, length, NULL);
+}
+
+size_t maelys_cli_regex_states(const maelys_cli_regex_t *regex) {
+    return regex ? regex->count : 0u;
+}
+
+void maelys_cli_regex_free(maelys_cli_regex_t *regex) {
+    if (!regex) return;
+    free(regex->classes);
+    free(regex->code);
+    free(regex);
+}
+
+const char *maelys_cli_regex_status_text(maelys_cli_regex_status_t status) {
+    switch (status) {
+    case MAELYS_CLI_REGEX_OK: return "the pattern is in the subset";
+    case MAELYS_CLI_REGEX_INVALID_ARGUMENT: return "an argument the function does not accept";
+    case MAELYS_CLI_REGEX_NO_MEMORY: return "out of memory";
+    case MAELYS_CLI_REGEX_EMPTY: return "an empty pattern, alternative or group";
+    case MAELYS_CLI_REGEX_ENCODING: return "a character outside printable ASCII";
+    case MAELYS_CLI_REGEX_ESCAPE: return "an escape that is not of a metacharacter";
+    case MAELYS_CLI_REGEX_BRACKET: return "a bracket expression outside the subset";
+    case MAELYS_CLI_REGEX_GROUP: return "a group, a ')', a ']' or a '}' outside the subset";
+    case MAELYS_CLI_REGEX_QUANTIFIER: return "a quantifier outside the subset";
+    case MAELYS_CLI_REGEX_BOUND: return "a bound that is not {m}, {m,} or {m,n} in decimal";
+    case MAELYS_CLI_REGEX_LIMIT:
+        return "a bound above 255, more than 32 nested groups or more than 65536 states";
+    }
+    return "an unknown status";
+}
+
+/* ---- the reader of argument.pattern (internal.h) ----------------------- */
+
+int maelys_cli_pattern_check(const char *pattern, char *reason, size_t reason_size) {
+    maelys_cli_regex_t *regex = NULL;
+    maelys_cli_regex_diagnostic_t diagnostic;
+    maelys_cli_regex_status_t status = maelys_cli_regex_compile(
+        pattern ? pattern : "", pattern ? strlen(pattern) : 0u, &regex, &diagnostic);
+    maelys_cli_regex_free(regex);
+    if (reason && reason_size)
+        (void)snprintf(reason, reason_size, "%s",
+            status == MAELYS_CLI_REGEX_OK ? "" : diagnostic.message);
+    return status == MAELYS_CLI_REGEX_OK ? 0 : -1;
 }
 
 int maelys_cli_pattern_match(const char *pattern, const char *value) {
@@ -610,36 +776,12 @@ int maelys_cli_pattern_match_counted(const char *pattern, const char *value,
     if (steps) *steps = 0u;
     if (states) *states = 0u;
     if (!value) return 0;
-    parser_t p;
-    node_t *root = parse(&p, pattern, NULL, 0u);
-    if (!root) { nodes_free(&p); return -1; }
-    uint32_t count = node_size(root) + 1u;
-    instruction_t *code = malloc(count * sizeof(*code));
-    /* Two lists of positions, the marks, and the stack of add_thread: only a
-     * split deepens it (one popped, two pushed), a jump keeps its depth and
-     * every other position shortens it, and within one call each position
-     * is expanded once: count + 1 entries, the first push included. */
-    uint32_t *lists = malloc(((size_t)count * 4u + 1u) * sizeof(*lists));
-    int result = -1;
-    if (code && lists) {
-        emitter_t e = {code, 0u};
-        emit_node(&e, root);
-        emit(&e, OP_MATCH, 0u, 0u);
-        machine_t m;
-        memset(&m, 0, sizeof(m));
-        m.code = code;
-        m.count = e.count;
-        m.list[0] = lists;
-        m.list[1] = lists + count;
-        m.mark = lists + 2u * (size_t)count;
-        m.stack = lists + 3u * (size_t)count;
-        memset(m.mark, 0, count * sizeof(*m.mark));
-        result = run(&m, value);
-        if (steps) *steps = m.steps;
-        if (states) *states = m.count;
-    }
-    free(lists);
-    free(code);
-    nodes_free(&p);
+    maelys_cli_regex_t *regex = NULL;
+    if (maelys_cli_regex_compile(pattern ? pattern : "", pattern ? strlen(pattern) : 0u,
+            &regex, NULL) != MAELYS_CLI_REGEX_OK)
+        return -1;
+    int result = search_counted(regex, value, strlen(value), steps);
+    if (states) *states = regex->count;
+    maelys_cli_regex_free(regex);
     return result;
 }

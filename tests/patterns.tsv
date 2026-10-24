@@ -4,12 +4,20 @@
 # scripts/pattern-ecma-check.js (V8): the three answer every line alike,
 # which is what holds C, Python and ECMA-262 to one reading.
 #
-# check	PATTERN	ok|refused        -- the pattern is in the subset, or not
+# check	PATTERN	ok                -- the pattern is in the subset
+# check	PATTERN	refused	FAMILY	OFFSET
+#                                 -- it is not: maelys_cli_regex_compile()
+#                                   answers that family (empty, encoding,
+#                                   escape, bracket, group, quantifier, bound,
+#                                   limit; Python's RegexError.code) with
+#                                   reading stopped at that byte
 # match	PATTERN	VALUE	yes|no    -- the value matches, a search as
 #                                   RegExp.prototype.test and regexec() make
 #                                   it; in VALUE, \n and \r are U+000A and
-#                                   U+000D, \uXXXX the code point XXXX, \\ a
-#                                   backslash
+#                                   U+000D, \uXXXX the code point XXXX in
+#                                   UTF-8, \xHH the byte HH (a line with one
+#                                   is not V8's: a JavaScript string holds no
+#                                   byte), \\ a backslash
 #
 # The patterns the products declare today.
 check	^[a-z][a-z0-9-]*$	ok
@@ -44,84 +52,84 @@ check	^[A-Fa-f0-9]{2}(:[A-Fa-f0-9]{2}){5}$	ok
 check	^[a-z]+(\.[a-z]+)*$	ok
 check	^(a*)*$	ok
 # Outside the subset: not a pattern at all.
-check		refused
-check	^([a-z]+$	refused
-check	^[a-z	refused
-check	^)$	refused
-check	^a)$	refused
-check	a\	refused
+check		refused	empty	0
+check	^([a-z]+$	refused	group	9
+check	^[a-z	refused	bracket	5
+check	^)$	refused	group	1
+check	^a)$	refused	group	2
+check	a\	refused	escape	2
 # Outside the subset: a bound POSIX does not guarantee, or malformed.
-check	^a{0,256}$	refused
-check	^a{256}$	refused
-check	^a{3,2}$	refused
-check	^a{$	refused
-check	^a{1$	refused
-check	^a{,3}$	refused
-check	^a{1,2,3}$	refused
-check	^a{x}$	refused
-check	^a{0,054}$	refused
-check	^a{00}$	refused
-check	^a{01,2}$	refused
+check	^a{0,256}$	refused	limit	9
+check	^a{256}$	refused	limit	7
+check	^a{3,2}$	refused	bound	7
+check	^a{$	refused	bound	4
+check	^a{1$	refused	bound	5
+check	^a{,3}$	refused	bound	6
+check	^a{1,2,3}$	refused	bound	7
+check	^a{x}$	refused	bound	4
+check	^a{0,054}$	refused	bound	7
+check	^a{00}$	refused	bound	5
+check	^a{01,2}$	refused	bound	5
 check	^a{10}$	ok
 check	^a{0,10}$	ok
 # Outside the subset: a quantifier on nothing, two in a row, a lazy one, an anchor.
-check	^*a$	refused
-check	*a	refused
-check	^a**$	refused
-check	^a*?$	refused
-check	^a+?$	refused
-check	^a{2}{3}$	refused
-check	^$*	refused
-check	^*$	refused
+check	^*a$	refused	quantifier	1
+check	*a	refused	quantifier	0
+check	^a**$	refused	quantifier	3
+check	^a*?$	refused	quantifier	3
+check	^a+?$	refused	quantifier	3
+check	^a{2}{3}$	refused	quantifier	5
+check	^$*	refused	quantifier	2
+check	^*$	refused	quantifier	1
 # Outside the subset: the groups ECMA-262 names and POSIX ERE lacks, back-references.
-check	^(?:a)$	refused
-check	^(?=a)$	refused
-check	^(?<n>a)$	refused
-check	^(a)\1$	refused
+check	^(?:a)$	refused	group	2
+check	^(?=a)$	refused	group	2
+check	^(?<n>a)$	refused	group	2
+check	^(a)\1$	refused	escape	5
 # Outside the subset: escapes that are not of a metacharacter.
-check	^\d+$	refused
-check	^\w$	refused
-check	^\s$	refused
-check	^\n$	refused
-check	^\/$	refused
-check	^\t$	refused
-check	^{$	refused
-check	^a{$	refused
+check	^\d+$	refused	escape	2
+check	^\w$	refused	escape	2
+check	^\s$	refused	escape	2
+check	^\n$	refused	escape	2
+check	^\/$	refused	escape	2
+check	^\t$	refused	escape	2
+check	^{$	refused	quantifier	1
+check	^a{$	refused	bound	4
 check	^a\{\}$	ok
 check	^[^a]$	ok
-check	^\-$	refused
+check	^\-$	refused	escape	2
 # Outside the subset: what the two dialects read differently in a bracket expression.
-check	^[\d]$	refused
-check	^[a\]]$	refused
-check	^[[:alpha:]]$	refused
-check	^[]a]$	refused
-check	^[^]a]$	refused
-check	^[]$	refused
-check	^[^]$	refused
-check	^[z-a]$	refused
-check	^[a-z-9]$	refused
-check	^[a-c-e]$	refused
+check	^[\d]$	refused	bracket	2
+check	^[a\]]$	refused	bracket	3
+check	^[[:alpha:]]$	refused	bracket	2
+check	^[]a]$	refused	bracket	2
+check	^[^]a]$	refused	bracket	3
+check	^[]$	refused	bracket	2
+check	^[^]$	refused	bracket	3
+check	^[z-a]$	refused	bracket	3
+check	^[a-z-9]$	refused	bracket	5
+check	^[a-c-e]$	refused	bracket	5
 check	^[a-z-]$	ok
-check	^[a-a-b]$	refused
+check	^[a-a-b]$	refused	bracket	5
 check	^[--/]$	ok
-check	^[é]$	refused
+check	^[é]$	refused	encoding	2
 # A pattern is printable ASCII: a libc in the C locale reads a literal é byte
 # by byte, and é+ repeats its last byte only.
-check	^é+$	refused
-check	^é$	refused
+check	^é+$	refused	encoding	1
+check	^é$	refused	encoding	1
 check	^a~$	ok
 check	^ $	ok
-check	^]$	refused
-check	^}$	refused
+check	^]$	refused	group	1
+check	^}$	refused	group	1
 # Outside the subset: empty alternatives and groups, which POSIX leaves undefined.
-check	^a||b$	refused
-check	^(|a)$	refused
-check	^(a|)$	refused
-check	^()$	refused
-check	a|	refused
+check	^a||b$	refused	empty	3
+check	^(|a)$	refused	empty	2
+check	^(a|)$	refused	empty	4
+check	^()$	refused	empty	2
+check	a|	refused	empty	2
 # Outside what this reader bounds: 33 nested groups, 130050 states.
-check	(((((((((((((((((((((((((((((((((a)))))))))))))))))))))))))))))))))	refused
-check	^((a{255}){255}){2}$	refused
+check	(((((((((((((((((((((((((((((((((a)))))))))))))))))))))))))))))))))	refused	limit	33
+check	^((a{255}){255}){2}$	refused	limit	20
 #
 # Matches: a search, anchors at the ends of the value, `.` not a newline,
 # code points, not bytes.
@@ -231,3 +239,18 @@ match	^[a-z]([a-z0-9.-]*[a-z0-9-])?$	note.write	yes
 match	^[a-z]([a-z0-9.-]*[a-z0-9-])?$	note.	no
 match	^[a-z]([a-z0-9.-]*[a-z0-9-])?$	n	yes
 match	^[a-z]([a-z0-9.-]*[a-z0-9-])?$	Note	no
+# A byte of no valid UTF-8 sequence is one character, which only `.` and a
+# negated class match; U+0000 is a character like another.
+match	^.$	\xff	yes
+match	^..$	\xff\xfe	yes
+match	^.$	\xc3	yes
+match	^..$	\xe2\x82	yes
+match	^.$	\xed\xa0\x80	no
+match	^...$	\xed\xa0\x80	yes
+match	^[^a]$	\xff	yes
+match	^[a-z]$	\xff	no
+match	^a$	\xff	no
+match	^a.b$	a\x00b	yes
+match	^a[^b]b$	a\x00b	yes
+match	a$	a\x00	no
+match	^.{3}$	\x00\x00\x00	yes

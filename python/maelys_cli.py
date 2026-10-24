@@ -39,7 +39,7 @@ import os
 import re
 import stat
 import sys
-from typing import Any, Callable, Optional, Union
+from typing import Any, Callable, Iterator, Optional, Union
 
 CONTRACT = "agent-cli/v2"
 SCHEMA_VERSION = 2
@@ -148,23 +148,54 @@ CODE_GRAMMAR = re.compile(r"[A-Z][A-Z0-9_]*")
 # of the program, never by `re`, whose backtracking takes exponential time on
 # a pattern the subset admits, (a+)+b against aaa...c. The work is
 # O((len(value) + 1) x states) and the memory O(states), as in C.
-# tests/patterns.tsv holds the two readers to the same answers.
+# tests/patterns.tsv holds the two readers to the same answers, refusals
+# included: their family and the byte where reading stopped.
 _PATTERN_METACHARACTERS = "\\^$.[]()*+?{}|"
-_PATTERN_MAX_BOUND = 255        # what POSIX guarantees of an ERE engine (RE_DUP_MAX)
-_PATTERN_MAX_DEPTH = 32
-_PATTERN_MAX_STATES = 65536     # the program C expands a pattern to is bounded alike
+REGEX_MAX_BOUND = 255           # n of {m,n}: a rule of syntax (C: MAELYS_CLI_REGEX_MAX_BOUND)
+REGEX_MAX_DEPTH = 32            # nested groups: a budget (C: MAELYS_CLI_REGEX_MAX_DEPTH)
+REGEX_MAX_STATES = 65536        # the program once expanded: a budget (C: MAELYS_CLI_REGEX_MAX_STATES)
+_PATTERN_MAX_BOUND = REGEX_MAX_BOUND
+_PATTERN_MAX_DEPTH = REGEX_MAX_DEPTH
+_PATTERN_MAX_STATES = REGEX_MAX_STATES
+
+# The families of a refusal, the values of maelys_cli_regex_status_t in C, which never change.
+_REGEX_STATUSES = {"invalid-argument": 1, "no-memory": 2, "empty": 3, "encoding": 4, "escape": 5,
+                   "bracket": 6, "group": 7, "quantifier": 8, "bound": 9, "limit": 10}
+
+
+class RegexError(ValueError):
+    """Why a pattern is outside the subset of agent-cli/v2 section 3 (C: maelys_cli_regex_diagnostic_t).
+
+    `code` names the family (`empty`, `encoding`, `escape`, `bracket`, `group`, `quantifier`, `bound`,
+    `limit`) and `status` is its stable value in C; `offset` is the byte of the pattern, in UTF-8, where
+    reading stopped; `message` is a sentence for a person, whose wording may change: a program compares
+    `code` or `status`, never `message`."""
+
+    def __init__(self, code: str, message: str, offset: int) -> None:
+        super().__init__(message)
+        self.code = code
+        self.status = _REGEX_STATUSES[code]
+        self.message = message
+        self.offset = offset
 
 # The program, as src/pattern.c emits it.
 _OP_CHAR, _OP_ANY, _OP_CLASS, _OP_SPLIT, _OP_JMP, _OP_BOL, _OP_EOL, _OP_MATCH = range(8)
 
 
 def _pattern_tree(pattern: str) -> tuple:
-    """Reads a pattern of the common subset into its tree, or raises ValueError with
-    the reason, the reasons and their order being C's."""
-    if not isinstance(pattern, str) or not pattern:
-        raise ValueError("an empty pattern")
+    """Reads a pattern of the subset into its tree, or raises RegexError, the refusals, their
+    families, their offsets and their order being C's: the first met from the left wins, and the
+    state budget is met once the whole pattern is read."""
+    if not isinstance(pattern, str):
+        raise TypeError("a pattern is a str")
     text, length = pattern, len(pattern)
     position = [0]
+
+    def refuse(code: str, message: str) -> RegexError:
+        return RegexError(code, message, len(text[:position[0]].encode("utf-8", "surrogatepass")))
+
+    if not pattern:
+        raise refuse("empty", "an empty pattern")
 
     def peek() -> str:
         return text[position[0]] if position[0] < length else ""
@@ -176,35 +207,35 @@ def _pattern_tree(pattern: str) -> tuple:
         mask, items, after_range = 0, 0, False
         while True:
             if position[0] >= length:
-                raise ValueError("an unclosed bracket expression")
+                raise refuse("bracket", "an unclosed bracket expression")
             c = text[position[0]]
             # POSIX reads '-' as itself first, last or as the end of a range only; after a range,
             # ECMA-262 takes it for itself and RE2 for the start of another: [a-z-9] has no common reading.
             if c == "-" and after_range and position[0] + 1 < length and text[position[0] + 1] != "]":
-                raise ValueError("a '-' after a range that is not the last character of the bracket expression, "
+                raise refuse("bracket", "a '-' after a range that is not the last character of the bracket expression, "
                                  "which the two dialects read differently")
             if c == "]":
                 if items == 0:
-                    raise ValueError("an empty bracket expression, or ']' where the two dialects read it differently")
+                    raise refuse("bracket", "an empty bracket expression, or ']' where the two dialects read it differently")
                 position[0] += 1
                 return ("class", mask, negated)
             if c == "[":
-                raise ValueError("'[' inside a bracket expression, as a POSIX class such as [:alpha:] starts")
+                raise refuse("bracket", "'[' inside a bracket expression, as a POSIX class such as [:alpha:] starts")
             if c == "\\":
-                raise ValueError("'\\' inside a bracket expression, an escape for ECMA-262 and a character for POSIX ERE")
+                raise refuse("bracket", "'\\' inside a bracket expression, an escape for ECMA-262 and a character for POSIX ERE")
             if not " " <= c <= "~":
-                raise ValueError("a character outside printable ASCII in a bracket expression")
+                raise refuse("encoding", "a character outside printable ASCII in a bracket expression")
             position[0] += 1
             low = high = ord(c)
             after_range = False
             if peek() == "-" and position[0] + 1 < length and text[position[0] + 1] != "]":
                 end = text[position[0] + 1]
                 if end in "[\\":
-                    raise ValueError("a range that ends on '[' or '\\'")
+                    raise refuse("bracket", "a range that ends on '[' or '\\'")
                 if not " " <= end <= "~":
-                    raise ValueError("a character outside printable ASCII in a bracket expression")
+                    raise refuse("encoding", "a character outside printable ASCII in a bracket expression")
                 if end < c:
-                    raise ValueError("a range whose ends are reversed")
+                    raise refuse("bracket", "a range whose ends are reversed")
                 high = ord(end)
                 position[0] += 2
                 after_range = True
@@ -215,28 +246,28 @@ def _pattern_tree(pattern: str) -> tuple:
         parts = [""]
         while True:
             if position[0] >= length:
-                raise ValueError("an unclosed bound: write {m}, {m,} or {m,n}")
+                raise refuse("bound", "an unclosed bound: write {m}, {m,} or {m,n}")
             c = text[position[0]]
             position[0] += 1
             if c in "0123456789":
+                # A number is written in its decimal form: RE2 refuses {0,054}, ECMA-262 reads it as 54.
+                if parts[-1] == "0":
+                    raise refuse("bound", "a bound written with a leading zero")
                 parts[-1] += c
             elif c == "," and len(parts) == 1:
                 parts.append("")
             elif c == "}":
                 break
             else:
-                raise ValueError("'{' that does not open a bound {m}, {m,} or {m,n}")
+                raise refuse("bound", "'{' that does not open a bound {m}, {m,} or {m,n}")
         if not parts[0]:
-            raise ValueError("a bound without its minimum: write {m}, {m,} or {m,n}")
-        # A number is written in its decimal form: RE2 refuses {0,054}, ECMA-262 reads it as 54.
-        if any(len(part) > 1 and part[0] == "0" for part in parts):
-            raise ValueError("a bound written with a leading zero")
+            raise refuse("bound", "a bound without its minimum: write {m}, {m,} or {m,n}")
         low = int(parts[0])
         high = low if len(parts) == 1 else int(parts[1]) if parts[1] else None
         if low > _PATTERN_MAX_BOUND or (high is not None and high > _PATTERN_MAX_BOUND):
-            raise ValueError("a bound above 255, more than POSIX guarantees of an ERE engine")
+            raise refuse("limit", "a bound above 255, more than POSIX guarantees of an ERE engine")
         if high is not None and low > high:
-            raise ValueError("a bound {m,n} with m above n")
+            raise refuse("bound", "a bound {m,n} with m above n")
         return low, high
 
     def parse_atom(depth: int) -> tuple:
@@ -244,12 +275,12 @@ def _pattern_tree(pattern: str) -> tuple:
         if c == "(":
             position[0] += 1
             if peek() == "?":
-                raise ValueError("'(?', a group ECMA-262 names and POSIX ERE lacks")
+                raise refuse("group", "'(?', a group ECMA-262 names and POSIX ERE lacks")
             if depth + 1 > _PATTERN_MAX_DEPTH:
-                raise ValueError("more than 32 nested groups")
+                raise refuse("limit", "more than 32 nested groups")
             inner = parse_alternation(depth + 1)
             if peek() != ")":
-                raise ValueError("an unclosed group")
+                raise refuse("group", "an unclosed group")
             position[0] += 1
             return inner
         if c == "[":
@@ -259,25 +290,25 @@ def _pattern_tree(pattern: str) -> tuple:
             position[0] += 1
             return {".": ("any",), "^": ("bol",), "$": ("eol",)}[c]
         if c == ")":
-            raise ValueError("a ')' that closes no group")
+            raise refuse("group", "a ')' that closes no group")
         if c in ("]", "}"):
-            raise ValueError("an unescaped ']' or '}', which the two dialects read differently: write \\] or \\}")
+            raise refuse("group", "an unescaped ']' or '}', which the two dialects read differently: write \\] or \\}")
         if c in ("*", "+", "?", "{"):
-            raise ValueError("a quantifier that follows nothing")
+            raise refuse("quantifier", "a quantifier that follows nothing")
         if c == "\\":
             position[0] += 1
             if position[0] >= length:
-                raise ValueError("a '\\' that ends the pattern")
+                raise refuse("escape", "a '\\' that ends the pattern")
             escaped = text[position[0]]
             if escaped not in _PATTERN_METACHARACTERS:
-                raise ValueError("an escape that is not of a metacharacter: '\\d', '\\n' and the like are not in the subset")
+                raise refuse("escape", "an escape that is not of a metacharacter: '\\d', '\\n' and the like are not in the subset")
             position[0] += 1
             return ("char", ord(escaped))
         code = ord(c)
         if code < 0x20 or code == 0x7F:
-            raise ValueError("a control character")
+            raise refuse("encoding", "a control character")
         if code > 0x7E:
-            raise ValueError("a character outside printable ASCII, which a libc in the C locale reads byte by byte")
+            raise refuse("encoding", "a character outside printable ASCII, which a libc in the C locale reads byte by byte")
         position[0] += 1
         return ("char", code)
 
@@ -287,14 +318,14 @@ def _pattern_tree(pattern: str) -> tuple:
         if c not in ("*", "+", "?", "{"):
             return atom
         if atom[0] in ("bol", "eol"):
-            raise ValueError("a quantified anchor")
+            raise refuse("quantifier", "a quantified anchor")
         position[0] += 1
         if c == "{":
             low, high = parse_bound()
         else:
             low, high = {"*": (0, None), "+": (1, None), "?": (0, 1)}[c]
         if peek() in ("*", "+", "?", "{"):
-            raise ValueError("two quantifiers in a row, or a lazy quantifier such as '*?', which POSIX ERE lacks")
+            raise refuse("quantifier", "two quantifiers in a row, or a lazy quantifier such as '*?', which POSIX ERE lacks")
         return ("repeat", atom, low, high)
 
     # A sequence or an alternation is one node holding its items, as in C: the depth of the tree,
@@ -304,7 +335,7 @@ def _pattern_tree(pattern: str) -> tuple:
         while position[0] < length and text[position[0]] not in ("|", ")"):
             pieces.append(parse_piece(depth))
         if not pieces:
-            raise ValueError("an empty alternative or group")
+            raise refuse("empty", "an empty alternative or group")
         return pieces[0] if len(pieces) == 1 else ("cat", tuple(pieces))
 
     def parse_alternation(depth: int) -> tuple:
@@ -316,9 +347,10 @@ def _pattern_tree(pattern: str) -> tuple:
 
     tree = parse_alternation(0)
     if position[0] < length:
-        raise ValueError("a ')' that closes no group")
+        raise refuse("group", "a ')' that closes no group")
     if _pattern_size(tree) + 1 > _PATTERN_MAX_STATES:
-        raise ValueError("a pattern that expands to more than 65536 states")
+        position[0] = length
+        raise refuse("limit", "a pattern that expands to more than 65536 states")
     return tree
 
 
@@ -402,22 +434,64 @@ def _pattern_program(pattern: str) -> tuple:
 
 
 def _pattern_check(pattern: str) -> None:
-    """Refuses, with the reason, a pattern outside the common subset of ECMA-262 and POSIX
-    ERE, as the catalog validation of C does."""
+    """Refuses, with the reason, a pattern outside the subset, as the catalog validation of C
+    does: RegexError, a ValueError."""
     _pattern_tree(pattern)
 
 
-def _pattern_search(pattern: str, text: str, work: Optional[list] = None) -> bool:
-    """Whether the value matches: a search, as regexec() and C's matcher make it, by a
-    Thompson simulation of the pattern's program. A character is a code point; a lone
-    surrogate, what surrogateescape makes of a byte that is not UTF-8, is matched only
-    by `.` and a negated bracket expression, as C matches such a byte. `work`, when a
-    list, receives the positions popped and threads tried, which C counts alike."""
-    ops, xs, ys = _pattern_program(pattern)
+def _utf8_characters(data: Union[bytes, bytearray, memoryview]) -> Iterator:
+    """The characters of a value given as bytes, decoded as it is read, never copied whole: each a
+    code point and whether it ends the value. A byte of no valid UTF-8 sequence (shortest form, at
+    most U+10FFFF, no surrogate) is one character, U+DC00 + the byte, which is what surrogateescape
+    makes of it; C reads it the same way."""
+    view, length, at = memoryview(data), len(data), 0
+    while at < length:
+        first, need, value = view[at], 0, 0
+        if first < 0x80:
+            value = first
+        elif 0xC2 <= first <= 0xDF:
+            need, value, minimum = 1, first & 0x1F, 0x80
+        elif 0xE0 <= first <= 0xEF:
+            need, value, minimum = 2, first & 0x0F, 0x800
+        elif 0xF0 <= first <= 0xF4:
+            need, value, minimum = 3, first & 0x07, 0x10000
+        else:
+            need = -1
+        if need > 0:
+            # A sequence the value ends inside of is not one.
+            if at + need >= length:
+                need = -1
+            else:
+                for offset in range(1, need + 1):
+                    following = view[at + offset]
+                    if following & 0xC0 != 0x80:
+                        need = -1
+                        break
+                    value = (value << 6) | (following & 0x3F)
+            if need > 0 and (value < minimum or value > 0x10FFFF or 0xD800 <= value <= 0xDFFF):
+                need = -1
+        if need < 0:
+            value, need = 0xDC00 | first, 0
+        at += need + 1
+        yield value, at == length
+
+
+def _str_characters(text: str) -> Iterator:
+    """The characters of a value given as str: each code point, a lone surrogate included, which
+    only `.` and a negated class match, as C matches a byte that is not UTF-8."""
+    last = len(text) - 1
+    for index, character in enumerate(text):
+        yield ord(character), index == last
+
+
+def _pattern_run(program: tuple, characters: Iterator, empty: bool, work: Optional[list] = None) -> bool:
+    """A Thompson simulation of a pattern's program over a value's characters, as src/pattern.c
+    runs it: O((len + 1) x states) in time, O(states) in memory. `work`, when a list, receives the
+    positions popped and threads tried, which C counts alike."""
+    ops, xs, ys = program
     mark = [0] * len(ops)
     generation = 0
     steps = 0
-    last = len(text)
 
     def add(pc: int, at_start: bool, at_last: bool, out: list) -> bool:
         nonlocal steps
@@ -449,13 +523,11 @@ def _pattern_search(pattern: str, text: str, work: Optional[list] = None) -> boo
     try:
         generation += 1
         current: list = []
-        if add(0, True, last == 0, current):
+        if add(0, True, empty, current):
             return True
-        for index, character in enumerate(text):
-            code = ord(character)
+        for code, at_last in characters:
             generation += 1
             following: list = []
-            at_last = index + 1 == last
             for pc in current:
                 steps += 1
                 op = ops[pc]
@@ -477,6 +549,44 @@ def _pattern_search(pattern: str, text: str, work: Optional[list] = None) -> boo
     finally:
         if work is not None:
             work.append(steps)
+
+
+def _pattern_search(pattern: str, text: str, work: Optional[list] = None) -> bool:
+    """Whether the value matches: a search, as regexec() and C's matcher make it."""
+    return _pattern_run(_pattern_program(pattern), _str_characters(text), not text, work)
+
+
+class Regex:
+    """A pattern of the subset agent-cli/v2 section 3 writes, compiled (C: maelys_cli_regex_t).
+
+    `Regex(pattern)` raises RegexError for a pattern outside the subset and TypeError when it is not
+    a str. `search(value)` tells whether some part of the value matches, `^` and `$` holding at its
+    two ends: a value is a str, each code point a character, or bytes, read as UTF-8 as they are
+    searched and never copied whole, a byte of no valid sequence being one character. `.` matches
+    every character but U+000A, U+000D, U+2028 and U+2029. The work is O((len + 1) x states), with no
+    backtracking; `states` is the size of the program. A Regex is never changed once built."""
+
+    __slots__ = ("pattern", "_program")
+
+    def __init__(self, pattern: str) -> None:
+        self.pattern = pattern
+        self._program = _pattern_program(pattern)
+
+    @property
+    def states(self) -> int:
+        """The size of the compiled program, which bounds the work of a search."""
+        return len(self._program[0])
+
+    def search(self, value: Union[str, bytes]) -> bool:
+        """Whether some part of the value matches."""
+        if isinstance(value, str):
+            return _pattern_run(self._program, _str_characters(value), not value)
+        if isinstance(value, (bytes, bytearray, memoryview)):
+            return _pattern_run(self._program, _utf8_characters(value), len(value) == 0)
+        raise TypeError("a value is a str or bytes")
+
+    def __repr__(self) -> str:
+        return f"Regex({self.pattern!r})"
 
 
 class Failure(Exception):
