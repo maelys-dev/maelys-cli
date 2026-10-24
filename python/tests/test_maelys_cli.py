@@ -1109,6 +1109,24 @@ class Contract(unittest.TestCase):
         self.assertIn("operand N declares a pattern outside the common subset", str(caught.exception))
         self.assertIn("not of a metacharacter", str(caught.exception))
 
+    def test_pattern_work_is_linear(self) -> None:
+        """A value is searched by a Thompson simulation, never by `re`: the work is at most
+        (len + 1) x (4 x states + 1) steps, counted by the matcher as C counts them, on (a+)+b against
+        a...ac, which backtracking takes exponential time on, and on the most expensive shapes the
+        subset admits."""
+        for pattern in ("^(a+)+b$", "^(a|a)*b$", "^(a*)*(a?){200}b$", "(a?){255}a{255}c",
+                        "^[A-Za-z0-9_][A-Za-z0-9_.-]{0,254}$", "x(a|b|ab|ba)*y"):
+            states = len(cli._pattern_program(pattern)[0])
+            for length in (256, 512, 1024, 2048):
+                work: list = []
+                cli._pattern_search(pattern, "a" * length, work)
+                self.assertLessEqual(work[0], (length + 1) * (4 * states + 1), pattern)
+        # The depth of the reader is the nesting of groups, never the length.
+        cli._pattern_check("a" * 30000)
+        self.assertTrue(cli._pattern_search("a|" * 19999 + "a", "zza"))
+        with self.assertRaises(ValueError):
+            cli._pattern_check("a" * 70000)
+
     def test_pattern_is_enforced_and_prefix_is_validated(self) -> None:
         program = cli.Program("p", "P", "1", [cli.read("tag", "tag", "x", lambda i: ({"v": i.option("--name")}, 0),
                                                    options=[cli.option("--name", "n", cli.argument("NAME", "string", pattern="^[a-z]+$"))])])

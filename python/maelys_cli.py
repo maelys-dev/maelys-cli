@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import errno
 import fcntl
+import functools
 import json
 import os
 import re
@@ -141,39 +142,38 @@ CODE_GRAMMAR = re.compile(r"[A-Z][A-Z0-9_]*")
 
 
 # argument.pattern is written in the common subset of ECMA-262 and POSIX ERE
-# (spec 2.3). C reads and matches it itself (src/pattern.c); here the same
-# reader admits or refuses the motif, then hands `re` what it admitted, with
-# one change of spelling: `$` becomes `\Z`, because `re` lets `$` match
-# before a final newline and neither dialect does. tests/patterns.tsv holds
-# the two readers to the same answers.
+# (spec 2.3). C reads and matches it itself (src/pattern.c), and so does this
+# module, with the same reader and the same program: a pattern is refused here
+# exactly where C refuses it, and a value is searched by a Thompson simulation
+# of the program, never by `re`, whose backtracking takes exponential time on
+# a pattern the subset admits, (a+)+b against aaa...c. The work is
+# O((len(value) + 1) x states) and the memory O(states), as in C.
+# tests/patterns.tsv holds the two readers to the same answers.
 _PATTERN_METACHARACTERS = "\\^$.[]()*+?{}|"
 _PATTERN_MAX_BOUND = 255        # what POSIX guarantees of an ERE engine (RE_DUP_MAX)
 _PATTERN_MAX_DEPTH = 32
 _PATTERN_MAX_STATES = 65536     # the program C expands a pattern to is bounded alike
 
+# The program, as src/pattern.c emits it.
+_OP_CHAR, _OP_ANY, _OP_CLASS, _OP_SPLIT, _OP_JMP, _OP_BOL, _OP_EOL, _OP_MATCH = range(8)
 
-def _pattern_check(pattern: str) -> str:
-    """Refuses, with the reason, a pattern outside the common subset of ECMA-262 and
-    POSIX ERE; returns the motif `re` reads as C does (`$` spelled `\\Z`)."""
+
+def _pattern_tree(pattern: str) -> tuple:
+    """Reads a pattern of the common subset into its tree, or raises ValueError with
+    the reason, the reasons and their order being C's."""
     if not isinstance(pattern, str) or not pattern:
         raise ValueError("an empty pattern")
-    text, length, out = pattern, len(pattern), []
+    text, length = pattern, len(pattern)
     position = [0]
 
     def peek() -> str:
         return text[position[0]] if position[0] < length else ""
 
-    def member(c: str) -> str:
-        # Escaped for `re`, which warns of `--`, `&&`, `~~` and `||` in a set
-        # as of a set operation to come; the subset reads them as characters.
-        return c if c.isalnum() or c == " " else "\\" + c
-
-    def parse_class() -> int:
-        out.append("[")
-        if peek() == "^":
+    def parse_class() -> tuple:
+        negated = peek() == "^"
+        if negated:
             position[0] += 1
-            out.append("^")
-        items, after_range = 0, False
+        mask, items, after_range = 0, 0, False
         while True:
             if position[0] >= length:
                 raise ValueError("an unclosed bracket expression")
@@ -187,8 +187,7 @@ def _pattern_check(pattern: str) -> str:
                 if items == 0:
                     raise ValueError("an empty bracket expression, or ']' where the two dialects read it differently")
                 position[0] += 1
-                out.append("]")
-                return 1
+                return ("class", mask, negated)
             if c == "[":
                 raise ValueError("'[' inside a bracket expression, as a POSIX class such as [:alpha:] starts")
             if c == "\\":
@@ -196,19 +195,20 @@ def _pattern_check(pattern: str) -> str:
             if not " " <= c <= "~":
                 raise ValueError("a character outside printable ASCII in a bracket expression")
             position[0] += 1
-            out.append(member(c))
+            low = high = ord(c)
             after_range = False
             if peek() == "-" and position[0] + 1 < length and text[position[0] + 1] != "]":
-                high = text[position[0] + 1]
-                if high in "[\\":
+                end = text[position[0] + 1]
+                if end in "[\\":
                     raise ValueError("a range that ends on '[' or '\\'")
-                if not " " <= high <= "~":
+                if not " " <= end <= "~":
                     raise ValueError("a character outside printable ASCII in a bracket expression")
-                if high < c:
+                if end < c:
                     raise ValueError("a range whose ends are reversed")
-                out.append("-" + member(high))
+                high = ord(end)
                 position[0] += 2
                 after_range = True
+            mask |= ((1 << (high - low + 1)) - 1) << low
             items += 1
 
     def parse_bound() -> tuple:
@@ -237,7 +237,6 @@ def _pattern_check(pattern: str) -> str:
             raise ValueError("a bound above 255, more than POSIX guarantees of an ERE engine")
         if high is not None and low > high:
             raise ValueError("a bound {m,n} with m above n")
-        out.append("{" + ",".join(parts) + "}")
         return low, high
 
     def parse_atom(depth: int) -> tuple:
@@ -248,20 +247,17 @@ def _pattern_check(pattern: str) -> str:
                 raise ValueError("'(?', a group ECMA-262 names and POSIX ERE lacks")
             if depth + 1 > _PATTERN_MAX_DEPTH:
                 raise ValueError("more than 32 nested groups")
-            out.append("(")
-            size = parse_alternation(depth + 1)
+            inner = parse_alternation(depth + 1)
             if peek() != ")":
                 raise ValueError("an unclosed group")
             position[0] += 1
-            out.append(")")
-            return size, False
+            return inner
         if c == "[":
             position[0] += 1
-            return parse_class(), False
+            return parse_class()
         if c in (".", "^", "$"):
             position[0] += 1
-            out.append("\\Z" if c == "$" else c)
-            return 1, c != "."
+            return {".": ("any",), "^": ("bol",), "$": ("eol",)}[c]
         if c == ")":
             raise ValueError("a ')' that closes no group")
         if c in ("]", "}"):
@@ -276,63 +272,210 @@ def _pattern_check(pattern: str) -> str:
             if escaped not in _PATTERN_METACHARACTERS:
                 raise ValueError("an escape that is not of a metacharacter: '\\d', '\\n' and the like are not in the subset")
             position[0] += 1
-            out.append("\\" + escaped)
-            return 1, False
+            return ("char", ord(escaped))
         code = ord(c)
         if code < 0x20 or 0x7F <= code <= 0x9F:
             raise ValueError("a control character")
         if 0xD800 <= code <= 0xDFFF:
             raise ValueError("a byte that is not UTF-8")
         position[0] += 1
-        out.append(c)
-        return 1, False
+        return ("char", code)
 
-    def parse_piece(depth: int) -> int:
-        size, anchor = parse_atom(depth)
+    def parse_piece(depth: int) -> tuple:
+        atom = parse_atom(depth)
         c = peek()
         if c not in ("*", "+", "?", "{"):
-            return size
-        if anchor:
+            return atom
+        if atom[0] in ("bol", "eol"):
             raise ValueError("a quantified anchor")
         position[0] += 1
         if c == "{":
             low, high = parse_bound()
         else:
             low, high = {"*": (0, None), "+": (1, None), "?": (0, 1)}[c]
-            out.append(c)
         if peek() in ("*", "+", "?", "{"):
             raise ValueError("two quantifiers in a row, or a lazy quantifier such as '*?', which POSIX ERE lacks")
-        if high is None:
-            return low * size + size + 2
-        return low * size + (high - low) * (size + 1)
+        return ("repeat", atom, low, high)
 
-    def parse_sequence(depth: int) -> int:
-        total = None
+    # A sequence or an alternation is one node holding its items, as in C: the depth of the tree,
+    # and of every recursion over it, is bounded by the nesting of groups, not by the length.
+    def parse_sequence(depth: int) -> tuple:
+        pieces = []
         while position[0] < length and text[position[0]] not in ("|", ")"):
-            total = (total or 0) + parse_piece(depth)
-        if total is None:
+            pieces.append(parse_piece(depth))
+        if not pieces:
             raise ValueError("an empty alternative or group")
-        return total
+        return pieces[0] if len(pieces) == 1 else ("cat", tuple(pieces))
 
-    def parse_alternation(depth: int) -> int:
-        size = parse_sequence(depth)
+    def parse_alternation(depth: int) -> tuple:
+        alternatives = [parse_sequence(depth)]
         while peek() == "|":
             position[0] += 1
-            out.append("|")
-            size += parse_sequence(depth) + 2
-        return size
+            alternatives.append(parse_sequence(depth))
+        return alternatives[0] if len(alternatives) == 1 else ("alt", tuple(alternatives))
 
-    states = parse_alternation(0)
+    tree = parse_alternation(0)
     if position[0] < length:
         raise ValueError("a ')' that closes no group")
-    if states + 1 > _PATTERN_MAX_STATES:
+    if _pattern_size(tree) + 1 > _PATTERN_MAX_STATES:
         raise ValueError("a pattern that expands to more than 65536 states")
-    return "".join(out)
+    return tree
 
 
-def _pattern_search(pattern: str, text: str) -> bool:
-    """Whether the value matches: a search, as regexec() and C's matcher make it."""
-    return re.search(_pattern_check(pattern), text) is not None
+def _pattern_size(node: tuple) -> int:
+    """The instructions a node emits, saturating above the bound, as node_size in C."""
+    cap = _PATTERN_MAX_STATES + 1
+    kind = node[0]
+    if kind in ("cat", "alt"):
+        total = 2 * (len(node[1]) - 1) if kind == "alt" else 0
+        for child in node[1]:
+            if total > cap:
+                break
+            total += _pattern_size(child)
+        return min(total, cap)
+    if kind == "repeat":
+        size, low, high = _pattern_size(node[1]), node[2], node[3]
+        total = low * size + size + 2 if high is None else low * size + (high - low) * (size + 1)
+        return min(total, cap)
+    return 1
+
+
+@functools.lru_cache(maxsize=256)
+def _pattern_program(pattern: str) -> tuple:
+    """The program of a pattern the subset admits, as src/pattern.c emits it: three
+    tuples, the operation, its first and its second argument (a class keeps its mask
+    and whether it is negated)."""
+    tree = _pattern_tree(pattern)
+    ops, xs, ys = [], [], []
+
+    def emit(op: int, x: int = 0, y: int = 0) -> int:
+        ops.append(op)
+        xs.append(x)
+        ys.append(y)
+        return len(ops) - 1
+
+    def emit_node(node: tuple) -> None:
+        kind = node[0]
+        if kind == "char":
+            emit(_OP_CHAR, node[1])
+        elif kind == "any":
+            emit(_OP_ANY)
+        elif kind == "bol":
+            emit(_OP_BOL)
+        elif kind == "eol":
+            emit(_OP_EOL)
+        elif kind == "class":
+            emit(_OP_CLASS, node[1], 1 if node[2] else 0)
+        elif kind == "cat":
+            for child in node[1]:
+                emit_node(child)
+        elif kind == "alt":
+            jumps = []
+            for child in node[1][:-1]:
+                split = emit(_OP_SPLIT, len(ops) + 1)
+                emit_node(child)
+                jumps.append(emit(_OP_JMP))
+                ys[split] = len(ops)
+            emit_node(node[1][-1])
+            for jump in jumps:
+                xs[jump] = len(ops)
+        else:
+            child, low, high = node[1], node[2], node[3]
+            for _ in range(low):
+                emit_node(child)
+            if high is None:
+                split = emit(_OP_SPLIT, len(ops) + 1)
+                emit_node(child)
+                emit(_OP_JMP, split)
+                ys[split] = len(ops)
+            else:
+                splits = []
+                for _ in range(high - low):
+                    splits.append(emit(_OP_SPLIT, len(ops) + 1))
+                    emit_node(child)
+                for split in splits:
+                    ys[split] = len(ops)
+
+    emit_node(tree)
+    emit(_OP_MATCH)
+    return tuple(ops), tuple(xs), tuple(ys)
+
+
+def _pattern_check(pattern: str) -> None:
+    """Refuses, with the reason, a pattern outside the common subset of ECMA-262 and POSIX
+    ERE, as the catalog validation of C does."""
+    _pattern_tree(pattern)
+
+
+def _pattern_search(pattern: str, text: str, work: Optional[list] = None) -> bool:
+    """Whether the value matches: a search, as regexec() and C's matcher make it, by a
+    Thompson simulation of the pattern's program. A character is a code point; a lone
+    surrogate, what surrogateescape makes of a byte that is not UTF-8, is matched only
+    by `.` and a negated bracket expression, as C matches such a byte. `work`, when a
+    list, receives the positions popped and threads tried, which C counts alike."""
+    ops, xs, ys = _pattern_program(pattern)
+    mark = [0] * len(ops)
+    generation = 0
+    steps = 0
+    last = len(text)
+
+    def add(pc: int, at_start: bool, at_last: bool, out: list) -> bool:
+        nonlocal steps
+        stack = [pc]
+        while stack:
+            pc = stack.pop()
+            steps += 1
+            if mark[pc] == generation:
+                continue
+            mark[pc] = generation
+            op = ops[pc]
+            if op == _OP_JMP:
+                stack.append(xs[pc])
+            elif op == _OP_SPLIT:
+                stack.append(ys[pc])
+                stack.append(xs[pc])
+            elif op == _OP_BOL:
+                if at_start:
+                    stack.append(pc + 1)
+            elif op == _OP_EOL:
+                if at_last:
+                    stack.append(pc + 1)
+            elif op == _OP_MATCH:
+                return True
+            else:
+                out.append(pc)
+        return False
+
+    try:
+        generation += 1
+        current: list = []
+        if add(0, True, last == 0, current):
+            return True
+        for index, character in enumerate(text):
+            code = ord(character)
+            generation += 1
+            following: list = []
+            at_last = index + 1 == last
+            for pc in current:
+                steps += 1
+                op = ops[pc]
+                if op == _OP_CHAR:
+                    accepted = xs[pc] == code
+                elif op == _OP_ANY:
+                    accepted = code != 0x0A
+                else:
+                    inside = code < 0x80 and (xs[pc] >> code) & 1 == 1
+                    accepted = not inside if ys[pc] else inside
+                if accepted and add(pc + 1, False, at_last, following):
+                    return True
+            # A search: the pattern may also start here.
+            if add(0, False, at_last, following):
+                return True
+            current = following
+        return False
+    finally:
+        if work is not None:
+            work.append(steps)
 
 
 class Failure(Exception):

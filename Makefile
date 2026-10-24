@@ -262,6 +262,11 @@ $(BUILD)/tests/test_files: tests/test_files.c src/files.c $(LIB) $(HEADERS)
 	$(CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) -DMAELYS_CLI_FAULT_HOOK=maelys_cli_test_fault \
 		$(CFLAGS) $(COMMON_CFLAGS) tests/test_files.c src/files.c $(LIB) $(LDFLAGS) -o $@
 
+# test_pattern runs the deepest pattern on a thread of its own, small stack.
+$(BUILD)/tests/test_pattern: tests/test_pattern.c $(LIB) $(HEADERS)
+	@mkdir -p $(@D)
+	$(CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) $(CFLAGS) $(COMMON_CFLAGS) -pthread $< $(LIB) $(LDFLAGS) -o $@
+
 $(BUILD)/tests/test_%: tests/test_%.c $(LIB) $(HEADERS)
 	@mkdir -p $(@D)
 	$(CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) $(CFLAGS) $(COMMON_CFLAGS) $< $(LIB) $(LDFLAGS) -o $@

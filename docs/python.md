@@ -208,13 +208,15 @@ other; at least two distinct options of the command, checked when the
 kind, choices, minimum, maximum, algorithms, pattern, digits)` declares the
 value.
 A `pattern` on a `string` or `path` argument is enforced (spec 2.3): the
-value must match it (a search, as POSIX ERE and `re.search` make it), else
+value must match it (a search, `^` and `$` at the ends of the value), else
 `VALIDATION_FAILED`. It is written in the common subset of ECMA-262 and
 POSIX ERE, which `Program` reads as the C library does and refuses outside
 of, with the reason: no `(?:`, no `\d`, no POSIX class, no lazy `*?`, a
-bound `{m,n}` of at most 255. What it admits is handed to `re` with `$`
-spelled `\Z`, so that `$` holds at the end of the value and not before a
-final newline; `tests/patterns.tsv` is the corpus C and Python both answer.
+bound `{m,n}` of at most 255. A value is searched as in C, by a Thompson
+simulation of the same program, never by `re`, whose backtracking takes
+exponential time on a pattern the subset admits (`(a+)+b`): the work is
+O((len(value) + 1) x states), the memory O(states), states being at most
+65536. `tests/patterns.tsv` is the corpus C and Python both answer.
 
 `hidden=True` on an option or a flag keeps it out of the synopsis, the help
 and the completion while `describe` lists it with `hidden: true` and the

@@ -6,6 +6,7 @@
 #include "maelys/cli/invocation.h"
 
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 
 /* Transport options accepted by every command with an envelope output. */
@@ -51,6 +52,13 @@ int maelys_cli_text_is_terminal_safe(const char *text);
 #define MAELYS_CLI_PATTERN_REASON_SIZE 128u
 int maelys_cli_pattern_check(const char *pattern, char *reason, size_t reason_size);
 int maelys_cli_pattern_match(const char *pattern, const char *value);
+/* match, the work it did and the size of the program it ran, for tests. The
+ * work is the positions popped and the threads tried: at each position of
+ * the value, and once before it, every instruction is tried once and
+ * expanded once, and an expansion pushes two positions at most, so the work
+ * is at most (value length + 1) x (4 x states + 1). */
+int maelys_cli_pattern_match_counted(const char *pattern, const char *value,
+                                     uint64_t *steps, uint32_t *states);
 
 /* JSON spans for the text rendering of records: the end of the value that
  * starts at `offset` (0 when malformed), and a decoded copy of a string. */

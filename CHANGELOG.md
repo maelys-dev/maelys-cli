@@ -16,8 +16,7 @@
   and a `d` for TRE), and a pattern outside the subset -- `(?:`, `\d`,
   `[[:alpha:]]`, a lazy `*?`, a bound above 255, what POSIX guarantees of
   an ERE engine -- is refused at startup with the reason, in C and in
-  Python, which checks the motif the same way before handing it to `re`
-  (`$` spelled `\Z`, so that it holds at the end of the value only).
+  Python, which reads the motif the same way.
   `tests/patterns.tsv` is the corpus both sides answer, and three engines
   with them: the libc's `regexec()` on the cases it reads right, V8 for
   ECMA-262 (`make pattern-ecma-check`, in `make check` where Node is
@@ -31,6 +30,27 @@
   other engine does. `fuzz_pattern` joins `make fuzz-smoke`. `docs/migration.md`, "Every consumer, at the pattern
   the library reads itself", says what to search for; no product known to
   this repository declares a pattern outside the subset.
+- **A Python program searches a value in linear time.** The module read
+  the motif as C does, then handed it to `re`, whose backtracking takes
+  exponential time on a pattern the subset admits: `(a+)+b` against
+  twenty-four `a` and a `c` took half a second, doubling with each `a`,
+  and a value comes from whoever invokes the program -- 0.10.0 and every
+  release before it had this with any pattern. It now builds the same
+  program as C and searches it with the same Thompson simulation: a
+  thousand `a` take 2 ms, and the work is O((len(value) + 1) x states) in
+  C and in Python, held by tests that count the steps rather than time
+  them, at most (length + 1) x (4 x states + 1). `$` holds at the end of
+  the value only, as it did through `\Z`.
+- **No pattern can exhaust the stack.** The tree a pattern is read into
+  chained its sequences and alternations two by two, and every recursion
+  over it went as deep as the pattern was long: a pattern of two million
+  bytes crashed the catalog validation. A sequence and an alternation are
+  now one node holding their items, the depth of every recursion is the
+  nesting of groups (32 at most), and such a pattern is refused by the
+  state bound, as its program would be. The emission of the program
+  allocates nothing: it used to fall back, on an allocation failure, to a
+  program that answered otherwise. Tests read a sequence of 30000 items, 20000
+  alternatives and the deepest nesting on a thread of 256 KiB of stack.
 - The catalog validation at every start stays: without the regex it is
   string checks and the parse of the examples, microseconds, and it is what
   guarantees that `describe`, the parser and the help agree on a build of a
