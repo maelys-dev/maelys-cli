@@ -14,6 +14,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -65,10 +66,10 @@ static const maelys_cli_option_t describe_options[] = {
     "\"string\"},\"commands\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}}}}"
 #define VERSION_SCHEMA "{\"type\":\"object\",\"additionalProperties\":false," \
     "\"required\":[\"product\",\"program\",\"version\",\"contract\",\"cliApi\"," \
-    "\"framework\"],\"properties\":{\"product\":{\"type\":\"string\"}," \
+    "\"framework\",\"lang\"],\"properties\":{\"product\":{\"type\":\"string\"}," \
     "\"program\":{\"type\":\"string\"},\"version\":{\"type\":\"string\"}," \
     "\"contract\":{\"const\":\"agent-cli/v2\"},\"cliApi\":{\"type\":\"integer\"}," \
-    "\"framework\":{\"type\":\"string\"}}}"
+    "\"framework\":{\"type\":\"string\"},\"lang\":{\"type\":\"string\"}}}"
 #define DESCRIBE_SCHEMA "{\"type\":\"object\",\"description\":\"Command " \
     "catalog, summary or single descriptor.\",\"additionalProperties\":true," \
     "\"required\":[\"schemaVersion\",\"kind\",\"program\",\"commands\"]}"
@@ -713,6 +714,101 @@ static int validate_help_palette(
     return 0;
 }
 
+/* A text of a translation table: not empty, valid UTF-8 without terminal
+ * control characters, a newline allowed (agent_guidance holds lines). */
+static int translation_text_is_safe(const char *text) {
+    if (!text || !*text) return 0;
+    for (const char *line = text; *line;) {
+        const char *end = strchr(line, '\n');
+        size_t length = end ? (size_t)(end - line) : strlen(line);
+        char *copy = malloc(length + 1u);
+        if (!copy) return 0;
+        memcpy(copy, line, length);
+        copy[length] = '\0';
+        int safe = maelys_cli_text_is_terminal_safe(copy);
+        free(copy);
+        if (!safe) return 0;
+        line = end ? end + 1 : line + length;
+    }
+    return 1;
+}
+
+/* The language the product's catalog is written in: its own, or English. */
+static const char *canonical_language(const maelys_cli_app_t *app) {
+    return app->canonical_language ? app->canonical_language : MAELYS_CLI_CANONICAL_LANGUAGE;
+}
+
+/* The languages a product declares: each tag well formed and named once,
+ * the canonical language left out since it needs no table, and every translation a text and the same conversions as
+ * its source, in the same order, so that a template keeps its arguments. */
+static int validate_languages(const maelys_cli_app_t *app, maelys_cli_error_t *error) {
+    static const char hint[] =
+        "Declare each language once by a well-formed tag, and translate each text with the "
+        "conversions of its source.";
+    if (!app->languages || app->language_count == 0u ||
+        app->language_count > MAELYS_CLI_MAX_LANGUAGES) {
+        maelys_cli_error_set(error, MAELYS_CLI_CODE_UNEXPECTED, hint,
+            "Catalog languages are declared incorrectly: a list and its count, at most %u.",
+            MAELYS_CLI_MAX_LANGUAGES);
+        return -1;
+    }
+    for (size_t i = 0u; i < app->language_count; ++i) {
+        const maelys_cli_language_t *language = &app->languages[i];
+        const char *tag = language->tag ? language->tag : "(null)";
+        if (!maelys_cli_language_tag_is_well_formed(language->tag)) {
+            maelys_cli_error_set(error, MAELYS_CLI_CODE_UNEXPECTED, hint,
+                "Catalog language '%s' is not a well-formed language tag.", tag);
+            return -1;
+        }
+        const char *const canonical[] = {canonical_language(app)};
+        if (maelys_cli_language_lookup(language->tag, canonical, 1u)) {
+            maelys_cli_error_set(error, MAELYS_CLI_CODE_UNEXPECTED, hint,
+                "Catalog language '%s' is the canonical language %s, which has no table.",
+                tag, canonical[0]);
+            return -1;
+        }
+        for (size_t j = 0u; j < i; ++j) {
+            if (strcasecmp(app->languages[j].tag, language->tag) == 0) {
+                maelys_cli_error_set(error, MAELYS_CLI_CODE_UNEXPECTED, hint,
+                    "Catalog language '%s' is declared twice.", tag);
+                return -1;
+            }
+        }
+        if (language->translation_count && !language->translations) {
+            maelys_cli_error_set(error, MAELYS_CLI_CODE_UNEXPECTED, hint,
+                "Catalog language '%s' counts translations it does not declare.", tag);
+            return -1;
+        }
+        for (size_t k = 0u; k < language->translation_count; ++k) {
+            const maelys_cli_translation_t *entry = &language->translations[k];
+            char source[512], text[512];
+            if (!translation_text_is_safe(entry->source) || !translation_text_is_safe(entry->text)) {
+                maelys_cli_error_set(error, MAELYS_CLI_CODE_UNEXPECTED, hint,
+                    "Catalog language '%s' translation %zu is empty or holds a control character.",
+                    tag, k);
+                return -1;
+            }
+            /* One text per source: describe carries the table as an object. */
+            for (size_t l = 0u; l < k; ++l) {
+                if (!strcmp(language->translations[l].source, entry->source)) {
+                    maelys_cli_error_set(error, MAELYS_CLI_CODE_UNEXPECTED, hint,
+                        "Catalog language '%s' translates '%s' twice.", tag, entry->source);
+                    return -1;
+                }
+            }
+            if (maelys_cli_template_conversions(entry->source, source, sizeof(source)) != 0 ||
+                maelys_cli_template_conversions(entry->text, text, sizeof(text)) != 0 ||
+                strcmp(source, text) != 0) {
+                maelys_cli_error_set(error, MAELYS_CLI_CODE_UNEXPECTED, hint,
+                    "Catalog language '%s' translates '%s' without its conversions, in order.",
+                    tag, entry->source);
+                return -1;
+            }
+        }
+    }
+    return 0;
+}
+
 int maelys_cli_catalog_validate(
     const maelys_cli_app_t *app, maelys_cli_error_t *error) {
     if (!app || !app->program || !*app->program || !app->product ||
@@ -736,6 +832,16 @@ int maelys_cli_catalog_validate(
     if (app->default_command && validate_default_command(app, error) != 0)
         return -1;
     if (app->help_palette && validate_help_palette(app->help_palette, error) != 0)
+        return -1;
+    if (app->canonical_language &&
+        !maelys_cli_language_tag_is_well_formed(app->canonical_language)) {
+        maelys_cli_error_set(error, MAELYS_CLI_CODE_UNEXPECTED,
+            "Name the canonical language by a tag such as fr or fr-CA, or leave it NULL for English.",
+            "Catalog canonical language '%s' is not a well-formed language tag.",
+            app->canonical_language);
+        return -1;
+    }
+    if ((app->languages || app->language_count) && validate_languages(app, error) != 0)
         return -1;
     for (size_t i = 0u; i < count; ++i) {
         const maelys_cli_command_t *command = maelys_cli_app_command_at(app, i);
@@ -912,13 +1018,30 @@ void maelys_cli_progress_done(maelys_cli_context_t *context) {
     context->progress_shown = 0;
 }
 
+/* A text for a person on stderr (progress, details, a warning), its
+ * template in the language of the invocation: a translation keeps the
+ * conversions of its source, which the catalog validation checks. */
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-nonliteral"
+#endif
+static void human_vformat(const maelys_cli_context_t *context, char *out, size_t size,
+                          const char *format, va_list arguments) {
+    const char *template = context && (context->language || context->framework_language) ?
+        maelys_cli_translate(context->language, context->framework_language, format) : format;
+    (void)vsnprintf(out, size, template, arguments);
+}
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
+
 void maelys_cli_progress(maelys_cli_context_t *context, const char *format, ...) {
     if (!format || !maelys_cli_progress_wanted(context)) return;
     FILE *err = context->err ? context->err : stderr;
     char message[MAELYS_CLI_MAX_ERROR_MESSAGE];
     va_list arguments;
     va_start(arguments, format);
-    (void)vsnprintf(message, sizeof(message), format, arguments);
+    human_vformat(context, message, sizeof(message), format, arguments);
     va_end(arguments);
     if (context->terminal.stderr_is_tty) {
         /* Rewritten in place and erased by maelys_cli_progress_done(). */
@@ -941,7 +1064,7 @@ void maelys_cli_detail(maelys_cli_context_t *context, const char *format, ...) {
     char message[MAELYS_CLI_MAX_ERROR_MESSAGE];
     va_list arguments;
     va_start(arguments, format);
-    (void)vsnprintf(message, sizeof(message), format, arguments);
+    human_vformat(context, message, sizeof(message), format, arguments);
     va_end(arguments);
     (void)fprintf(err, "%s: ", program);
     maelys_cli_fprint_terminal_safe(err, message);
@@ -2141,17 +2264,58 @@ static void emit_error_with(
         maelys_cli_json_writer_clear(&writer);
     }
     int color = context ? context->terminal.color_stderr : 0;
+    /* A person reads the failure in the language of the invocation: the
+     * template of the message translated with its arguments put back, the
+     * hint and its label translated whole. The envelope above keeps them
+     * canonical. */
+    char translated[MAELYS_CLI_MAX_ERROR_MESSAGE];
+    const char *message = error->message;
+    const char *hint = error->hint;
+    if (context && (context->language || context->framework_language)) {
+        if (maelys_cli_translate_error(context->language, context->framework_language,
+                error, translated, sizeof(translated)))
+            message = translated;
+        if (hint[0])
+            hint = maelys_cli_translate(context->language, context->framework_language, hint);
+    }
     (void)fprintf(err, "%s%s: [%s]%s ",
         maelys_cli_style(color, MAELYS_CLI_STYLE_ERROR), program, error->code,
         maelys_cli_style(color, MAELYS_CLI_STYLE_RESET));
-    maelys_cli_fprint_terminal_safe(err, error->message);
+    maelys_cli_fprint_terminal_safe(err, message);
     (void)fputc('\n', err);
-    if (error->hint[0]) {
-        (void)fputs("Hint: ", err);
-        maelys_cli_fprint_terminal_safe(err, error->hint);
+    if (hint[0]) {
+        /* `Label: hint`: the label may be translated, its colon kept
+         * (agent-cli/v2 section 8). */
+        const char *label = context && (context->language || context->framework_language) ?
+            maelys_cli_translate(context->language, context->framework_language, "Hint:") : "Hint:";
+        (void)fprintf(err, "%s ", label);
+        maelys_cli_fprint_terminal_safe(err, hint);
         (void)fputc('\n', err);
     }
     (void)fflush(err);
+}
+
+/* The language of human text for this invocation, among the product's
+ * canonical language and the ones it translates to (agent-cli/v2 section
+ * 5, "Language"): the first source that is not empty decides alone --
+ * --lang, MAELYS_CLI_LANG, LC_ALL, LC_MESSAGES, LANG -- and a request the
+ * product cannot answer, C included, gives the canonical language. The
+ * framework's own texts follow the language in force, the canonical one
+ * included: a product written in French has French headings. */
+static void resolve_language(maelys_cli_context_t *context, const maelys_cli_app_t *app,
+                             const char *option) {
+    const char *available[MAELYS_CLI_MAX_LANGUAGES + 1u];
+    size_t count = 0u;
+    available[count++] = canonical_language(app);
+    for (size_t i = 0u; app->languages && i < app->language_count &&
+            count <= MAELYS_CLI_MAX_LANGUAGES; ++i)
+        available[count++] = app->languages[i].tag;
+    const char *tag = maelys_cli_language_resolve(option, getenv("MAELYS_CLI_LANG"),
+        getenv("LC_ALL"), getenv("LC_MESSAGES"), getenv("LANG"), available, count);
+    context->language = NULL;
+    context->framework_language = maelys_cli_framework_language(tag ? tag : available[0]);
+    for (size_t i = 1u; tag && i < count; ++i)
+        if (available[i] == tag) context->language = &app->languages[i - 1u];
 }
 
 static void emit_error(
@@ -2200,13 +2364,9 @@ int maelys_cli_fail(
     maelys_cli_context_t *context, const char *code, const char *hint,
     const char *format, ...) {
     maelys_cli_error_t error;
-    memset(&error, 0, sizeof(error));
-    (void)snprintf(error.code, sizeof(error.code), "%s",
-        code ? code : MAELYS_CLI_CODE_UNEXPECTED);
-    if (hint) (void)snprintf(error.hint, sizeof(error.hint), "%s", hint);
     va_list arguments;
     va_start(arguments, format);
-    (void)vsnprintf(error.message, sizeof(error.message), format, arguments);
+    maelys_cli_error_setv(&error, code, hint, format, arguments);
     va_end(arguments);
     return maelys_cli_fail_error(context, &error);
 }
@@ -2244,7 +2404,7 @@ void maelys_cli_warn(maelys_cli_context_t *context, const char *format, ...) {
         char message[MAELYS_CLI_MAX_ERROR_MESSAGE];
         va_list arguments;
         va_start(arguments, format);
-        (void)vsnprintf(message, sizeof(message), format, arguments);
+        human_vformat(context, message, sizeof(message), format, arguments);
         va_end(arguments);
         maelys_cli_fprint_terminal_safe(err, message);
     }
@@ -2679,6 +2839,32 @@ static int in_namespace(const char *id, const char *prefix) {
         (id[length] == '\0' || id[length] == '.');
 }
 
+/* x-maelys-translations: {"version": 1, "canonical": TAG, "languages":
+ * {TAG: {SOURCE: TEXT}}}, the language the catalog is written in and each
+ * table as the catalog declares it. */
+static int describe_translations(const maelys_cli_app_t *app, maelys_cli_json_writer_t *writer) {
+    if (maelys_cli_json_key(writer, "x-maelys-translations") != 0 ||
+        maelys_cli_json_begin_object(writer) != 0 ||
+        maelys_cli_json_key_integer(writer, "version", 1) != 0 ||
+        maelys_cli_json_key_string(writer, "canonical", canonical_language(app)) != 0 ||
+        maelys_cli_json_key(writer, "languages") != 0 ||
+        maelys_cli_json_begin_object(writer) != 0)
+        return -1;
+    for (size_t i = 0u; app->languages && i < app->language_count; ++i) {
+        const maelys_cli_language_t *language = &app->languages[i];
+        if (maelys_cli_json_key(writer, language->tag) != 0 ||
+            maelys_cli_json_begin_object(writer) != 0)
+            return -1;
+        for (size_t k = 0u; k < language->translation_count; ++k)
+            if (maelys_cli_json_key_string(writer, language->translations[k].source,
+                    language->translations[k].text) != 0)
+                return -1;
+        if (maelys_cli_json_end_object(writer) != 0) return -1;
+    }
+    return maelys_cli_json_end_object(writer) == 0 && maelys_cli_json_end_object(writer) == 0 ?
+        0 : -1;
+}
+
 static int describe_data(
     maelys_cli_context_t *context, const char *query, int summary,
     const char *prefix, maelys_cli_json_writer_t *writer) {
@@ -2738,6 +2924,12 @@ static int describe_data(
         return -1;
     if (app->agent_guidance && *app->agent_guidance &&
         maelys_cli_json_key_string(writer, "x-maelys-guidance", app->agent_guidance) != 0)
+        return -1;
+    /* The product's languages, for a manual page in each: its tables as it
+     * declares them, under a version of their own. The same document in
+     * every language, as describe is; the catalog form alone. */
+    if (((app->languages && app->language_count) || app->canonical_language) &&
+        describe_translations(app, writer) != 0)
         return -1;
     if (!summary) {
         if (maelys_cli_json_key(writer, "output") != 0 ||
@@ -3404,9 +3596,46 @@ static size_t help_wrap(FILE *stream, const char *text, size_t column,
  * column. */
 typedef struct help_style {
     char heading[24], command[24], option[24], placeholder[24], example[24];
+    /* The language of this rendering: the product's translations and the
+     * framework's, NULL for English (data.text is always English). */
+    const maelys_cli_language_t *language;
+    const maelys_cli_language_t *framework;
 } help_style_t;
 
-static const help_style_t help_plain = {"", "", "", "", ""};
+static const help_style_t help_plain = {"", "", "", "", "", NULL, NULL};
+
+/* `source` in the language of the rendering, or as written. */
+static const char *tr(const help_style_t *style, const char *source) {
+    return style->language || style->framework ?
+        maelys_cli_translate(style->language, style->framework, source) : source;
+}
+
+/* A template of the framework in the language of the rendering, formatted:
+ * a translation keeps the conversions of its source, which the tables are
+ * checked for (scripts/i18n.py, the catalog validation). */
+static void trf(char *out, size_t size, const help_style_t *style, const char *format, ...)
+#if defined(__GNUC__) || defined(__clang__)
+    __attribute__((format(printf, 4, 5)))
+#endif
+    ;
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-nonliteral"
+#endif
+static void trf(char *out, size_t size, const help_style_t *style, const char *format, ...) {
+    va_list arguments;
+    va_start(arguments, format);
+    (void)vsnprintf(out, size, tr(style, format), arguments);
+    va_end(arguments);
+}
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
+
+/* A heading on its own line, after a blank one. */
+static void help_heading(FILE *stream, const help_style_t *style, const char *heading) {
+    (void)fprintf(stream, "\n%s\n", tr(style, heading));
+}
 
 static void help_style_role(char *out, size_t size, const char *chosen,
                             const char *otherwise) {
@@ -3495,7 +3724,8 @@ static size_t help_width(const maelys_cli_context_t *context) {
 /* "--name VALUE", "--name a|b" or "--name": how an option is spelled, in
  * three parts: the name, what the reader replaces, and " (repeatable)". */
 static void option_label(const maelys_cli_option_t *option, char *name, size_t name_size,
-                         char *value, size_t value_size, char *suffix, size_t suffix_size) {
+                         char *value, size_t value_size, char *suffix, size_t suffix_size,
+                         const help_style_t *style) {
     value[0] = '\0';
     if (option->kind == MAELYS_CLI_VALUE_CHOICE && option->choices &&
         !option->value_name) {
@@ -3511,23 +3741,29 @@ static void option_label(const maelys_cli_option_t *option, char *name, size_t n
             option->value_name ? option->value_name : "VALUE");
     }
     (void)snprintf(name, name_size, "--%s", option->name);
-    (void)snprintf(suffix, suffix_size, "%s", option->repeatable ? " (repeatable)" : "");
+    (void)snprintf(suffix, suffix_size, "%s%s", option->repeatable ? " " : "",
+        option->repeatable ? tr(style, "(repeatable)") : "");
 }
 
-static void option_text(const maelys_cli_option_t *option, char *out, size_t size) {
-    size_t used = (size_t)snprintf(out, size, "%s", option->summary);
+static void option_text(const maelys_cli_option_t *option, char *out, size_t size,
+                        const help_style_t *style) {
+    char sentence[256];
+    size_t used = (size_t)snprintf(out, size, "%s", tr(style, option->summary));
     if (used >= size) return;
-    if (option->default_text)
-        used += (size_t)snprintf(out + used, size - used, " Default: %s.",
-            option->default_text);
+    if (option->default_text) {
+        trf(sentence, sizeof(sentence), style, "Default: %s.", option->default_text);
+        used += (size_t)snprintf(out + used, size - used, " %s", sentence);
+    }
     if (used < size && option->required)
-        used += (size_t)snprintf(out + used, size - used, " Required.");
-    if (used < size && option->depends_on)
-        used += (size_t)snprintf(out + used, size - used, " Requires --%s.",
-            option->depends_on);
-    if (used < size && option->conflicts_with)
-        (void)snprintf(out + used, size - used, " Conflicts with --%s.",
-            option->conflicts_with);
+        used += (size_t)snprintf(out + used, size - used, " %s", tr(style, "Required."));
+    if (used < size && option->depends_on) {
+        trf(sentence, sizeof(sentence), style, "Requires --%s.", option->depends_on);
+        used += (size_t)snprintf(out + used, size - used, " %s", sentence);
+    }
+    if (used < size && option->conflicts_with) {
+        trf(sentence, sizeof(sentence), style, "Conflicts with --%s.", option->conflicts_with);
+        (void)snprintf(out + used, size - used, " %s", sentence);
+    }
 }
 
 static void options_help(FILE *stream, const maelys_cli_option_t *options,
@@ -3536,7 +3772,8 @@ static void options_help(FILE *stream, const maelys_cli_option_t *options,
     char name[160], value[160], suffix[32], label[400];
     for (size_t i = 0u; i < count; ++i) {
         if (options[i].hidden) continue;
-        option_label(&options[i], name, sizeof(name), value, sizeof(value), suffix, sizeof(suffix));
+        option_label(&options[i], name, sizeof(name), value, sizeof(value), suffix, sizeof(suffix),
+            style);
         (void)snprintf(label, sizeof(label), "%s%s%s%s", name, *value ? " " : "", value, suffix);
         size_t wide = display_width(label, strlen(label));
         if (wide <= HELP_LABEL_MAXIMUM && wide > column) column = wide;
@@ -3544,8 +3781,9 @@ static void options_help(FILE *stream, const maelys_cli_option_t *options,
     for (size_t i = 0u; i < count; ++i) {
         if (options[i].hidden) continue;
         char text[1024];
-        option_label(&options[i], name, sizeof(name), value, sizeof(value), suffix, sizeof(suffix));
-        option_text(&options[i], text, sizeof(text));
+        option_label(&options[i], name, sizeof(name), value, sizeof(value), suffix, sizeof(suffix),
+            style);
+        option_text(&options[i], text, sizeof(text), style);
         const char *parts[] = {name, *value ? " " : "", value, suffix};
         const char *styles[] = {style->option, "", style->placeholder, ""};
         help_entry_parts(stream, parts, styles, 4u, text, column, width, 0);
@@ -3571,22 +3809,22 @@ static void default_forms(FILE *stream, const char *program, const char *pattern
  * stream and a delegate own their output. A read says nothing. The names
  * of the effects are describe's. */
 static const char *effect_sentence(const maelys_cli_command_t *command,
-                                   char *out, size_t size) {
+                                   char *out, size_t size, const help_style_t *style) {
     if (command->delegate)
-        return "The rest of the line goes to another program, word for word.";
+        return tr(style, "The rest of the line goes to another program, word for word.");
     if (command->apply_effect == MAELYS_CLI_EFFECT_COMMIT)
-        return "It shows a plan; --apply commits it.";
+        return tr(style, "It shows a plan; --apply commits it.");
     if (command->apply_effect != MAELYS_CLI_EFFECT_NONE)
-        return "It shows a plan; --apply applies it.";
+        return tr(style, "It shows a plan; --apply applies it.");
     if (command->effect == MAELYS_CLI_EFFECT_EXECUTE)
-        return "It acts at once, without a plan.";
+        return tr(style, "It acts at once, without a plan.");
     if (command->effect == MAELYS_CLI_EFFECT_STREAM && command->protocol) {
-        (void)snprintf(out, size, "Its output is the %s protocol: --format and "
+        trf(out, size, style, "Its output is the %s protocol: --format and "
             "the other rendering options do not apply.", command->protocol);
         return out;
     }
     if (command->effect == MAELYS_CLI_EFFECT_STREAM)
-        return "Its output is its own: --format and the other rendering options do not apply.";
+        return tr(style, "Its output is its own: --format and the other rendering options do not apply.");
     return NULL;
 }
 
@@ -3598,23 +3836,23 @@ static void command_help_text(
     (void)snprintf(line, sizeof(line), "%s %s", app->program,
         synopsis ? synopsis : command->pattern);
     free(synopsis);
-    (void)fputs("USAGE\n", stream);
+    (void)fprintf(stream, "%s\n", tr(style, "USAGE"));
     help_paragraph(stream, line, width, 1);
     (void)fputc('\n', stream);
     char sentence[256];
-    const char *effect = effect_sentence(command, sentence, sizeof(sentence));
-    (void)snprintf(line, sizeof(line), "%s%s%s", command->purpose,
+    const char *effect = effect_sentence(command, sentence, sizeof(sentence), style);
+    (void)snprintf(line, sizeof(line), "%s%s%s", tr(style, command->purpose),
         effect ? " " : "", effect ? effect : "");
     (void)help_wrap(stream, line, 0u, 0u, width, 0);
     (void)fputc('\n', stream);
     if (command->unavailable) {
-        (void)fputs("\nUNAVAILABLE IN THIS BUILD\n", stream);
-        help_paragraph(stream, command->unavailable, width, 0);
+        help_heading(stream, style, "UNAVAILABLE IN THIS BUILD");
+        help_paragraph(stream, tr(style, command->unavailable), width, 0);
     }
     /* The examples right after what the command is for: a line to copy is
      * what most readers came for. */
     if (command->example_count) {
-        (void)fputs("\nEXAMPLES\n", stream);
+        help_heading(stream, style, "EXAMPLES");
         for (size_t i = 0u; i < command->example_count; ++i) {
             /* A line to copy: on one line whatever the width, the one place
              * the help passes it on purpose. Wrapped, the first half was a
@@ -3627,15 +3865,15 @@ static void command_help_text(
             if (*style->example) (void)fputs("\033[0m", stream);
             (void)fputc('\n', stream);
             help_indent(stream, 6u);
-            (void)help_wrap(stream, command->examples[i].summary, 6u, 6u, width, 0);
+            (void)help_wrap(stream, tr(style, command->examples[i].summary), 6u, 6u, width, 0);
             (void)fputc('\n', stream);
         }
     }
     if (app->default_command && !strcmp(app->default_command, command->id)) {
-        (void)fputs("\nDEFAULT COMMAND\n", stream);
-        help_paragraph(stream, "A line that names no command runs this one: an "
+        help_heading(stream, style, "DEFAULT COMMAND");
+        help_paragraph(stream, tr(style, "A line that names no command runs this one: an "
             "empty line, or one that starts with an option other than --help "
-            "and --version. Its operands come after --:", width, 0);
+            "and --version. Its operands come after --:"), width, 0);
         default_forms(stream, app->program, command->pattern, style);
     }
     if (command->operand_count) {
@@ -3645,11 +3883,11 @@ static void command_help_text(
                 strlen(command->operands[i].name));
             if (wide <= HELP_LABEL_MAXIMUM && wide > column) column = wide;
         }
-        (void)fputs("\nOPERANDS\n", stream);
+        help_heading(stream, style, "OPERANDS");
         for (size_t i = 0u; i < command->operand_count; ++i) {
             const maelys_cli_operand_t *operand = &command->operands[i];
-            (void)snprintf(line, sizeof(line), "%s%s", operand->summary,
-                operand->required ? "" : " Optional.");
+            (void)snprintf(line, sizeof(line), "%s%s%s", tr(style, operand->summary),
+                operand->required ? "" : " ", operand->required ? "" : tr(style, "Optional."));
             help_entry(stream, operand->name, style->placeholder, line, column, width, 0);
         }
     }
@@ -3657,12 +3895,12 @@ static void command_help_text(
     for (size_t i = 0u; i < command->option_count; ++i)
         if (!command->options[i].hidden) ++shown;
     if (shown) {
-        (void)fputs("\nOPTIONS\n", stream);
+        help_heading(stream, style, "OPTIONS");
         options_help(stream, command->options, command->option_count, width, style);
     }
-    (void)snprintf(line, sizeof(line), "Run '%s --help' for --format, --json, "
+    trf(line, sizeof(line), style, "Run '%s --help' for --format, --json, "
         "--compact, --non-interactive, --color and the others.", app->program);
-    (void)fputs("\nGLOBAL OPTIONS\n", stream);
+    help_heading(stream, style, "GLOBAL OPTIONS");
     help_paragraph(stream, line, width, 0);
 }
 
@@ -3700,21 +3938,25 @@ static void family_help_text(
     if (prefix) used += (size_t)snprintf(line + used, sizeof(line) - used, " %s", prefix);
     for (size_t w = 0u; !prefix && w < word_count && used < sizeof(line); ++w)
         used += (size_t)snprintf(line + used, sizeof(line) - used, " %s", words[w]);
-    (void)fprintf(stream, "%s - commands\n\nCOMMANDS\n", line);
+    char title[2304];
+    trf(title, sizeof(title), style, "%s - commands", line);
+    (void)fprintf(stream, "%s\n", title);
+    help_heading(stream, style, "COMMANDS");
     size_t count = maelys_cli_app_command_count(app);
     for (size_t i = 0u; i < count; ++i) {
         const maelys_cli_command_t *command = maelys_cli_app_command_at(app, i);
         if (!in_family(command, prefix, words, word_count)) continue;
         char *synopsis = maelys_cli_command_help_synopsis_alloc(command);
         char text[1024];
-        (void)snprintf(text, sizeof(text), "%s%s", command->purpose,
-            command->unavailable ? " (unavailable in this build)" : "");
+        (void)snprintf(text, sizeof(text), "%s%s%s", tr(style, command->purpose),
+            command->unavailable ? " " : "",
+            command->unavailable ? tr(style, "(unavailable in this build)") : "");
         /* Never beside: a usage is as long as it needs to be. */
         help_entry(stream, synopsis ? synopsis : command->pattern, style->command, text,
             0u, width, 1);
         free(synopsis);
     }
-    (void)snprintf(line, sizeof(line), "Run '%s help COMMAND_ID' or '%s COMMAND "
+    trf(line, sizeof(line), style, "Run '%s help COMMAND_ID' or '%s COMMAND "
         "--help' for the operands and options of one command.", app->program,
         app->program);
     (void)fputc('\n', stream);
@@ -3780,15 +4022,17 @@ static void catalog_help_text(FILE *stream, const maelys_cli_app_t *app, size_t 
     char line[2048];
     size_t used = (size_t)snprintf(line, sizeof(line), "%s %s", app->program, app->version);
     if (app->summary && *app->summary && used < sizeof(line))
-        (void)snprintf(line + used, sizeof(line) - used, " - %s", app->summary);
+        (void)snprintf(line + used, sizeof(line) - used, " - %s", tr(style, app->summary));
     (void)help_wrap(stream, line, 0u, 0u, width, 0);
-    (void)fprintf(stream, "\n\nUSAGE\n  %s COMMAND [OPERANDS] [options]\n", app->program);
+    (void)fputc('\n', stream);
+    help_heading(stream, style, "USAGE");
+    (void)fprintf(stream, "  %s COMMAND [OPERANDS] [options]\n", app->program);
     (void)snprintf(line, sizeof(line), "%s help COMMAND", app->program);
     size_t usage_column = display_width(line, strlen(line));
-    help_entry(stream, line, "", "one command, its options and examples",
+    help_entry(stream, line, "", tr(style, "one command, its options and examples"),
         usage_column, width, 0);
     (void)snprintf(line, sizeof(line), "%s help FAMILY", app->program);
-    help_entry(stream, line, "", "the commands of one family",
+    help_entry(stream, line, "", tr(style, "the commands of one family"),
         usage_column, width, 0);
     /* The default command in one sentence that says the three things
      * agent-cli/v2 section 8 asks of help: which command it is, that the
@@ -3797,7 +4041,7 @@ static void catalog_help_text(FILE *stream, const maelys_cli_app_t *app, size_t 
     const maelys_cli_command_t *fallback = app->default_command ?
         maelys_cli_app_find_command(app, app->default_command) : NULL;
     if (fallback) {
-        (void)snprintf(line, sizeof(line), "%s [options] runs '%s', as %s %s "
+        trf(line, sizeof(line), style, "%s [options] runs '%s', as %s %s "
             "[options] does: the options in front, other than --help and "
             "--version, are its.", app->program, fallback->pattern, app->program,
             fallback->pattern);
@@ -3817,7 +4061,7 @@ static void catalog_help_text(FILE *stream, const maelys_cli_app_t *app, size_t 
         if (!command->hidden && i >= builtin_count && !command->unavailable &&
             wide <= HELP_LABEL_MAXIMUM && wide > column) column = wide;
     }
-    (void)fputs("\nCOMMANDS\n", stream);
+    help_heading(stream, style, "COMMANDS");
     for (size_t i = 0u; i < count; ++i) {
         const maelys_cli_command_t *command = maelys_cli_app_command_at(app, i);
         if (command->hidden) continue;
@@ -3826,15 +4070,16 @@ static void catalog_help_text(FILE *stream, const maelys_cli_app_t *app, size_t 
         } else if (command->unavailable) {
             if (unavailable) unavailable[unavailable_count++] = command->pattern;
         } else {
-            help_entry(stream, command->pattern, style->command, command->purpose,
+            help_entry(stream, command->pattern, style->command, tr(style, command->purpose),
                 column, width, 0);
         }
     }
     if (built_in_count || unavailable_count) (void)fputc('\n', stream);
-    if (built_in_count) help_names(stream, "Also:", built_in, built_in_count, NULL, width);
+    if (built_in_count)
+        help_names(stream, tr(style, "Also:"), built_in, built_in_count, NULL, width);
     if (unavailable_count) {
-        (void)snprintf(line, sizeof(line), "'%s help COMMAND' says why.", app->program);
-        help_names(stream, "Not available in this build:", unavailable,
+        trf(line, sizeof(line), style, "'%s help COMMAND' says why.", app->program);
+        help_names(stream, tr(style, "Not available in this build:"), unavailable,
             unavailable_count, line, width);
     }
     free(built_in);
@@ -3845,12 +4090,12 @@ static void catalog_help_text(FILE *stream, const maelys_cli_app_t *app, size_t 
     size_t transport_count = 0u;
     const maelys_cli_option_t *transport = maelys_cli_transport_options(
         &transport_count);
-    (void)fputs("\nGLOBAL OPTIONS\n", stream);
+    help_heading(stream, style, "GLOBAL OPTIONS");
     options_help(stream, transport, transport_count, width, style);
-    (void)snprintf(line, sizeof(line), "Run '%s describe --summary --format json' "
+    trf(line, sizeof(line), style, "Run '%s describe --summary --format json' "
         "first, and build every line from its input, never from this text.",
         app->program);
-    (void)fputs("\nAGENTS\n", stream);
+    help_heading(stream, style, "AGENTS");
     help_paragraph(stream, line, width, 0);
     /* The product's own sections close the screen. Products use the field
      * for what a human reads -- the dispatcher's EXTERNAL COMMANDS, a
@@ -3859,7 +4104,7 @@ static void catalog_help_text(FILE *stream, const maelys_cli_app_t *app, size_t 
      * once printed as written, and one long sentence was one long line. */
     if (app->agent_guidance && *app->agent_guidance) {
         (void)fputc('\n', stream);
-        for (const char *source = app->agent_guidance; *source;) {
+        for (const char *source = tr(style, app->agent_guidance); *source;) {
             const char *end = strchr(source, '\n');
             size_t length = end ? (size_t)(end - source) : strlen(source);
             size_t indent = 0u;
@@ -3885,6 +4130,12 @@ static void catalog_help_text(FILE *stream, const maelys_cli_app_t *app, size_t 
 /* Each heading of `text` -- a line of capitals at the margin -- in the
  * `heading` sequence. The other roles are styled as they are written; a
  * heading is found afterwards, the one line nothing else looks like. */
+/* A heading is capitals and spaces; a byte of a multibyte UTF-8 sequence
+ * counts too, so that a translated heading (OPÉRANDES) is one. */
+static int heading_byte(unsigned char c) {
+    return (c >= 'A' && c <= 'Z') || c == ' ' || c >= 0x80u;
+}
+
 static char *help_headings(const char *text, const char *heading) {
     const char *reset = "\033[0m";
     size_t headings = 0u;
@@ -3892,7 +4143,7 @@ static char *help_headings(const char *text, const char *heading) {
         const char *end = strchr(line, '\n');
         size_t length = end ? (size_t)(end - line) : strlen(line);
         size_t i = 0u;
-        while (i < length && ((line[i] >= 'A' && line[i] <= 'Z') || line[i] == ' ')) ++i;
+        while (i < length && heading_byte((unsigned char)line[i])) ++i;
         if (length && i == length && line[0] != ' ') ++headings;
         line = end ? end + 1 : line + length;
     }
@@ -3905,7 +4156,7 @@ static char *help_headings(const char *text, const char *heading) {
         const char *end = strchr(line, '\n');
         size_t length = end ? (size_t)(end - line) : strlen(line);
         size_t i = 0u;
-        while (i < length && ((line[i] >= 'A' && line[i] <= 'Z') || line[i] == ' ')) ++i;
+        while (i < length && heading_byte((unsigned char)line[i])) ++i;
         int styled = *heading && length && i == length && line[0] != ' ';
         used += (size_t)snprintf(out + used, size - used, "%s%.*s%s%s",
             styled ? heading : "", (int)length, line, styled ? reset : "", end ? "\n" : "");
@@ -3947,8 +4198,13 @@ static int help_reply(
     const char *prefix, char *const words[], size_t word_count) {
     int family = prefix || word_count > 0u;
     size_t width = help_width(context);
-    char *text = help_render(context->app, target, prefix, words, word_count, width,
-        &help_plain);
+    /* data.text is the human text in the language of the invocation, as
+     * the text rendering is (agent-cli/v2 section 5, "Language"), and
+     * always plain. */
+    help_style_t plain = help_plain;
+    plain.language = context->language;
+    plain.framework = context->framework_language;
+    char *text = help_render(context->app, target, prefix, words, word_count, width, &plain);
     if (!text) {
         return maelys_cli_fail(context, MAELYS_CLI_CODE_UNEXPECTED, NULL,
             "Could not render help.");
@@ -3981,15 +4237,18 @@ static int help_reply(
         return maelys_cli_fail(context, MAELYS_CLI_CODE_UNEXPECTED, NULL,
             "Could not describe the catalog.");
     }
+    /* What a person reads on a terminal that takes color: colored. */
     char *shown = NULL;
-    if (context->invocation && context->invocation->format == MAELYS_CLI_FORMAT_TEXT &&
-        context->terminal.color_stdout) {
-        help_style_t style;
+    int color = context->terminal.color_stdout;
+    if (context->invocation && context->invocation->format == MAELYS_CLI_FORMAT_TEXT && color) {
+        help_style_t style = help_plain;
         help_style_init(&style, context->app->help_palette);
-        char *colored = help_render(context->app, target, prefix, words, word_count,
+        style.language = context->language;
+        style.framework = context->framework_language;
+        char *rendered = help_render(context->app, target, prefix, words, word_count,
             width, &style);
-        shown = colored ? help_headings(colored, style.heading) : NULL;
-        free(colored);
+        shown = rendered && color ? help_headings(rendered, style.heading) : rendered;
+        if (shown != rendered) free(rendered);
     }
     int result = maelys_cli_succeed_writer(context, &writer, shown ? shown : text,
         MAELYS_CLI_EXIT_OK);
@@ -4036,6 +4295,7 @@ static int builtin_version(maelys_cli_context_t *context) {
         maelys_cli_json_key_string(&writer, "contract", MAELYS_CLI_CONTRACT) == 0 &&
         maelys_cli_json_key_integer(&writer, "cliApi", MAELYS_CLI_API) == 0 &&
         maelys_cli_json_key_string(&writer, "framework", MAELYS_CLI_VERSION) == 0 &&
+        maelys_cli_json_key_string(&writer, "lang", canonical_language(context->app)) == 0 &&
         maelys_cli_json_end_object(&writer) == 0;
     if (!built) {
         maelys_cli_json_writer_clear(&writer);
@@ -4184,6 +4444,16 @@ static void prescan_rendering(
     }
 }
 
+/* The --lang of a line the parser may refuse, so that its refusal is
+ * written in the language asked for: the first one before `--`. */
+static const char *prescan_language(int argc, char **argv) {
+    for (int i = 0; argv && i < argc && strcmp(argv[i], "--") != 0; ++i) {
+        if (!strncmp(argv[i], "--lang=", 7u)) return argv[i] + 7;
+        if (!strcmp(argv[i], "--lang") && i + 1 < argc) return argv[i + 1];
+    }
+    return NULL;
+}
+
 int maelys_cli_run(
     const maelys_cli_app_t *app, int argc, char **argv, FILE *out, FILE *err) {
     maelys_cli_context_t context;
@@ -4204,6 +4474,7 @@ int maelys_cli_run(
         (void)maelys_cli_fail_error(&context, &error);
         return MAELYS_CLI_EXIT_FAILURE;
     }
+    resolve_language(&context, app, prescan_language(argc, argv));
     prescan_rendering(argc, argv, &invocation);
     maelys_cli_format_t prescan_format = invocation.format;
     int prescan_compact = invocation.compact;
@@ -4267,6 +4538,8 @@ int maelys_cli_run(
     } else {
         family_count = 0u;
     }
+    /* The line as the parser read it: a delegate's words are its own. */
+    resolve_language(&context, app, invocation.lang);
     /* MAELYS_CLI_FORMAT is the default format: --format and --json override
      * it, --compact and --pretty select none and leave it in force. */
     if (!invocation.format_requested) apply_environment_format(&invocation);

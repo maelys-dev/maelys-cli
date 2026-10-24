@@ -147,6 +147,38 @@ command when either is wrong:
   into one line per paragraph, or each hand-made line is wrapped on its own
   and the paragraph reads ragged at another width.
 
+## Every consumer, at agent-cli-spec 2.21.0
+
+2.21.0 writes, in its section 5 ("Language"), the language of the human
+text, and this pin implements it; `docs/command-conventions.md`,
+"Languages of human text", says how. What a product meets:
+
+- **`--lang TAG` is a global option of every command**, in `globalOptions`
+  and in the completion; a product that declares an option `--lang` of its
+  own is refused at startup, as for any global option. A delegate receives
+  it verbatim.
+- **`version` carries `lang`**, the canonical language: `en`, or what
+  `.canonical_language` (Python `canonical_language=`) names. A product
+  whose catalog is not written in English declares it, or its `lang` is
+  wrong: cx, written in French, sets `.canonical_language = "fr"`.
+- **The framework's texts follow the language in force.** A product that
+  declares nothing is unchanged in English. One that declares
+  `canonical_language = "fr"` shows French headings, sentences and
+  framework messages at once, under every locale, `C` included, until a
+  line asks for a language it translates to.
+- **`data.text` of `help` is the human text**, in the language of the
+  invocation; describe, envelopes, `version`, the `commands` of `help`
+  and `__complete` never change.
+- **`maelys_cli_app_t` and `maelys_cli_invocation_t` gain members at their
+  end** (`languages`, `language_count`, `canonical_language`; `lang`), and
+  `maelys_cli_error_t` the template of its message. Designated initializers
+  need nothing. A positional initializer of `maelys_cli_app_t` built with
+  `-Wmissing-field-initializers -Werror` adds `NULL, 0u, NULL` at its end.
+- To translate: write failures as templates (`maelys_cli_fail(context,
+  code, hint, "No machine %s.", name)`, Python `cli.failure`), never
+  assembled before, and declare one table per language; `maelys-cli-man
+  --lang TAG --untranslated PROGRAM` lists what a table lacks.
+
 ## Every consumer, at agent-cli-spec 2.20.0
 
 The pin comes with the pattern the library reads itself, the section

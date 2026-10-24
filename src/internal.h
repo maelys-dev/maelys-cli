@@ -5,6 +5,7 @@
 #include "maelys/cli/catalog.h"
 #include "maelys/cli/invocation.h"
 
+#include <stdarg.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -42,6 +43,52 @@ void maelys_cli_fprint_terminal_safe(FILE *stream, const char *text);
 
 /* True when text contains valid UTF-8 without terminal control code points. */
 int maelys_cli_text_is_terminal_safe(const char *text);
+
+/* The language of human text (src/language.c). A tag is well formed as
+ * agent-cli/v2 section 5 writes it, language[-Script][-REGION], the subset
+ * of RFC 5646 MAELYS_CLI_LANGUAGE_TAG_PATTERN spells, compared without
+ * regard to case. A locale
+ * converts to a tag (1), to the canonical language (0: C, POSIX, C.*, or
+ * one that does not convert) or is empty (-1). Lookup is RFC 4647 section
+ * 3.4 against the languages a program has, NULL meaning the canonical one.
+ * Resolve takes the first source that is not empty, in the order the
+ * contract writes, and never reads a later one. */
+/* The canonical language of the framework's and a product's human text,
+ * which `version` names (`lang`). */
+#define MAELYS_CLI_CANONICAL_LANGUAGE "en"
+#define MAELYS_CLI_LANGUAGE_TAG_PATTERN \
+    "^[A-Za-z]{2,3}(-[A-Za-z]{4})?(-([A-Za-z]{2}|[0-9]{3}))?$"
+int maelys_cli_language_tag_is_well_formed(const char *tag);
+int maelys_cli_language_from_locale(const char *locale, char *tag, size_t size);
+const char *maelys_cli_language_lookup(const char *tag, const char *const *available,
+                                       size_t count);
+const char *maelys_cli_language_resolve(
+    const char *option, const char *variable, const char *lc_all,
+    const char *lc_messages, const char *lang,
+    const char *const *available, size_t count);
+
+/* maelys_cli_error_set with its arguments as a va_list: the template and
+ * its formatted arguments are kept for the text rendering. */
+void maelys_cli_error_setv(
+    maelys_cli_error_t *error, const char *code, const char *hint,
+    const char *format, va_list arguments);
+
+/* Translations (src/language.c). translate returns the product's text for
+ * `source`, else the framework's, else `source` itself. A template's
+ * conversions are listed by template_conversions ("%s %llu"), which a
+ * translation must keep in order. translate_error writes the text
+ * rendering of an error's message in the language: its template
+ * translated and its arguments put back, or a message a table names whole;
+ * 0 when there is none. framework_language is the framework's own table
+ * for the language a request resolved to, NULL for English. */
+const char *maelys_cli_translate(const maelys_cli_language_t *product,
+                                 const maelys_cli_language_t *framework,
+                                 const char *source);
+int maelys_cli_template_conversions(const char *format, char *out, size_t size);
+int maelys_cli_translate_error(const maelys_cli_language_t *product,
+                               const maelys_cli_language_t *framework,
+                               const maelys_cli_error_t *error, char *out, size_t size);
+const maelys_cli_language_t *maelys_cli_framework_language(const char *tag);
 
 /* argument.pattern: the common subset of ECMA-262 and POSIX ERE (spec 2.3),
  * read and matched by src/pattern.c itself, no regcomp(). check returns 0,

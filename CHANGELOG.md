@@ -2,6 +2,42 @@
 
 ## Unreleased
 
+The human text in the language a person asks for, as agent-cli-spec 2.21.0
+writes it in its section 5: the help, `data.text` of `help`, the manual
+page and the text of a failure, in French or in English, chosen by
+`--lang`, `MAELYS_CLI_LANG` or the locale. What an agent reads never
+changes. `docs/migration.md`, "Every consumer, at agent-cli-spec 2.21.0",
+says what a product meets.
+
+- agent-cli-spec pinned at v2.21.0 (from v2.20.0). Its kit and its
+  generated lines pass on the seven programs of conformance-check.
+- `--lang TAG`, a global option of every command, the tag
+  `language[-Script][-REGION]` declared as its pattern. It decides before
+  `MAELYS_CLI_LANG`, then `LC_ALL`, `LC_MESSAGES` and `LANG`; the first
+  source set decides alone, by RFC 4647 Lookup, and a language the program
+  lacks gives its canonical one. `LANGUAGE` is not read.
+- A product declares its languages: `.languages`, a table per tag of
+  `maelys_cli_translation_t` (`{source, text}`), Python
+  `Program(translations=...)`. The catalog validation refuses a malformed
+  tag, the canonical language, a duplicate, a control character and a
+  translation that loses the conversions of its source.
+- `.canonical_language` (Python `canonical_language=`) names the language
+  the catalog is written in, `en` when absent; `version` carries it as
+  `lang`. The framework's own texts follow the language in force, the
+  canonical one included.
+- The framework's texts in French: `i18n/fr.tsv`, from which
+  `scripts/i18n.py` generates the tables of the library, of the Python
+  module and of `maelys-cli-man`; `make check` runs `i18n-check`.
+- A failure keeps its template (`maelys_cli_error_t.format`, Python
+  `cli.failure`): its text is translated with its arguments put back. The
+  hint line keeps the form `Label: hint`, its label translated.
+- describe's catalog form carries the tables as `x-maelys-translations`;
+  `maelys-cli-man --lang TAG` writes the page in that language, and
+  `--untranslated` lists what a table lacks.
+- Python: the framework's refusals are templates, their English unchanged;
+  `detail`, `show_progress` and `warn` take a template and its arguments.
+- tests/languages.tsv, read by C and Python alike: tags, locales, Lookup,
+  resolution and conversions.
 - **The reader of `argument.pattern` is public**: `maelys/cli/regex.h` in C,
   `Regex` and `RegexError` in Python, for any pattern written in the subset
   of agent-cli/v2 section 3, a refex of Maelys Git for one. A compiled

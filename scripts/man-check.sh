@@ -13,7 +13,8 @@ fail() {
     printf 'man-check: %s\n' "$1" >&2
     failures=$((failures + 1))
 }
-render() { # render NAME PROGRAM...
+sections="NAME SYNOPSIS DESCRIPTION COMMANDS GLOBAL_OPTIONS EXIT_STATUS ENVIRONMENT SEE_ALSO"
+render() { # render NAME PROGRAM..., the page holding the headings $sections (_ a space)
     name=$1
     shift
     MAELYS_COMMANDS_PATH=/nonexistent tools/maelys-cli-man --date 2026-01-01 "$@" >"$work/$name.1" ||
@@ -25,7 +26,8 @@ render() { # render NAME PROGRAM...
         lint=$(mandoc -T lint "$work/$name.1" 2>&1 || true)
         [ -z "$lint" ] || fail "$name: mandoc -T lint: $lint"
     fi
-    for section in NAME SYNOPSIS DESCRIPTION COMMANDS "GLOBAL OPTIONS" "EXIT STATUS" ENVIRONMENT "SEE ALSO"; do
+    for section in $sections; do
+        section=$(printf '%s' "$section" | tr _ ' ')
         grep -q "^\.SH $section\$" "$work/$name.1" || fail "$name: no $section section"
     done
     grep -q '^\.TH .* 1 2026-01-01 ' "$work/$name.1" || fail "$name: no title line with the date given"
@@ -47,6 +49,26 @@ grep -q '^\.B 2$' "$page" || fail "catalog-surface: exit status 2 is missing"
 grep -q '^\.SH NOTES$' "$work/maelys.1" || fail "maelys: its guidance is not in NOTES"
 grep -q '^\.SH EXAMPLES$' "$work/maelys-hello.1" || fail "maelys-hello: no EXAMPLES"
 grep -q 'default\\-surface \[options\] runs' "$work/default-surface.1" || fail "default-surface: the default command is not told"
+# A page in another language: from the product's tables (x-maelys-translations)
+# and the framework's; a text the table leaves out stays in English; the same
+# page from C and Python; a program without that language gives its English
+# page; --untranslated names what the table lacks.
+render default-surface-py python3 -B python/tests/default_surface.py
+sections="NOM SYNOPSIS DESCRIPTION COMMANDES OPTIONS_GLOBALES CODE_DE_RETOUR ENVIRONNEMENT VOIR_AUSSI"
+render default-surface-fr --lang fr "$build/tests/default_surface"
+render default-surface-fr-py --lang fr python3 -B python/tests/default_surface.py
+grep -q "^Montrer un fichier ; c'est la commande par d\\\\\[u00E9\]faut" "$work/default-surface-fr.1" || fail "default-surface --lang fr: the purpose is not translated"
+grep -q "^Watch the entries on stdout" "$work/default-surface-fr.1" || fail "default-surface --lang fr: an untranslated text is not in English"
+# C and Python differ in French only where they differ in English.
+diff "$work/default-surface.1" "$work/default-surface-py.1" | grep '^[<>]' >"$work/english.diff" || true
+diff "$work/default-surface-fr.1" "$work/default-surface-fr-py.1" | grep '^[<>]' >"$work/french.diff" || true
+cmp -s "$work/english.diff" "$work/french.diff" || fail "default-surface --lang fr: C and Python pages differ otherwise than in English"
+MAELYS_COMMANDS_PATH=/nonexistent tools/maelys-cli-man --date 2026-01-01 --lang fr-CA "$build/bin/maelys-hello" >"$work/hello-fr.1"
+cmp -s "$work/maelys-hello.1" "$work/hello-fr.1" || fail "maelys-hello --lang fr-CA: a program without French is not its English page"
+missing=$(tools/maelys-cli-man --lang fr --untranslated "$build/tests/default_surface")
+printf '%s\n' "$missing" | grep -qx "Watch the entries on stdout." || fail "--untranslated does not name a text the table lacks"
+! printf '%s\n' "$missing" | grep -qx "List the entries." || fail "--untranslated names a translated text"
+! printf '%s\n' "$missing" | grep -q "^NAME\$\|^Optional\.\$" || fail "--untranslated names a text of the framework"
 if [ "$failures" -ne 0 ]; then
     printf '%s man check(s) failed\n' "$failures" >&2
     exit 1

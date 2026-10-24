@@ -9,17 +9,129 @@
 #include <stdlib.h>
 #include <string.h>
 
-void maelys_cli_error_set(
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-nonliteral"
+#endif
+/* Formats the conversion `spec` (as written, '%' to its letter, with any
+ * '*' already replaced by its value) of the next argument into out. */
+static int format_one(char *out, size_t size, const char *spec, char conversion,
+                      const char *length, va_list *arguments) {
+    switch (conversion) {
+    case 'd': case 'i':
+        if (!strcmp(length, "ll")) return snprintf(out, size, spec, va_arg(*arguments, long long));
+        if (!strcmp(length, "l")) return snprintf(out, size, spec, va_arg(*arguments, long));
+        if (!strcmp(length, "z")) return snprintf(out, size, spec, va_arg(*arguments, size_t));
+        if (!strcmp(length, "j")) return snprintf(out, size, spec, va_arg(*arguments, intmax_t));
+        if (!strcmp(length, "t")) return snprintf(out, size, spec, va_arg(*arguments, ptrdiff_t));
+        return snprintf(out, size, spec, va_arg(*arguments, int));
+    case 'u': case 'o': case 'x': case 'X':
+        if (!strcmp(length, "ll")) return snprintf(out, size, spec, va_arg(*arguments, unsigned long long));
+        if (!strcmp(length, "l")) return snprintf(out, size, spec, va_arg(*arguments, unsigned long));
+        if (!strcmp(length, "z")) return snprintf(out, size, spec, va_arg(*arguments, size_t));
+        if (!strcmp(length, "j")) return snprintf(out, size, spec, va_arg(*arguments, uintmax_t));
+        if (!strcmp(length, "t")) return snprintf(out, size, spec, va_arg(*arguments, ptrdiff_t));
+        return snprintf(out, size, spec, va_arg(*arguments, unsigned));
+    case 'c': return snprintf(out, size, spec, va_arg(*arguments, int));
+    case 's': return snprintf(out, size, spec, va_arg(*arguments, const char *));
+    case 'p': return snprintf(out, size, spec, va_arg(*arguments, void *));
+    case 'f': case 'F': case 'e': case 'E': case 'g': case 'G': case 'a': case 'A':
+        if (!strcmp(length, "L")) return snprintf(out, size, spec, va_arg(*arguments, long double));
+        return snprintf(out, size, spec, va_arg(*arguments, double));
+    default: return -1;
+    }
+}
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
+
+/* Keeps each argument of `format` formatted, NUL-separated, so that the
+ * text rendering can put them into a translated template. A conversion it
+ * cannot read (%n, an unknown letter) leaves no template: the message is
+ * then shown as it was formatted. */
+static void capture_arguments(maelys_cli_error_t *error, const char *format,
+                              va_list arguments) {
+    va_list copy;
+    va_copy(copy, arguments);
+    size_t used = 0u;
+    unsigned count = 0u;
+    int readable = 1;
+    for (const char *p = format; *p && readable; ++p) {
+        if (*p != '%') continue;
+        if (p[1] == '%') { ++p; continue; }
+        char spec[48];
+        size_t at = 0u;
+        spec[at++] = '%';
+        ++p;
+        while (*p && strchr("-+ #0", *p) && at < 40u) spec[at++] = *p++;
+        for (int part = 0; part < 2; ++part) {
+            if (part == 1) {
+                if (*p != '.') break;
+                spec[at++] = *p++;
+            }
+            if (*p == '*') {
+                at += (size_t)snprintf(spec + at, sizeof(spec) - at, "%d", va_arg(copy, int));
+                ++p;
+            } else {
+                while (*p >= '0' && *p <= '9' && at < 40u) spec[at++] = *p++;
+            }
+        }
+        char length[3] = {0, 0, 0};
+        size_t length_used = 0u;
+        while (*p && strchr("hljztL", *p) && length_used < 2u) {
+            length[length_used++] = *p;
+            spec[at++] = *p++;
+        }
+        if (!*p || at > 44u) { readable = 0; break; }
+        char conversion = *p;
+        spec[at++] = conversion;
+        spec[at] = '\0';
+        if (!strcmp(length, "h") || !strcmp(length, "hh")) length[0] = '\0';
+        int written = format_one(error->arguments + used, sizeof(error->arguments) - used,
+                                 spec, conversion, length, &copy);
+        if (written < 0 || used + (size_t)written + 1u >= sizeof(error->arguments)) {
+            readable = 0;
+            break;
+        }
+        used += (size_t)written + 1u;
+        count++;
+    }
+    va_end(copy);
+    if (readable) {
+        error->format = format;
+        error->argument_count = count;
+    } else {
+        error->format = NULL;
+        error->argument_count = 0u;
+    }
+}
+
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-nonliteral"
+#endif
+void maelys_cli_error_setv(
     maelys_cli_error_t *error, const char *code, const char *hint,
-    const char *format, ...) {
+    const char *format, va_list arguments) {
     if (!error) return;
     memset(error, 0, sizeof(*error));
     (void)snprintf(error->code, sizeof(error->code), "%s",
         code ? code : MAELYS_CLI_CODE_UNEXPECTED);
     if (hint) (void)snprintf(error->hint, sizeof(error->hint), "%s", hint);
+    if (!format) return;
+    capture_arguments(error, format, arguments);
+    (void)vsnprintf(error->message, sizeof(error->message), format, arguments);
+}
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
+
+void maelys_cli_error_set(
+    maelys_cli_error_t *error, const char *code, const char *hint,
+    const char *format, ...) {
     va_list arguments;
     va_start(arguments, format);
-    (void)vsnprintf(error->message, sizeof(error->message), format, arguments);
+    maelys_cli_error_setv(error, code, hint, format, arguments);
     va_end(arguments);
 }
 
@@ -58,6 +170,8 @@ static const maelys_cli_option_t transport[] = {
     {MAELYS_CLI_STRING("field", "NAME",
      "Render one top-level member of data instead of the whole result, by "
      "the text or jsonl rendering rules.")},
+    {MAELYS_CLI_STRING("lang", "TAG", "Language of the human text."),
+     .pattern = MAELYS_CLI_LANGUAGE_TAG_PATTERN},
     {MAELYS_CLI_FLAG("help", "Show the help of the selected command.")},
 };
 
@@ -283,8 +397,8 @@ static int validate_value(
             if (maelys_cli_parse_i64_decimal(value, minimum, maximum,
                     &parsed->signed_value) != 0) {
                 maelys_cli_error_set(error, MAELYS_CLI_CODE_VALIDATION_FAILED,
-                    hint, "Option --%s expects an integer between %" PRId64
-                    " and %" PRId64 ".", option->name, minimum, maximum);
+                    hint, "Option --%s expects an integer between %lld and %lld.",
+                    option->name, (long long)minimum, (long long)maximum);
                 return -1;
             }
             return 0;
@@ -293,9 +407,9 @@ static int validate_value(
             if (maelys_cli_parse_u64_decimal(value, option->minimum,
                     unsigned_maximum(option), &parsed->unsigned_value) != 0) {
                 maelys_cli_error_set(error, MAELYS_CLI_CODE_VALIDATION_FAILED,
-                    hint, "Option --%s expects an unsigned integer between %"
-                    PRIu64 " and %" PRIu64 ".", option->name, option->minimum,
-                    unsigned_maximum(option));
+                    hint, "Option --%s expects an unsigned integer between %llu and %llu.",
+                    option->name, (unsigned long long)option->minimum,
+                    (unsigned long long)unsigned_maximum(option));
                 return -1;
             }
             return 0;
@@ -303,9 +417,10 @@ static int validate_value(
             if (maelys_cli_parse_byte_size(value, option->minimum,
                     unsigned_maximum(option), &parsed->unsigned_value) != 0) {
                 maelys_cli_error_set(error, MAELYS_CLI_CODE_VALIDATION_FAILED,
-                    hint, "Option --%s expects a byte size between %" PRIu64
-                    " and %" PRIu64 " (K, M, G or T suffix accepted).",
-                    option->name, option->minimum, unsigned_maximum(option));
+                    hint, "Option --%s expects a byte size between %llu and %llu "
+                    "(K, M, G or T suffix accepted).", option->name,
+                    (unsigned long long)option->minimum,
+                    (unsigned long long)unsigned_maximum(option));
                 return -1;
             }
             return 0;
@@ -314,9 +429,9 @@ static int validate_value(
                     unsigned_maximum(option), &parsed->unsigned_value) != 0) {
                 maelys_cli_error_set(error, MAELYS_CLI_CODE_VALIDATION_FAILED,
                     hint, "Option --%s expects a duration with a unit "
-                    "(ms, s, m, h or d) between %" PRIu64 " and %" PRIu64
-                    " milliseconds.", option->name, option->minimum,
-                    unsigned_maximum(option));
+                    "(ms, s, m, h or d) between %llu and %llu milliseconds.",
+                    option->name, (unsigned long long)option->minimum,
+                    (unsigned long long)unsigned_maximum(option));
                 return -1;
             }
             return 0;
@@ -393,6 +508,8 @@ static void apply_transport(
         out->pager_requested = 1;
     } else if (!strcmp(name, "field")) {
         out->field = parsed->value;
+    } else if (!strcmp(name, "lang")) {
+        out->lang = parsed->value;
     } else if (!strcmp(name, "help")) {
         out->help_requested = parsed->boolean_value;
     }

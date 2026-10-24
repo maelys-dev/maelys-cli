@@ -346,6 +346,9 @@ static const maelys_cli_app_t app = {
     "never brought back to the margin of the first one.",
     NULL,
     NULL,
+    NULL,
+    NULL,
+    0u,
     NULL
 };
 
@@ -411,7 +414,8 @@ static const maelys_cli_command_t accented_commands[] = {
      "\xe6\x97\xa5\xe6\x9c\xac\xe8\xaa\x9e.", command_nothing)},
 };
 static const maelys_cli_app_t accented_app = {
-    "prog", "Test Product", "9.9.9", NULL, accented_commands, 1u, NULL, 0u, NULL, NULL, NULL, NULL
+    "prog", "Test Product", "9.9.9", NULL, accented_commands, 1u, NULL, 0u, NULL, NULL, NULL, NULL,
+    NULL, 0u, NULL
 };
 
 /* The synopsis of help, one rule over usage (agent-cli/v2, section 10): the
@@ -1856,6 +1860,306 @@ static int test_invalid_catalog(void) {
     return 1;
 }
 
+/* ---- the language of human text ------------------------------------------- */
+
+static int command_unknown_person(maelys_cli_context_t *context) {
+    return maelys_cli_fail(context, MAELYS_CLI_CODE_NOT_FOUND, "Choose another name.",
+        "Nobody is called %s here, among %zu people.", "xavier", (size_t)3);
+}
+
+static const maelys_cli_option_t greet_language_options[] = {
+    {MAELYS_CLI_UNSIGNED("times", "N", "How many times.", 1, 5)},
+    {MAELYS_CLI_FLAG("loud", "Shout it.")},
+};
+static const maelys_cli_command_t language_commands[] = {
+    {MAELYS_CLI_READ("greet", "greet", "Greet someone.", command_unknown_person),
+     MAELYS_CLI_OPTIONS(greet_language_options)},
+    {MAELYS_CLI_READ("wave", "wave", "Wave at someone.", command_nothing)},
+};
+static const maelys_cli_translation_t language_fr[] = {
+    {"Greets people.", "Salue les gens."},
+    {"Greet someone.", "Salue quelqu'un."},
+    {"How many times.", "Combien de fois."},
+    {"Nobody is called %s here, among %zu people.", "Personne ne s'appelle %s ici, parmi %zu personnes."},
+    {"Choose another name.", "Choisissez un autre nom."},
+};
+static const maelys_cli_language_t language_tables[] = {{"fr", language_fr, 5u}};
+static const maelys_cli_app_t language_app = {
+    .program = "prog", .product = "Test Product", .version = "9.9.9",
+    .summary = "Greets people.", .commands = language_commands, .command_count = 2u,
+    .languages = language_tables, .language_count = 1u,
+};
+
+static run_result_t run_app(const maelys_cli_app_t *with, int argc, char **argv) {
+    run_result_t result = {0, NULL, NULL};
+    size_t out_size = 0u, err_size = 0u;
+    FILE *out = open_memstream(&result.out, &out_size);
+    FILE *err = open_memstream(&result.err, &err_size);
+    result.code = maelys_cli_run(with, argc, argv, out, err);
+    (void)fclose(out);
+    (void)fclose(err);
+    return result;
+}
+#define RUN_IN(with, ...) run_app(with, COUNT(__VA_ARGS__), ARGV(__VA_ARGS__))
+
+/* LC_ALL, LC_MESSAGES and LANG as a line would have them. */
+static void locale_is(const char *lc_all, const char *lc_messages, const char *lang) {
+    if (lc_all) (void)setenv("LC_ALL", lc_all, 1); else (void)unsetenv("LC_ALL");
+    if (lc_messages) (void)setenv("LC_MESSAGES", lc_messages, 1); else (void)unsetenv("LC_MESSAGES");
+    if (lang) (void)setenv("LANG", lang, 1); else (void)unsetenv("LANG");
+}
+
+static int test_languages(void) {
+    run_result_t result;
+    /* LANG in French: the help, its headings, the framework's sentences and
+     * the product's texts are French; a text the table leaves out stays
+     * English, one by one. */
+    locale_is(NULL, NULL, "fr_FR.UTF-8");
+    result = RUN_IN(&language_app, "--help");
+    CHECK(result.code == 0 && strstr(result.out, "UTILISATION") && strstr(result.out, "COMMANDES") &&
+        strstr(result.out, "Salue les gens.") && strstr(result.out, "Salue quelqu'un.") &&
+        strstr(result.out, "Wave at someone.") && strstr(result.out, "OPTIONS GLOBALES") &&
+        strstr(result.out, "Aussi :") && !strstr(result.out, "USAGE"));
+    release(&result);
+    result = RUN_IN(&language_app, "greet", "--help");
+    CHECK(result.code == 0 && strstr(result.out, "Combien de fois.") &&
+        strstr(result.out, "Shout it.") && strstr(result.out, "Lancez 'prog --help'"));
+    release(&result);
+    /* A failure: the template translated, its arguments put back; the
+     * framework's own refusal and hint translated too. */
+    result = RUN_IN(&language_app, "greet");
+    CHECK(result.code == 1 && strstr(result.err,
+        "prog: [NOT_FOUND] Personne ne s'appelle xavier ici, parmi 3 personnes.") &&
+        strstr(result.err, "\nConseil : Choisissez un autre nom.\n"));
+    release(&result);
+    result = RUN_IN(&language_app, "greet", "--times", "9");
+    CHECK(expect_failure(&result, "[VALIDATION_FAILED]",
+        "L'option --times attend un entier positif ou nul entre 1 et 5."));
+    /* fr_CA finds fr (RFC 4647 Lookup); LC_ALL comes before LANG; C is
+     * English; a language the product lacks is English; the first source
+     * that is not empty decides, even for a language the product lacks. */
+    locale_is(NULL, NULL, "fr_CA.UTF-8");
+    result = RUN_IN(&language_app, "greet");
+    CHECK(result.code == 1 && strstr(result.err, "Personne ne s'appelle"));
+    release(&result);
+    locale_is("C", NULL, "fr_FR.UTF-8");
+    result = RUN_IN(&language_app, "greet");
+    CHECK(result.code == 1 && strstr(result.err, "Nobody is called xavier here"));
+    release(&result);
+    locale_is(NULL, "de_DE.UTF-8", "fr_FR.UTF-8");
+    result = RUN_IN(&language_app, "greet");
+    CHECK(result.code == 1 && strstr(result.err, "Nobody is called xavier here"));
+    release(&result);
+    locale_is("", "", "fr_FR.UTF-8");
+    result = RUN_IN(&language_app, "greet");
+    CHECK(result.code == 1 && strstr(result.err, "Personne ne s'appelle"));
+    release(&result);
+    /* A product that declares no language is English, whatever the locale. */
+    locale_is(NULL, NULL, "fr_FR.UTF-8");
+    result = RUNV("--help");
+    CHECK(result.code == 0 && strstr(result.out, "USAGE") && !strstr(result.out, "UTILISATION"));
+    release(&result);
+    /* What a machine reads never changes: the JSON of a failure, describe,
+     * version and the commands of help are the same bytes in both
+     * languages. The text of help is human text, in JSON too. */
+    static const char *const lines[][4] = {
+        {"greet", "--format", "json", NULL}, {"describe", "--format", "json", NULL},
+        {"version", "--format", "json", NULL}, {"help", "--field", "commands", NULL},
+        {"greet", "--times", "9", "--json"},
+    };
+    for (size_t i = 0u; i < sizeof(lines) / sizeof(lines[0]); ++i) {
+        char *argv[4];
+        int argc = 0;
+        for (int w = 0; w < 4 && lines[i][w]; ++w) argv[argc++] = (char *)lines[i][w];
+        locale_is(NULL, NULL, "fr_FR.UTF-8");
+        run_result_t french = run_app(&language_app, argc, argv);
+        locale_is(NULL, NULL, "C");
+        run_result_t english = run_app(&language_app, argc, argv);
+        /* describe carries the tables themselves, the same in both. */
+        int same = french.code == english.code && !strcmp(french.out, english.out) &&
+            !strcmp(french.err, english.err) &&
+            (!strcmp(lines[i][0], "describe") || !strstr(french.out, "Salue")) &&
+            !strstr(french.err, "Personne");
+        if (!same) (void)fprintf(stderr, "differs: %s\n", lines[i][0]);
+        release(&french);
+        release(&english);
+        CHECK(same);
+    }
+    /* help --json carries the text a person reads, plain, in the language. */
+    locale_is(NULL, NULL, "fr_FR.UTF-8");
+    result = RUN_IN(&language_app, "help", "--field", "text");
+    CHECK(result.code == 0 && strstr(result.out, "UTILISATION") && !strchr(result.out, '\033'));
+    release(&result);
+    /* --lang decides alone, before MAELYS_CLI_LANG and the locale; a tag
+     * the product has no language for is English; a malformed one fails
+     * on the line and is ignored from the variable. */
+    locale_is("C", NULL, NULL);
+    result = RUN_IN(&language_app, "greet", "--lang", "FR-ca");
+    CHECK(result.code == 1 && strstr(result.err, "Personne ne s'appelle"));
+    release(&result);
+    locale_is("fr_FR.UTF-8", NULL, NULL);
+    result = RUN_IN(&language_app, "greet", "--lang", "zz");
+    CHECK(result.code == 1 && strstr(result.err, "Nobody is called xavier here") &&
+        strstr(result.err, "\nHint: Choose another name.\n"));
+    release(&result);
+    result = RUN_IN(&language_app, "version", "--lang", "en_US", "--json");
+    CHECK(expect_failure(&result, "VALIDATION_FAILED", "--lang"));
+    locale_is("C", NULL, NULL);
+    (void)setenv("MAELYS_CLI_LANG", "fr", 1);
+    result = RUN_IN(&language_app, "greet");
+    CHECK(result.code == 1 && strstr(result.err, "Personne ne s'appelle"));
+    release(&result);
+    result = RUN_IN(&language_app, "greet", "--lang", "en");
+    CHECK(result.code == 1 && strstr(result.err, "Nobody is called"));
+    release(&result);
+    (void)setenv("MAELYS_CLI_LANG", "fr_FR", 1);
+    locale_is(NULL, NULL, "fr_FR.UTF-8");
+    result = RUN_IN(&language_app, "greet");
+    CHECK(result.code == 1 && strstr(result.err, "Nobody is called"));
+    release(&result);
+    (void)unsetenv("MAELYS_CLI_LANG");
+    /* The catalog form carries the tables, the summary does not. */
+    result = RUN_IN(&language_app, "describe", "--json", "--compact");
+    CHECK(result.code == 0 && strstr(result.out,
+        "\"x-maelys-translations\":{\"version\":1,\"canonical\":\"en\",\"languages\":{\"fr\":{\"Greets people.\":\"Salue les gens.\""));
+    release(&result);
+    result = RUN_IN(&language_app, "describe", "--summary", "--json", "--compact");
+    CHECK(result.code == 0 && !strstr(result.out, "x-maelys-translations"));
+    release(&result);
+    result = RUNV("describe", "--json", "--compact");
+    CHECK(result.code == 0 && !strstr(result.out, "x-maelys-translations"));
+    release(&result);
+    /* version names the canonical language. */
+    result = RUN_IN(&language_app, "version", "--field", "lang");
+    CHECK(result.code == 0 && !strcmp(result.out, "en\n"));
+    release(&result);
+    locale_is(NULL, NULL, NULL);
+    return 1;
+}
+
+/* A product written in French: its canonical language, with an English
+ * table. The framework's texts follow the language in force, French
+ * without any table of the product's. */
+static int command_personne(maelys_cli_context_t *context) {
+    return maelys_cli_fail(context, MAELYS_CLI_CODE_NOT_FOUND, "Choisissez un autre nom.",
+        "Personne ne s'appelle %s ici.", "xavier");
+}
+static const maelys_cli_option_t salue_options[] = {
+    {MAELYS_CLI_UNSIGNED("fois", "N", "Combien de fois.", 1, 5)},
+};
+static const maelys_cli_command_t french_commands[] = {
+    {MAELYS_CLI_READ("salue", "salue", "Saluer quelqu'un.", command_personne),
+     MAELYS_CLI_OPTIONS(salue_options)},
+    {MAELYS_CLI_READ("agite", "agite", "Agiter la main.", command_nothing)},
+};
+static const maelys_cli_translation_t french_to_english[] = {
+    {"Salue les gens.", "Greets people."},
+    {"Saluer quelqu'un.", "Greet someone."},
+    {"Personne ne s'appelle %s ici.", "Nobody is called %s here."},
+};
+static const maelys_cli_language_t english_table[] = {{"en", french_to_english, 3u}};
+static const maelys_cli_app_t french_app = {
+    .program = "prog", .product = "Test Product", .version = "9.9.9",
+    .summary = "Salue les gens.", .commands = french_commands, .command_count = 2u,
+    .languages = english_table, .language_count = 1u, .canonical_language = "fr",
+};
+
+static int test_canonical_language(void) {
+    run_result_t result;
+    /* No locale, C, a language it lacks, or its own: French throughout. */
+    static const char *const french_locales[] = {NULL, "C", "de_DE.UTF-8", "fr_CA.UTF-8"};
+    for (size_t i = 0u; i < 4u; ++i) {
+        locale_is(french_locales[i], NULL, NULL);
+        result = RUN_IN(&french_app, "--help");
+        int french = result.code == 0 && strstr(result.out, "UTILISATION") &&
+            strstr(result.out, "Saluer quelqu'un.") && strstr(result.out, "OPTIONS GLOBALES") &&
+            !strstr(result.out, "USAGE");
+        if (!french) (void)fprintf(stderr, "locale %zu: %s\n", i, result.out);
+        release(&result);
+        CHECK(french);
+    }
+    locale_is("C", NULL, NULL);
+    result = RUN_IN(&french_app, "salue");
+    CHECK(result.code == 1 && strstr(result.err, "prog: [NOT_FOUND] Personne ne s'appelle xavier ici.\n") &&
+        strstr(result.err, "\nConseil : Choisissez un autre nom.\n"));
+    release(&result);
+    result = RUN_IN(&french_app, "salue", "--fois", "9");
+    CHECK(expect_failure(&result, "[VALIDATION_FAILED]",
+        "L'option --fois attend un entier positif ou nul entre 1 et 5."));
+    /* English is a translation: the table's texts, the framework's own,
+     * and what the table leaves out as written. */
+    result = RUN_IN(&french_app, "--help", "--lang", "en-GB");
+    CHECK(result.code == 0 && strstr(result.out, "USAGE") && strstr(result.out, "Greet someone.") &&
+        strstr(result.out, "Agiter la main.") && strstr(result.out, "GLOBAL OPTIONS"));
+    release(&result);
+    result = RUN_IN(&french_app, "salue", "--lang", "en");
+    CHECK(result.code == 1 && strstr(result.err, "Nobody is called xavier here.") &&
+        strstr(result.err, "\nHint: Choisissez un autre nom.\n"));
+    release(&result);
+    /* version names it, describe carries it, and neither changes. */
+    result = RUN_IN(&french_app, "version", "--field", "lang");
+    CHECK(result.code == 0 && !strcmp(result.out, "fr\n"));
+    release(&result);
+    run_result_t english = RUN_IN(&french_app, "describe", "--json", "--compact", "--lang", "en");
+    result = RUN_IN(&french_app, "describe", "--json", "--compact");
+    CHECK(result.code == 0 && !strcmp(result.out, english.out) &&
+        strstr(result.out, "\"x-maelys-translations\":{\"version\":1,\"canonical\":\"fr\""));
+    release(&english);
+    release(&result);
+    /* The envelope keeps the message as the product wrote it. */
+    english = RUN_IN(&french_app, "salue", "--json", "--compact", "--lang", "en");
+    result = RUN_IN(&french_app, "salue", "--json", "--compact");
+    CHECK(!strcmp(result.err, english.err) && strstr(result.err, "Personne ne s'appelle xavier ici."));
+    release(&english);
+    release(&result);
+    /* A table of the canonical language, and a malformed canonical tag,
+     * are refused. */
+    static const maelys_cli_language_t canadian[] = {{"fr-CA", french_to_english, 3u}};
+    maelys_cli_app_t broken = french_app;
+    broken.languages = canadian;
+    result = RUN_IN(&broken, "agite");
+    CHECK(expect_failure(&result, "[UNEXPECTED]", "is the canonical language fr, which has no table"));
+    broken = french_app;
+    broken.canonical_language = "fr_FR";
+    result = RUN_IN(&broken, "agite");
+    CHECK(expect_failure(&result, "[UNEXPECTED]", "canonical language 'fr_FR' is not a well-formed"));
+    locale_is(NULL, NULL, NULL);
+    return 1;
+}
+
+/* A table the catalog validation refuses at startup, naming the cause. */
+static int test_invalid_languages(void) {
+    static const maelys_cli_translation_t keeps[] = {{"Greet someone.", "Salue quelqu'un."}};
+    static const maelys_cli_translation_t loses[] = {{"Nobody is called %s here.", "Personne ici."}};
+    static const maelys_cli_translation_t swaps[] = {{"%s and %zu.", "%zu et %s."}};
+    static const maelys_cli_translation_t controls[] = {{"Greet someone.", "Salue\tquelqu'un."}};
+    static const maelys_cli_translation_t twice[] = {
+        {"Greet someone.", "Salue quelqu'un."}, {"Greet someone.", "Salue."}};
+    struct { maelys_cli_language_t language[2]; size_t count; const char *detail; } cases[] = {
+        {{{"fr_FR", keeps, 1u}}, 1u, "is not a well-formed language tag"},
+        {{{"en-GB", keeps, 1u}}, 1u, "is the canonical language en, which has no table"},
+        {{{"fr", keeps, 1u}, {"FR", keeps, 1u}}, 2u, "is declared twice"},
+        {{{"fr", NULL, 1u}}, 1u, "counts translations it does not declare"},
+        {{{"fr", loses, 1u}}, 1u, "without its conversions, in order"},
+        {{{"fr", swaps, 1u}}, 1u, "without its conversions, in order"},
+        {{{"fr", controls, 1u}}, 1u, "holds a control character"},
+        {{{"fr", twice, 2u}}, 1u, "translates 'Greet someone.' twice"},
+        {{{"fr-FR-x-a", keeps, 1u}}, 1u, "is not a well-formed language tag"},
+    };
+    for (size_t i = 0u; i < sizeof(cases) / sizeof(cases[0]); ++i) {
+        maelys_cli_app_t broken = language_app;
+        broken.languages = cases[i].language;
+        broken.language_count = cases[i].count;
+        run_result_t result = RUN_IN(&broken, "greet");
+        int refused = result.code == 1 && !result.out[0] && strstr(result.err, "[UNEXPECTED]") &&
+            strstr(result.err, cases[i].detail);
+        if (!refused) (void)fprintf(stderr, "case %zu: %s\n", i, result.err);
+        release(&result);
+        CHECK(refused);
+    }
+    return 1;
+}
+
 int main(void) {
     int failures = 0;
     RUN(test_help_and_version);
@@ -1876,5 +2180,8 @@ int main(void) {
     RUN(test_environment_format);
     RUN(test_default_command);
     RUN(test_invalid_catalog);
+    RUN(test_languages);
+    RUN(test_invalid_languages);
+    RUN(test_canonical_language);
     return failures ? 1 : 0;
 }

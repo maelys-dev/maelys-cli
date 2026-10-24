@@ -492,6 +492,96 @@ A product writes none of this and must not: a purpose that reads well in one
 line, and identifiers that share a prefix when the commands form a family,
 are what the layout needs.
 
+## Languages of human text
+
+A program writes its human text in one canonical language, which `version`
+names (`lang`), and may write it in others (agent-cli/v2
+2.21.0, section 5, "Language"). The human text is the help, `data.text` of
+`help` included, the manual page, the text rendering of a failure, and the
+details, progress and warnings on stderr. Nothing else changes with the
+language: `describe` is the same bytes in every language, and so are a
+failure envelope (its `message`, `hint` and `issues` included), the data of
+`version`, the `commands` of `help`, the words of `__complete` and the
+records of a `json-records` command.
+
+The language is decided before the command runs, by the first of these that
+is set and not empty, which decides alone:
+
+1. `--lang TAG` on the line, a global option of every command, streams
+   included; a delegate receives it verbatim with its other words;
+2. `MAELYS_CLI_LANG` in the environment;
+3. `LC_ALL`, then `LC_MESSAGES`, then `LANG`.
+
+A tag is `language[-Script][-REGION]` (`fr`, `fr-CA`, `zh-Hant-TW`,
+`es-419`), compared regardless of case. A malformed one fails with
+`VALIDATION_FAILED` on the line, by the pattern `--lang` declares; from
+`MAELYS_CLI_LANG` it is ignored and the text stays in English. A locale
+`fr_FR.UTF-8` reads as `fr-FR`; `C`, `POSIX`, `C.UTF-8` and a locale that
+does not read so give English. The tag is looked up among the languages the
+product declares by RFC 4647 Lookup, `fr-CA` finding `fr`; a language the
+product does not declare gives English, never a failure and never the next
+source. `LANGUAGE` is not read: it is GNU gettext's, and this is not
+gettext. An agent that reads text sets `LC_ALL=C` or reads JSON.
+
+A product declares its languages in the catalog, one table per language:
+each entry is a text exactly as the catalog writes it in English -- a
+purpose, a summary, an example's summary, the summary line, the guidance, an
+unavailable reason -- or the template of a failure message, with its
+translation.
+
+```c
+static const maelys_cli_translation_t french[] = {
+    {"Greet someone.", "Saluer quelqu'un."},
+    {"Nobody is called %s here.", "Personne ne s'appelle %s ici."},
+};
+static const maelys_cli_language_t languages[] = {
+    {"fr", french, MAELYS_CLI_COUNT(french)},
+};
+/* in maelys_cli_app_t: .languages = languages,
+ *                      .language_count = MAELYS_CLI_COUNT(languages) */
+```
+
+The canonical language is English unless the product names its own:
+`.canonical_language = "fr"` (Python: `canonical_language="fr"`) says the
+catalog and the failure templates are written in French. `version` then
+names `fr`, the tables translate from French, and `--lang fr`, a French
+locale, `C` and a language the product lacks give French. The framework's
+own texts follow the language in force, the canonical one included: a
+product written in French shows French headings and messages without a
+table of its own, and `--lang en` gives the framework's English. Moving a
+product's catalog to English is not needed to translate it.
+
+The catalog validation refuses a malformed tag, the canonical language (it
+has no table), a language declared twice, a source translated
+twice, a text that is empty or holds a control character other than a
+newline, and a translation that does not keep the printf conversions of its
+source in the same order. A text no entry names is shown in English, one by
+one, so a product is translated a piece at a time.
+
+The framework's own texts -- headings, the sentences of the help, the
+global options, its failure messages and hints, the label `Hint:` -- follow
+the product's language: they are translated in `i18n/LANG.tsv`, from which
+`scripts/i18n.py` generates the table of the library, of the Python module
+and of the manual page tool (`make i18n-check`). A framework language is
+used only when the product declares it.
+
+A failure is translated from its template: `maelys_cli_fail(context, code,
+hint, "Nobody is called %s here.", name)` keeps the template and the text of
+each argument, and the text rendering puts them back in the translated
+template. A message a handler assembled before it reached the framework is
+translated only when a table names it whole. A hint is translated whole. The
+first line keeps `PROGRAM: [CODE] ` and the hint line the form `Label:
+hint`, the label translated (`Conseil :`). The same template mechanism
+serves `maelys_cli_detail`, `maelys_cli_progress` and `maelys_cli_warn`.
+
+The catalog form of `describe` carries the product's tables as the
+extension member `x-maelys-translations`, `{"version": 1, "languages":
+{TAG: {SOURCE: TEXT}}}` with `canonical` naming the language the catalog
+is written in, and `maelys-cli-man --lang TAG PROGRAM` writes the
+manual page in that language from it; `--untranslated` lists, instead of the
+page, the texts of the page the product's table still lacks. The summary
+form and a single descriptor do not carry it.
+
 ## Rendering decisions
 
 `MAELYS_CLI_FORMAT=json|text` in the environment selects the default

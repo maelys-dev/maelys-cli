@@ -47,6 +47,217 @@ def failure(*argv: str) -> tuple[int, dict]:
     return code, json.loads(err)["error"]
 
 
+def _unknown_person(invocation: cli.Invocation) -> "tuple[dict, int]":
+    raise cli.failure("NOT_FOUND", "Nobody is called %s here, among %zu people.", "xavier", 3,
+                      hint="Choose another name.")
+
+
+LANGUAGE_FR = {
+    "Greets people.": "Salue les gens.",
+    "Greet someone.": "Salue quelqu'un.",
+    "How many times.": "Combien de fois.",
+    "Nobody is called %s here, among %zu people.": "Personne ne s'appelle %s ici, parmi %zu personnes.",
+    "Choose another name.": "Choisissez un autre nom.",
+}
+
+
+def language_program(translations: "dict | None" = None) -> cli.Program:
+    """The catalog of tests/test_app.c's language_app, word for word."""
+    return cli.Program("prog", "Test Product", "9.9.9", [
+        cli.read("greet", "greet", "Greet someone.", _unknown_person,
+                 options=[cli.option("--times", "How many times.", cli.argument("N", "unsigned", minimum=1, maximum=5)),
+                          cli.flag("--loud", "Shout it.")]),
+        cli.read("wave", "wave", "Wave at someone.", lambda invocation: ({}, cli.EXIT_OK)),
+    ], guide="Greets people.", translations={"fr": LANGUAGE_FR} if translations is None else translations)
+
+
+def run_in(program: cli.Program, *argv: str, **locale: "str | None") -> "tuple[int, str, str]":
+    """`program` run with LC_ALL, LC_MESSAGES and LANG as given, absent when None."""
+    out, err = io.StringIO(), io.StringIO()
+    saved = dict(os.environ)
+    for name in ("MAELYS_CLI_FORMAT", "LC_ALL", "LC_MESSAGES", "LANG", "LANGUAGE"):
+        os.environ.pop(name, None)
+    os.environ["NO_COLOR"] = "1"
+    os.environ.update({name: value for name, value in
+                       (("LC_ALL", locale.get("lc_all")), ("LC_MESSAGES", locale.get("lc_messages")),
+                        ("LANG", locale.get("lang"))) if value is not None})
+    try:
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = program.main(list(argv))
+    finally:
+        os.environ.clear()
+        os.environ.update(saved)
+    return code, out.getvalue(), err.getvalue()
+
+
+class Languages(unittest.TestCase):
+    """The language of human text, as tests/test_app.c's test_languages and test_invalid_languages."""
+
+    def test_help_and_failures_in_french(self) -> None:
+        program = language_program()
+        code, out, _ = run_in(program, "--help", lang="fr_FR.UTF-8")
+        self.assertEqual(code, 0)
+        for text in ("UTILISATION", "COMMANDES", "Salue les gens.", "Salue quelqu'un.", "Wave at someone.",
+                     "OPTIONS GLOBALES", "Aussi :"):
+            self.assertIn(text, out)
+        self.assertNotIn("USAGE", out)
+        _, out, _ = run_in(program, "greet", "--help", lang="fr_FR.UTF-8")
+        for text in ("Combien de fois.", "Shout it.", "Lancez 'prog --help'"):
+            self.assertIn(text, out)
+        code, _, err = run_in(program, "greet", lang="fr_FR.UTF-8")
+        self.assertEqual(code, 1)
+        self.assertIn("prog: [NOT_FOUND] Personne ne s'appelle xavier ici, parmi 3 personnes.\n", err)
+        self.assertIn("\nConseil : Choisissez un autre nom.\n", err)
+        _, _, err = run_in(program, "greet", "--times", "9", lang="fr_FR.UTF-8")
+        self.assertIn("[VALIDATION_FAILED] L'option --times doit être entre 1 et 5, et non 9.", err)
+
+    def test_the_first_source_decides(self) -> None:
+        program = language_program()
+        french, english = "Personne ne s'appelle", "Nobody is called xavier here"
+        for locale, wanted in (({"lang": "fr_CA.UTF-8"}, french), ({"lc_all": "C", "lang": "fr_FR.UTF-8"}, english),
+                               ({"lc_messages": "de_DE.UTF-8", "lang": "fr_FR.UTF-8"}, english),
+                               ({"lc_all": "", "lc_messages": "", "lang": "fr_FR.UTF-8"}, french),
+                               ({"lc_messages": "fr_FR", "lang": "en_US"}, french), ({"lang": "POSIX"}, english),
+                               ({}, english)):
+            self.assertIn(wanted, run_in(program, "greet", **locale)[2], locale)
+        # A product that declares no language is English, whatever the locale.
+        _, out, _ = run_in(hello.PROGRAM, "--help", lang="fr_FR.UTF-8")
+        self.assertIn("USAGE", out)
+        self.assertNotIn("UTILISATION", out)
+
+    def test_machine_forms_do_not_change(self) -> None:
+        program = language_program()
+        for argv in (("greet", "--format", "json"), ("describe", "--format", "json"), ("version", "--format", "json"),
+                     ("help", "--field", "commands"), ("greet", "--times", "9", "--json")):
+            french = run_in(program, *argv, lang="fr_FR.UTF-8")
+            self.assertEqual(french, run_in(program, *argv, lang="C"), argv)
+            if argv[0] != "describe":   # which carries the tables themselves, the same in every language
+                self.assertNotIn("Salue", french[1] + french[2])
+        # help --json carries the text a person reads, plain, in the language.
+        _, out, _ = run_in(program, "help", "--field", "text", lang="fr_FR.UTF-8")
+        self.assertIn("UTILISATION", out)
+        self.assertNotIn("\033", out)
+
+    def test_lang_and_the_variable(self) -> None:
+        program = language_program()
+        french, english = "Personne ne s'appelle", "Nobody is called xavier here"
+        self.assertIn(french, run_in(program, "greet", "--lang", "FR-ca", lc_all="C")[2])
+        err = run_in(program, "greet", "--lang", "zz", lc_all="fr_FR.UTF-8")[2]
+        self.assertIn(english, err)
+        self.assertIn("\nHint: Choose another name.\n", err)
+        code, _, err = run_in(program, "version", "--lang", "en_US", "--json")
+        self.assertEqual((code, json.loads(err)["error"]["code"]), (1, "VALIDATION_FAILED"))
+        saved = dict(os.environ)
+        try:
+            os.environ["MAELYS_CLI_LANG"] = "fr"
+            self.assertIn(french, run_in(program, "greet", lc_all="C")[2])
+            self.assertIn(english, run_in(program, "greet", "--lang", "en")[2])
+            os.environ["MAELYS_CLI_LANG"] = "fr_FR"
+            self.assertIn(english, run_in(program, "greet", lang="fr_FR.UTF-8")[2])
+        finally:
+            os.environ.clear()
+            os.environ.update(saved)
+        self.assertEqual(run_in(program, "version", "--field", "lang")[1], "en\n")
+
+    def test_canonical_language(self) -> None:
+        """A product written in French with an English table, as tests/test_app.c's french_app."""
+        def personne(invocation: cli.Invocation) -> "tuple[dict, int]":
+            raise cli.failure("NOT_FOUND", "Personne ne s'appelle %s ici.", "xavier", hint="Choisissez un autre nom.")
+
+        program = cli.Program("prog", "Test Product", "9.9.9", [
+            cli.read("salue", "salue", "Saluer quelqu'un.", personne,
+                     options=[cli.option("--fois", "Combien de fois.",
+                                         cli.argument("N", "unsigned", minimum=1, maximum=5))]),
+            cli.read("agite", "agite", "Agiter la main.", lambda invocation: ({}, cli.EXIT_OK)),
+        ], guide="Salue les gens.", canonical_language="fr",
+            translations={"en": {"Salue les gens.": "Greets people.", "Saluer quelqu'un.": "Greet someone.",
+                                 "Personne ne s'appelle %s ici.": "Nobody is called %s here."}})
+        for locale in ({}, {"lc_all": "C"}, {"lc_all": "de_DE.UTF-8"}, {"lc_all": "fr_CA.UTF-8"}):
+            out = run_in(program, "--help", **locale)[1]
+            for text in ("UTILISATION", "Saluer quelqu'un.", "OPTIONS GLOBALES"):
+                self.assertIn(text, out, locale)
+            self.assertNotIn("USAGE", out)
+        err = run_in(program, "salue", lc_all="C")[2]
+        self.assertIn("prog: [NOT_FOUND] Personne ne s'appelle xavier ici.\n", err)
+        self.assertIn("\nConseil : Choisissez un autre nom.\n", err)
+        self.assertIn("L'option --fois doit être entre 1 et 5, et non 9.", run_in(program, "salue", "--fois", "9")[2])
+        out = run_in(program, "--help", "--lang", "en-GB")[1]
+        for text in ("USAGE", "Greet someone.", "Agiter la main.", "GLOBAL OPTIONS"):
+            self.assertIn(text, out)
+        err = run_in(program, "salue", "--lang", "en")[2]
+        self.assertIn("Nobody is called xavier here.", err)
+        self.assertIn("\nHint: Choisissez un autre nom.\n", err)
+        self.assertEqual(run_in(program, "version", "--field", "lang")[1], "fr\n")
+        describe = run_in(program, "describe", "--json")
+        self.assertEqual(describe, run_in(program, "describe", "--json", "--lang", "en"))
+        self.assertEqual(json.loads(describe[1])["data"]["x-maelys-translations"]["canonical"], "fr")
+        self.assertEqual(run_in(program, "salue", "--json")[2], run_in(program, "salue", "--json", "--lang", "en")[2])
+        with self.assertRaises(ValueError) as caught:
+            cli.Program("prog", "P", "1", [], canonical_language="fr", translations={"fr-CA": {"a": "b"}})
+        self.assertIn("is the canonical language fr, which has no table", str(caught.exception))
+        with self.assertRaises(ValueError) as caught:
+            cli.Program("prog", "P", "1", [], canonical_language="fr_FR")
+        self.assertIn("canonical language 'fr_FR' is not a well-formed", str(caught.exception))
+
+    def test_describe_carries_the_tables(self) -> None:
+        program = language_program()
+        catalog = json.loads(run_in(program, "describe", "--json")[1])["data"]
+        self.assertEqual(catalog["x-maelys-translations"],
+                         {"version": 1, "canonical": "en", "languages": {"fr": LANGUAGE_FR}})
+        summary = json.loads(run_in(program, "describe", "--summary", "--json")[1])["data"]
+        self.assertNotIn("x-maelys-translations", summary)
+        self.assertNotIn("x-maelys-translations", json.loads(run("describe", "--json")[1])["data"])
+
+    def test_details_and_warnings_are_translated(self) -> None:
+        program = language_program({"fr": {**LANGUAGE_FR, "Read %zu files.": "%zu fichiers lus.",
+                                           "Disk almost full.": "Disque presque plein."}})
+        saved = dict(os.environ)
+        os.environ["LANG"] = "fr_FR.UTF-8"
+        os.environ.pop("LC_ALL", None)
+        os.environ.pop("LC_MESSAGES", None)
+        err = io.StringIO()
+        try:
+            program._resolve_language()
+            with contextlib.redirect_stderr(err):
+                program.warn("Read %zu files.", 4)
+                program.warn("Disk almost full.")
+                program.warn("Disk %s.", "full")
+        finally:
+            os.environ.clear()
+            os.environ.update(saved)
+        self.assertEqual(err.getvalue(), "prog: warning: 4 fichiers lus.\nprog: warning: Disque presque plein.\n"
+                                         "prog: warning: Disk full.\n")
+
+    def test_failure_keeps_its_template(self) -> None:
+        made = cli.failure("NOT_FOUND", "%s of %zu at %5.1f%%", "a", 3, 2.5, hint="h")
+        self.assertEqual((made.message, made.template, made.arguments, made.hint),
+                         ("a of 3 at   2.5%", "%s of %zu at %5.1f%%", ["a", "3", "  2.5"], "h"))
+        with self.assertRaises(TypeError):
+            cli.failure("NOT_FOUND", "%s and %s", "one")
+        # A message assembled before it reaches the framework is translated only when a table names it whole.
+        program = language_program({"fr": {"Nothing here.": "Rien ici."}})
+        program._language = "fr"
+        self.assertEqual(program._human_failure(cli.Failure("NOT_FOUND", "Nothing here.")), ("Rien ici.", ""))
+        self.assertEqual(program._human_failure(cli.Failure("NOT_FOUND", "Nothing there.")), ("Nothing there.", ""))
+
+    def test_invalid_tables_are_refused(self) -> None:
+        keeps = {"Greet someone.": "Salue quelqu'un."}
+        for translations, detail in (({"fr_FR": keeps}, "is not a well-formed language tag"),
+                                     ({"en-GB": keeps}, "is the canonical language en, which has no table"),
+                                     ({"fr": keeps, "FR": keeps}, "is declared twice"),
+                                     ({"fr": ["not a table"]}, "is not a table of texts"),
+                                     ({"fr": {"Nobody is called %s here.": "Personne ici."}},
+                                      "without its conversions, in order"),
+                                     ({"fr": {"%s and %zu.": "%zu et %s."}}, "without its conversions, in order"),
+                                     ({"fr": {"Greet someone.": "Salue\tquelqu'un."}}, "holds a control character"),
+                                     ({"fr": {"Greet someone.": ""}}, "is empty"),
+                                     ({"fr-FR-x-a": keeps}, "is not a well-formed language tag"),
+                                     ({}, "declared incorrectly")):
+            with self.assertRaises(ValueError) as caught:
+                language_program(translations)
+            self.assertIn(detail, str(caught.exception), translations)
+
+
 class Contract(unittest.TestCase):
     def test_success_envelope_and_exit_codes(self) -> None:
         code, out, err = run("greet", "World", "--json", "--compact")
@@ -1071,6 +1282,44 @@ class Contract(unittest.TestCase):
         code, out, err = run("greet", env={"MAELYS_CLI_FORMAT": "json"})
         self.assertEqual(json.loads(err)["error"]["code"], "VALIDATION_FAILED")
 
+    def test_language_corpus(self) -> None:
+        """tests/languages.tsv, the corpus tests/test_language.c answers: a tag is well formed, a locale
+        names a tag, a request resolves to a language, a template has its conversions, alike in C and
+        Python."""
+        def value(field: str) -> "str | None":
+            return None if field == "-" else "" if field == '""' else field
+
+        def available(field: str) -> list:
+            return [] if field == "-" else field.split(",")
+
+        cases = 0
+        for number, line in enumerate(
+                (HERE.parent.parent / "tests" / "languages.tsv").read_text(encoding="utf-8").split("\n"), 1):
+            if not line or line.startswith("#"):
+                continue
+            fields = line.split("\t")
+            where = f"tests/languages.tsv:{number}"
+            cases += 1
+            kind = fields[0]
+            if kind == "tag":
+                self.assertEqual(cli._language_tag_is_well_formed(value(fields[1])), fields[2] == "yes", where)
+            elif kind == "locale":
+                got = cli._language_from_locale(value(fields[1]))
+                self.assertEqual(got, None if fields[2] == "-" else "" if fields[2] == "C" else fields[2], where)
+            elif kind == "lookup":
+                self.assertEqual(cli._language_lookup(value(fields[1]), available(fields[2])), value(fields[3]), where)
+            elif kind == "resolve":
+                got = cli._language_resolve(*(value(field) for field in fields[1:6]), available(fields[6]))
+                self.assertEqual(got, value(fields[7]), where)
+            elif kind == "conversions":
+                self.assertEqual(" ".join(cli._template_conversions(fields[1])),
+                                 "" if fields[2] == "-" else fields[2], where)
+            else:
+                self.fail(f"{where}: malformed line")
+        self.assertGreater(cases, 100)
+        with self.assertRaises(ValueError):
+            cli._template_conversions("50%! off")
+
     def test_pattern_corpus(self) -> None:
         """tests/patterns.tsv, the corpus tests/test_pattern.c answers: Python admits the same
         patterns, refuses the others with the family and at the byte C gives, and matches the same
@@ -1226,7 +1475,7 @@ class Contract(unittest.TestCase):
         self.assertEqual(failure("version", "--pager=sometimes")[1]["code"], "VALIDATION_FAILED")
         code, out, _ = run("describe", "--json")
         longs = [o["long"] for o in json.loads(out)["data"]["globalOptions"]]
-        self.assertEqual(longs[-5:], ["--progress", "--verbose", "--pager", "--field", "--help"])
+        self.assertEqual(longs[-6:], ["--progress", "--verbose", "--pager", "--field", "--lang", "--help"])
         code, out, _ = run("describe", "--summary", "--json")
         self.assertNotIn("globalOptions", json.loads(out)["data"])
         # No pager in a pipe, whatever PAGER names.

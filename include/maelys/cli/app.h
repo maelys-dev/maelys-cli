@@ -43,6 +43,31 @@ typedef struct maelys_cli_help_palette {
     const char *example;      /* a line of an example, to copy */
 } maelys_cli_help_palette_t;
 
+/* One human text in another language. `source` is the text exactly as the
+ * catalog or the framework writes it in the canonical language, English: a
+ * purpose, a summary, a heading, or the template of an error message with
+ * its conversions (`Machine %s is unknown.`). `text` says the same in the
+ * language, with the same conversions in the same order, which the catalog
+ * validation checks. A text no translation names is shown as written. */
+typedef struct maelys_cli_translation {
+    const char *source;
+    const char *text;
+} maelys_cli_translation_t;
+
+/* The translations of one language: its tag, well formed as RFC 5646
+ * writes it (`fr`, `fr-CA`), and its texts. A language a product declares
+ * is one it has: the line's request resolves among them (RFC 4647 Lookup),
+ * the framework's own texts follow, and a text without translation stays
+ * in English. A product that declares none is shown in English alone. */
+/* At most this many languages besides English in one catalog. */
+#define MAELYS_CLI_MAX_LANGUAGES 32u
+
+typedef struct maelys_cli_language {
+    const char *tag;
+    const maelys_cli_translation_t *translations;
+    size_t translation_count;
+} maelys_cli_language_t;
+
 typedef struct maelys_cli_app {
     const char *program;   /* executable name shown in usage */
     const char *product;   /* human product name */
@@ -74,6 +99,19 @@ typedef struct maelys_cli_app {
      * framework's: bold headings. The catalog validation refuses a member
      * that is not SGR parameters. */
     const maelys_cli_help_palette_t *help_palette;
+    /* The languages the product's human text has besides English (help,
+     * the manual page, the text rendering of a failure), or NULL. JSON and
+     * describe never change with the language: their texts stay English. */
+    const maelys_cli_language_t *languages;
+    size_t language_count;
+    /* The canonical language of the product's human text: the language its
+     * catalog and its failure templates are written in, which `version`
+     * names (`lang`) and from which `languages` translate; NULL for "en".
+     * The framework's own texts follow it: a product written in French
+     * (`"fr"`) shows French headings and messages without any table, and
+     * `--lang` or a locale naming its canonical language, `C` included,
+     * gives that language. A tag of the form language[-Script][-REGION]. */
+    const char *canonical_language;
 } maelys_cli_app_t;
 
 typedef struct maelys_cli_context {
@@ -94,6 +132,10 @@ typedef struct maelys_cli_context {
     int pager_pid;           /* the pager child, or 0 */
     FILE *pager_out;         /* stdout of the process while paging */
     int expect_checked;      /* maelys_cli_expect() was called */
+    /* The language of human text this invocation resolved: the product's
+     * translations and the framework's, NULL for English. */
+    const maelys_cli_language_t *language;
+    const maelys_cli_language_t *framework_language;
 } maelys_cli_context_t;
 
 /* Process entry point: returns the exit code. Uses stdout and stderr. */

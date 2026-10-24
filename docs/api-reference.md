@@ -176,7 +176,25 @@ and the agent guide.
 | `const maelys_cli_parsed_option_t *maelys_cli_invocation_option(inv, const char *name)` / `maelys_cli_invocation_option_at(inv, name, occurrence)` | Parsed option (raw text plus typed value) or `NULL`. |
 | `size_t maelys_cli_invocation_option_count(inv, name)` | Occurrences of a repeatable option. |
 
+`maelys_cli_error_t` keeps, after `code`, `message` and `hint`, the template
+of the message (`format`) and the text of each of its conversions
+(`argument_count`, `arguments`, NUL-separated), which `maelys_cli_error_set`
+and `maelys_cli_fail` fill: the text rendering puts them back in the
+template's translation. `maelys_cli_invocation_t.lang` is the `--lang TAG`
+of the line, `NULL` when absent; both members were appended, so a product
+recompiles against them and needs no change of its own.
+
 ## `maelys/cli/app.h`
+
+Languages of human text (agent-cli/v2 2.21.0, section 5, "Language"; see
+`docs/command-conventions.md`, "Languages of human text"):
+
+| Declaration | Contract |
+| --- | --- |
+| `maelys_cli_translation_t {source, text}` | One text in another language: `source` exactly as the catalog or a failure template writes it in English, `text` the same with the same printf conversions in the same order. |
+| `maelys_cli_language_t {tag, translations, translation_count}` | The table of one language, `tag` of the form `language[-Script][-REGION]`. At most `MAELYS_CLI_MAX_LANGUAGES` (32) per catalog. |
+| `maelys_cli_app_t.canonical_language` | The language the catalog and the failure templates are written in, `NULL` for `en`; `version` names it as `lang`, the tables translate from it, and the framework's own texts follow it. A tag of the form `language[-Script][-REGION]`. |
+| `maelys_cli_app_t.languages`, `.language_count` | The product's languages besides English, or `NULL`. `maelys_cli_catalog_validate` refuses a malformed tag, English, a tag declared twice, a source translated twice, an empty text or one with a control character other than a newline, and a translation without the conversions of its source in order. The help, `data.text` of `help`, the text rendering of a failure, `maelys_cli_detail`, `maelys_cli_progress` and `maelys_cli_warn` are written in the language `--lang`, `MAELYS_CLI_LANG`, `LC_ALL`, `LC_MESSAGES` or `LANG` resolves to among them; `describe`, envelopes and records never change. The catalog form of `describe` carries the tables as `x-maelys-translations`. |
 
 Entry points:
 

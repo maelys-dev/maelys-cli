@@ -45,7 +45,7 @@ HEADERS := $(wildcard include/maelys/*.h include/maelys/cli/*.h src/*.h \
 
 SOURCES := src/version.c src/values.c src/environment.c src/files.c \
 	src/digest.c src/json.c src/terminal.c src/process.c src/catalog.c \
-	src/invocation.c src/pattern.c src/app.c
+	src/invocation.c src/pattern.c src/language.c src/i18n_fr.c src/app.c
 OBJECTS := $(patsubst %.c,$(BUILD)/%.o,$(SOURCES))
 LIB := $(BUILD)/lib/libmaelys_cli.a
 # Manifest discovery reads untrusted JSON through maelys-json; it lives in
@@ -68,7 +68,7 @@ DISPATCHER_OBJECTS := $(patsubst %.c,$(BUILD)/%.o,$(DISPATCHER_SOURCES)) \
 DISPATCHER := $(BUILD)/bin/maelys
 EXAMPLE := $(BUILD)/bin/maelys-hello
 
-TEST_NAMES := test_values test_pattern test_json test_files test_digest test_process \
+TEST_NAMES := test_values test_pattern test_language test_json test_files test_digest test_process \
 	test_catalog test_app test_extension
 TESTS := $(addprefix $(BUILD)/tests/,$(TEST_NAMES))
 HEADER_CPP := $(BUILD)/tests/header_cpp
@@ -104,7 +104,7 @@ $(shell rm -rf $(BUILD)/src $(BUILD)/cli $(BUILD)/lib $(BUILD)/bin $(BUILD)/test
 endif
 endif
 
-.PHONY: all check test fuzz fuzz-smoke tsan-check header-check check-version cli-check embed-check commit-check api-doc-check agent-doc-check doc-topics-check python-check hello-parity-check completion-check python-doc-check man-check envelope-schema-check pattern-ecma-check install \
+.PHONY: all check test fuzz fuzz-smoke tsan-check header-check check-version cli-check embed-check commit-check api-doc-check agent-doc-check doc-topics-check i18n-check python-check hello-parity-check completion-check python-doc-check man-check envelope-schema-check pattern-ecma-check install \
 	install-check uninstall dist clean asan-ubsan analyze cmake-check describe-schema-check \
 	conformance-check agents-install
 
@@ -317,8 +317,8 @@ doc-topics-check:
 # longer verified here: maelys-release regenerates and compares both,
 # locally with 'maelys-release check .' and in CI through check-product.yml.
 check: test fuzz-smoke tsan-check cli-check embed-check commit-check header-check check-version api-doc-check agent-doc-check doc-topics-check python-doc-check
-	@if command -v python3 >/dev/null 2>&1; then $(MAKE) python-check hello-parity-check completion-check conformance-check describe-schema-check envelope-schema-check man-check; \
-	else echo "python-check, hello-parity-check, completion-check, conformance-check, describe-schema-check, envelope-schema-check, man-check: skipped (python3 not found)"; fi
+	@if command -v python3 >/dev/null 2>&1; then $(MAKE) i18n-check python-check hello-parity-check completion-check conformance-check describe-schema-check envelope-schema-check man-check; \
+	else echo "i18n-check, python-check, hello-parity-check, completion-check, conformance-check, describe-schema-check, envelope-schema-check, man-check: skipped (python3 not found)"; fi
 	@if command -v node >/dev/null 2>&1; then $(MAKE) pattern-ecma-check; \
 	else echo "pattern-ecma-check: skipped (node not found)"; fi
 
@@ -329,6 +329,13 @@ check: test fuzz-smoke tsan-check cli-check embed-check commit-check header-chec
 # POSIX ERE in test_pattern, RE2 in `make fuzz`.
 pattern-ecma-check:
 	node scripts/pattern-ecma-check.js tests/patterns.tsv
+
+# The framework's translations, i18n/*.tsv: each table valid (a source once,
+# its conversions kept in order, no control character), and the files
+# generated from it current -- src/i18n_*.c, the tables of
+# python/maelys_cli.py and tools/maelys-cli-man.
+i18n-check:
+	python3 scripts/i18n.py
 
 # python/examples/hello.py and its tests, run without writing bytecode so a
 # check never dirties the tree. The conformance kit runs against the
