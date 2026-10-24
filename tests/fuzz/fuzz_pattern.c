@@ -10,7 +10,9 @@
  * which this matcher runs in kilobytes -- cost glibc's regcomp gigabytes,
  * the very cost src/pattern.c exists to avoid; even one {255} on a long
  * group costs it tens of megabytes per input, which the allocator of the
- * sanitizers keeps until the campaign runs out of memory. And it is made
+ * sanitizers keeps until the campaign runs out of memory, and a group that
+ * can match nothing, repeated, costs it time exponential in the bound
+ * (7(a?|c*){20,}: 0.8 s for glibc, 0.01 ms here). And it is made
  * only when `^` and `$` stand at the ends of the pattern: glibc reads an
  * anchor inside a repeated group wrongly -- ^(ab|cd$){1,3}e$ matches
  * abcdabe for it, for no other engine -- and tests/patterns.tsv holds the
@@ -27,7 +29,7 @@
 
 #define PATTERN_MAX_BYTES 4096u
 #define LIBC_MAX_BYTES 128u
-#define LIBC_MAX_BOUND 32ul
+#define LIBC_MAX_BOUND 8ul
 
 static int printable_ascii(const char *text) {
     for (; *text; ++text)
