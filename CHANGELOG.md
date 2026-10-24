@@ -1,7 +1,18 @@
 # Changelog
 
-## Unreleased
+## 0.12.1 - 2026-10-24
 
+A patch release of fixes and documentation after 0.12.0: Python spells the
+usage of a command as C does, so the two manual pages are identical; a
+public parser no longer reads through an empty constraint; `make analyze`
+is silent again; and the guide installed for agents names the public regex
+API. Nothing a product written for 0.12.0 must change.
+
+- The agent guide (`share/agents/maelys-cli-guide.md`) names
+  `maelys/cli/regex.h`: when a product reaches for it, a pattern of its own
+  and never an `argument.pattern`, and how. `agent-doc-check` now requires
+  every function of `regex.h` in the guide, as it requires those of
+  `app.h`.
 - `python/maelys_cli.py`: **the usage of a command spells its options as
   C does** (`put_option()`, `src/catalog.c`), so describe, help and the
   page `tools/maelys-cli-man` renders say the same line from either side:
@@ -26,7 +37,6 @@
   changes. `make analyze` reported it, unchanged since at least 0.10.0,
   as its one warning. No Python counterpart: `constraint()` refuses a rule
   of fewer than two options when it is written.
-
 - **`make analyze` is silent again on the languages of 0.12.0.** The name of
   the canonical language and the resolution of a line's language read a NULL
   app as English, and the check that a language is declared once compares no
