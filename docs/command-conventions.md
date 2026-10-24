@@ -66,14 +66,25 @@ there: all-or-none is declared by `.group`, and a rule has one declaration
 so that `describe` and the parser cannot drift apart.
 
 `.pattern` is, as `argument.pattern`, the regular expression a string or
-path value must match (spec 2.3): the parser enforces it with POSIX ERE
-(`regcomp`, `REG_EXTENDED`) and refuses a mismatch with `VALIDATION_FAILED`;
-the catalog validation refuses a pattern that does not compile. Write
-patterns in the common subset of ECMA-262 and POSIX ERE: literals, bracket
-classes and ranges, `.`, `*`, `+`, `?`, `{m,n}`, alternation, plain
-`( )` groups, `^` and `$`; no `(?:`, no `\d`, no lookaround, no
-back-reference, so that an agent, the kit, the C parser and the Python
-module read the same motif.
+path value must match (spec 2.3): the parser refuses a mismatch with
+`VALIDATION_FAILED`, as a search (`^` and `$` anchor the value). It is
+written in the common subset of ECMA-262 and POSIX ERE, so that an agent,
+the kit, the C parser and the Python module read one motif, and the library
+reads and matches that subset itself (`src/pattern.c`; the Python module
+checks the motif the same way, then hands it to `re`): no `regcomp()`, no
+libc dialect, and a bounded repetition costs its text, where the regex of a
+libc expands `{0,254}` into 254 copies, 5.6 MiB and a millisecond on macOS
+at every start of the product. The subset: literals and `\` before one of
+`\ ^ $ . [ ] ( ) * + ? { } |`; `.`, any character but a newline; `[...]`
+and `[^...]` of printable ASCII and ranges, no `[`, `]` or `\` inside; `(
+)` groups and `|`, no empty alternative; `*`, `+`, `?`, `{m}`, `{m,}` and
+`{m,n}` with `n` at most 255, what POSIX guarantees of an ERE engine
+(`RE_DUP_MAX`) that reads the motif out of `describe`; `^` and `$`. A
+pattern outside it, `(?:`, `\d`, `[[:alpha:]]`, a lazy `*?`, a bound above
+255, is refused at startup with the reason, in C and in Python alike;
+`tests/patterns.tsv` is the corpus both answer. A value is read as UTF-8
+code points, a byte that is not UTF-8 counting as one character, as
+Python's `re` reads argv.
 
 `.hidden` on an option (spec 2.2) marks a diagnostic or trial option that
 humans are not offered: the parser accepts it and applies its constraints,

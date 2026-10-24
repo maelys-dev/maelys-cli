@@ -147,6 +147,35 @@ command when either is wrong:
   into one line per paragraph, or each hand-made line is wrapped on its own
   and the paragraph reads ragged at another width.
 
+## Every consumer, at the pattern the library reads itself
+
+`argument.pattern` is no longer compiled with the libc's `regcomp()`: the
+library reads the common subset of ECMA-262 and POSIX ERE the contract
+writes a pattern in (spec 2.3) and matches it itself, in C as in Python.
+Nothing changes for a pattern written in that subset, which every product
+known to this repository declares. What to search for:
+
+- **A pattern the subset leaves out is refused at startup**, `UNEXPECTED`
+  with the reason, where the libc accepted it and read it its own way:
+  `(?:...)` (tolerated and rewritten until now), `\d`, `\w`, `\s` (a
+  digit for Python, a `d` for the TRE of macOS), `[[:alpha:]]`, `\` or
+  `]` inside a bracket expression, a lazy `*?`, an empty alternative, a
+  bare `]` or `}`. Grep the `.pattern` and `pattern=` of the catalog for
+  them; each has a spelling inside the subset (`(` for `(?:`, `[0-9]` for
+  `\d`, `[A-Za-z]` for `[[:alpha:]]`, `\]` for `]`).
+- **A bound above 255 is refused**: `{0,1000}` was already refused by the
+  macOS libc (`RE_DUP_MAX`) and accepted by glibc, so a product that
+  declared one ran on one platform only. Bound the length in the product's
+  handler, or write `*` and check the length there.
+- **A test that read the diagnostic** of a refused pattern reads "declares
+  a pattern outside the common subset of ECMA-262 and POSIX ERE: REASON"
+  instead of "is not a valid extended regular expression".
+- **A bounded repetition costs its text**: `^[A-Za-z0-9_][A-Za-z0-9_.-]{0,254}$`
+  cost 5.6 MiB of peak memory and a millisecond at every start of cx on
+  macOS, `--version` included; it costs a few hundred bytes now, and a
+  product that had shortened a bound for that reason may write what it
+  means.
+
 ## Every consumer, at agent-cli-spec 2.19.0
 
 - Nothing a product does stops working: 2.19.0 adds one SHOULD to section

@@ -115,8 +115,11 @@ typedef struct maelys_cli_option {
                                        otherwise), exposed as argument.pattern
                                        in describe. Written in the common
                                        subset of ECMA-262 and POSIX ERE (spec
-                                       2.3); compiled with regcomp() at
-                                       startup and applied by the parser */
+                                       2.3), which the library reads and
+                                       matches itself, no regcomp(): a
+                                       pattern outside the subset is refused
+                                       at startup, {m,n} costs its text, n at
+                                       most 255; docs/command-conventions.md */
     int hidden;                     /* not shown to humans: absent from the
                                        derived synopsis, help and completion;
                                        parsed, constrained and listed by

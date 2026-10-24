@@ -45,7 +45,7 @@ HEADERS := $(wildcard include/maelys/*.h include/maelys/cli/*.h src/*.h \
 
 SOURCES := src/version.c src/values.c src/environment.c src/files.c \
 	src/digest.c src/json.c src/terminal.c src/process.c src/catalog.c \
-	src/invocation.c src/app.c
+	src/invocation.c src/pattern.c src/app.c
 OBJECTS := $(patsubst %.c,$(BUILD)/%.o,$(SOURCES))
 LIB := $(BUILD)/lib/libmaelys_cli.a
 # Manifest discovery reads untrusted JSON through maelys-json; it lives in
@@ -68,7 +68,7 @@ DISPATCHER_OBJECTS := $(patsubst %.c,$(BUILD)/%.o,$(DISPATCHER_SOURCES)) \
 DISPATCHER := $(BUILD)/bin/maelys
 EXAMPLE := $(BUILD)/bin/maelys-hello
 
-TEST_NAMES := test_values test_json test_files test_digest test_process \
+TEST_NAMES := test_values test_pattern test_json test_files test_digest test_process \
 	test_catalog test_app test_extension
 TESTS := $(addprefix $(BUILD)/tests/,$(TEST_NAMES))
 HEADER_CPP := $(BUILD)/tests/header_cpp
@@ -203,7 +203,7 @@ $(BUILD)/tests/default_surface: tests/default_surface.c $(LIB) $(HEADERS)
 # FUZZ_TIME seconds per harness, which writes what it finds under
 # $(FUZZ_BUILD)/corpus and never into the committed corpus. Apple clang ships
 # no libFuzzer: on macOS, FUZZ_CC names a clang that does.
-FUZZ_NAMES := fuzz_run fuzz_values fuzz_json fuzz_manifest
+FUZZ_NAMES := fuzz_run fuzz_values fuzz_pattern fuzz_json fuzz_manifest
 FUZZ_REPLAYS := $(addprefix $(BUILD)/fuzz/,$(FUZZ_NAMES))
 FUZZ_CC ?= clang
 FUZZ_TIME ?= 30

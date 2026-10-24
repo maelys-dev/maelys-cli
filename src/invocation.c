@@ -4,7 +4,6 @@
 
 #include <errno.h>
 #include <inttypes.h>
-#include <regex.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -256,18 +255,17 @@ static int validate_value(
             }
             if (option->pattern) {
                 /* The value MUST match the declared pattern (spec 2.3): the
-                 * common subset of ECMA-262 and POSIX ERE, run as ERE. */
-                regex_t compiled;
-                if (maelys_cli_pattern_compile(option->pattern, &compiled) != 0) {
+                 * common subset of ECMA-262 and POSIX ERE, read and searched
+                 * by src/pattern.c as a libc and re.search() would. */
+                int matched = maelys_cli_pattern_match(option->pattern, value);
+                if (matched < 0) {
                     maelys_cli_error_set(error, MAELYS_CLI_CODE_UNEXPECTED,
                         "Report this defect to the command implementation.",
-                        "Option --%s declares a pattern that is not a valid "
-                        "extended regular expression.", option->name);
+                        "Option --%s declares a pattern outside the common "
+                        "subset of ECMA-262 and POSIX ERE.", option->name);
                     return -1;
                 }
-                int matched = regexec(&compiled, value, 0u, NULL, 0);
-                regfree(&compiled);
-                if (matched != 0) {
+                if (matched == 0) {
                     maelys_cli_error_set(error, MAELYS_CLI_CODE_VALIDATION_FAILED,
                         hint, "Option --%s expects a value matching %s.",
                         option->name, option->pattern);
@@ -362,32 +360,6 @@ static int validate_value(
     maelys_cli_error_set(error, MAELYS_CLI_CODE_UNEXPECTED, NULL,
         "Option --%s has an unknown value kind.", option->name);
     return -1;
-}
-
-int maelys_cli_pattern_compile(const char *pattern, void *out_regex) {
-    if (!pattern || !out_regex) return -1;
-    size_t length = strlen(pattern);
-    char *rewritten = malloc(length + 1u);
-    if (!rewritten) return -1;
-    size_t used = 0u;
-    for (size_t i = 0u; i < length; ++i) {
-        if (pattern[i] == '\\' && i + 1u < length) {
-            rewritten[used++] = pattern[i++];
-            rewritten[used++] = pattern[i];
-            continue;
-        }
-        if (pattern[i] == '(' && i + 2u < length && pattern[i + 1u] == '?' &&
-            pattern[i + 2u] == ':') {
-            rewritten[used++] = '(';
-            i += 2u;
-            continue;
-        }
-        rewritten[used++] = pattern[i];
-    }
-    rewritten[used] = '\0';
-    int result = regcomp((regex_t *)out_regex, rewritten, REG_EXTENDED | REG_NOSUB);
-    free(rewritten);
-    return result == 0 ? 0 : -1;
 }
 
 static void apply_transport(

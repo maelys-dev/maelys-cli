@@ -140,6 +140,191 @@ EXTENSION_NAME = re.compile(r"x-[a-z0-9][a-z0-9-]*")
 CODE_GRAMMAR = re.compile(r"[A-Z][A-Z0-9_]*")
 
 
+# argument.pattern is written in the common subset of ECMA-262 and POSIX ERE
+# (spec 2.3). C reads and matches it itself (src/pattern.c); here the same
+# reader admits or refuses the motif, then hands `re` what it admitted, with
+# one change of spelling: `$` becomes `\Z`, because `re` lets `$` match
+# before a final newline and neither dialect does. tests/patterns.tsv holds
+# the two readers to the same answers.
+_PATTERN_METACHARACTERS = "\\^$.[]()*+?{}|"
+_PATTERN_MAX_BOUND = 255        # what POSIX guarantees of an ERE engine (RE_DUP_MAX)
+_PATTERN_MAX_DEPTH = 32
+_PATTERN_MAX_STATES = 65536     # the program C expands a pattern to is bounded alike
+
+
+def _pattern_check(pattern: str) -> str:
+    """Refuses, with the reason, a pattern outside the common subset of ECMA-262 and
+    POSIX ERE; returns the motif `re` reads as C does (`$` spelled `\\Z`)."""
+    if not isinstance(pattern, str) or not pattern:
+        raise ValueError("an empty pattern")
+    text, length, out = pattern, len(pattern), []
+    position = [0]
+
+    def peek() -> str:
+        return text[position[0]] if position[0] < length else ""
+
+    def member(c: str) -> str:
+        # Escaped for `re`, which warns of `--`, `&&`, `~~` and `||` in a set
+        # as of a set operation to come; the subset reads them as characters.
+        return c if c.isalnum() or c == " " else "\\" + c
+
+    def parse_class() -> int:
+        out.append("[")
+        if peek() == "^":
+            position[0] += 1
+            out.append("^")
+        items = 0
+        while True:
+            if position[0] >= length:
+                raise ValueError("an unclosed bracket expression")
+            c = text[position[0]]
+            if c == "]":
+                if items == 0:
+                    raise ValueError("an empty bracket expression, or ']' where the two dialects read it differently")
+                position[0] += 1
+                out.append("]")
+                return 1
+            if c == "[":
+                raise ValueError("'[' inside a bracket expression, as a POSIX class such as [:alpha:] starts")
+            if c == "\\":
+                raise ValueError("'\\' inside a bracket expression, an escape for ECMA-262 and a character for POSIX ERE")
+            if not " " <= c <= "~":
+                raise ValueError("a character outside printable ASCII in a bracket expression")
+            position[0] += 1
+            out.append(member(c))
+            if peek() == "-" and position[0] + 1 < length and text[position[0] + 1] != "]":
+                high = text[position[0] + 1]
+                if high in "[\\":
+                    raise ValueError("a range that ends on '[' or '\\'")
+                if not " " <= high <= "~":
+                    raise ValueError("a character outside printable ASCII in a bracket expression")
+                if high < c:
+                    raise ValueError("a range whose ends are reversed")
+                out.append("-" + member(high))
+                position[0] += 2
+            items += 1
+
+    def parse_bound() -> tuple:
+        parts = [""]
+        while True:
+            if position[0] >= length:
+                raise ValueError("an unclosed bound: write {m}, {m,} or {m,n}")
+            c = text[position[0]]
+            position[0] += 1
+            if c in "0123456789":
+                parts[-1] += c
+            elif c == "," and len(parts) == 1:
+                parts.append("")
+            elif c == "}":
+                break
+            else:
+                raise ValueError("'{' that does not open a bound {m}, {m,} or {m,n}")
+        if not parts[0]:
+            raise ValueError("a bound without its minimum: write {m}, {m,} or {m,n}")
+        low = int(parts[0])
+        high = low if len(parts) == 1 else int(parts[1]) if parts[1] else None
+        if low > _PATTERN_MAX_BOUND or (high is not None and high > _PATTERN_MAX_BOUND):
+            raise ValueError("a bound above 255, more than POSIX guarantees of an ERE engine")
+        if high is not None and low > high:
+            raise ValueError("a bound {m,n} with m above n")
+        out.append("{" + ",".join(parts) + "}")
+        return low, high
+
+    def parse_atom(depth: int) -> tuple:
+        c = peek()
+        if c == "(":
+            position[0] += 1
+            if peek() == "?":
+                raise ValueError("'(?', a group ECMA-262 names and POSIX ERE lacks")
+            if depth + 1 > _PATTERN_MAX_DEPTH:
+                raise ValueError("more than 32 nested groups")
+            out.append("(")
+            size = parse_alternation(depth + 1)
+            if peek() != ")":
+                raise ValueError("an unclosed group")
+            position[0] += 1
+            out.append(")")
+            return size, False
+        if c == "[":
+            position[0] += 1
+            return parse_class(), False
+        if c in (".", "^", "$"):
+            position[0] += 1
+            out.append("\\Z" if c == "$" else c)
+            return 1, c != "."
+        if c == ")":
+            raise ValueError("a ')' that closes no group")
+        if c in ("]", "}"):
+            raise ValueError("an unescaped ']' or '}', which the two dialects read differently: write \\] or \\}")
+        if c in ("*", "+", "?", "{"):
+            raise ValueError("a quantifier that follows nothing")
+        if c == "\\":
+            position[0] += 1
+            if position[0] >= length:
+                raise ValueError("a '\\' that ends the pattern")
+            escaped = text[position[0]]
+            if escaped not in _PATTERN_METACHARACTERS:
+                raise ValueError("an escape that is not of a metacharacter: '\\d', '\\n' and the like are not in the subset")
+            position[0] += 1
+            out.append("\\" + escaped)
+            return 1, False
+        code = ord(c)
+        if code < 0x20 or 0x7F <= code <= 0x9F:
+            raise ValueError("a control character")
+        if 0xD800 <= code <= 0xDFFF:
+            raise ValueError("a byte that is not UTF-8")
+        position[0] += 1
+        out.append(c)
+        return 1, False
+
+    def parse_piece(depth: int) -> int:
+        size, anchor = parse_atom(depth)
+        c = peek()
+        if c not in ("*", "+", "?", "{"):
+            return size
+        if anchor:
+            raise ValueError("a quantified anchor")
+        position[0] += 1
+        if c == "{":
+            low, high = parse_bound()
+        else:
+            low, high = {"*": (0, None), "+": (1, None), "?": (0, 1)}[c]
+            out.append(c)
+        if peek() in ("*", "+", "?", "{"):
+            raise ValueError("two quantifiers in a row, or a lazy quantifier such as '*?', which POSIX ERE lacks")
+        if high is None:
+            return low * size + size + 2
+        return low * size + (high - low) * (size + 1)
+
+    def parse_sequence(depth: int) -> int:
+        total = None
+        while position[0] < length and text[position[0]] not in ("|", ")"):
+            total = (total or 0) + parse_piece(depth)
+        if total is None:
+            raise ValueError("an empty alternative or group")
+        return total
+
+    def parse_alternation(depth: int) -> int:
+        size = parse_sequence(depth)
+        while peek() == "|":
+            position[0] += 1
+            out.append("|")
+            size += parse_sequence(depth) + 2
+        return size
+
+    states = parse_alternation(0)
+    if position[0] < length:
+        raise ValueError("a ')' that closes no group")
+    if states + 1 > _PATTERN_MAX_STATES:
+        raise ValueError("a pattern that expands to more than 65536 states")
+    return "".join(out)
+
+
+def _pattern_search(pattern: str, text: str) -> bool:
+    """Whether the value matches: a search, as regexec() and C's matcher make it."""
+    return re.search(_pattern_check(pattern), text) is not None
+
+
 class Failure(Exception):
     """A failure envelope: stable code, causal message, next safe action.
 
@@ -1135,8 +1320,9 @@ def parse_value(kind: str, text: str, spec: dict, where: str, usage: str) -> Any
         return text == "true"
     if kind == "string":
         # The value MUST match the declared pattern (spec 2.3), written in the
-        # common subset of ECMA-262 and POSIX ERE; search semantics, as ERE.
-        if "pattern" in spec and not re.search(spec["pattern"], text):
+        # common subset of ECMA-262 and POSIX ERE and read by _pattern_check;
+        # search semantics, as ERE.
+        if "pattern" in spec and not _pattern_search(spec["pattern"], text):
             raise refuse(f"a value matching {spec['pattern']}")
         return text
     # Digits are the ten ASCII ones: `\d` also reads the digits of other
@@ -1160,7 +1346,7 @@ def parse_value(kind: str, text: str, spec: dict, where: str, usage: str) -> Any
     elif kind == "path":
         if not text:
             raise refuse("a non-empty path")
-        if "pattern" in spec and not re.search(spec["pattern"], text):
+        if "pattern" in spec and not _pattern_search(spec["pattern"], text):
             raise refuse(f"a value matching {spec['pattern']}")
         return text
     elif kind == "absolute-path":
@@ -1726,13 +1912,23 @@ class Program:
         for command in commands:
             if command["id"] in seen or any(command["id"] == built["id"] for built in self.catalog):
                 raise ValueError(f"duplicate command identifier {command['id']!r}")
+            # A pattern outside the common subset is refused here, as C refuses
+            # it at startup (src/pattern.c): the two read one motif.
             for item in command["options"]:
                 pattern = item.get("argument", {}).get("pattern")
                 if pattern is not None:
                     try:
-                        re.compile(pattern)
-                    except re.error as error:
-                        raise ValueError(f"{command['id']}: {item['long']} pattern is invalid: {error}") from None
+                        _pattern_check(pattern)
+                    except ValueError as error:
+                        raise ValueError(f"{command['id']}: {item['long']} declares a pattern outside the common "
+                                         f"subset of ECMA-262 and POSIX ERE: {error}") from None
+            for item in command["operands"]:
+                if "pattern" in item:
+                    try:
+                        _pattern_check(item["pattern"])
+                    except ValueError as error:
+                        raise ValueError(f"{command['id']}: operand {item['name']} declares a pattern outside the "
+                                         f"common subset of ECMA-262 and POSIX ERE: {error}") from None
             seen.add(command["id"])
             self._check_references(command)
             self.catalog.append(command)
