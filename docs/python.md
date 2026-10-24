@@ -241,7 +241,11 @@ other; at least two distinct options of the command, checked when the
 `group=`, its option-level form, so a rule has one declaration.
 `cli.argument(name,
 kind, choices, minimum, maximum, algorithms, pattern, digits)` declares the
-value.
+value. Its `name` is the placeholder of the usage and of help; `VALUE` is
+the name of a value that declares none, as describe gives it for a C option
+without `.value_name`: a `choice` named `VALUE` is spelled by its choices
+(`--level low|high`), a `digest` named `VALUE` is `ALGORITHM:HEX` in the
+usage, and any other name is written as declared (`--level LEVEL`).
 A `pattern` on a `string` or `path` argument is enforced (agent-cli/v2,
 section 3): the value must match it (a search, `^` and `$` at the ends of
 the value), else `VALIDATION_FAILED`. It is written in a subset that

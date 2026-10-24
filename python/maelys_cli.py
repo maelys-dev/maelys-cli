@@ -1646,10 +1646,13 @@ def _command(identifier: str, pattern: str, purpose: str, handler: Optional[Hand
         for item in operands:
             piece = item["name"] + ("..." if item["variadic"] else "")
             synopsis += " " + (piece if item["required"] else f"[{piece}]")
-        for item in options:
+        # The required options first, then the optional ones, each spelled
+        # as put_option() does in C (src/catalog.c).
+        for item in sorted(options, key=lambda item: not item["required"]):
             if item.get("hidden"):
                 continue
-            piece = item["long"] + (f" {item['argument']['name']}" if "argument" in item else "")
+            piece = item["long"] + (f" {_value_placeholder(item['argument'], True)}" if "argument" in item else "")
+            piece += "..." if item["repeatable"] else ""
             synopsis += " " + (piece if item["required"] else f"[{piece}]")
         if passthrough:
             synopsis += " [ARGUMENTS...]"
@@ -1663,6 +1666,22 @@ def _command(identifier: str, pattern: str, purpose: str, handler: Optional[Hand
             "operands": operands, "options": options, "passthrough": passthrough,
             "constraints": list(constraints), "examples": list(examples),
             "outputSchema": schema or {"type": "object"}, "handler": handler}
+
+
+def _value_placeholder(value: dict, synopsis: bool = False) -> str:
+    """What the reader replaces in an option's spelling. A declaration that
+    names no value is Python's `VALUE`, the name describe gives when C
+    declares no `.value_name`: a choice is then spelled by its choices joined
+    by "|", in the synopsis and in help, and a digest `ALGORITHM:HEX` in the
+    synopsis (C: put_option, option_label). Any other name is spelled as
+    declared."""
+    if value["name"] != "VALUE":
+        return value["name"]
+    if value["type"] == "choice" and value.get("choices"):
+        return "|".join(value["choices"])
+    if value["type"] == "digest" and synopsis:
+        return "ALGORITHM:HEX"
+    return value["name"]
 
 
 def _help_synopsis(usage: str, optional: bool) -> str:
@@ -3313,18 +3332,13 @@ class Program:
     def _option_parts(self, item: dict) -> "tuple[str, str, str]":
         """An option's label in three parts: its name, what the reader replaces, and " (repeatable)"."""
         value = item.get("argument")
-        replaced = "|".join(value["choices"]) if value and value.get("choices") else value["name"] if value else ""
-        return item["long"], replaced, " " + self._tr("(repeatable)") if item["repeatable"] else ""
+        return item["long"], _value_placeholder(value) if value else "", \
+            " " + self._tr("(repeatable)") if item["repeatable"] else ""
 
     @staticmethod
     def _option_label(item: dict) -> str:
         value = item.get("argument")
-        if value and value.get("choices"):
-            spelled = f"{item['long']} {'|'.join(value['choices'])}"
-        elif value:
-            spelled = f"{item['long']} {value['name']}"
-        else:
-            spelled = item["long"]
+        spelled = f"{item['long']} {_value_placeholder(value)}" if value else item["long"]
         return spelled + (" (repeatable)" if item["repeatable"] else "")
 
     def _option_text(self, item: dict) -> str:

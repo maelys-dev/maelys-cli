@@ -332,6 +332,44 @@ class Contract(unittest.TestCase):
         for line in guide.splitlines():
             self.assertFalse(line.endswith((" record", " capture", " bridge", " watch")), line)
 
+    def test_synopsis_spelling(self) -> None:
+        """The usage describe gives spells an option as put_option() does in C (src/catalog.c): the
+        required options before the optional ones, "..." after a repeatable one, and a value that
+        names nothing (`VALUE`, what describe gives for no `.value_name`) spelled by its choices, or
+        ALGORITHM:HEX for a digest; a declared name as declared. Help spells a choice the same way.
+        The expected strings are C's: tests/test_catalog.c (test_synopsis), tests/test_app.c
+        (test_help_synopsis) and MAELYS_CLI_CHOICE/MAELYS_CLI_DIGEST with and without .value_name."""
+        thing = cli.transaction("thing.make", "thing make", "Make a thing.", lambda i: ({}, 0),
+                                operands=[cli.operand("ROOT", "Root directory."),
+                                          cli.operand("NAME", "Optional name.", required=False),
+                                          cli.operand("PATH", "Remaining paths.", required=False, variadic=True)],
+                                options=[cli.option("--mode", "Mode.", cli.argument("VALUE", "choice", ["fast", "safe"]),
+                                                    default="fast"),
+                                         cli.option("--size", "Size.", cli.argument("BYTES", "size", minimum=1),
+                                                    required=True),
+                                         cli.option("--tag", "Tag.", cli.argument("TEXT"), repeatable=True,
+                                                    requires=("--size",)),
+                                         cli.flag("--trace", "Trace; diagnostics.", hidden=True)])
+        self.assertEqual(thing["usage"], "thing make ROOT [NAME] [PATH...] --size BYTES "
+                                         "[--mode fast|safe] [--tag TEXT...] [--apply]")
+        pick = cli.read("pick", "pick", "Choices.", lambda i: ({}, 0),
+                        operands=[cli.operand("SHELL", "Shell.", choices=["bash", "zsh"])],
+                        options=[cli.option("--size", "Size.", cli.argument("BYTES", "size", minimum=1), required=True),
+                                 cli.option("--mode", "Mode.", cli.argument("VALUE", "choice", ["fast", "safe"])),
+                                 cli.option("--tag", "Tag.", cli.argument("TEXT"), repeatable=True)])
+        self.assertEqual(pick["usage"], "pick SHELL --size BYTES [--mode fast|safe] [--tag TEXT...]")
+        self.assertEqual(pick["helpUsage"], "pick SHELL --size BYTES [options]")
+        named = cli.read("pick", "pick", "Pick.", lambda i: ({}, 0),
+                         options=[cli.option("--mode", "Mode.", cli.argument("MODE", "choice", ["fast", "safe"])),
+                                  cli.option("--pace", "Pace.", cli.argument("VALUE", "choice", ["fast", "safe"])),
+                                  cli.option("--sum", "Sum.", cli.argument("VALUE", "digest", algorithms=["sha256"])),
+                                  cli.option("--ref", "Ref.", cli.argument("DIGEST", "digest", algorithms=["sha256"]))])
+        self.assertEqual(named["usage"], "pick [--mode MODE] [--pace fast|safe] [--sum ALGORITHM:HEX] [--ref DIGEST]")
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            cli.Program("p", "P", "1", [named]).main(["help", "pick"])
+        self.assertIn("\n  --mode MODE       Mode.\n  --pace fast|safe  Pace.\n  --sum VALUE       Sum.\n", out.getvalue())
+
     def test_help_palette(self) -> None:
         """The colors of help (C: maelys_cli_help_palette_t): each role in the product's color where the
         terminal accepts color, nothing elsewhere, data.text never colored, and a color is SGR parameters."""
@@ -339,7 +377,7 @@ class Contract(unittest.TestCase):
             return cli.Program("p", "P", "1", [
                 cli.read("pick", "pick", "Choices.", lambda i: ({}, 0),
                          operands=[cli.operand("SHELL", "Shell.", choices=["bash", "zsh"])],
-                         options=[cli.option("--mode", "Mode.", cli.argument("MODE", "choice", choices=["fast", "safe"]))])],
+                         options=[cli.option("--mode", "Mode.", cli.argument("VALUE", "choice", choices=["fast", "safe"]))])],
                 help_palette=palette)
 
         def shown(target: cli.Program, *argv: str, env: "dict | None" = None) -> str:

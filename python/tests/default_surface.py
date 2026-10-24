@@ -87,7 +87,7 @@ PROGRAM = cli.Program("default-surface", "Default surface", "1.0.0", [
              operands=[cli.operand("FILE", "File to show.", required=False)],
              options=[cli.option("--label", "Label of what is shown.", cli.argument("TEXT")),
                       cli.option("--count", "How many lines.", cli.argument("N", "unsigned", minimum=1, maximum=10)),
-                      cli.option("--level", "Level of detail.", cli.argument("LEVEL", "choice", choices=["low", "high"]))]),
+                      cli.option("--level", "Level of detail.", cli.argument("VALUE", "choice", choices=["low", "high"]))]),
     cli.read("list", "list", "List the entries.", listing,
              options=[cli.option("--limit", "Maximum number of entries.",
                                  cli.argument("N", "unsigned", minimum=0, maximum=1000))]),
