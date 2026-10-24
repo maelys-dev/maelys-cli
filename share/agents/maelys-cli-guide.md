@@ -484,6 +484,44 @@ with the framework under `PREFIX/share/maelys-cli/docs/` (source:
 | `maelys/cli/terminal.h` | tty and color detection honoring `--color`, `NO_COLOR`, `CLICOLOR_FORCE`, `TERM=dumb` |
 | `maelys/cli/process.h` | trusted executable checks, `run` and `replace` without shell, helper resolution, executable directory |
 | `maelys/cli/extension.h` | manifest-based discovery of external commands for a dispatcher (`libmaelys_cli_extension.a`, requires maelys-json) |
+| `maelys/cli/regex.h` | the reader of `argument.pattern` for any pattern of the same subset: `maelys_cli_regex_compile`, `maelys_cli_regex_search`, `maelys_cli_regex_states`, `maelys_cli_regex_free`, `maelys_cli_regex_status_text` |
+
+### Match a pattern of your own (`maelys/cli/regex.h`)
+
+An `argument.pattern` is enforced by the parser: declare it on the option
+or operand and write no check of your own. For any other pattern a product
+matches -- a ref filter, a name rule read from a configuration -- use the
+same reader rather than `regcomp()` or a hand-written matcher. It reads the
+subset agent-cli/v2 section 3 writes, the same on every platform, and
+searches in linear time, never backtracking.
+
+```c
+maelys_cli_regex_t *rule = NULL;
+maelys_cli_regex_diagnostic_t why;
+if (maelys_cli_regex_compile(text, strlen(text), &rule, &why) != MAELYS_CLI_REGEX_OK)
+    return maelys_cli_fail(context, MAELYS_CLI_CODE_VALIDATION_FAILED,
+        "Write the rule in the subset of agent-cli/v2 section 3.",
+        "Rule '%s' is refused at byte %zu: %s", text, why.offset, why.message);
+int found = maelys_cli_regex_search(rule, name, strlen(name));  /* 1, 0, or -1 with errno */
+maelys_cli_regex_free(rule);
+```
+
+- Compile once and search many times. A compiled handle never changes, so
+  several threads may search it at once. Free it with
+  `maelys_cli_regex_free`.
+- A pattern and a value are a pointer and a length. A value is read as
+  UTF-8, and its NUL bytes are characters. `^` and `$` hold at the two ends
+  of the value only; a pattern without anchors matches anywhere in it.
+- A refusal is a status whose value never changes
+  (`MAELYS_CLI_REGEX_ESCAPE` for `\d`, `MAELYS_CLI_REGEX_LIMIT` beyond a
+  budget), the byte where reading stopped, and a sentence for a person.
+  Compare the status, never the sentence, whose wording may change.
+- A search costs O((length + 1) x states), states being at most
+  `MAELYS_CLI_REGEX_MAX_STATES`; a bound `{m,n}` stops at
+  `MAELYS_CLI_REGEX_MAX_BOUND` (255) and nesting at
+  `MAELYS_CLI_REGEX_MAX_DEPTH` (32).
+- Python: `cli.Regex(pattern).search(value)` takes `str` or `bytes`, and
+  `cli.RegexError` carries `code`, `status` and `offset` with the same values.
 
 ## 4. External commands and the `maelys` dispatcher
 
