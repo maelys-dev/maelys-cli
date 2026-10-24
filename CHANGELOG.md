@@ -1,13 +1,18 @@
 # Changelog
 
-## Unreleased
+## 0.12.0 - 2026-10-24
 
-The human text in the language a person asks for, as agent-cli-spec 2.21.0
-writes it in its section 5: the help, `data.text` of `help`, the manual
-page and the text of a failure, in French or in English, chosen by
-`--lang`, `MAELYS_CLI_LANG` or the locale. What an agent reads never
-changes. `docs/migration.md`, "Every consumer, at agent-cli-spec 2.21.0",
-says what a product meets.
+This release writes the human text in the language a person asks for, as
+agent-cli-spec 2.21.0 writes it in its section 5: the help, `data.text` of
+`help`, the manual page and the text of a failure, in French or in
+English, chosen by `--lang`, `MAELYS_CLI_LANG` or the locale. What an agent
+reads never changes. A product written in another language than English
+names it, cx `fr`, and gets the framework's texts in that language at
+once. It also opens the reader of `argument.pattern` as a public API, and
+adopts maelys-release v0.65.0. `docs/migration.md`, "Every consumer, at
+agent-cli-spec 2.21.0", says what a product meets.
+
+- maelys-release v0.65.0 adopted (from v0.63.2), with the re-adoption 0.64.0 asks; its two verdicts pass.
 
 - agent-cli-spec pinned at v2.21.0 (from v2.20.0). Its kit and its
   generated lines pass on the seven programs of conformance-check.
