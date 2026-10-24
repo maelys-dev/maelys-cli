@@ -78,6 +78,29 @@ refused.
 | `void maelys_cli_fingerprint_init(maelys_cli_fingerprint_t *fingerprint)` / `maelys_cli_fingerprint_add(fingerprint, const char *label, const void *bytes, size_t size)` / `maelys_cli_fingerprint_add_string(fingerprint, label, const char *text)` / `maelys_cli_fingerprint_finish(fingerprint, char out[MAELYS_CLI_FINGERPRINT_SIZE])` | The fingerprint of a plan (agent-cli/v2 2.9, section 4): `sha256:HEX` over the action a transaction would perform and the state it would touch. Each entry is hashed as its label, a presence byte and its value, the two strings preceded by their length on eight bytes, so `("ab", "c")` and `("a", "bc")` differ and an absent value (`bytes` or `text` NULL) is not an empty one. Add the entries in a fixed order. `cli.Fingerprint` in Python frames them identically: the same entries give the same string. |
 | `int maelys_cli_fingerprint_add_file(fingerprint, const char *label, const char *path, size_t maximum_size)` | The state of a file the action would touch: absent when nothing is at `path`, the sha256 of its content when it is a regular file read within `maximum_size`. `-1` with `errno` for anything else, and nothing added: a state that cannot be read is not a state to bind a plan to. |
 
+## `maelys/cli/regex.h`
+
+The subset of regular expressions agent-cli/v2 writes an `argument.pattern`
+in (section 3), the reader of every pattern of a catalog, open to a product
+for any other pattern written in that subset. A value is read as UTF-8 code
+points, a byte of no valid sequence being one character that only `.` and a
+negated class match and U+0000 a character like another; `.` matches all
+but U+000A, U+000D, U+2028 and U+2029; `^` and `$` hold at the two ends of
+the value only; a value matches when some part of it does. A search is a
+Thompson simulation, never a backtracking: O((length + 1) x states) in
+time, O(states) in memory. The limits are public: `MAELYS_CLI_REGEX_MAX_BOUND`
+(255, a rule of syntax), `MAELYS_CLI_REGEX_MAX_DEPTH` (32 nested groups) and
+`MAELYS_CLI_REGEX_MAX_STATES` (65536, the program once expanded), the two
+budgets every implementation accepts.
+
+| Function | Contract |
+| --- | --- |
+| `maelys_cli_regex_status_t maelys_cli_regex_compile(const char *pattern, size_t length, maelys_cli_regex_t **out, maelys_cli_regex_diagnostic_t *diagnostic)` | Reads `length` bytes of `pattern` (NUL-terminated or not; a NUL byte in it is a control character). `OK` with `*out` a handle; otherwise `*out` is `NULL` and the status is the family of the refusal: `EMPTY` (3), `ENCODING` (4, a character outside printable ASCII), `ESCAPE` (5), `BRACKET` (6), `GROUP` (7), `QUANTIFIER` (8), `BOUND` (9), `LIMIT` (10), `NO_MEMORY` (2), or `INVALID_ARGUMENT` (1, `out` `NULL` or `pattern` `NULL` with a length). The values never change. `diagnostic` (may be `NULL`) receives the status, the byte where reading stopped (the length for what the end reveals) and a static sentence for a person, whose wording may change: compare the status. The first refusal met from the left wins; the state budget is met once the whole pattern is read. |
+| `int maelys_cli_regex_search(const maelys_cli_regex_t *regex, const char *value, size_t length)` | `1` when some part of the `length` bytes matches, `0` when none does; `-1` with `EINVAL` (`regex` `NULL`, or `value` `NULL` with a length) or `ENOMEM`. Its working lists, O(states), are allocated per call: a handle is never written after compile and may be searched by several threads at once. `value` `NULL` with a length of 0 is the empty value. |
+| `size_t maelys_cli_regex_states(const maelys_cli_regex_t *regex)` | The size of the compiled program, which bounds the work of a search; 0 for `NULL`. |
+| `void maelys_cli_regex_free(maelys_cli_regex_t *regex)` | Releases a handle; `NULL` does nothing. |
+| `const char *maelys_cli_regex_status_text(maelys_cli_regex_status_t status)` | A static sentence naming the family of a status, for a person; an unknown value has one too. |
+
 ## `maelys/cli/json.h`
 
 Writer: builds one JSON document incrementally. Any failed step marks the

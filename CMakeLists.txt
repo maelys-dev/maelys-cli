@@ -112,6 +112,11 @@ if(MAELYS_CLI_BUILD_TESTS)
             add_executable(test_${name} tests/test_${name}.c src/files.c)
             target_compile_definitions(test_${name} PRIVATE
                 MAELYS_CLI_FAULT_HOOK=maelys_cli_test_fault)
+        elseif(name STREQUAL "pattern")
+            # Own copy of pattern.c with the allocation hook; see the Makefile.
+            add_executable(test_${name} tests/test_${name}.c src/pattern.c)
+            target_compile_definitions(test_${name} PRIVATE
+                MAELYS_CLI_ALLOC_HOOK=maelys_cli_test_alloc)
         else()
             add_executable(test_${name} tests/test_${name}.c)
         endif()

@@ -262,10 +262,13 @@ $(BUILD)/tests/test_files: tests/test_files.c src/files.c $(LIB) $(HEADERS)
 	$(CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) -DMAELYS_CLI_FAULT_HOOK=maelys_cli_test_fault \
 		$(CFLAGS) $(COMMON_CFLAGS) tests/test_files.c src/files.c $(LIB) $(LDFLAGS) -o $@
 
-# test_pattern runs the deepest pattern on a thread of its own, small stack.
-$(BUILD)/tests/test_pattern: tests/test_pattern.c $(LIB) $(HEADERS)
+# test_pattern links its own pattern.c with the allocation hook enabled, as
+# test_files does with files.c, and runs threads: the deepest pattern on a
+# small stack, and one handle searched by eight at once.
+$(BUILD)/tests/test_pattern: tests/test_pattern.c src/pattern.c $(LIB) $(HEADERS)
 	@mkdir -p $(@D)
-	$(CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) $(CFLAGS) $(COMMON_CFLAGS) -pthread $< $(LIB) $(LDFLAGS) -o $@
+	$(CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) -DMAELYS_CLI_ALLOC_HOOK=maelys_cli_test_alloc \
+		$(CFLAGS) $(COMMON_CFLAGS) -pthread tests/test_pattern.c src/pattern.c $(LIB) $(LDFLAGS) -o $@
 
 $(BUILD)/tests/test_%: tests/test_%.c $(LIB) $(HEADERS)
 	@mkdir -p $(@D)
@@ -374,6 +377,9 @@ tsan-check:
 	$(CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) -std=c11 -O1 -g -fsanitize=thread \
 		tests/test_process.c $(SOURCES) -o $(TSAN_BUILD)/test_process || exit 1; \
 	TSAN_OPTIONS=halt_on_error=1 $(TSAN_BUILD)/test_process || exit 1; \
+	$(CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) -std=c11 -O1 -g -fsanitize=thread -pthread \
+		tests/test_pattern.c $(SOURCES) -o $(TSAN_BUILD)/test_pattern || exit 1; \
+	TSAN_OPTIONS=halt_on_error=1 $(TSAN_BUILD)/test_pattern tests/patterns.tsv || exit 1; \
 	echo "tsan-check: ok"
 
 asan-ubsan:

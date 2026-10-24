@@ -1072,8 +1072,9 @@ class Contract(unittest.TestCase):
         self.assertEqual(json.loads(err)["error"]["code"], "VALIDATION_FAILED")
 
     def test_pattern_corpus(self) -> None:
-        """tests/patterns.tsv, the corpus tests/test_pattern.c answers: the Python reader admits and
-        refuses the same patterns and `re`, handed what it admitted, matches the same values."""
+        """tests/patterns.tsv, the corpus tests/test_pattern.c answers: Python admits the same
+        patterns, refuses the others with the family and at the byte C gives, and matches the same
+        values, given as str or as bytes alike."""
         checks = matches = 0
         for number, line in enumerate(
                 (HERE.parent.parent / "tests" / "patterns.tsv").read_text(encoding="utf-8").split("\n"), 1):
@@ -1084,23 +1085,35 @@ class Contract(unittest.TestCase):
             if fields[0] == "check":
                 checks += 1
                 try:
-                    cli._pattern_check(fields[1])
-                    verdict = "ok"
-                except ValueError as error:
-                    self.assertTrue(str(error), where)
-                    verdict = "refused"
-                self.assertEqual(verdict, fields[2], where)
+                    cli.Regex(fields[1])
+                    self.assertEqual((fields[2], len(fields)), ("ok", 3), where)
+                except cli.RegexError as error:
+                    self.assertEqual(["refused", error.code, str(error.offset)], fields[2:5], where)
+                    self.assertTrue(error.message, where)
             else:
                 matches += 1
-                value = re.sub(r"\\(n|r|\\|u[0-9a-fA-F]{4})", lambda escape: {"n": "\n", "r": "\r", "\\": "\\"}.get(
-                    escape.group(1), chr(int(escape.group(1)[1:], 16)) if escape.group(1)[0] == "u" else ""), fields[2])
-                self.assertEqual(cli._pattern_search(fields[1], value), fields[3] == "yes", where)
+                # In VALUE, \xHH is a byte: such a value is searched as bytes, any other as str
+                # and as its UTF-8, which must agree.
+                parts = re.split(r"(\\(?:n|r|\\|u[0-9a-fA-F]{4}|x[0-9a-fA-F]{2}))", fields[2])
+                data = b"".join(
+                    {"\\n": b"\n", "\\r": b"\r", "\\\\": b"\\"}.get(part)
+                    or (bytes([int(part[2:], 16)]) if part.startswith("\\x") else
+                        chr(int(part[2:], 16)).encode("utf-8") if part.startswith("\\u") else
+                        part.encode("utf-8"))
+                    for part in parts if part)
+                regex = cli.Regex(fields[1])
+                expected = fields[3] == "yes"
+                self.assertEqual(regex.search(data), expected, where)
+                self.assertEqual(regex.search(data.decode("utf-8", "surrogateescape")), expected, where)
+                if "\\x" not in fields[2]:
+                    self.assertEqual(cli._pattern_search(fields[1], data.decode("utf-8")), expected, where)
         self.assertGreaterEqual(checks, 60)
         self.assertGreaterEqual(matches, 80)
         # What the file cannot carry: control characters, and the byte argv's
         # surrogateescape hands a Python program for what is not UTF-8.
-        with self.assertRaises(ValueError):
+        with self.assertRaises(cli.RegexError) as refused:
             cli._pattern_check("^a\tb$")
+        self.assertEqual((refused.exception.code, refused.exception.offset), ("encoding", 2))
         self.assertTrue(cli._pattern_search("^.$", "\udcff"))
         self.assertTrue(cli._pattern_search("^[^a]$", "\udcff"))
         self.assertFalse(cli._pattern_search("^[a-z]$", "\udcff"))
@@ -1110,6 +1123,54 @@ class Contract(unittest.TestCase):
                                               operands=[cli.operand("N", "Name.", kind="string", pattern="^\\d+$")])])
         self.assertIn("operand N declares a pattern outside the common subset", str(caught.exception))
         self.assertIn("not of a metacharacter", str(caught.exception))
+
+    def test_regex(self) -> None:
+        """cli.Regex is the public face of the reader, C's maelys/cli/regex.h: the same families,
+        offsets in UTF-8 bytes, priority to the first refusal met, str and bytes alike."""
+        regex = cli.Regex("^a.b$")
+        self.assertEqual(regex.states, 6)
+        self.assertTrue(regex.search("a\x00b"))
+        self.assertTrue(regex.search(b"a\x00b"))
+        self.assertTrue(regex.search(bytearray(b"a\xffb")))
+        self.assertTrue(regex.search(memoryview(b"a\xffb")))
+        self.assertFalse(regex.search("a\nb"))
+        self.assertFalse(regex.search("a\u2028b"))
+        self.assertTrue(cli.Regex("^$").search(b""))
+        self.assertTrue(cli.Regex("^.$").search("\ud800"))
+        self.assertFalse(cli.Regex("^[a-z]$").search("\udc80"))
+        with self.assertRaises(TypeError):
+            regex.search(1)
+        with self.assertRaises(TypeError):
+            cli.Regex(b"^a$")
+        with self.assertRaises(cli.RegexError) as refused:
+            cli.Regex("")
+        self.assertEqual((refused.exception.code, refused.exception.status, refused.exception.offset), ("empty", 3, 0))
+        with self.assertRaises(cli.RegexError) as refused:
+            cli.Regex("^(a$")
+        self.assertEqual((refused.exception.code, refused.exception.status, refused.exception.offset), ("group", 7, 4))
+        self.assertIsInstance(refused.exception, ValueError)
+        with self.assertRaises(cli.RegexError) as refused:
+            cli.Regex("x\x00y")
+        self.assertEqual((refused.exception.code, refused.exception.offset), ("encoding", 1))
+        # The first refusal met from the left wins; the state budget is met at the end.
+        with self.assertRaises(cli.RegexError) as refused:
+            cli.Regex("a" * 70000 + "\\d")
+        self.assertEqual((refused.exception.code, refused.exception.offset), ("escape", 70001))
+        with self.assertRaises(cli.RegexError) as refused:
+            cli.Regex("a" * 70000)
+        self.assertEqual((refused.exception.code, refused.exception.status, refused.exception.offset),
+                         ("limit", 10, 70000))
+        self.assertEqual((cli.REGEX_MAX_BOUND, cli.REGEX_MAX_DEPTH, cli.REGEX_MAX_STATES), (255, 32, 65536))
+        # Bytes are read as they are searched: random bytes give what their surrogateescape str gives.
+        import random
+        rng = random.Random(7)
+        alphabet = [0x61, 0x62, 0x0A, 0x0D, 0x00, 0xC3, 0xA9, 0xE2, 0x80, 0xA8, 0xED, 0xA0, 0xF0, 0x9F, 0xF4, 0x90, 0xFF]
+        regexes = [cli.Regex(pattern) for pattern in ("^.$", "^..$", "^...$", "^[^a]+$", "^a.c$", "^.{2,4}$", "b$")]
+        for _ in range(3000):
+            data = bytes(rng.choice(alphabet) for _ in range(rng.randint(0, 6)))
+            for compiled in regexes:
+                self.assertEqual(compiled.search(data), compiled.search(data.decode("utf-8", "surrogateescape")),
+                                 (compiled, data))
 
     def test_pattern_work_is_linear(self) -> None:
         """A value is searched by a Thompson simulation, never by `re`: the work is at most

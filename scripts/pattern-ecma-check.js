@@ -37,6 +37,12 @@ fs.readFileSync(corpus, 'utf8').split('\n').forEach((line, index) => {
     failures.push(`${where}: malformed line`);
     return;
   }
+  // \xHH is a byte, which a JavaScript string cannot hold: such a value is
+  // C's and Python's question, not V8's.
+  if (/\\x[0-9a-fA-F]{2}/.test(fields[2])) {
+    skipped++;
+    return;
+  }
   const value = fields[2].replace(/\\(n|r|\\|u[0-9a-fA-F]{4})/g, (escape, code) =>
     code === 'n' ? '\n' : code === 'r' ? '\r' : code === '\\' ? '\\' : String.fromCharCode(parseInt(code.slice(1), 16)));
   // A byte that is not UTF-8 has no code point in a JavaScript string: such

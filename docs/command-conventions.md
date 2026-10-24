@@ -96,7 +96,9 @@ holds the matcher to RE2 on every pattern it generates, `.` given to it as
 `[^\n\r U+2028 U+2029]`, the translation section 3 names. A value is read as UTF-8
 code points, a byte that is not UTF-8 counting as one character that only
 `.` and a negated bracket expression match, as Python reads argv through
-surrogateescape.
+surrogateescape. The reader is public, for any other pattern a product
+reads in that subset: `maelys/cli/regex.h` (`maelys_cli_regex_compile`,
+`maelys_cli_regex_search`) in C, `Regex` in Python.
 
 `.hidden` on an option (spec 2.2) marks a diagnostic or trial option that
 humans are not offered: the parser accepts it and applies its constraints,

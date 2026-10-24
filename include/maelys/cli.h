@@ -16,6 +16,7 @@
 #include "maelys/cli/environment.h"
 #include "maelys/cli/files.h"
 #include "maelys/cli/digest.h"
+#include "maelys/cli/regex.h"
 #include "maelys/cli/json.h"
 #include "maelys/cli/terminal.h"
 #include "maelys/cli/process.h"
