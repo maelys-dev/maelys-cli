@@ -494,8 +494,8 @@ are what the layout needs.
 
 ## Languages of human text
 
-A program writes its human text in one canonical language, English, which
-`version` names (`lang`: `en`), and may write it in others (agent-cli/v2
+A program writes its human text in one canonical language, which `version`
+names (`lang`), and may write it in others (agent-cli/v2
 2.21.0, section 5, "Language"). The human text is the help, `data.text` of
 `help` included, the manual page, the text rendering of a failure, and the
 details, progress and warnings on stderr. Nothing else changes with the
@@ -541,8 +541,18 @@ static const maelys_cli_language_t languages[] = {
  *                      .language_count = MAELYS_CLI_COUNT(languages) */
 ```
 
-The catalog validation refuses a malformed tag, English (the canonical
-language has no table), a language declared twice, a source translated
+The canonical language is English unless the product names its own:
+`.canonical_language = "fr"` (Python: `canonical_language="fr"`) says the
+catalog and the failure templates are written in French. `version` then
+names `fr`, the tables translate from French, and `--lang fr`, a French
+locale, `C` and a language the product lacks give French. The framework's
+own texts follow the language in force, the canonical one included: a
+product written in French shows French headings and messages without a
+table of its own, and `--lang en` gives the framework's English. Moving a
+product's catalog to English is not needed to translate it.
+
+The catalog validation refuses a malformed tag, the canonical language (it
+has no table), a language declared twice, a source translated
 twice, a text that is empty or holds a control character other than a
 newline, and a translation that does not keep the printf conversions of its
 source in the same order. A text no entry names is shown in English, one by
@@ -566,7 +576,8 @@ serves `maelys_cli_detail`, `maelys_cli_progress` and `maelys_cli_warn`.
 
 The catalog form of `describe` carries the product's tables as the
 extension member `x-maelys-translations`, `{"version": 1, "languages":
-{TAG: {SOURCE: TEXT}}}`, and `maelys-cli-man --lang TAG PROGRAM` writes the
+{TAG: {SOURCE: TEXT}}}` with `canonical` naming the language the catalog
+is written in, and `maelys-cli-man --lang TAG PROGRAM` writes the
 manual page in that language from it; `--untranslated` lists, instead of the
 page, the texts of the page the product's table still lacks. The summary
 form and a single descriptor do not carry it.

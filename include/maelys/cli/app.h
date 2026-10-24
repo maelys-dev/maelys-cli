@@ -104,6 +104,14 @@ typedef struct maelys_cli_app {
      * describe never change with the language: their texts stay English. */
     const maelys_cli_language_t *languages;
     size_t language_count;
+    /* The canonical language of the product's human text: the language its
+     * catalog and its failure templates are written in, which `version`
+     * names (`lang`) and from which `languages` translate; NULL for "en".
+     * The framework's own texts follow it: a product written in French
+     * (`"fr"`) shows French headings and messages without any table, and
+     * `--lang` or a locale naming its canonical language, `C` included,
+     * gives that language. A tag of the form language[-Script][-REGION]. */
+    const char *canonical_language;
 } maelys_cli_app_t;
 
 typedef struct maelys_cli_context {

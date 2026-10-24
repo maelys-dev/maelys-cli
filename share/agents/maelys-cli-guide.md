@@ -252,7 +252,9 @@ declares the product's languages besides English: per tag
 `{source, text}`, `source` exactly as the catalog writes it -- a purpose, a
 summary, an example's summary -- or a failure template
 (`"Nobody is called %s here."`), `text` with the same conversions in order.
-Write the catalog in English, the canonical language, and translate it;
+Write the catalog in English and translate it, or name the language it is
+written in with `.canonical_language` (`canonical_language=`): the
+framework's own texts then follow that language without any table;
 write failures as templates with `maelys_cli_fail` (Python: `cli.failure`),
 never assembled before, so that their translation takes the arguments
 back. The help, `data.text` of `help`, failures in text, details, progress

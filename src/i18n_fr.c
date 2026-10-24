@@ -432,8 +432,8 @@ static const maelys_cli_translation_t translations[] = {
      "Les langues du catalogue sont mal déclarées : une liste et son nombre, au plus %u."},
     {"Catalog language '%s' is not a well-formed language tag.",
      "La langue '%s' du catalogue n'est pas une étiquette de langue bien formée."},
-    {"Catalog language '%s' is English, the canonical language, which has no table.",
-     "La langue '%s' du catalogue est l'anglais, la langue canonique, qui n'a pas de table."},
+    {"Catalog language '%s' is the canonical language %s, which has no table.",
+     "La langue '%s' du catalogue est la langue canonique %s, qui n'a pas de table."},
     {"Catalog language '%s' is declared twice.",
      "La langue '%s' du catalogue est déclarée deux fois."},
     {"Catalog language '%s' counts translations it does not declare.",
@@ -620,6 +620,10 @@ static const maelys_cli_translation_t translations[] = {
      "Le paginateur d'un long texte sur un terminal ; vide, il est désactivé."},
     {"The width of the help on a terminal, read before the terminal's own.",
      "La largeur de l'aide sur un terminal, lue avant celle du terminal."},
+    {"Catalog canonical language '%s' is not a well-formed language tag.",
+     "La langue canonique '%s' du catalogue n'est pas une étiquette de langue bien formée."},
+    {"Name the canonical language by a tag such as fr or fr-CA, or leave it NULL for English.",
+     "Nommez la langue canonique par une étiquette comme fr ou fr-CA, ou laissez-la NULL pour l'anglais."},
 };
 
 const maelys_cli_language_t maelys_cli_framework_fr = {

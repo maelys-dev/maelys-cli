@@ -733,9 +733,13 @@ static int translation_text_is_safe(const char *text) {
     return 1;
 }
 
-/* The languages a product declares: each tag well formed (RFC 5646) and
- * named once, English left out since it is the canonical language and
- * needs no table, and every translation a text and the same conversions as
+/* The language the product's catalog is written in: its own, or English. */
+static const char *canonical_language(const maelys_cli_app_t *app) {
+    return app->canonical_language ? app->canonical_language : MAELYS_CLI_CANONICAL_LANGUAGE;
+}
+
+/* The languages a product declares: each tag well formed and named once,
+ * the canonical language left out since it needs no table, and every translation a text and the same conversions as
  * its source, in the same order, so that a template keeps its arguments. */
 static int validate_languages(const maelys_cli_app_t *app, maelys_cli_error_t *error) {
     static const char hint[] =
@@ -756,11 +760,11 @@ static int validate_languages(const maelys_cli_app_t *app, maelys_cli_error_t *e
                 "Catalog language '%s' is not a well-formed language tag.", tag);
             return -1;
         }
-        const char *const english[] = {"en"};
-        if (maelys_cli_language_lookup(language->tag, english, 1u)) {
+        const char *const canonical[] = {canonical_language(app)};
+        if (maelys_cli_language_lookup(language->tag, canonical, 1u)) {
             maelys_cli_error_set(error, MAELYS_CLI_CODE_UNEXPECTED, hint,
-                "Catalog language '%s' is English, the canonical language, which has no table.",
-                tag);
+                "Catalog language '%s' is the canonical language %s, which has no table.",
+                tag, canonical[0]);
             return -1;
         }
         for (size_t j = 0u; j < i; ++j) {
@@ -829,6 +833,14 @@ int maelys_cli_catalog_validate(
         return -1;
     if (app->help_palette && validate_help_palette(app->help_palette, error) != 0)
         return -1;
+    if (app->canonical_language &&
+        !maelys_cli_language_tag_is_well_formed(app->canonical_language)) {
+        maelys_cli_error_set(error, MAELYS_CLI_CODE_UNEXPECTED,
+            "Name the canonical language by a tag such as fr or fr-CA, or leave it NULL for English.",
+            "Catalog canonical language '%s' is not a well-formed language tag.",
+            app->canonical_language);
+        return -1;
+    }
     if ((app->languages || app->language_count) && validate_languages(app, error) != 0)
         return -1;
     for (size_t i = 0u; i < count; ++i) {
@@ -1015,7 +1027,7 @@ void maelys_cli_progress_done(maelys_cli_context_t *context) {
 #endif
 static void human_vformat(const maelys_cli_context_t *context, char *out, size_t size,
                           const char *format, va_list arguments) {
-    const char *template = context && context->language ?
+    const char *template = context && (context->language || context->framework_language) ?
         maelys_cli_translate(context->language, context->framework_language, format) : format;
     (void)vsnprintf(out, size, template, arguments);
 }
@@ -2259,7 +2271,7 @@ static void emit_error_with(
     char translated[MAELYS_CLI_MAX_ERROR_MESSAGE];
     const char *message = error->message;
     const char *hint = error->hint;
-    if (context && context->language) {
+    if (context && (context->language || context->framework_language)) {
         if (maelys_cli_translate_error(context->language, context->framework_language,
                 error, translated, sizeof(translated)))
             message = translated;
@@ -2274,7 +2286,7 @@ static void emit_error_with(
     if (hint[0]) {
         /* `Label: hint`: the label may be translated, its colon kept
          * (agent-cli/v2 section 8). */
-        const char *label = context && context->language ?
+        const char *label = context && (context->language || context->framework_language) ?
             maelys_cli_translate(context->language, context->framework_language, "Hint:") : "Hint:";
         (void)fprintf(err, "%s ", label);
         maelys_cli_fprint_terminal_safe(err, hint);
@@ -2283,27 +2295,27 @@ static void emit_error_with(
     (void)fflush(err);
 }
 
-/* The language of human text for this invocation, among the ones the
- * product declares (agent-cli/v2 section 5, "Language"): the first source
- * that is not empty decides alone -- --lang, MAELYS_CLI_LANG, LC_ALL,
- * LC_MESSAGES, LANG -- and a request the product cannot answer leaves it
- * in English. The framework's own texts follow the product's language. */
+/* The language of human text for this invocation, among the product's
+ * canonical language and the ones it translates to (agent-cli/v2 section
+ * 5, "Language"): the first source that is not empty decides alone --
+ * --lang, MAELYS_CLI_LANG, LC_ALL, LC_MESSAGES, LANG -- and a request the
+ * product cannot answer, C included, gives the canonical language. The
+ * framework's own texts follow the language in force, the canonical one
+ * included: a product written in French has French headings. */
 static void resolve_language(maelys_cli_context_t *context, const maelys_cli_app_t *app,
                              const char *option) {
-    context->language = NULL;
-    context->framework_language = NULL;
-    if (!app->languages || app->language_count == 0u) return;
-    const char *available[MAELYS_CLI_MAX_LANGUAGES];
+    const char *available[MAELYS_CLI_MAX_LANGUAGES + 1u];
     size_t count = 0u;
-    for (size_t i = 0u; i < app->language_count && count < MAELYS_CLI_MAX_LANGUAGES; ++i)
+    available[count++] = canonical_language(app);
+    for (size_t i = 0u; app->languages && i < app->language_count &&
+            count <= MAELYS_CLI_MAX_LANGUAGES; ++i)
         available[count++] = app->languages[i].tag;
     const char *tag = maelys_cli_language_resolve(option, getenv("MAELYS_CLI_LANG"),
         getenv("LC_ALL"), getenv("LC_MESSAGES"), getenv("LANG"), available, count);
-    for (size_t i = 0u; tag && i < count; ++i) {
-        if (available[i] != tag) continue;
-        context->language = &app->languages[i];
-        context->framework_language = maelys_cli_framework_language(tag);
-    }
+    context->language = NULL;
+    context->framework_language = maelys_cli_framework_language(tag ? tag : available[0]);
+    for (size_t i = 1u; tag && i < count; ++i)
+        if (available[i] == tag) context->language = &app->languages[i - 1u];
 }
 
 static void emit_error(
@@ -2827,16 +2839,18 @@ static int in_namespace(const char *id, const char *prefix) {
         (id[length] == '\0' || id[length] == '.');
 }
 
-/* x-maelys-translations: {"version": 1, "languages": {TAG: {SOURCE: TEXT}}},
- * each table as the catalog declares it. */
+/* x-maelys-translations: {"version": 1, "canonical": TAG, "languages":
+ * {TAG: {SOURCE: TEXT}}}, the language the catalog is written in and each
+ * table as the catalog declares it. */
 static int describe_translations(const maelys_cli_app_t *app, maelys_cli_json_writer_t *writer) {
     if (maelys_cli_json_key(writer, "x-maelys-translations") != 0 ||
         maelys_cli_json_begin_object(writer) != 0 ||
         maelys_cli_json_key_integer(writer, "version", 1) != 0 ||
+        maelys_cli_json_key_string(writer, "canonical", canonical_language(app)) != 0 ||
         maelys_cli_json_key(writer, "languages") != 0 ||
         maelys_cli_json_begin_object(writer) != 0)
         return -1;
-    for (size_t i = 0u; i < app->language_count; ++i) {
+    for (size_t i = 0u; app->languages && i < app->language_count; ++i) {
         const maelys_cli_language_t *language = &app->languages[i];
         if (maelys_cli_json_key(writer, language->tag) != 0 ||
             maelys_cli_json_begin_object(writer) != 0)
@@ -2914,7 +2928,8 @@ static int describe_data(
     /* The product's languages, for a manual page in each: its tables as it
      * declares them, under a version of their own. The same document in
      * every language, as describe is; the catalog form alone. */
-    if (app->languages && app->language_count && describe_translations(app, writer) != 0)
+    if (((app->languages && app->language_count) || app->canonical_language) &&
+        describe_translations(app, writer) != 0)
         return -1;
     if (!summary) {
         if (maelys_cli_json_key(writer, "output") != 0 ||
@@ -3591,8 +3606,8 @@ static const help_style_t help_plain = {"", "", "", "", "", NULL, NULL};
 
 /* `source` in the language of the rendering, or as written. */
 static const char *tr(const help_style_t *style, const char *source) {
-    return style->language ? maelys_cli_translate(style->language, style->framework, source) :
-        source;
+    return style->language || style->framework ?
+        maelys_cli_translate(style->language, style->framework, source) : source;
 }
 
 /* A template of the framework in the language of the rendering, formatted:
@@ -4280,7 +4295,7 @@ static int builtin_version(maelys_cli_context_t *context) {
         maelys_cli_json_key_string(&writer, "contract", MAELYS_CLI_CONTRACT) == 0 &&
         maelys_cli_json_key_integer(&writer, "cliApi", MAELYS_CLI_API) == 0 &&
         maelys_cli_json_key_string(&writer, "framework", MAELYS_CLI_VERSION) == 0 &&
-        maelys_cli_json_key_string(&writer, "lang", MAELYS_CLI_CANONICAL_LANGUAGE) == 0 &&
+        maelys_cli_json_key_string(&writer, "lang", canonical_language(context->app)) == 0 &&
         maelys_cli_json_end_object(&writer) == 0;
     if (!built) {
         maelys_cli_json_writer_clear(&writer);

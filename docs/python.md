@@ -134,10 +134,13 @@ combining mark none.
 "Nobody is called %s here.": "Personne ne s'appelle %s ici."}})` declares
 the product's languages besides English (C: `maelys_cli_app_t.languages`),
 each a table from a text exactly as the catalog writes it to its
-translation, at most `MAX_LANGUAGES` (32). `Program` raises `ValueError`, with
-the message of the C catalog validation, on a tag that is not
-`language[-Script][-REGION]` (`LANGUAGE_TAG_PATTERN`), English
-(`CANONICAL_LANGUAGE`, which `version` names as `lang`), a language declared
+translation, at most `MAX_LANGUAGES` (32). `canonical_language="fr"` says the catalog is
+written in French (C: `maelys_cli_app_t.canonical_language`), English
+(`CANONICAL_LANGUAGE`) otherwise; `version` names it as `lang`, the tables
+translate from it, and the framework's texts follow it. `Program` raises
+`ValueError`, with the message of the C catalog validation, on a tag that
+is not `language[-Script][-REGION]` (`LANGUAGE_TAG_PATTERN`), the canonical
+language, a language declared
 twice, an empty text or one with a control character other than a newline,
 and a translation that does not keep the printf conversions of its source in
 order.

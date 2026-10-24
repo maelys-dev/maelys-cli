@@ -584,8 +584,8 @@ _FRAMEWORK_TRANSLATIONS = {
             'Les langues du catalogue sont mal déclarées : une liste et son nombre, au plus %u.',
         "Catalog language '%s' is not a well-formed language tag.":
             "La langue '%s' du catalogue n'est pas une étiquette de langue bien formée.",
-        "Catalog language '%s' is English, the canonical language, which has no table.":
-            "La langue '%s' du catalogue est l'anglais, la langue canonique, qui n'a pas de table.",
+        "Catalog language '%s' is the canonical language %s, which has no table.":
+            "La langue '%s' du catalogue est la langue canonique %s, qui n'a pas de table.",
         "Catalog language '%s' is declared twice.":
             "La langue '%s' du catalogue est déclarée deux fois.",
         "Catalog language '%s' counts translations it does not declare.":
@@ -772,6 +772,10 @@ _FRAMEWORK_TRANSLATIONS = {
             "Le paginateur d'un long texte sur un terminal ; vide, il est désactivé.",
         "The width of the help on a terminal, read before the terminal's own.":
             "La largeur de l'aide sur un terminal, lue avant celle du terminal.",
+        "Catalog canonical language '%s' is not a well-formed language tag.":
+            "La langue canonique '%s' du catalogue n'est pas une étiquette de langue bien formée.",
+        'Name the canonical language by a tag such as fr or fr-CA, or leave it NULL for English.':
+            "Nommez la langue canonique par une étiquette comme fr ou fr-CA, ou laissez-la NULL pour l'anglais.",
     },
 }
 # END translations
@@ -2951,7 +2955,7 @@ class Program:
     def __init__(self, program: str, product: str, version: str, commands: list, guide: str = "",
                  text: Optional[dict] = None, framework: str = FRAMEWORK, static_completion: bool = True,
                  default_command: Optional[str] = None, help_palette: Optional[dict] = None,
-                 translations: Optional[dict] = None) -> None:
+                 translations: Optional[dict] = None, canonical_language: Optional[str] = None) -> None:
         self.program = program
         self.product = product
         self.version = version
@@ -3046,10 +3050,13 @@ class Program:
                 raise ValueError(f"Help palette {role} {value!r} is not the parameters of an SGR sequence.")
         self.help_palette = dict(help_palette or {})
         self._style = _HELP_PLAIN
-        # The languages of human text (C: maelys_cli_app_t.languages): {tag: {English text: translation}}.
-        self.translations = self._checked_translations(translations)
-        # The tables help is rendered with for a person, the product's then the framework's; none while
-        # data.text, which stays English, is rendered.
+        # The language the catalog is written in (C: maelys_cli_app_t.canonical_language), English unless
+        # the product names its own, and the languages it translates to: {tag: {canonical text: translation}}.
+        if canonical_language is not None and not _language_tag_is_well_formed(canonical_language):
+            raise ValueError(f"Catalog canonical language '{canonical_language}' is not a well-formed language tag.")
+        self.canonical_language = canonical_language or CANONICAL_LANGUAGE
+        self.translations = self._checked_translations(translations, self.canonical_language)
+        # The tables human text is rendered with: the product's, then the framework's.
         self._tables: tuple = ()
         self._language: Optional[str] = None
         self._help_rendering: Optional[Callable[[], str]] = None
@@ -3058,9 +3065,9 @@ class Program:
             self._check_examples(command)
 
     @staticmethod
-    def _checked_translations(translations: Optional[dict]) -> dict:
+    def _checked_translations(translations: Optional[dict], canonical: str = CANONICAL_LANGUAGE) -> dict:
         """The languages a product declares (C: validate_languages): each tag well formed and named once,
-        English left out since it is the canonical language, every translation a text with the
+        the canonical language left out since it needs no table, every translation a text with the
         conversions of its source in the same order. The messages are those of the C catalog validation."""
         if translations is None:
             return {}
@@ -3072,8 +3079,9 @@ class Program:
         for tag, table in translations.items():
             if not _language_tag_is_well_formed(tag):
                 raise ValueError(f"Catalog language '{tag}' is not a well-formed language tag.")
-            if _language_lookup(tag, ["en"]):
-                raise ValueError(f"Catalog language '{tag}' is English, the canonical language, which has no table.")
+            if _language_lookup(tag, [canonical]):
+                raise ValueError(f"Catalog language '{tag}' is the canonical language {canonical}, which has no "
+                                 "table.")
             if tag.lower() in seen:
                 raise ValueError(f"Catalog language '{tag}' is declared twice.")
             seen.add(tag.lower())
@@ -3095,21 +3103,21 @@ class Program:
 
     def _human_tables(self) -> tuple:
         """The tables a person's text is translated with in this invocation: the product's for the language
-        resolved, then the framework's own for it; none in the canonical language."""
-        if self._language is None:
-            return ()
-        framework = _language_lookup(self._language, list(_FRAMEWORK_TRANSLATIONS))
-        return (self.translations[self._language],) + \
-            ((_FRAMEWORK_TRANSLATIONS[framework],) if framework is not None else ())
+        resolved, none in its canonical language, then the framework's own for the language in force, the
+        canonical one included (C: resolve_language)."""
+        product = (self.translations[self._language],) if self._language is not None else ()
+        framework = _language_lookup(self._language or self.canonical_language, list(_FRAMEWORK_TRANSLATIONS))
+        return product + ((_FRAMEWORK_TRANSLATIONS[framework],) if framework is not None else ())
 
     def _resolve_language(self, option: Optional[str] = None) -> None:
         """The language of human text for this invocation, among those the product declares (C:
         resolve_language; agent-cli/v2 section 5): the first source that is not empty decides alone --
-        --lang, MAELYS_CLI_LANG, LC_ALL, LC_MESSAGES, LANG -- and a request the product cannot answer leaves
-        it in English."""
-        self._language = _language_resolve(option, os.environ.get("MAELYS_CLI_LANG"), os.environ.get("LC_ALL"),
-                                           os.environ.get("LC_MESSAGES"), os.environ.get("LANG"),
-                                           list(self.translations))
+        --lang, MAELYS_CLI_LANG, LC_ALL, LC_MESSAGES, LANG -- and a request the product cannot answer, C
+        included, gives its canonical language: _language is then None."""
+        found = _language_resolve(option, os.environ.get("MAELYS_CLI_LANG"), os.environ.get("LC_ALL"),
+                                  os.environ.get("LC_MESSAGES"), os.environ.get("LANG"),
+                                  [self.canonical_language, *self.translations])
+        self._language = None if found == self.canonical_language else found
 
     def _human(self, template: str, *arguments: Any) -> str:
         """`template` in the language of the invocation, its printf arguments put in after the translation
@@ -3482,7 +3490,7 @@ class Program:
 
     def _version(self, invocation: Invocation) -> "tuple[dict, int]":
         return {"product": self.product, "program": self.program, "version": self.version, "contract": CONTRACT,
-                "cliApi": CLI_API, "framework": self.framework, "lang": CANONICAL_LANGUAGE}, EXIT_OK
+                "cliApi": CLI_API, "framework": self.framework, "lang": self.canonical_language}, EXIT_OK
 
     def _help(self, invocation: Invocation) -> "tuple[dict, int]":
         width = help_width(invocation.format)
@@ -3553,8 +3561,9 @@ class Program:
             # member a generic agent ignores; the catalog form alone, which a manual reads.
             data["x-maelys-summary"] = self.guide_line
             # The product's languages, for a manual page in each (C: describe_translations).
-            if self.translations:
-                data["x-maelys-translations"] = {"version": 1, "languages": self.translations}
+            if self.translations or self.canonical_language != CANONICAL_LANGUAGE:
+                data["x-maelys-translations"] = {"version": 1, "canonical": self.canonical_language,
+                                                 "languages": self.translations}
             data["invariants"] = INVARIANTS
             data["output"] = {"contract": CONTRACT, "schemaVersion": SCHEMA_VERSION,
                               "stdout": "success data only; protocol streams are explicit exceptions",

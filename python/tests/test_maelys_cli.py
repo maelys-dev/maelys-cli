@@ -159,10 +159,51 @@ class Languages(unittest.TestCase):
             os.environ.update(saved)
         self.assertEqual(run_in(program, "version", "--field", "lang")[1], "en\n")
 
+    def test_canonical_language(self) -> None:
+        """A product written in French with an English table, as tests/test_app.c's french_app."""
+        def personne(invocation: cli.Invocation) -> "tuple[dict, int]":
+            raise cli.failure("NOT_FOUND", "Personne ne s'appelle %s ici.", "xavier", hint="Choisissez un autre nom.")
+
+        program = cli.Program("prog", "Test Product", "9.9.9", [
+            cli.read("salue", "salue", "Saluer quelqu'un.", personne,
+                     options=[cli.option("--fois", "Combien de fois.",
+                                         cli.argument("N", "unsigned", minimum=1, maximum=5))]),
+            cli.read("agite", "agite", "Agiter la main.", lambda invocation: ({}, cli.EXIT_OK)),
+        ], guide="Salue les gens.", canonical_language="fr",
+            translations={"en": {"Salue les gens.": "Greets people.", "Saluer quelqu'un.": "Greet someone.",
+                                 "Personne ne s'appelle %s ici.": "Nobody is called %s here."}})
+        for locale in ({}, {"lc_all": "C"}, {"lc_all": "de_DE.UTF-8"}, {"lc_all": "fr_CA.UTF-8"}):
+            out = run_in(program, "--help", **locale)[1]
+            for text in ("UTILISATION", "Saluer quelqu'un.", "OPTIONS GLOBALES"):
+                self.assertIn(text, out, locale)
+            self.assertNotIn("USAGE", out)
+        err = run_in(program, "salue", lc_all="C")[2]
+        self.assertIn("prog: [NOT_FOUND] Personne ne s'appelle xavier ici.\n", err)
+        self.assertIn("\nConseil : Choisissez un autre nom.\n", err)
+        self.assertIn("L'option --fois doit être entre 1 et 5, et non 9.", run_in(program, "salue", "--fois", "9")[2])
+        out = run_in(program, "--help", "--lang", "en-GB")[1]
+        for text in ("USAGE", "Greet someone.", "Agiter la main.", "GLOBAL OPTIONS"):
+            self.assertIn(text, out)
+        err = run_in(program, "salue", "--lang", "en")[2]
+        self.assertIn("Nobody is called xavier here.", err)
+        self.assertIn("\nHint: Choisissez un autre nom.\n", err)
+        self.assertEqual(run_in(program, "version", "--field", "lang")[1], "fr\n")
+        describe = run_in(program, "describe", "--json")
+        self.assertEqual(describe, run_in(program, "describe", "--json", "--lang", "en"))
+        self.assertEqual(json.loads(describe[1])["data"]["x-maelys-translations"]["canonical"], "fr")
+        self.assertEqual(run_in(program, "salue", "--json")[2], run_in(program, "salue", "--json", "--lang", "en")[2])
+        with self.assertRaises(ValueError) as caught:
+            cli.Program("prog", "P", "1", [], canonical_language="fr", translations={"fr-CA": {"a": "b"}})
+        self.assertIn("is the canonical language fr, which has no table", str(caught.exception))
+        with self.assertRaises(ValueError) as caught:
+            cli.Program("prog", "P", "1", [], canonical_language="fr_FR")
+        self.assertIn("canonical language 'fr_FR' is not a well-formed", str(caught.exception))
+
     def test_describe_carries_the_tables(self) -> None:
         program = language_program()
         catalog = json.loads(run_in(program, "describe", "--json")[1])["data"]
-        self.assertEqual(catalog["x-maelys-translations"], {"version": 1, "languages": {"fr": LANGUAGE_FR}})
+        self.assertEqual(catalog["x-maelys-translations"],
+                         {"version": 1, "canonical": "en", "languages": {"fr": LANGUAGE_FR}})
         summary = json.loads(run_in(program, "describe", "--summary", "--json")[1])["data"]
         self.assertNotIn("x-maelys-translations", summary)
         self.assertNotIn("x-maelys-translations", json.loads(run("describe", "--json")[1])["data"])
@@ -202,7 +243,7 @@ class Languages(unittest.TestCase):
     def test_invalid_tables_are_refused(self) -> None:
         keeps = {"Greet someone.": "Salue quelqu'un."}
         for translations, detail in (({"fr_FR": keeps}, "is not a well-formed language tag"),
-                                     ({"en-GB": keeps}, "is English, the canonical language"),
+                                     ({"en-GB": keeps}, "is the canonical language en, which has no table"),
                                      ({"fr": keeps, "FR": keeps}, "is declared twice"),
                                      ({"fr": ["not a table"]}, "is not a table of texts"),
                                      ({"fr": {"Nobody is called %s here.": "Personne ici."}},

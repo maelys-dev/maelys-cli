@@ -33,7 +33,7 @@ static maelys_cli_command_t good_command(void) {
 }
 
 static int validate(const maelys_cli_command_t *command) {
-    maelys_cli_app_t app = {"prog", "Product", "1.0", NULL, command, 1u, NULL, 0u, NULL, NULL, NULL, NULL, NULL, 0u};
+    maelys_cli_app_t app = {"prog", "Product", "1.0", NULL, command, 1u, NULL, 0u, NULL, NULL, NULL, NULL, NULL, 0u, NULL};
     maelys_cli_error_t error;
     return maelys_cli_catalog_validate(&app, &error) == 0;
 }
@@ -223,7 +223,7 @@ static int test_validation(void) {
     command = good_command();
     command.operands = huge;
     command.operand_count = 1u;
-    maelys_cli_app_t huge_app = {"prog", "Product", "1.0", NULL, &command, 1u, NULL, 0u, NULL, NULL, NULL, NULL, NULL, 0u};
+    maelys_cli_app_t huge_app = {"prog", "Product", "1.0", NULL, &command, 1u, NULL, 0u, NULL, NULL, NULL, NULL, NULL, 0u, NULL};
     maelys_cli_error_t huge_error;
     CHECK(maelys_cli_catalog_validate(&huge_app, &huge_error) != 0);
     CHECK(strstr(huge_error.message, "thing.make") && strstr(huge_error.message, "synopsis longer"));
@@ -336,7 +336,7 @@ static int test_validation(void) {
         command = good_command();
         command.examples = &lost;
         command.example_count = 1u;
-        maelys_cli_app_t one = {"prog", "Product", "1.0", NULL, &command, 1u, NULL, 0u, NULL, NULL, NULL, NULL, NULL, 0u};
+        maelys_cli_app_t one = {"prog", "Product", "1.0", NULL, &command, 1u, NULL, 0u, NULL, NULL, NULL, NULL, NULL, 0u, NULL};
         maelys_cli_error_t refusal;
         CHECK(maelys_cli_catalog_validate(&one, &refusal) != 0);
         CHECK(strstr(refusal.message, "'thing.make'") && strstr(refusal.message, "--nosuch") &&
@@ -354,7 +354,7 @@ static int test_validation(void) {
 
     /* Duplicate identifiers across the catalog and clash with a builtin. */
     maelys_cli_command_t pair[2] = {good_command(), good_command()};
-    maelys_cli_app_t app = {"prog", "Product", "1.0", NULL, pair, 2u, NULL, 0u, NULL, NULL, NULL, NULL, NULL, 0u};
+    maelys_cli_app_t app = {"prog", "Product", "1.0", NULL, pair, 2u, NULL, 0u, NULL, NULL, NULL, NULL, NULL, 0u, NULL};
     maelys_cli_error_t error;
     CHECK(maelys_cli_catalog_validate(&app, &error) != 0);
     CHECK(strstr(error.message, "collides") != NULL);
@@ -402,7 +402,7 @@ static int test_concat(void) {
     CHECK(strcmp(commands[1].id, "pro.sign") == 0 && commands[1].handler == dummy_handler);
     CHECK(commands[1].unavailable == NULL && strcmp(commands[1].purpose, "Sign for real.") == 0);
     CHECK(strcmp(commands[2].id, "omega") == 0 && strcmp(commands[3].id, "pro.extra") == 0);
-    maelys_cli_app_t app = {"prog", "Product", "1.0", NULL, commands, count, NULL, 0u, NULL, NULL, NULL, NULL, NULL, 0u};
+    maelys_cli_app_t app = {"prog", "Product", "1.0", NULL, commands, count, NULL, 0u, NULL, NULL, NULL, NULL, NULL, 0u, NULL};
     maelys_cli_error_t error;
     CHECK(maelys_cli_catalog_validate(&app, &error) == 0);
     free(commands);
