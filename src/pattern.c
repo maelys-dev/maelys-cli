@@ -1,9 +1,10 @@
 /* SPDX-License-Identifier: MPL-2.0 */
 /* argument.pattern, read and matched here.
  *
- * agent-cli/v2 (2.3) writes a pattern in the common subset of ECMA-262 and
- * POSIX ERE and lets an implementation enforce it "by the means of its
- * choice, a regex engine or code". This is the code: a reader of that
+ * agent-cli/v2 (section 3, 2.20.0) writes a pattern in a subset that
+ * ECMA-262, read with the u flag, and POSIX ERE read the same way, and lets
+ * an implementation enforce it "by the means of its choice, a regex engine
+ * or code". This is the code: a reader of that
  * subset, which refuses what is outside it, and a matcher that walks the
  * value once with the set of positions the pattern can be at (Thompson,
  * 1968). No regcomp(): the regex of a libc expands a bounded repetition
@@ -13,14 +14,17 @@
  * the forms the subset leaves out its own way (`\d` is a digit for Python
  * and a `d` for TRE). Here a repetition costs its copies of a few
  * instructions, the subset has one reading on every platform, and that
- * reading is held to Python's `re` by tests/patterns.tsv.
+ * reading is held to Python, V8 and RE2 by tests/patterns.tsv.
  *
  * The subset, as this file reads it:
- * - a literal is a code point other than the fourteen metacharacters
- *   `\ ^ $ . [ ] ( ) * + ? { } |` and other than a control character;
+ * - a pattern is printable ASCII, U+0020 to U+007E: a libc in the C locale
+ *   reads a literal `é` byte by byte, and `é+` repeats its last byte only;
+ * - a literal is one of them other than the fourteen metacharacters
+ *   `\ ^ $ . [ ] ( ) * + ? { } |`;
  *   `\` before one of the fourteen is that character, before anything else
  *   it is refused (`\d`, `\n`, `\/` are not in the subset);
- * - `.` is any code point but a newline, as `re` reads it;
+ * - `.` is any code point but the four line terminators of ECMA-262,
+ *   U+000A, U+000D, U+2028 and U+2029;
  * - `[...]` and `[^...]` hold printable ASCII other than `[`, `]` and `\`,
  *   which the two dialects read differently there, and ranges `a-z` with
  *   `a` not above `z`; `-` first or last is itself;
@@ -32,7 +36,8 @@
  * - `^` and `$` hold at the ends of the value and take no quantifier;
  * - a match is a search: a pattern without anchors matches anywhere.
  * A value is read as UTF-8 code points; a byte that is not UTF-8 is one
- * character, as Python's surrogateescape reads argv. */
+ * character, which only `.` and a negated class match, as Python's
+ * surrogateescape reads argv. */
 #include "internal.h"
 
 #include <stdint.h>
@@ -269,10 +274,12 @@ static node_t *parse_atom(parser_t *p, unsigned depth) {
         p->at++;
         cp = e;
     } else {
-        size_t used = utf8_decode(p->text + p->at, p->length - p->at, &cp);
-        if (!used) return fail(p, "a byte that is not UTF-8");
-        if (is_control(cp)) return fail(p, "a control character");
-        p->at += used;
+        if (is_control(c)) return fail(p, "a control character");
+        if (c >= 0x80u)
+            return fail(p, "a character outside printable ASCII, which a libc "
+                "in the C locale reads byte by byte");
+        p->at++;
+        cp = c;
     }
     node_t *node = node_new(p, NODE_CHAR);
     if (node) node->cp = cp;
@@ -522,7 +529,9 @@ static void add_thread(machine_t *m, int which, uint32_t pc, int at_start, int a
 static int instruction_accepts(const instruction_t *i, uint32_t cp) {
     switch ((op_t)i->op) {
     case OP_CHAR: return i->x == cp;
-    case OP_ANY: return cp != '\n';
+    case OP_ANY:
+        /* The four line terminators of ECMA-262 (agent-cli/v2, section 3). */
+        return cp != 0x0Au && cp != 0x0Du && cp != 0x2028u && cp != 0x2029u;
     case OP_CLASS: {
         int in = cp < 0x80u && (i->bits[cp >> 5] & (1u << (cp & 31u))) != 0u;
         return i->y ? !in : in;

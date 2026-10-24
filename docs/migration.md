@@ -150,10 +150,19 @@ command when either is wrong:
 ## Every consumer, at the pattern the library reads itself
 
 `argument.pattern` is no longer compiled with the libc's `regcomp()`: the
-library reads the common subset of ECMA-262 and POSIX ERE the contract
-writes a pattern in (spec 2.3) and matches it itself, in C as in Python.
+library reads the subset agent-cli/v2 writes a pattern in (section 3, as
+agent-cli-spec 2.20.0 states it) and matches it itself, in C as in Python.
 Nothing changes for a pattern written in that subset, which every product
 known to this repository declares. What to search for:
+
+- **A pattern is printable ASCII.** A literal `é`, or any character above
+  U+007E, is refused at startup: a libc in the C locale read it byte by
+  byte, and `é+` repeated its last byte only. No pattern of a product known
+  here has one.
+- **`.` reads as in ECMA-262**: any character but U+000A, U+000D, U+2028
+  and U+2029. The libc's `.` matched all four; Python's `re`, all but
+  U+000A. A value with a carriage return no longer matches `^a.c$`; a
+  pattern that must accept one says so with a class.
 
 - **A pattern the subset leaves out is refused at startup**, `UNEXPECTED`
   with the reason, where the libc accepted it and read it its own way:
@@ -161,7 +170,8 @@ known to this repository declares. What to search for:
   digit for Python, a `d` for the TRE of macOS), `[[:alpha:]]`, `\` or
   `]` inside a bracket expression, a `-` after a range (`[a-z-9]`, a range
   for RE2, a character for ECMA-262), a bound with a leading zero
-  (`{0,054}`), a lazy `*?`, an empty alternative, a bare `]` or `}`. Grep the `.pattern` and `pattern=` of the catalog for
+  (`{0,054}`), a lazy `*?`, an empty alternative, a bare `]`, `{` or `}`.
+  Grep the `.pattern` and `pattern=` of the catalog for
   them; each has a spelling inside the subset (`(` for `(?:`, `[0-9]` for
   `\d`, `[A-Za-z]` for `[[:alpha:]]`, `\]` for `]`).
 - **A bound above 255 is refused**: `{0,1000}` was already refused by the

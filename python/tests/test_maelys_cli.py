@@ -11,6 +11,7 @@ import io
 import json
 import os
 import pathlib
+import re
 import shutil
 import stat
 import subprocess
@@ -1091,7 +1092,8 @@ class Contract(unittest.TestCase):
                 self.assertEqual(verdict, fields[2], where)
             else:
                 matches += 1
-                value = fields[2].replace("\\n", "\n").replace("\\\\", "\\")
+                value = re.sub(r"\\(n|r|\\|u[0-9a-fA-F]{4})", lambda escape: {"n": "\n", "r": "\r", "\\": "\\"}.get(
+                    escape.group(1), chr(int(escape.group(1)[1:], 16)) if escape.group(1)[0] == "u" else ""), fields[2])
                 self.assertEqual(cli._pattern_search(fields[1], value), fields[3] == "yes", where)
         self.assertGreaterEqual(checks, 60)
         self.assertGreaterEqual(matches, 80)

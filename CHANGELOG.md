@@ -30,6 +30,19 @@
   other engine does. `fuzz_pattern` joins `make fuzz-smoke`. `docs/migration.md`, "Every consumer, at the pattern
   the library reads itself", says what to search for; no product known to
   this repository declares a pattern outside the subset.
+- **`argument.pattern` reads as agent-cli/v2 section 3 writes it**
+  (agent-cli-spec 2.20.0, worked out with this repository from its
+  measurements). Two readings change, in C and in Python. `.` is any
+  character but the four line terminators of ECMA-262, U+000A, U+000D,
+  U+2028 and U+2029, where it was any but U+000A: an agent that hands the
+  pattern to a JSON Schema validator reads it so, and the `outputSchema`
+  patterns of the same document already do. A pattern is printable ASCII:
+  a literal `é` is refused at startup, which a libc in the C locale read
+  byte by byte, `é+` repeating its last byte only. No pattern of a product
+  known to this repository has one. `tests/patterns.tsv` gains the line
+  terminators (`\r`, `\uXXXX` in its values) and V8 answers all of it; the
+  RE2 of `make fuzz` is given `.` as `[^\n\r U+2028 U+2029]`, the
+  translation the section names.
 - **A Python program searches a value in linear time.** The module read
   the motif as C does, then handed it to `re`, whose backtracking takes
   exponential time on a pattern the subset admits: `(a+)+b` against

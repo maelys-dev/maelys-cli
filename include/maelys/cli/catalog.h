@@ -113,9 +113,9 @@ typedef struct maelys_cli_option {
     const char *pattern;            /* STRING/PATH: regular expression the
                                        value must match (VALIDATION_FAILED
                                        otherwise), exposed as argument.pattern
-                                       in describe. Written in the common
-                                       subset of ECMA-262 and POSIX ERE (spec
-                                       2.3), which the library reads and
+                                       in describe. Written in printable
+                                       ASCII in the subset of agent-cli/v2
+                                       section 3, which the library reads and
                                        matches itself, no regcomp(): a
                                        pattern outside the subset is refused
                                        at startup, {m,n} costs its text, n at

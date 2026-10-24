@@ -158,9 +158,10 @@ options that must all be present), `.conflicts_with` (an option, or an
 operand named by its UPPER_CASE placeholder), `.pattern` (a regular
 expression documented as `argument.pattern` for a string or path option
 and enforced by the parser as a search, `VALIDATION_FAILED` on a mismatch;
-written in the common subset of ECMA-262 and POSIX ERE, which the library
-reads and matches itself: `(?:`, `\d`, a POSIX class or a bound above 255
-is refused at startup), `.group` (all-or-none:
+written in printable ASCII in the subset of agent-cli/v2 section 3, which
+the library reads and matches itself: `(?:`, `\d`, a POSIX class, a
+non-ASCII literal or a bound above 255 is refused at startup; `.` is any
+character but the four ECMA-262 line terminators), `.group` (all-or-none:
 the options sharing a group name are given together or not at all),
 and, on the command, `MAELYS_CLI_CONSTRAINTS(array)` of
 `MAELYS_CLI_CONSTRAINT(kind, options)` entries for the rules the option

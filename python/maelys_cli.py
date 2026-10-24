@@ -141,8 +141,8 @@ EXTENSION_NAME = re.compile(r"x-[a-z0-9][a-z0-9-]*")
 CODE_GRAMMAR = re.compile(r"[A-Z][A-Z0-9_]*")
 
 
-# argument.pattern is written in the common subset of ECMA-262 and POSIX ERE
-# (spec 2.3). C reads and matches it itself (src/pattern.c), and so does this
+# argument.pattern is written in a subset that ECMA-262 (u flag) and POSIX ERE
+# read the same way (agent-cli/v2, section 3). C reads and matches it itself (src/pattern.c), and so does this
 # module, with the same reader and the same program: a pattern is refused here
 # exactly where C refuses it, and a value is searched by a Thompson simulation
 # of the program, never by `re`, whose backtracking takes exponential time on
@@ -274,10 +274,10 @@ def _pattern_tree(pattern: str) -> tuple:
             position[0] += 1
             return ("char", ord(escaped))
         code = ord(c)
-        if code < 0x20 or 0x7F <= code <= 0x9F:
+        if code < 0x20 or code == 0x7F:
             raise ValueError("a control character")
-        if 0xD800 <= code <= 0xDFFF:
-            raise ValueError("a byte that is not UTF-8")
+        if code > 0x7E:
+            raise ValueError("a character outside printable ASCII, which a libc in the C locale reads byte by byte")
         position[0] += 1
         return ("char", code)
 
@@ -462,7 +462,8 @@ def _pattern_search(pattern: str, text: str, work: Optional[list] = None) -> boo
                 if op == _OP_CHAR:
                     accepted = xs[pc] == code
                 elif op == _OP_ANY:
-                    accepted = code != 0x0A
+                    # The four line terminators of ECMA-262 (agent-cli/v2, section 3).
+                    accepted = code not in (0x0A, 0x0D, 0x2028, 0x2029)
                 else:
                     inside = code < 0x80 and (xs[pc] >> code) & 1 == 1
                     accepted = not inside if ys[pc] else inside
