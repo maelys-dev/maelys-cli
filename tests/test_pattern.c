@@ -20,13 +20,28 @@
 
 static const char *corpus_path = "tests/patterns.tsv";
 
-/* \n is a newline and \\ a backslash, in VALUE only. */
+/* In VALUE only: \n and \r are U+000A and U+000D, \uXXXX the code point
+ * XXXX written in UTF-8, \\ a backslash. Never longer than the text. */
 static void unescape(char *text) {
     char *out = text;
     for (const char *in = text; *in; ++in) {
         if (*in == '\\' && in[1] == 'n') { *out++ = '\n'; ++in; }
+        else if (*in == '\\' && in[1] == 'r') { *out++ = '\r'; ++in; }
         else if (*in == '\\' && in[1] == '\\') { *out++ = '\\'; ++in; }
-        else *out++ = *in;
+        else if (*in == '\\' && in[1] == 'u') {
+            char hex[5] = {in[2], in[3], in[4], in[5], '\0'};
+            unsigned long cp = strtoul(hex, NULL, 16);
+            if (cp < 0x80u) *out++ = (char)cp;
+            else if (cp < 0x800u) {
+                *out++ = (char)(0xc0u | (cp >> 6));
+                *out++ = (char)(0x80u | (cp & 0x3fu));
+            } else {
+                *out++ = (char)(0xe0u | (cp >> 12));
+                *out++ = (char)(0x80u | ((cp >> 6) & 0x3fu));
+                *out++ = (char)(0x80u | (cp & 0x3fu));
+            }
+            in += 5;
+        } else *out++ = *in;
     }
     *out = '\0';
 }
@@ -138,7 +153,7 @@ static int test_bytes(void) {
     CHECK(maelys_cli_pattern_check("^a\x7f$", reason, sizeof(reason)) != 0);
     CHECK(maelys_cli_pattern_check("^a\xc2\x85$", reason, sizeof(reason)) != 0);
     CHECK(maelys_cli_pattern_check("^\xff$", reason, sizeof(reason)) != 0);
-    CHECK(strstr(reason, "not UTF-8"));
+    CHECK(strstr(reason, "outside printable ASCII"));
     CHECK(maelys_cli_pattern_check("^\xc3$", reason, sizeof(reason)) != 0);
     CHECK(maelys_cli_pattern_check("^\xed\xa0\x80$", reason, sizeof(reason)) != 0);
     CHECK(maelys_cli_pattern_check(NULL, reason, sizeof(reason)) != 0);
@@ -158,8 +173,10 @@ static int test_bytes(void) {
     CHECK(maelys_cli_pattern_match("^[^a]$", "\xff") == 1);
     CHECK(maelys_cli_pattern_match("^[a-z]$", "\xff") == 0);
     CHECK(maelys_cli_pattern_match("^a$", "\xff") == 0);
-    CHECK(maelys_cli_pattern_match("^\xc3\xa9$", "\xc3\xa9") == 1);
-    CHECK(maelys_cli_pattern_match("^\xc3\xa9$", "e") == 0);
+    /* A pattern is printable ASCII: a literal é is outside the subset. */
+    CHECK(maelys_cli_pattern_match("^\xc3\xa9$", "\xc3\xa9") == -1);
+    CHECK(maelys_cli_pattern_check("^a\x7f$", reason, sizeof(reason)) != 0);
+    CHECK(strstr(reason, "control character"));
     CHECK(maelys_cli_pattern_match("^a$", NULL) == 0);
     CHECK(maelys_cli_pattern_match(NULL, "a") == -1);
     CHECK(maelys_cli_pattern_match("", "a") == -1);
