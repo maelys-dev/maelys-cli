@@ -59,10 +59,13 @@ render default-surface-fr --lang fr "$build/tests/default_surface"
 render default-surface-fr-py --lang fr python3 -B python/tests/default_surface.py
 grep -q "^Montrer un fichier ; c'est la commande par d\\\\\[u00E9\]faut" "$work/default-surface-fr.1" || fail "default-surface --lang fr: the purpose is not translated"
 grep -q "^Watch the entries on stdout" "$work/default-surface-fr.1" || fail "default-surface --lang fr: an untranslated text is not in English"
-# C and Python differ in French only where they differ in English.
-diff "$work/default-surface.1" "$work/default-surface-py.1" | grep '^[<>]' >"$work/english.diff" || true
-diff "$work/default-surface-fr.1" "$work/default-surface-fr-py.1" | grep '^[<>]' >"$work/french.diff" || true
-cmp -s "$work/english.diff" "$work/french.diff" || fail "default-surface --lang fr: C and Python pages differ otherwise than in English"
+# The same catalog gives the same page from C and from Python, byte for
+# byte, in English and in French: default_surface declares it word for word
+# in both, and the usage Python spells is C's (0.12.1).
+cmp -s "$work/default-surface.1" "$work/default-surface-py.1" ||
+    fail "default-surface: the C and Python pages differ: $(diff "$work/default-surface.1" "$work/default-surface-py.1" | head -4 | tr '\n' ' ')"
+cmp -s "$work/default-surface-fr.1" "$work/default-surface-fr-py.1" ||
+    fail "default-surface --lang fr: the C and Python pages differ: $(diff "$work/default-surface-fr.1" "$work/default-surface-fr-py.1" | head -4 | tr '\n' ' ')"
 MAELYS_COMMANDS_PATH=/nonexistent tools/maelys-cli-man --date 2026-01-01 --lang fr-CA "$build/bin/maelys-hello" >"$work/hello-fr.1"
 cmp -s "$work/maelys-hello.1" "$work/hello-fr.1" || fail "maelys-hello --lang fr-CA: a program without French is not its English page"
 missing=$(tools/maelys-cli-man --lang fr --untranslated "$build/tests/default_surface")

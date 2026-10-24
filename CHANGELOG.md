@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- `make man-check` holds the manual pages of the C and Python
+  default-surface programs to the same bytes, in English and in French,
+  where it compared only their differences: 0.12.1 made Python spell the
+  usage as C does, and the two pages are now one. A line that differs fails
+  the check and is shown.
+
 ## 0.12.1 - 2026-10-24
 
 A patch release of fixes and documentation after 0.12.0: Python spells the
