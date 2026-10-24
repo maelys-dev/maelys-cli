@@ -159,8 +159,9 @@ known to this repository declares. What to search for:
   with the reason, where the libc accepted it and read it its own way:
   `(?:...)` (tolerated and rewritten until now), `\d`, `\w`, `\s` (a
   digit for Python, a `d` for the TRE of macOS), `[[:alpha:]]`, `\` or
-  `]` inside a bracket expression, a lazy `*?`, an empty alternative, a
-  bare `]` or `}`. Grep the `.pattern` and `pattern=` of the catalog for
+  `]` inside a bracket expression, a `-` after a range (`[a-z-9]`, a range
+  for RE2, a character for ECMA-262), a bound with a leading zero
+  (`{0,054}`), a lazy `*?`, an empty alternative, a bare `]` or `}`. Grep the `.pattern` and `pattern=` of the catalog for
   them; each has a spelling inside the subset (`(` for `(?:`, `[0-9]` for
   `\d`, `[A-Za-z]` for `[[:alpha:]]`, `\]` for `]`).
 - **A bound above 255 is refused**: `{0,1000}` was already refused by the

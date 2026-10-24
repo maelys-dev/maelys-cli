@@ -104,7 +104,7 @@ $(shell rm -rf $(BUILD)/src $(BUILD)/cli $(BUILD)/lib $(BUILD)/bin $(BUILD)/test
 endif
 endif
 
-.PHONY: all check test fuzz fuzz-smoke tsan-check header-check check-version cli-check embed-check commit-check api-doc-check agent-doc-check doc-topics-check python-check hello-parity-check completion-check python-doc-check man-check envelope-schema-check install \
+.PHONY: all check test fuzz fuzz-smoke tsan-check header-check check-version cli-check embed-check commit-check api-doc-check agent-doc-check doc-topics-check python-check hello-parity-check completion-check python-doc-check man-check envelope-schema-check pattern-ecma-check install \
 	install-check uninstall dist clean asan-ubsan analyze cmake-check describe-schema-check \
 	conformance-check agents-install
 
@@ -202,10 +202,16 @@ $(BUILD)/tests/default_surface: tests/default_surface.c $(LIB) $(HEADERS)
 # -fsanitize=fuzzer it is the libFuzzer binary of `make fuzz`, bounded by
 # FUZZ_TIME seconds per harness, which writes what it finds under
 # $(FUZZ_BUILD)/corpus and never into the committed corpus. Apple clang ships
-# no libFuzzer: on macOS, FUZZ_CC names a clang that does.
+# no libFuzzer: on macOS, FUZZ_CC names a clang that does. Under `make fuzz`,
+# fuzz_pattern is also held to RE2 (tests/fuzz/re2_oracle.cc, found through
+# pkg-config, libre2-dev in dependencies/packages); FUZZ_RE2=no runs it
+# without that reference, which the CI never does.
 FUZZ_NAMES := fuzz_run fuzz_values fuzz_pattern fuzz_json fuzz_manifest
 FUZZ_REPLAYS := $(addprefix $(BUILD)/fuzz/,$(FUZZ_NAMES))
 FUZZ_CC ?= clang
+FUZZ_CXX ?= clang++
+FUZZ_RE2 ?= yes
+FUZZ_CXX_RUNTIME := $(if $(filter Darwin,$(shell uname -s)),-lc++,-lstdc++)
 FUZZ_TIME ?= 30
 FUZZ_BUILD := build/fuzz
 
@@ -225,7 +231,17 @@ fuzz-smoke: $(FUZZ_REPLAYS)
 fuzz: $(MAELYS_JSON_LIB)
 	@mkdir -p $(FUZZ_BUILD)/bin
 	@for name in $(FUZZ_NAMES); do \
-		extra=; case $$name in fuzz_manifest) extra="$(MAELYS_JSON_CFLAGS) $(EXTENSION_SOURCES) $(MAELYS_JSON_LIBS)";; esac; \
+		extra=; case $$name in fuzz_manifest) extra="$(MAELYS_JSON_CFLAGS) $(EXTENSION_SOURCES) $(MAELYS_JSON_LIBS)";; \
+		fuzz_pattern) if [ "$(FUZZ_RE2)" = no ]; then \
+				echo "fuzz_pattern: FUZZ_RE2=no, held to no reference engine"; \
+			elif pkg-config --exists re2; then \
+				$(FUZZ_CXX) -std=c++17 -O1 -g -fsanitize=fuzzer-no-link,address,undefined \
+					$$(pkg-config --cflags re2) -c tests/fuzz/re2_oracle.cc \
+					-o $(FUZZ_BUILD)/re2_oracle.o || exit 1; \
+				extra="-DMAELYS_CLI_FUZZ_RE2 $(FUZZ_BUILD)/re2_oracle.o $$(pkg-config --libs re2) $(FUZZ_CXX_RUNTIME)"; \
+			else \
+				echo "fuzz_pattern: RE2 not found by pkg-config (libre2-dev, brew re2); FUZZ_RE2=no runs without it" >&2; exit 1; \
+			fi;; esac; \
 		$(FUZZ_CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) -std=c11 -O1 -g \
 			-fsanitize=fuzzer,address,undefined -fno-sanitize-recover=undefined \
 			tests/fuzz/$$name.c $(SOURCES) $$extra -o $(FUZZ_BUILD)/bin/$$name || exit 1; \
@@ -295,8 +311,17 @@ doc-topics-check:
 check: test fuzz-smoke tsan-check cli-check embed-check commit-check header-check check-version api-doc-check agent-doc-check doc-topics-check python-doc-check
 	@if command -v python3 >/dev/null 2>&1; then $(MAKE) python-check hello-parity-check completion-check conformance-check describe-schema-check envelope-schema-check man-check; \
 	else echo "python-check, hello-parity-check, completion-check, conformance-check, describe-schema-check, envelope-schema-check, man-check: skipped (python3 not found)"; fi
+	@if command -v node >/dev/null 2>&1; then $(MAKE) pattern-ecma-check; \
+	else echo "pattern-ecma-check: skipped (node not found)"; fi
 
 # The Python framework: python/maelys_cli.py, its reference product
+# tests/patterns.tsv read by V8, the ECMA-262 side of the subset an
+# argument.pattern is written in: the patterns the subset admits compile,
+# the values match as src/pattern.c and Python say. The libc stands for
+# POSIX ERE in test_pattern, RE2 in `make fuzz`.
+pattern-ecma-check:
+	node scripts/pattern-ecma-check.js tests/patterns.tsv
+
 # python/examples/hello.py and its tests, run without writing bytecode so a
 # check never dirties the tree. The conformance kit runs against the
 # reference product in conformance-check.

@@ -146,9 +146,17 @@ static node_t *parse_class(parser_t *p) {
     if (!node) return NULL;
     if (peek(p) == '^') { node->negated = 1; p->at++; }
     size_t items = 0u;
+    int after_range = 0;
     for (;;) {
         if (at_end(p)) return fail(p, "an unclosed bracket expression");
         unsigned char c = p->text[p->at];
+        /* POSIX reads '-' as itself first, last or as the end of a range
+         * only; after a range, ECMA-262 takes it for itself and RE2 for the
+         * start of another range: [a-z-9] has no common reading. */
+        if (c == '-' && after_range && p->at + 1u < p->length &&
+            p->text[p->at + 1u] != ']')
+            return fail(p, "a '-' after a range that is not the last character "
+                "of the bracket expression, which the two dialects read differently");
         if (c == ']') {
             if (items == 0u)
                 return fail(p, "an empty bracket expression, or ']' where the "
@@ -168,6 +176,7 @@ static node_t *parse_class(parser_t *p) {
         p->at++;
         uint32_t low = c;
         uint32_t high = c;
+        after_range = 0;
         if (peek(p) == '-' && p->at + 1u < p->length && p->text[p->at + 1u] != ']') {
             unsigned char h = p->text[p->at + 1u];
             if (h == '[' || h == '\\')
@@ -178,6 +187,7 @@ static node_t *parse_class(parser_t *p) {
             if (h < c) return fail(p, "a range whose ends are reversed");
             high = h;
             p->at += 2u;
+            after_range = 1;
         }
         for (uint32_t x = low; x <= high; ++x) node->bits[x >> 5] |= 1u << (x & 31u);
         items++;
@@ -193,6 +203,12 @@ static int parse_bound(parser_t *p, uint32_t *min, uint32_t *max) {
         if (at_end(p)) { fail(p, "an unclosed bound: write {m}, {m,} or {m,n}"); return -1; }
         unsigned char c = p->text[p->at++];
         if (c >= '0' && c <= '9') {
+            /* A number is written in its decimal form: RE2 refuses {0,054},
+             * ECMA-262 reads it as 54. */
+            if (digits[part] == 1 && values[part] == 0u) {
+                fail(p, "a bound written with a leading zero");
+                return -1;
+            }
             if (values[part] > PATTERN_MAX_BOUND) continue; /* already too large */
             values[part] = values[part] * 10u + (uint32_t)(c - '0');
             digits[part]++;

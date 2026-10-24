@@ -58,6 +58,11 @@ check	^a{1$	refused
 check	^a{,3}$	refused
 check	^a{1,2,3}$	refused
 check	^a{x}$	refused
+check	^a{0,054}$	refused
+check	^a{00}$	refused
+check	^a{01,2}$	refused
+check	^a{10}$	ok
+check	^a{0,10}$	ok
 # Outside the subset: a quantifier on nothing, two in a row, a lazy one, an anchor.
 check	^*a$	refused
 check	*a	refused
@@ -88,6 +93,11 @@ check	^[^]a]$	refused
 check	^[]$	refused
 check	^[^]$	refused
 check	^[z-a]$	refused
+check	^[a-z-9]$	refused
+check	^[a-c-e]$	refused
+check	^[a-z-]$	ok
+check	^[a-a-b]$	refused
+check	^[--/]$	ok
 check	^[é]$	refused
 check	^]$	refused
 check	^}$	refused

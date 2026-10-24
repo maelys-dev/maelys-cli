@@ -76,13 +76,16 @@ libc dialect, and a bounded repetition costs its text, where the regex of a
 libc expands `{0,254}` into 254 copies, 5.6 MiB and a millisecond on macOS
 at every start of the product. The subset: literals and `\` before one of
 `\ ^ $ . [ ] ( ) * + ? { } |`; `.`, any character but a newline; `[...]`
-and `[^...]` of printable ASCII and ranges, no `[`, `]` or `\` inside; `(
-)` groups and `|`, no empty alternative; `*`, `+`, `?`, `{m}`, `{m,}` and
-`{m,n}` with `n` at most 255, what POSIX guarantees of an ERE engine
-(`RE_DUP_MAX`) that reads the motif out of `describe`; `^` and `$`. A
-pattern outside it, `(?:`, `\d`, `[[:alpha:]]`, a lazy `*?`, a bound above
-255, is refused at startup with the reason, in C and in Python alike;
-`tests/patterns.tsv` is the corpus both answer. A value is read as UTF-8
+and `[^...]` of printable ASCII and ranges, no `[`, `]` or `\` inside, a
+`-` first, last or ending a range only; `( )` groups and `|`, no empty
+alternative; `*`, `+`, `?`, `{m}`, `{m,}` and `{m,n}` written in decimal
+without a leading zero, `n` at most 255, what POSIX guarantees of an ERE
+engine (`RE_DUP_MAX`) that reads the motif out of `describe`; `^` and `$`.
+A pattern outside it, `(?:`, `\d`, `[[:alpha:]]`, a lazy `*?`, `[a-z-9]`,
+`{0,054}`, a bound above 255, is refused at startup with the reason, in C
+and in Python alike. `tests/patterns.tsv` is the corpus both answer, which
+V8 answers too (`make check`, where Node is installed), and `make fuzz`
+holds the matcher to RE2 on every pattern it generates. A value is read as UTF-8
 code points, a byte that is not UTF-8 counting as one character, as
 Python's `re` reads argv.
 

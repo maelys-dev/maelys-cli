@@ -18,9 +18,17 @@
   an ERE engine -- is refused at startup with the reason, in C and in
   Python, which checks the motif the same way before handing it to `re`
   (`$` spelled `\Z`, so that it holds at the end of the value only).
-  `tests/patterns.tsv` is the corpus both sides answer, held to the libc's
-  own `regexec()` where the dialects agree; `fuzz_pattern` joins
-  `make fuzz-smoke`. `docs/migration.md`, "Every consumer, at the pattern
+  `tests/patterns.tsv` is the corpus both sides answer, and three engines
+  with them: the libc's `regexec()` on the cases it reads right, V8 for
+  ECMA-262 (`make pattern-ecma-check`, in `make check` where Node is
+  installed), and RE2 under `make fuzz` on every pattern libFuzzer
+  generates (`libre2-dev` in `dependencies/packages`, for that job only).
+  RE2 found two forms the dialects read differently, now outside the
+  subset: a `-` after a range (`[a-z-9]`) and a bound with a leading zero
+  (`{0,054}`). glibc is no witness: its `regcomp` spends gigabytes on
+  nested bounds and exponential time on a repeated group that can match
+  nothing, and it reads `^(ab|cd$){1,3}e$` as matching `abcdabe`, which no
+  other engine does. `fuzz_pattern` joins `make fuzz-smoke`. `docs/migration.md`, "Every consumer, at the pattern
   the library reads itself", says what to search for; no product known to
   this repository declares a pattern outside the subset.
 - The catalog validation at every start stays: without the regex it is

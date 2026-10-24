@@ -173,11 +173,16 @@ def _pattern_check(pattern: str) -> str:
         if peek() == "^":
             position[0] += 1
             out.append("^")
-        items = 0
+        items, after_range = 0, False
         while True:
             if position[0] >= length:
                 raise ValueError("an unclosed bracket expression")
             c = text[position[0]]
+            # POSIX reads '-' as itself first, last or as the end of a range only; after a range,
+            # ECMA-262 takes it for itself and RE2 for the start of another: [a-z-9] has no common reading.
+            if c == "-" and after_range and position[0] + 1 < length and text[position[0] + 1] != "]":
+                raise ValueError("a '-' after a range that is not the last character of the bracket expression, "
+                                 "which the two dialects read differently")
             if c == "]":
                 if items == 0:
                     raise ValueError("an empty bracket expression, or ']' where the two dialects read it differently")
@@ -192,6 +197,7 @@ def _pattern_check(pattern: str) -> str:
                 raise ValueError("a character outside printable ASCII in a bracket expression")
             position[0] += 1
             out.append(member(c))
+            after_range = False
             if peek() == "-" and position[0] + 1 < length and text[position[0] + 1] != "]":
                 high = text[position[0] + 1]
                 if high in "[\\":
@@ -202,6 +208,7 @@ def _pattern_check(pattern: str) -> str:
                     raise ValueError("a range whose ends are reversed")
                 out.append("-" + member(high))
                 position[0] += 2
+                after_range = True
             items += 1
 
     def parse_bound() -> tuple:
@@ -221,6 +228,9 @@ def _pattern_check(pattern: str) -> str:
                 raise ValueError("'{' that does not open a bound {m}, {m,} or {m,n}")
         if not parts[0]:
             raise ValueError("a bound without its minimum: write {m}, {m,} or {m,n}")
+        # A number is written in its decimal form: RE2 refuses {0,054}, ECMA-262 reads it as 54.
+        if any(len(part) > 1 and part[0] == "0" for part in parts):
+            raise ValueError("a bound written with a leading zero")
         low = int(parts[0])
         high = low if len(parts) == 1 else int(parts[1]) if parts[1] else None
         if low > _PATTERN_MAX_BOUND or (high is not None and high > _PATTERN_MAX_BOUND):
