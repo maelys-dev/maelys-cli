@@ -27,6 +27,13 @@
   as its one warning. No Python counterpart: `constraint()` refuses a rule
   of fewer than two options when it is written.
 
+- **`make analyze` is silent again on the languages of 0.12.0.** The name of
+  the canonical language and the resolution of a line's language read a NULL
+  app as English, and the check that a language is declared once compares no
+  NULL tag. Neither could happen on a catalog the validation accepted, which
+  refuses both first; the static analyzer, reading one file at a time, could
+  not see that. Nothing a product does changes.
+
 ## 0.12.0 - 2026-10-24
 
 This release writes the human text in the language a person asks for, as
