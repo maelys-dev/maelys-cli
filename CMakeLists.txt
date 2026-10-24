@@ -46,7 +46,7 @@ endif()
 add_library(maelys_cli STATIC
     src/version.c src/values.c src/environment.c src/files.c src/digest.c
     src/json.c src/terminal.c src/process.c src/catalog.c src/invocation.c
-    src/pattern.c
+    src/pattern.c src/language.c
     src/app.c)
 add_library(maelys::cli ALIAS maelys_cli)
 set_target_properties(maelys_cli PROPERTIES EXPORT_NAME cli OUTPUT_NAME maelys_cli)
@@ -102,7 +102,7 @@ endif()
 
 if(MAELYS_CLI_BUILD_TESTS)
     enable_testing()
-    set(test_names values pattern json files digest process catalog app)
+    set(test_names values pattern language json files digest process catalog app)
     if(MAELYS_CLI_HAVE_JSON)
         list(APPEND test_names extension)
     endif()

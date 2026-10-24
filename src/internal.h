@@ -43,6 +43,22 @@ void maelys_cli_fprint_terminal_safe(FILE *stream, const char *text);
 /* True when text contains valid UTF-8 without terminal control code points. */
 int maelys_cli_text_is_terminal_safe(const char *text);
 
+/* The language of human text (src/language.c). A tag is well formed as
+ * RFC 5646 section 2.1 writes it, compared without regard to case. A locale
+ * converts to a tag (1), to the canonical language (0: C, POSIX, C.*, or
+ * one that does not convert) or is empty (-1). Lookup is RFC 4647 section
+ * 3.4 against the languages a program has, NULL meaning the canonical one.
+ * Resolve takes the first source that is not empty, in the order the
+ * contract writes, and never reads a later one. */
+int maelys_cli_language_tag_is_well_formed(const char *tag);
+int maelys_cli_language_from_locale(const char *locale, char *tag, size_t size);
+const char *maelys_cli_language_lookup(const char *tag, const char *const *available,
+                                       size_t count);
+const char *maelys_cli_language_resolve(
+    const char *option, const char *variable, const char *lc_all,
+    const char *lc_messages, const char *lang,
+    const char *const *available, size_t count);
+
 /* argument.pattern: the common subset of ECMA-262 and POSIX ERE (spec 2.3),
  * read and matched by src/pattern.c itself, no regcomp(). check returns 0,
  * or -1 with the reason the pattern is outside the subset written in
