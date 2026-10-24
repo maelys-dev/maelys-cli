@@ -36,6 +36,17 @@ static int printable_ascii(const char *text) {
     return 1;
 }
 
+/* glibc reads an anchor inside a repeated group wrongly (^(ab|cd$){1,3}e$
+ * matches abcdabe for it, for no other engine): the libc is asked only
+ * where `^` and `$` stand at the ends of the pattern. */
+static int anchors_at_ends(const char *pattern) {
+    size_t length = strlen(pattern);
+    for (size_t i = 0u; i < length; ++i)
+        if ((pattern[i] == '^' && i != 0u) || (pattern[i] == '$' && i + 1u != length))
+            return 0;
+    return 1;
+}
+
 static int test_corpus(void) {
     FILE *file = fopen(corpus_path, "r");
     if (!file) {
@@ -90,7 +101,8 @@ static int test_corpus(void) {
                     corpus_path, number, fields[1], fields[2], fields[3], matched);
                 failures++;
             }
-            if (printable_ascii(fields[1]) && printable_ascii(fields[2])) {
+            if (printable_ascii(fields[1]) && printable_ascii(fields[2]) &&
+                anchors_at_ends(fields[1])) {
                 regex_t compiled;
                 if (regcomp(&compiled, fields[1], REG_EXTENDED | REG_NOSUB) == 0) {
                     int libc = regexec(&compiled, fields[2], 0u, NULL, 0) == 0;
@@ -111,7 +123,7 @@ static int test_corpus(void) {
     (void)fclose(file);
     (void)fprintf(stderr, "corpus: %d checks, %d matches, %d compared with the libc\n",
         checks, matches, compared);
-    CHECK(checks >= 60 && matches >= 80 && compared >= 60);
+    CHECK(checks >= 60 && matches >= 80 && compared >= 50);
     CHECK(failures == 0);
     return 1;
 }
@@ -150,6 +162,21 @@ static int test_bytes(void) {
     CHECK(maelys_cli_pattern_match("^a$", NULL) == 0);
     CHECK(maelys_cli_pattern_match(NULL, "a") == -1);
     CHECK(maelys_cli_pattern_match("", "a") == -1);
+    /* A chain of splits with almost nothing to consume: each optional
+     * group adds one, and the walk over them must stay inside its stack. */
+    char chain[4096];
+    size_t at = 0u;
+    for (int i = 0; i < 30; ++i) chain[at++] = '(';
+    chain[at++] = 'a';
+    for (int i = 0; i < 30; ++i) { chain[at++] = ')'; chain[at++] = '?'; }
+    chain[at] = '\0';
+    CHECK(maelys_cli_pattern_match(chain, "") == 1);
+    CHECK(maelys_cli_pattern_match(chain, "b") == 1);
+    at = 0u;
+    for (int i = 0; i < 1000; ++i) { memcpy(chain + at, "(a)?", 4u); at += 4u; }
+    chain[at] = '\0';
+    CHECK(maelys_cli_pattern_match(chain, "") == 1);
+    CHECK(maelys_cli_pattern_match(chain, "aaaa") == 1);
     /* The largest program admitted runs, in bounded time and memory. */
     char many[300];
     memset(many, 'a', sizeof(many) - 1u);

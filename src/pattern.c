@@ -440,7 +440,8 @@ typedef struct {
 
 /* Follows the empty moves from pc and records every position that consumes
  * a character, or the match. Iterative: a chain of splits can be as long
- * as the program. */
+ * as the program, and the stack holds count + 1 entries (see
+ * maelys_cli_pattern_match). */
 static void add_thread(machine_t *m, int which, uint32_t pc, int at_start, int at_last) {
     uint32_t top = 0u;
     m->stack[top++] = pc;
@@ -539,8 +540,10 @@ int maelys_cli_pattern_match(const char *pattern, const char *value) {
     if (!root) { nodes_free(&p); return -1; }
     uint32_t count = node_size(root) + 1u;
     instruction_t *code = malloc(count * sizeof(*code));
-    /* Two lists of positions, the marks, and a stack that holds at most one
-     * entry per split plus one. */
+    /* Two lists of positions, the marks, and the stack of add_thread: only a
+     * split deepens it (one popped, two pushed), a jump keeps its depth and
+     * every other position shortens it, and within one call each position
+     * is expanded once: count + 1 entries, the first push included. */
     uint32_t *lists = malloc(((size_t)count * 4u + 1u) * sizeof(*lists));
     int result = -1;
     if (code && lists) {

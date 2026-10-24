@@ -185,6 +185,14 @@ match	^a|b$	ax	yes
 match	^a|b$	xb	yes
 match	^a|b$	xax	no
 match	^$		yes
+# An anchor inside a group is an anchor: cd$ holds at the end of the value
+# only, and nothing then follows it. glibc answers yes to the first line.
+match	^(ab|cd$){1,3}e$	abcdabe	no
+match	^(ab|cd$){1,3}e$	abe	yes
+match	^(ab|cd$){1,3}e$	abcd	no
+match	(a$)b	ab	no
+match	(^a|b)c	bc	yes
+match	x(^a|b)c	xac	no
 match	^$	a	no
 match	^$	\n	no
 match	^[a-z]([a-z0-9.-]*[a-z0-9-])?$	note.write	yes
