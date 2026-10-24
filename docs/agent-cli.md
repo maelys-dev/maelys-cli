@@ -47,6 +47,12 @@ command by `id`; never replay a `PRECONDITION_FAILED` blindly; prefer
   starts in a pipe. `argument.pattern` is enforced (`VALIDATION_FAILED`),
   the summary form carries no catalog-wide member, and text records into a
   pipe are tab-separated rows.
+- `--lang TAG` (spec 2.21.0) chooses the language of the human text: the
+  help, `data.text` of `help`, a failure in text, details and progress.
+  Without it `MAELYS_CLI_LANG`, then `LC_ALL`, `LC_MESSAGES` and `LANG`
+  decide; a language the program does not have gives English, which
+  `version` names as `lang`. `describe` and every envelope are the same in
+  every language: an agent that reads text sets `LC_ALL=C` or reads JSON.
 - `--field NAME` (spec 2.4) renders one top-level member of `data` instead
   of the whole result; useful for an agent that wants a single value or
   list without parsing the full envelope. It refuses an explicit `--format

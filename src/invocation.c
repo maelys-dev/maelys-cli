@@ -170,6 +170,8 @@ static const maelys_cli_option_t transport[] = {
     {MAELYS_CLI_STRING("field", "NAME",
      "Render one top-level member of data instead of the whole result, by "
      "the text or jsonl rendering rules.")},
+    {MAELYS_CLI_STRING("lang", "TAG", "Language of the human text."),
+     .pattern = MAELYS_CLI_LANGUAGE_TAG_PATTERN},
     {MAELYS_CLI_FLAG("help", "Show the help of the selected command.")},
 };
 
@@ -506,6 +508,8 @@ static void apply_transport(
         out->pager_requested = 1;
     } else if (!strcmp(name, "field")) {
         out->field = parsed->value;
+    } else if (!strcmp(name, "lang")) {
+        out->lang = parsed->value;
     } else if (!strcmp(name, "help")) {
         out->help_requested = parsed->boolean_value;
     }

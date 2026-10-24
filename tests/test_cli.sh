@@ -663,7 +663,7 @@ check "data.text is never colored" '! printf "%s" "$out" | grep -q "u001b"'
 # language the program does not have, C or POSIX leaves it in English; the
 # texts left untranslated stay English; JSON and describe never change.
 lang_of() { # lang_of ENV...: the usage heading of default_surface's help
-    run "lang" env -u LC_ALL -u LC_MESSAGES -u LANG -u LANGUAGE "$@" "$dflt_c" help
+    run "lang" env -u LC_ALL -u LC_MESSAGES -u LANG -u LANGUAGE -u MAELYS_CLI_LANG "$@" "$dflt_c" help
     printf '%s\n' "$out" | grep -x -e USAGE -e UTILISATION | head -n 1
 }
 check "LANG=fr_FR.UTF-8 shows the help in French" '[ "$(lang_of LANG=fr_FR.UTF-8)" = UTILISATION ]'
@@ -677,6 +677,26 @@ check "an empty LC_ALL is no source" '[ "$(lang_of LC_ALL= LANG=fr_FR.UTF-8)" = 
 check "fr_CA falls back to fr" '[ "$(lang_of LANG=fr_CA.UTF-8)" = UTILISATION ]'
 check "a language the program does not have is English, later sources unread" '[ "$(lang_of LC_ALL=de_DE.UTF-8 LANG=fr_FR.UTF-8)" = USAGE ]'
 check "LANGUAGE is not read" '[ "$(lang_of LANGUAGE=fr LANG=C)" = USAGE ]'
+check "MAELYS_CLI_LANG comes before the locale" '[ "$(lang_of MAELYS_CLI_LANG=fr LC_ALL=C)" = UTILISATION ] && [ "$(lang_of MAELYS_CLI_LANG=en LANG=fr_FR.UTF-8)" = USAGE ]'
+run lang-option env MAELYS_CLI_LANG=en "$dflt_c" help --lang=fr
+check "--lang comes before MAELYS_CLI_LANG" 'printf "%s" "$out" | grep -qx UTILISATION'
+check "a malformed MAELYS_CLI_LANG is ignored, the canonical language kept" '[ "$(lang_of MAELYS_CLI_LANG=fr_FR LANG=fr_FR.UTF-8)" = USAGE ]'
+run lang-zz env LC_ALL=fr_FR.UTF-8 "$dflt_c" help --lang zz
+zz=$out
+run lang-c env LC_ALL=C "$dflt_c" help
+check "--lang zz under a French locale gives the canonical text" '[ "$zz" = "$out" ]'
+run lang-upper env LC_ALL=C "$dflt_c" help --lang FR
+upper=$out
+run lang-lower env LC_ALL=C "$dflt_c" help --lang fr
+check "--lang FR is --lang fr" '[ "$upper" = "$out" ] && printf "%s" "$out" | grep -q UTILISATION'
+for tag in en_US e english; do
+    run "lang-bad-$tag" "$dflt_c" version --lang "$tag" --json
+    check "--lang $tag is refused" '[ "$code" = 1 ] && printf "%s" "$err" | grep -q VALIDATION_FAILED'
+done
+run lang-help-json env LC_ALL=fr_FR.UTF-8 "$dflt_c" help --json
+french=$(printf '%s' "$out" | python3 -c 'import json, sys; sys.stdout.write(json.load(sys.stdin)["data"]["text"])')
+run lang-help-text env LC_ALL=fr_FR.UTF-8 "$dflt_c" help
+check "help --json carries the text help shows" '[ "$french" = "$out" ]'
 for words in "help" "show --help" "list --help" "save --help" "watch --help" "help list" "show --label !x"; do
     run "lang-$words" env LC_ALL=fr_FR.UTF-8 "$dflt_c" $words
     c_french="$out$err"
@@ -687,7 +707,7 @@ for words in "help" "show --help" "list --help" "save --help" "watch --help" "he
 done
 run lang-failure env LC_ALL=fr_FR.UTF-8 "$dflt_c" show --label '!x'
 check "a product's failure template is translated, its argument put back, Hint: kept" \
-    'printf "%s" "$err" | grep -q "^default-surface: \[PRECONDITION_FAILED\] L.étiquette !x est réservée\.$" && printf "%s" "$err" | grep -q "^Hint: Choisissez"'
+    'printf "%s" "$err" | grep -q "^default-surface: \[PRECONDITION_FAILED\] L.étiquette !x est réservée\.$" && printf "%s" "$err" | grep -q "^Conseil : Choisissez"'
 run lang-framework env LC_ALL=fr_FR.UTF-8 "$dflt_c" list --limit x
 check "a framework failure is translated" 'printf "%s" "$err" | grep -q "^default-surface: \[VALIDATION_FAILED\] L.option --limit attend"'
 run lang-framework-py env LC_ALL=fr_FR.UTF-8 $dflt_py list --limit x
@@ -695,8 +715,9 @@ check "a Python framework failure is translated" 'printf "%s" "$err" | grep -q "
 run lang-partial env LC_ALL=fr_FR.UTF-8 "$dflt_c" help
 check "a text the table leaves out stays in English" 'printf "%s" "$out" | grep -q "Watch the entries on stdout\."'
 for program in "$dflt_c" "$dflt_py"; do
-    for words in "help --json" "help show --json" "describe --format json" "describe --summary --format json" \
-            "show --label !x --json" "list --limit x --json" "nope --json" "help --field text" "show --json"; do
+    for words in "help --field commands" "help show --field commands" "describe --format json" \
+            "describe --summary --format json" "version --json" "show --label !x --json" "list --limit x --json" \
+            "nope --json" "show --json" "__complete --json -- --"; do
         run "lang-json-fr" env LC_ALL=fr_FR.UTF-8 $program $words
         french="$code|$out|$err"
         run "lang-json-c" env LC_ALL=C $program $words

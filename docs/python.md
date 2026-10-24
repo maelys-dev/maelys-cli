@@ -128,6 +128,38 @@ and `program.family_help(name, commands, width)` return the three texts;
 counts columns, an accented letter being one, a CJK character two and a
 combining mark none.
 
+## Languages
+
+`Program(..., translations={"fr": {"Greet someone.": "Saluer quelqu'un.",
+"Nobody is called %s here.": "Personne ne s'appelle %s ici."}})` declares
+the product's languages besides English (C: `maelys_cli_app_t.languages`),
+each a table from a text exactly as the catalog writes it to its
+translation, at most `MAX_LANGUAGES` (32). `Program` raises `ValueError`, with
+the message of the C catalog validation, on a tag that is not
+`language[-Script][-REGION]` (`LANGUAGE_TAG_PATTERN`), English
+(`CANONICAL_LANGUAGE`, which `version` names as `lang`), a language declared
+twice, an empty text or one with a control character other than a newline,
+and a translation that does not keep the printf conversions of its source in
+order.
+
+The language is resolved as in C (`docs/command-conventions.md`, "Languages
+of human text"): `--lang TAG` (`invocation.lang`), then `MAELYS_CLI_LANG`,
+then `LC_ALL`, `LC_MESSAGES` and `LANG`, the first one set deciding alone,
+looked up among the declared languages, English otherwise. The help,
+`data.text` of `help` included, the text rendering of a failure, and
+`invocation.detail()`, `invocation.show_progress()` and `program.warn()` are
+written in it; `describe`, envelopes and records never change. The
+framework's own texts come from the same `i18n/*.tsv` as the C library's.
+
+`failure(code, template, *arguments, hint=...)` returns a `Failure` whose
+message is `template` with its printf conversions -- `%s`, `%d`, `%zu`,
+`%llu` as C writes them -- filled by `arguments`, and which keeps the
+template and the text of each argument: the text rendering puts them back
+in the template's translation. Raise what it returns. A `Failure` built
+with a message already assembled is translated only when a table names that
+message whole. `detail`, `show_progress` and `warn` take a template and its
+arguments the same way; without arguments their text is not formatted.
+
 ## Completion
 
 `PROGRAM completion bash|zsh|fish` prints a script that **carries the

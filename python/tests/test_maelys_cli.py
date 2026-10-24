@@ -107,7 +107,7 @@ class Languages(unittest.TestCase):
         code, _, err = run_in(program, "greet", lang="fr_FR.UTF-8")
         self.assertEqual(code, 1)
         self.assertIn("prog: [NOT_FOUND] Personne ne s'appelle xavier ici, parmi 3 personnes.\n", err)
-        self.assertIn("Hint: Choisissez un autre nom.\n", err)
+        self.assertIn("\nConseil : Choisissez un autre nom.\n", err)
         _, _, err = run_in(program, "greet", "--times", "9", lang="fr_FR.UTF-8")
         self.assertIn("[VALIDATION_FAILED] L'option --times doit être entre 1 et 5, et non 9.", err)
 
@@ -127,11 +127,45 @@ class Languages(unittest.TestCase):
 
     def test_machine_forms_do_not_change(self) -> None:
         program = language_program()
-        for argv in (("greet", "--format", "json"), ("describe", "--format", "json"), ("help", "--format", "json"),
-                     ("help", "--field", "text"), ("help", "greet", "--field", "text"), ("greet", "--times", "9", "--json")):
+        for argv in (("greet", "--format", "json"), ("describe", "--format", "json"), ("version", "--format", "json"),
+                     ("help", "--field", "commands"), ("greet", "--times", "9", "--json")):
             french = run_in(program, *argv, lang="fr_FR.UTF-8")
             self.assertEqual(french, run_in(program, *argv, lang="C"), argv)
-            self.assertNotIn("Salue", french[1] + french[2])
+            if argv[0] != "describe":   # which carries the tables themselves, the same in every language
+                self.assertNotIn("Salue", french[1] + french[2])
+        # help --json carries the text a person reads, plain, in the language.
+        _, out, _ = run_in(program, "help", "--field", "text", lang="fr_FR.UTF-8")
+        self.assertIn("UTILISATION", out)
+        self.assertNotIn("\033", out)
+
+    def test_lang_and_the_variable(self) -> None:
+        program = language_program()
+        french, english = "Personne ne s'appelle", "Nobody is called xavier here"
+        self.assertIn(french, run_in(program, "greet", "--lang", "FR-ca", lc_all="C")[2])
+        err = run_in(program, "greet", "--lang", "zz", lc_all="fr_FR.UTF-8")[2]
+        self.assertIn(english, err)
+        self.assertIn("\nHint: Choose another name.\n", err)
+        code, _, err = run_in(program, "version", "--lang", "en_US", "--json")
+        self.assertEqual((code, json.loads(err)["error"]["code"]), (1, "VALIDATION_FAILED"))
+        saved = dict(os.environ)
+        try:
+            os.environ["MAELYS_CLI_LANG"] = "fr"
+            self.assertIn(french, run_in(program, "greet", lc_all="C")[2])
+            self.assertIn(english, run_in(program, "greet", "--lang", "en")[2])
+            os.environ["MAELYS_CLI_LANG"] = "fr_FR"
+            self.assertIn(english, run_in(program, "greet", lang="fr_FR.UTF-8")[2])
+        finally:
+            os.environ.clear()
+            os.environ.update(saved)
+        self.assertEqual(run_in(program, "version", "--field", "lang")[1], "en\n")
+
+    def test_describe_carries_the_tables(self) -> None:
+        program = language_program()
+        catalog = json.loads(run_in(program, "describe", "--json")[1])["data"]
+        self.assertEqual(catalog["x-maelys-translations"], {"version": 1, "languages": {"fr": LANGUAGE_FR}})
+        summary = json.loads(run_in(program, "describe", "--summary", "--json")[1])["data"]
+        self.assertNotIn("x-maelys-translations", summary)
+        self.assertNotIn("x-maelys-translations", json.loads(run("describe", "--json")[1])["data"])
 
     def test_details_and_warnings_are_translated(self) -> None:
         program = language_program({"fr": {**LANGUAGE_FR, "Read %zu files.": "%zu fichiers lus.",
@@ -176,6 +210,7 @@ class Languages(unittest.TestCase):
                                      ({"fr": {"%s and %zu.": "%zu et %s."}}, "without its conversions, in order"),
                                      ({"fr": {"Greet someone.": "Salue\tquelqu'un."}}, "holds a control character"),
                                      ({"fr": {"Greet someone.": ""}}, "is empty"),
+                                     ({"fr-FR-x-a": keeps}, "is not a well-formed language tag"),
                                      ({}, "declared incorrectly")):
             with self.assertRaises(ValueError) as caught:
                 language_program(translations)
@@ -1399,7 +1434,7 @@ class Contract(unittest.TestCase):
         self.assertEqual(failure("version", "--pager=sometimes")[1]["code"], "VALIDATION_FAILED")
         code, out, _ = run("describe", "--json")
         longs = [o["long"] for o in json.loads(out)["data"]["globalOptions"]]
-        self.assertEqual(longs[-5:], ["--progress", "--verbose", "--pager", "--field", "--help"])
+        self.assertEqual(longs[-6:], ["--progress", "--verbose", "--pager", "--field", "--lang", "--help"])
         code, out, _ = run("describe", "--summary", "--json")
         self.assertNotIn("globalOptions", json.loads(out)["data"])
         # No pager in a pipe, whatever PAGER names.

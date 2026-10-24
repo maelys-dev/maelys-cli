@@ -66,10 +66,10 @@ static const maelys_cli_option_t describe_options[] = {
     "\"string\"},\"commands\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}}}}"
 #define VERSION_SCHEMA "{\"type\":\"object\",\"additionalProperties\":false," \
     "\"required\":[\"product\",\"program\",\"version\",\"contract\",\"cliApi\"," \
-    "\"framework\"],\"properties\":{\"product\":{\"type\":\"string\"}," \
+    "\"framework\",\"lang\"],\"properties\":{\"product\":{\"type\":\"string\"}," \
     "\"program\":{\"type\":\"string\"},\"version\":{\"type\":\"string\"}," \
     "\"contract\":{\"const\":\"agent-cli/v2\"},\"cliApi\":{\"type\":\"integer\"}," \
-    "\"framework\":{\"type\":\"string\"}}}"
+    "\"framework\":{\"type\":\"string\"},\"lang\":{\"type\":\"string\"}}}"
 #define DESCRIBE_SCHEMA "{\"type\":\"object\",\"description\":\"Command " \
     "catalog, summary or single descriptor.\",\"additionalProperties\":true," \
     "\"required\":[\"schemaVersion\",\"kind\",\"program\",\"commands\"]}"
@@ -783,6 +783,14 @@ static int validate_languages(const maelys_cli_app_t *app, maelys_cli_error_t *e
                     "Catalog language '%s' translation %zu is empty or holds a control character.",
                     tag, k);
                 return -1;
+            }
+            /* One text per source: describe carries the table as an object. */
+            for (size_t l = 0u; l < k; ++l) {
+                if (!strcmp(language->translations[l].source, entry->source)) {
+                    maelys_cli_error_set(error, MAELYS_CLI_CODE_UNEXPECTED, hint,
+                        "Catalog language '%s' translates '%s' twice.", tag, entry->source);
+                    return -1;
+                }
             }
             if (maelys_cli_template_conversions(entry->source, source, sizeof(source)) != 0 ||
                 maelys_cli_template_conversions(entry->text, text, sizeof(text)) != 0 ||
@@ -2246,7 +2254,8 @@ static void emit_error_with(
     int color = context ? context->terminal.color_stderr : 0;
     /* A person reads the failure in the language of the invocation: the
      * template of the message translated with its arguments put back, the
-     * hint translated whole. The envelope above keeps both canonical. */
+     * hint and its label translated whole. The envelope above keeps them
+     * canonical. */
     char translated[MAELYS_CLI_MAX_ERROR_MESSAGE];
     const char *message = error->message;
     const char *hint = error->hint;
@@ -2263,7 +2272,11 @@ static void emit_error_with(
     maelys_cli_fprint_terminal_safe(err, message);
     (void)fputc('\n', err);
     if (hint[0]) {
-        (void)fputs("Hint: ", err);
+        /* `Label: hint`: the label may be translated, its colon kept
+         * (agent-cli/v2 section 8). */
+        const char *label = context && context->language ?
+            maelys_cli_translate(context->language, context->framework_language, "Hint:") : "Hint:";
+        (void)fprintf(err, "%s ", label);
         maelys_cli_fprint_terminal_safe(err, hint);
         (void)fputc('\n', err);
     }
@@ -2271,10 +2284,12 @@ static void emit_error_with(
 }
 
 /* The language of human text for this invocation, among the ones the
- * product declares: the first source that is not empty decides (LC_ALL,
- * LC_MESSAGES, LANG), and a request the product cannot answer leaves it in
- * English. The framework's own texts follow the product's language. */
-static void resolve_language(maelys_cli_context_t *context, const maelys_cli_app_t *app) {
+ * product declares (agent-cli/v2 section 5, "Language"): the first source
+ * that is not empty decides alone -- --lang, MAELYS_CLI_LANG, LC_ALL,
+ * LC_MESSAGES, LANG -- and a request the product cannot answer leaves it
+ * in English. The framework's own texts follow the product's language. */
+static void resolve_language(maelys_cli_context_t *context, const maelys_cli_app_t *app,
+                             const char *option) {
     context->language = NULL;
     context->framework_language = NULL;
     if (!app->languages || app->language_count == 0u) return;
@@ -2282,8 +2297,8 @@ static void resolve_language(maelys_cli_context_t *context, const maelys_cli_app
     size_t count = 0u;
     for (size_t i = 0u; i < app->language_count && count < MAELYS_CLI_MAX_LANGUAGES; ++i)
         available[count++] = app->languages[i].tag;
-    const char *tag = maelys_cli_language_resolve(NULL, NULL, getenv("LC_ALL"),
-        getenv("LC_MESSAGES"), getenv("LANG"), available, count);
+    const char *tag = maelys_cli_language_resolve(option, getenv("MAELYS_CLI_LANG"),
+        getenv("LC_ALL"), getenv("LC_MESSAGES"), getenv("LANG"), available, count);
     for (size_t i = 0u; tag && i < count; ++i) {
         if (available[i] != tag) continue;
         context->language = &app->languages[i];
@@ -2812,6 +2827,30 @@ static int in_namespace(const char *id, const char *prefix) {
         (id[length] == '\0' || id[length] == '.');
 }
 
+/* x-maelys-translations: {"version": 1, "languages": {TAG: {SOURCE: TEXT}}},
+ * each table as the catalog declares it. */
+static int describe_translations(const maelys_cli_app_t *app, maelys_cli_json_writer_t *writer) {
+    if (maelys_cli_json_key(writer, "x-maelys-translations") != 0 ||
+        maelys_cli_json_begin_object(writer) != 0 ||
+        maelys_cli_json_key_integer(writer, "version", 1) != 0 ||
+        maelys_cli_json_key(writer, "languages") != 0 ||
+        maelys_cli_json_begin_object(writer) != 0)
+        return -1;
+    for (size_t i = 0u; i < app->language_count; ++i) {
+        const maelys_cli_language_t *language = &app->languages[i];
+        if (maelys_cli_json_key(writer, language->tag) != 0 ||
+            maelys_cli_json_begin_object(writer) != 0)
+            return -1;
+        for (size_t k = 0u; k < language->translation_count; ++k)
+            if (maelys_cli_json_key_string(writer, language->translations[k].source,
+                    language->translations[k].text) != 0)
+                return -1;
+        if (maelys_cli_json_end_object(writer) != 0) return -1;
+    }
+    return maelys_cli_json_end_object(writer) == 0 && maelys_cli_json_end_object(writer) == 0 ?
+        0 : -1;
+}
+
 static int describe_data(
     maelys_cli_context_t *context, const char *query, int summary,
     const char *prefix, maelys_cli_json_writer_t *writer) {
@@ -2871,6 +2910,11 @@ static int describe_data(
         return -1;
     if (app->agent_guidance && *app->agent_guidance &&
         maelys_cli_json_key_string(writer, "x-maelys-guidance", app->agent_guidance) != 0)
+        return -1;
+    /* The product's languages, for a manual page in each: its tables as it
+     * declares them, under a version of their own. The same document in
+     * every language, as describe is; the catalog form alone. */
+    if (app->languages && app->language_count && describe_translations(app, writer) != 0)
         return -1;
     if (!summary) {
         if (maelys_cli_json_key(writer, "output") != 0 ||
@@ -4139,8 +4183,13 @@ static int help_reply(
     const char *prefix, char *const words[], size_t word_count) {
     int family = prefix || word_count > 0u;
     size_t width = help_width(context);
-    char *text = help_render(context->app, target, prefix, words, word_count, width,
-        &help_plain);
+    /* data.text is the human text in the language of the invocation, as
+     * the text rendering is (agent-cli/v2 section 5, "Language"), and
+     * always plain. */
+    help_style_t plain = help_plain;
+    plain.language = context->language;
+    plain.framework = context->framework_language;
+    char *text = help_render(context->app, target, prefix, words, word_count, width, &plain);
     if (!text) {
         return maelys_cli_fail(context, MAELYS_CLI_CODE_UNEXPECTED, NULL,
             "Could not render help.");
@@ -4173,14 +4222,12 @@ static int help_reply(
         return maelys_cli_fail(context, MAELYS_CLI_CODE_UNEXPECTED, NULL,
             "Could not describe the catalog.");
     }
-    /* What a person reads: colored on a terminal that takes color, and in
-     * the language of the invocation; data.text stays plain and English. */
+    /* What a person reads on a terminal that takes color: colored. */
     char *shown = NULL;
     int color = context->terminal.color_stdout;
-    if (context->invocation && context->invocation->format == MAELYS_CLI_FORMAT_TEXT &&
-        (color || context->language)) {
+    if (context->invocation && context->invocation->format == MAELYS_CLI_FORMAT_TEXT && color) {
         help_style_t style = help_plain;
-        if (color) help_style_init(&style, context->app->help_palette);
+        help_style_init(&style, context->app->help_palette);
         style.language = context->language;
         style.framework = context->framework_language;
         char *rendered = help_render(context->app, target, prefix, words, word_count,
@@ -4233,6 +4280,7 @@ static int builtin_version(maelys_cli_context_t *context) {
         maelys_cli_json_key_string(&writer, "contract", MAELYS_CLI_CONTRACT) == 0 &&
         maelys_cli_json_key_integer(&writer, "cliApi", MAELYS_CLI_API) == 0 &&
         maelys_cli_json_key_string(&writer, "framework", MAELYS_CLI_VERSION) == 0 &&
+        maelys_cli_json_key_string(&writer, "lang", MAELYS_CLI_CANONICAL_LANGUAGE) == 0 &&
         maelys_cli_json_end_object(&writer) == 0;
     if (!built) {
         maelys_cli_json_writer_clear(&writer);
@@ -4381,6 +4429,16 @@ static void prescan_rendering(
     }
 }
 
+/* The --lang of a line the parser may refuse, so that its refusal is
+ * written in the language asked for: the first one before `--`. */
+static const char *prescan_language(int argc, char **argv) {
+    for (int i = 0; argv && i < argc && strcmp(argv[i], "--") != 0; ++i) {
+        if (!strncmp(argv[i], "--lang=", 7u)) return argv[i] + 7;
+        if (!strcmp(argv[i], "--lang") && i + 1 < argc) return argv[i + 1];
+    }
+    return NULL;
+}
+
 int maelys_cli_run(
     const maelys_cli_app_t *app, int argc, char **argv, FILE *out, FILE *err) {
     maelys_cli_context_t context;
@@ -4401,7 +4459,7 @@ int maelys_cli_run(
         (void)maelys_cli_fail_error(&context, &error);
         return MAELYS_CLI_EXIT_FAILURE;
     }
-    resolve_language(&context, app);
+    resolve_language(&context, app, prescan_language(argc, argv));
     prescan_rendering(argc, argv, &invocation);
     maelys_cli_format_t prescan_format = invocation.format;
     int prescan_compact = invocation.compact;
@@ -4465,6 +4523,8 @@ int maelys_cli_run(
     } else {
         family_count = 0u;
     }
+    /* The line as the parser read it: a delegate's words are its own. */
+    resolve_language(&context, app, invocation.lang);
     /* MAELYS_CLI_FORMAT is the default format: --format and --json override
      * it, --compact and --pretty select none and leave it in force. */
     if (!invocation.format_requested) apply_environment_format(&invocation);

@@ -105,6 +105,18 @@ def terminal_color(mode: str) -> "tuple[bool, bool]":
     return sys.stdout.isatty(), sys.stderr.isatty()
 
 
+def _prescan_language(argv: list) -> Optional[str]:
+    """The first --lang before `--` (C: prescan_language)."""
+    for index, word in enumerate(argv):
+        if word == "--":
+            break
+        if word.startswith("--lang="):
+            return word[len("--lang="):]
+        if word == "--lang" and index + 1 < len(argv):
+            return argv[index + 1]
+    return None
+
+
 def _prescan_color_never(argv: list) -> bool:
     """Whether argv already says --color never, checked before a command resolves
     (maelys_cli_run()'s prescan): the only thing an unresolved command line may do to
@@ -710,6 +722,56 @@ _FRAMEWORK_TRANSLATIONS = {
             "L'option %s doit être entre %s et %s, et non %s.",
         '%s must be between %s and %s, not %s.':
             '%s doit être entre %s et %s, et non %s.',
+        'Language of the human text.':
+            'Langue du texte humain.',
+        'Hint:':
+            'Conseil :',
+        "Catalog language '%s' translates '%s' twice.":
+            "La langue '%s' du catalogue traduit '%s' deux fois.",
+        '%s Manual':
+            'Manuel de %s',
+        'NAME':
+            'NOM',
+        'SYNOPSIS':
+            'SYNOPSIS',
+        'DESCRIPTION':
+            'DESCRIPTION',
+        'EXIT STATUS':
+            'CODE DE RETOUR',
+        'ENVIRONMENT':
+            'ENVIRONNEMENT',
+        'NOTES':
+            'NOTES',
+        'SEE ALSO':
+            'VOIR AUSSI',
+        "%s %s, a program of the agent-cli/v2 contract: '%s help' shows the help, '%s describe --format json' the catalog this page is rendered from.":
+            "%s %s, un programme du contrat agent-cli/v2 : '%s help' en montre l'aide, '%s describe --format json' le catalogue d'où cette page est rendue.",
+        "%s [options] runs '%s', as %s %s [options] does: the options in front, other than --help and --version, are its, and its operands come after --.":
+            "%s [options] lance '%s', comme %s %s [options] : les options placées devant, autres que --help et --version, sont les siennes, et ses opérandes viennent après --.",
+        'Not available in this build: %s':
+            'Indisponible dans cette compilation : %s',
+        'Command completed.':
+            'Commande terminée.',
+        'Execution failed.':
+            'Exécution échouée.',
+        'Valid report with violations.':
+            'Rapport valide, avec des violations.',
+        'A stream command and a delegate exit with the status of what they run.':
+            "Une commande de flux et un délégué sortent avec le code de retour de ce qu'ils lancent.",
+        'The format when no option names one: text, json or jsonl.':
+            "Le format quand aucune option n'en nomme : text, json ou jsonl.",
+        'The language of the human text when no --lang names one; then LC_ALL, LC_MESSAGES, LANG.':
+            "La langue du texte humain quand aucun --lang n'en nomme ; puis LC_ALL, LC_MESSAGES, LANG.",
+        'Set and not empty: no color, unless --color always or CLICOLOR_FORCE.':
+            'Définie et non vide : pas de couleur, sauf --color always ou CLICOLOR_FORCE.',
+        'Set and neither empty nor 0: color even into a pipe, unless --color never.':
+            'Définie, ni vide ni 0 : de la couleur même dans un tube, sauf --color never.',
+        'Unset, empty or dumb: no color, unless --color always or CLICOLOR_FORCE.':
+            'Non définie, vide ou dumb : pas de couleur, sauf --color always ou CLICOLOR_FORCE.',
+        'The pager of a long text on a terminal; empty disables it.':
+            "Le paginateur d'un long texte sur un terminal ; vide, il est désactivé.",
+        "The width of the help on a terminal, read before the terminal's own.":
+            "La largeur de l'aide sur un terminal, lue avant celle du terminal.",
     },
 }
 # END translations
@@ -717,19 +779,20 @@ _FRAMEWORK_TRANSLATIONS = {
 
 # ---- the language of human text (C: src/language.c) -------------------------------
 #
-# A request is a language tag, well formed as RFC 5646 section 2.1 writes it, compared without regard to
-# case. A locale (LC_ALL, LC_MESSAGES, LANG) is converted by its own rule, language[_territory][.codeset]
+# A request is a language tag of the form agent-cli/v2 section 5 writes, language[-Script][-REGION], compared
+# without regard to case. A locale (LC_ALL, LC_MESSAGES, LANG) is converted by its own rule, language[_territory][.codeset]
 # [@modifier] giving language-territory; C, POSIX and C.* give the canonical language. The language a
 # request resolves to is the Lookup of RFC 4647 section 3.4. Nothing reads the locales installed on the
 # machine: the syntax is the RFCs', the same everywhere. tests/languages.tsv holds C and Python to the
 # same answers.
-_GRANDFATHERED = frozenset(tag.lower() for tag in (
-    "en-GB-oed", "i-ami", "i-bnn", "i-default", "i-enochian", "i-hak", "i-klingon", "i-lux", "i-mingo",
-    "i-navajo", "i-pwn", "i-tao", "i-tay", "i-tsu", "sgn-BE-FR", "sgn-BE-NL", "sgn-CH-DE", "art-lojban",
-    "cel-gaulish", "no-bok", "no-nyn", "zh-guoyu", "zh-hakka", "zh-min", "zh-min-nan", "zh-xiang"))
 _ASCII_ALPHA = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 _ASCII_DIGIT = frozenset("0123456789")
 _ASCII_ALNUM = _ASCII_ALPHA | _ASCII_DIGIT
+# agent-cli/v2 section 5 ("Language"): the canonical language, which version names, and the form of a tag,
+# language[-Script][-REGION], the pattern --lang declares.
+CANONICAL_LANGUAGE = "en"
+LANGUAGE_TAG_PATTERN = "^[A-Za-z]{2,3}(-[A-Za-z]{4})?(-([A-Za-z]{2}|[0-9]{3}))?$"
+_LANGUAGE_TAG = re.compile(LANGUAGE_TAG_PATTERN[1:-1])
 _CONVERSION = re.compile(r"%(?:[-+ #0]*(?:\*|[0-9]*)(?:\.(?:\*|[0-9]*))?[hljztL]*[diuoxXcspfFeEgGaA])")
 MAX_LANGUAGES = 32
 
@@ -739,47 +802,9 @@ def _all_in(text: str, characters: frozenset) -> bool:
 
 
 def _language_tag_is_well_formed(tag: Optional[str]) -> bool:
-    """RFC 5646's langtag, privateuse or grandfathered production (C: maelys_cli_language_tag_is_well_formed)."""
-    if not isinstance(tag, str) or not tag:
-        return False
-    if tag.lower() in _GRANDFATHERED:
-        return True
-    subtags = tag.split("-")
-    if len(subtags) > 64 or any(not 1 <= len(s) <= 8 or not _all_in(s, _ASCII_ALNUM) for s in subtags):
-        return False
-
-    def privateuse(at: int) -> bool:
-        return at + 1 < len(subtags) and subtags[at].lower() == "x"
-
-    if privateuse(0):
-        return True
-    if len(subtags[0]) < 2 or not _all_in(subtags[0], _ASCII_ALPHA):
-        return False
-    at = 1
-    if len(subtags[0]) <= 3:
-        for _ in range(3):
-            if at < len(subtags) and len(subtags[at]) == 3 and _all_in(subtags[at], _ASCII_ALPHA):
-                at += 1
-            else:
-                break
-    if at < len(subtags) and len(subtags[at]) == 4 and _all_in(subtags[at], _ASCII_ALPHA):
-        at += 1
-    if at < len(subtags) and ((len(subtags[at]) == 2 and _all_in(subtags[at], _ASCII_ALPHA))
-                              or (len(subtags[at]) == 3 and _all_in(subtags[at], _ASCII_DIGIT))):
-        at += 1
-    while at < len(subtags) and (len(subtags[at]) >= 5 or (len(subtags[at]) == 4 and subtags[at][0] in _ASCII_DIGIT)):
-        at += 1
-    while at < len(subtags) and len(subtags[at]) == 1 and subtags[at].lower() != "x":
-        at += 1
-        parts = 0
-        while at < len(subtags) and len(subtags[at]) >= 2:
-            at += 1
-            parts += 1
-        if parts == 0:
-            return False
-    if at < len(subtags) and privateuse(at):
-        return True
-    return at == len(subtags)
+    """A tag of the form agent-cli/v2 writes, language[-Script][-REGION] (C:
+    maelys_cli_language_tag_is_well_formed)."""
+    return isinstance(tag, str) and tag.isascii() and _LANGUAGE_TAG.fullmatch(tag) is not None
 
 
 def _language_from_locale(locale: Optional[str]) -> Optional[str]:
@@ -1767,6 +1792,7 @@ GLOBAL_OPTIONS = [
            argument("VALUE", "choice", TRISTATE), default="auto"),
     option("--field", "Render one top-level member of data instead of the whole result, by "
            "the text or jsonl rendering rules.", argument("NAME", "string")),
+    option("--lang", "Language of the human text.", argument("TAG", "string", pattern=LANGUAGE_TAG_PATTERN)),
     flag("--help", "Show the help of the selected command."),
 ]
 INVARIANTS = [
@@ -2814,7 +2840,7 @@ class Invocation:
     def __init__(self, program: "Program", command: dict, operands: list, options: dict,
                  fmt: str, compact: bool, non_interactive: bool, raw_operands: list,
                  verbose: bool = False, progress: str = "auto", pager: str = "auto",
-                 color: str = "auto", field: Optional[str] = None) -> None:
+                 color: str = "auto", field: Optional[str] = None, lang: Optional[str] = None) -> None:
         self.program = program
         self.command = command
         self.operands = operands
@@ -2828,6 +2854,9 @@ class Invocation:
         self.pager = pager
         self.color = color
         self.field = field
+        # --lang TAG (agent-cli/v2 section 5): the language this line asks for, None when absent; resolved
+        # among the catalog's languages before the command runs.
+        self.lang = lang
         self._progress_shown = False
         self._expect_checked = False
 
@@ -2944,10 +2973,11 @@ class Program:
                                         "commands": {"type": "array", "items": {"type": "string"}}}}),
             read("version", "version", "Show the product, program, version and contract.", self._version,
                  schema={"type": "object", "additionalProperties": False,
-                         "required": ["product", "program", "version", "contract", "cliApi", "framework"],
+                         "required": ["product", "program", "version", "contract", "cliApi", "framework", "lang"],
                          "properties": {"product": {"type": "string"}, "program": {"type": "string"},
                                         "version": {"type": "string"}, "contract": {"const": CONTRACT},
-                                        "cliApi": {"type": "integer"}, "framework": {"type": "string"}}}),
+                                        "cliApi": {"type": "integer"}, "framework": {"type": "string"},
+                                        "lang": {"type": "string"}}}),
             read("describe", "describe", "Show the machine-readable catalog, its summary or one descriptor.",
                  self._describe,
                  operands=[operand("COMMAND_ID", "Stable command identifier returned by the catalog.", required=False)],
@@ -3072,12 +3102,14 @@ class Program:
         return (self.translations[self._language],) + \
             ((_FRAMEWORK_TRANSLATIONS[framework],) if framework is not None else ())
 
-    def _resolve_language(self) -> None:
+    def _resolve_language(self, option: Optional[str] = None) -> None:
         """The language of human text for this invocation, among those the product declares (C:
-        resolve_language): the first of LC_ALL, LC_MESSAGES and LANG that is not empty decides, and a
-        request the product cannot answer leaves it in English."""
-        self._language = _language_resolve(None, None, os.environ.get("LC_ALL"), os.environ.get("LC_MESSAGES"),
-                                           os.environ.get("LANG"), list(self.translations))
+        resolve_language; agent-cli/v2 section 5): the first source that is not empty decides alone --
+        --lang, MAELYS_CLI_LANG, LC_ALL, LC_MESSAGES, LANG -- and a request the product cannot answer leaves
+        it in English."""
+        self._language = _language_resolve(option, os.environ.get("MAELYS_CLI_LANG"), os.environ.get("LC_ALL"),
+                                           os.environ.get("LC_MESSAGES"), os.environ.get("LANG"),
+                                           list(self.translations))
 
     def _human(self, template: str, *arguments: Any) -> str:
         """`template` in the language of the invocation, its printf arguments put in after the translation
@@ -3086,6 +3118,10 @@ class Program:
         tables = self._human_tables()
         translated = next((table[template] for table in tables if template in table), template)
         return _format_template(translated, arguments)[0] if arguments else translated
+
+    def _hint_label(self) -> str:
+        """`Hint:` in the language of the invocation, its colon kept (agent-cli/v2 section 8)."""
+        return next((table["Hint:"] for table in self._human_tables() if "Hint:" in table), "Hint:")
 
     def _human_failure(self, failure: Failure) -> "tuple[str, str]":
         """The message and hint of `failure` as a person reads them in the language of the invocation (C:
@@ -3446,7 +3482,7 @@ class Program:
 
     def _version(self, invocation: Invocation) -> "tuple[dict, int]":
         return {"product": self.product, "program": self.program, "version": self.version, "contract": CONTRACT,
-                "cliApi": CLI_API, "framework": self.framework}, EXIT_OK
+                "cliApi": CLI_API, "framework": self.framework, "lang": CANONICAL_LANGUAGE}, EXIT_OK
 
     def _help(self, invocation: Invocation) -> "tuple[dict, int]":
         width = help_width(invocation.format)
@@ -3474,9 +3510,15 @@ class Program:
         else:
             commands = [c["id"] for c in self.catalog if not c["hidden"]]
             render = lambda: self.guide(width)  # noqa: E731
-        # data.text is the plain rendering; a terminal with color is shown the palette's (C: help_reply).
+        # data.text is the plain rendering in the language of the invocation; a terminal with color is shown
+        # the palette's (C: help_reply).
         self._help_rendering = render
-        return {"text": render(), "commands": commands}, EXIT_OK
+        self._tables = self._human_tables()
+        try:
+            text = render()
+        finally:
+            self._tables = ()
+        return {"text": text, "commands": commands}, EXIT_OK
 
     def _describe(self, invocation: Invocation) -> "tuple[dict, int]":
         data: dict = {"schemaVersion": CATALOG_SCHEMA, "program": self.program, "product": self.product,
@@ -3510,6 +3552,9 @@ class Program:
             # What a manual page needs and the contract does not carry (C: x-maelys-summary), an extension
             # member a generic agent ignores; the catalog form alone, which a manual reads.
             data["x-maelys-summary"] = self.guide_line
+            # The product's languages, for a manual page in each (C: describe_translations).
+            if self.translations:
+                data["x-maelys-translations"] = {"version": 1, "languages": self.translations}
             data["invariants"] = INVARIANTS
             data["output"] = {"contract": CONTRACT, "schemaVersion": SCHEMA_VERSION,
                               "stdout": "success data only; protocol streams are explicit exceptions",
@@ -3811,6 +3856,7 @@ class Program:
         pager = "auto"
         color = "auto"
         field = None
+        lang = None
         format_requested = False
         rendering: list = []
         help_requested = False
@@ -3858,6 +3904,8 @@ class Program:
                 pager = parse_value("choice", value or "", {"choices": list(TRISTATE)}, "Option --pager", usage)
             elif name == "--field":
                 field = value
+            elif name == "--lang":
+                lang = parse_value("string", value or "", {"pattern": LANGUAGE_TAG_PATTERN}, "Option --lang", usage)
             elif name == "--help":
                 help_requested = _parse_flag(value, name, usage)
             elif name in ("--dry-run", "--plan") and isinstance(command["effect"], dict):
@@ -3985,7 +4033,7 @@ class Program:
                           "validate against the command's outputSchema.",
                           "Use --format text or --format jsonl with --field.")
         return Invocation(self, command, operands, options, fmt, compact, non_interactive, raw_operands,
-                          verbose, progress, pager, color, field), command
+                          verbose, progress, pager, color, field, lang), command
 
     # ---- rendering ----
 
@@ -4029,7 +4077,8 @@ class Program:
         argv = list(sys.argv[1:] if argv is None else argv)
         command_id = ""
         self.resolved_command_id = ""
-        self._resolve_language()
+        # The --lang of a line the parser may refuse, so that its refusal is written in that language.
+        self._resolve_language(_prescan_language(argv))
         invocation: Optional[Invocation] = None
         fmt = environment_format()
         for index, word in enumerate(argv):
@@ -4041,6 +4090,8 @@ class Program:
         try:
             invocation, command = self.parse(argv)
             command_id, fmt, compact = command["id"], invocation.format, invocation.compact
+            # The line as the parser read it: a delegate's words are its own.
+            self._resolve_language(invocation.lang)
             if command["outputMode"] == "protocol-stream":
                 result = command["handler"](invocation)
                 return int(result[1] if isinstance(result, tuple) else result)
@@ -4102,11 +4153,10 @@ class Program:
                         sys.stdout.write(text)
             elif fmt == "text":
                 text = self.render_text(command, data)
-                # What a person reads: colored on a terminal that takes color, and in the language of the
-                # invocation; data.text stays plain and English (C: help_reply).
+                # What a person reads on a terminal that takes color: colored (C: help_reply).
                 color = invocation.color_stdout
-                if command_id == "help" and self._help_rendering is not None and (color or self._language):
-                    style = self._help_style() if color else _HELP_PLAIN
+                if command_id == "help" and self._help_rendering is not None and color:
+                    style = self._help_style()
                     self._style, self._tables = style, self._human_tables()
                     try:
                         text = _help_headings(self._help_rendering(), style["heading"])
@@ -4137,7 +4187,7 @@ class Program:
                     f"{self.program}: [{failure.code}] {_terminal_safe(message)}",
                     self._failure_color(invocation, argv)) + "\n")
                 if hint:
-                    sys.stderr.write(f"Hint: {_terminal_safe(hint)}\n")
+                    sys.stderr.write(f"{self._hint_label()} {_terminal_safe(hint)}\n")
             else:
                 sys.stderr.write(self.envelope(command_id or self.resolved_command_id or "unknown", False,
                                                EXIT_FAILURE, error, compact))
@@ -4151,7 +4201,7 @@ class Program:
                 sys.stderr.write(self._colored(
                     f"{self.program}: [{failure.code}] {_terminal_safe(message)}",
                     self._failure_color(invocation, argv)) + "\n")
-                sys.stderr.write(f"Hint: {_terminal_safe(hint)}\n")
+                sys.stderr.write(f"{self._hint_label()} {_terminal_safe(hint)}\n")
             else:
                 sys.stderr.write(self.envelope(command_id or self.resolved_command_id or "unknown", False,
                                                EXIT_FAILURE, payload, compact))

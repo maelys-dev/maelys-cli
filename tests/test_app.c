@@ -1929,7 +1929,7 @@ static int test_languages(void) {
     result = RUN_IN(&language_app, "greet");
     CHECK(result.code == 1 && strstr(result.err,
         "prog: [NOT_FOUND] Personne ne s'appelle xavier ici, parmi 3 personnes.") &&
-        strstr(result.err, "Hint: Choisissez un autre nom."));
+        strstr(result.err, "\nConseil : Choisissez un autre nom.\n"));
     release(&result);
     result = RUN_IN(&language_app, "greet", "--times", "9");
     CHECK(expect_failure(&result, "[VALIDATION_FAILED]",
@@ -1959,11 +1959,12 @@ static int test_languages(void) {
     CHECK(result.code == 0 && strstr(result.out, "USAGE") && !strstr(result.out, "UTILISATION"));
     release(&result);
     /* What a machine reads never changes: the JSON of a failure, describe,
-     * help in JSON and --field text are the same bytes in both languages. */
+     * version and the commands of help are the same bytes in both
+     * languages. The text of help is human text, in JSON too. */
     static const char *const lines[][4] = {
         {"greet", "--format", "json", NULL}, {"describe", "--format", "json", NULL},
-        {"help", "--format", "json", NULL}, {"help", "--field", "text", NULL},
-        {"help", "greet", "--field", "text"},
+        {"version", "--format", "json", NULL}, {"help", "--field", "commands", NULL},
+        {"greet", "--times", "9", "--json"},
     };
     for (size_t i = 0u; i < sizeof(lines) / sizeof(lines[0]); ++i) {
         char *argv[4];
@@ -1973,14 +1974,64 @@ static int test_languages(void) {
         run_result_t french = run_app(&language_app, argc, argv);
         locale_is(NULL, NULL, "C");
         run_result_t english = run_app(&language_app, argc, argv);
+        /* describe carries the tables themselves, the same in both. */
         int same = french.code == english.code && !strcmp(french.out, english.out) &&
-            !strcmp(french.err, english.err) && !strstr(french.out, "Salue") &&
+            !strcmp(french.err, english.err) &&
+            (!strcmp(lines[i][0], "describe") || !strstr(french.out, "Salue")) &&
             !strstr(french.err, "Personne");
         if (!same) (void)fprintf(stderr, "differs: %s\n", lines[i][0]);
         release(&french);
         release(&english);
         CHECK(same);
     }
+    /* help --json carries the text a person reads, plain, in the language. */
+    locale_is(NULL, NULL, "fr_FR.UTF-8");
+    result = RUN_IN(&language_app, "help", "--field", "text");
+    CHECK(result.code == 0 && strstr(result.out, "UTILISATION") && !strchr(result.out, '\033'));
+    release(&result);
+    /* --lang decides alone, before MAELYS_CLI_LANG and the locale; a tag
+     * the product has no language for is English; a malformed one fails
+     * on the line and is ignored from the variable. */
+    locale_is("C", NULL, NULL);
+    result = RUN_IN(&language_app, "greet", "--lang", "FR-ca");
+    CHECK(result.code == 1 && strstr(result.err, "Personne ne s'appelle"));
+    release(&result);
+    locale_is("fr_FR.UTF-8", NULL, NULL);
+    result = RUN_IN(&language_app, "greet", "--lang", "zz");
+    CHECK(result.code == 1 && strstr(result.err, "Nobody is called xavier here") &&
+        strstr(result.err, "\nHint: Choose another name.\n"));
+    release(&result);
+    result = RUN_IN(&language_app, "version", "--lang", "en_US", "--json");
+    CHECK(expect_failure(&result, "VALIDATION_FAILED", "--lang"));
+    locale_is("C", NULL, NULL);
+    (void)setenv("MAELYS_CLI_LANG", "fr", 1);
+    result = RUN_IN(&language_app, "greet");
+    CHECK(result.code == 1 && strstr(result.err, "Personne ne s'appelle"));
+    release(&result);
+    result = RUN_IN(&language_app, "greet", "--lang", "en");
+    CHECK(result.code == 1 && strstr(result.err, "Nobody is called"));
+    release(&result);
+    (void)setenv("MAELYS_CLI_LANG", "fr_FR", 1);
+    locale_is(NULL, NULL, "fr_FR.UTF-8");
+    result = RUN_IN(&language_app, "greet");
+    CHECK(result.code == 1 && strstr(result.err, "Nobody is called"));
+    release(&result);
+    (void)unsetenv("MAELYS_CLI_LANG");
+    /* The catalog form carries the tables, the summary does not. */
+    result = RUN_IN(&language_app, "describe", "--json", "--compact");
+    CHECK(result.code == 0 && strstr(result.out,
+        "\"x-maelys-translations\":{\"version\":1,\"languages\":{\"fr\":{\"Greets people.\":\"Salue les gens.\""));
+    release(&result);
+    result = RUN_IN(&language_app, "describe", "--summary", "--json", "--compact");
+    CHECK(result.code == 0 && !strstr(result.out, "x-maelys-translations"));
+    release(&result);
+    result = RUNV("describe", "--json", "--compact");
+    CHECK(result.code == 0 && !strstr(result.out, "x-maelys-translations"));
+    release(&result);
+    /* version names the canonical language. */
+    result = RUN_IN(&language_app, "version", "--field", "lang");
+    CHECK(result.code == 0 && !strcmp(result.out, "en\n"));
+    release(&result);
     locale_is(NULL, NULL, NULL);
     return 1;
 }
@@ -1991,6 +2042,8 @@ static int test_invalid_languages(void) {
     static const maelys_cli_translation_t loses[] = {{"Nobody is called %s here.", "Personne ici."}};
     static const maelys_cli_translation_t swaps[] = {{"%s and %zu.", "%zu et %s."}};
     static const maelys_cli_translation_t controls[] = {{"Greet someone.", "Salue\tquelqu'un."}};
+    static const maelys_cli_translation_t twice[] = {
+        {"Greet someone.", "Salue quelqu'un."}, {"Greet someone.", "Salue."}};
     struct { maelys_cli_language_t language[2]; size_t count; const char *detail; } cases[] = {
         {{{"fr_FR", keeps, 1u}}, 1u, "is not a well-formed language tag"},
         {{{"en-GB", keeps, 1u}}, 1u, "is English, the canonical language"},
@@ -1999,6 +2052,8 @@ static int test_invalid_languages(void) {
         {{{"fr", loses, 1u}}, 1u, "without its conversions, in order"},
         {{{"fr", swaps, 1u}}, 1u, "without its conversions, in order"},
         {{{"fr", controls, 1u}}, 1u, "holds a control character"},
+        {{{"fr", twice, 2u}}, 1u, "translates 'Greet someone.' twice"},
+        {{{"fr-FR-x-a", keeps, 1u}}, 1u, "is not a well-formed language tag"},
     };
     for (size_t i = 0u; i < sizeof(cases) / sizeof(cases[0]); ++i) {
         maelys_cli_app_t broken = language_app;

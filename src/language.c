@@ -2,8 +2,10 @@
 /* The language of human text: which one a line asks for, and which one a
  * program has.
  *
- * A request is a language tag, well formed as RFC 5646 section 2.1 writes
- * it, compared without regard to case: fr-CA and FR-ca are one preference.
+ * A request is a language tag of the form agent-cli/v2 section 5 writes,
+ * language[-Script][-REGION], the subset of RFC 5646 a catalog declares as
+ * the pattern of --lang, compared without regard to case: fr-CA and FR-ca
+ * are one preference.
  * A locale (LC_ALL, LC_MESSAGES, LANG) is converted by its own rule,
  * language[_territory][.codeset][@modifier] giving language-territory; C,
  * POSIX and C.* give the canonical language. The available language a
@@ -26,83 +28,31 @@ static int all(const char *s, size_t n, int (*test)(unsigned char)) {
     return 1;
 }
 
-/* The tags RFC 5646 keeps from RFC 3066 that its langtag production does
- * not cover, compared without regard to case. */
-static const char *const grandfathered[] = {
-    "en-GB-oed", "i-ami", "i-bnn", "i-default", "i-enochian", "i-hak",
-    "i-klingon", "i-lux", "i-mingo", "i-navajo", "i-pwn", "i-tao", "i-tay",
-    "i-tsu", "sgn-BE-FR", "sgn-BE-NL", "sgn-CH-DE", "art-lojban",
-    "cel-gaulish", "no-bok", "no-nyn", "zh-guoyu", "zh-hakka", "zh-min",
-    "zh-min-nan", "zh-xiang",
-};
-
 static int equal_ignoring_case(const char *a, const char *b, size_t n) {
     for (size_t i = 0u; i < n; ++i)
         if (tolower((unsigned char)a[i]) != tolower((unsigned char)b[i])) return 0;
     return 1;
 }
 
-/* privateuse = "x" 1*("-" (1*8alphanum)), from subtag `at` of `count`. */
-static int privateuse_from(const char *const *subtags, const size_t *lengths,
-                           size_t at, size_t count) {
-    if (at >= count || lengths[at] != 1u || tolower((unsigned char)subtags[at][0]) != 'x')
-        return 0;
-    if (at + 1u >= count) return 0;
-    for (size_t i = at + 1u; i < count; ++i)
-        if (lengths[i] < 1u || lengths[i] > 8u) return 0;
-    return 1;
-}
-
+/* language[-Script][-REGION]: two or three letters, then a script of four
+ * letters and a region of two letters or three digits, each optional and
+ * after a '-' (MAELYS_CLI_LANGUAGE_TAG_PATTERN). */
 int maelys_cli_language_tag_is_well_formed(const char *tag) {
-    if (!tag || !*tag) return 0;
-    size_t length = strlen(tag);
-    for (size_t i = 0u; i < sizeof(grandfathered) / sizeof(grandfathered[0]); ++i)
-        if (strlen(grandfathered[i]) == length && equal_ignoring_case(tag, grandfathered[i], length))
-            return 1;
-    /* Subtags of 1 to 8 letters and digits, separated by one '-'. */
-    const char *subtags[64];
-    size_t lengths[64];
-    size_t count = 0u;
-    for (const char *p = tag; ; ) {
-        const char *end = strchr(p, '-');
-        size_t n = end ? (size_t)(end - p) : strlen(p);
-        if (n < 1u || n > 8u || !all(p, n, is_alnum) || count == 64u) return 0;
-        subtags[count] = p;
-        lengths[count++] = n;
-        if (!end) break;
-        p = end + 1;
+    if (!tag) return 0;
+    size_t n = 0u;
+    while (is_alpha((unsigned char)tag[n])) n++;
+    if (n < 2u || n > 3u) return 0;
+    const char *p = tag + n;
+    if (p[0] == '-' && all(p + 1, 4u, is_alpha) && strlen(p + 1) >= 4u &&
+        (p[5] == '\0' || p[5] == '-'))
+        p += 5;
+    if (p[0] == '-') {
+        size_t m = strlen(p + 1);
+        if (!((m == 2u && all(p + 1, 2u, is_alpha)) || (m == 3u && all(p + 1, 3u, is_digit))))
+            return 0;
+        p += 1u + m;
     }
-    size_t at = 0u;
-    if (privateuse_from(subtags, lengths, 0u, count)) return 1;
-    /* language = 2*3ALPHA ["-" extlang] / 4ALPHA / 5*8ALPHA */
-    if (!all(subtags[0], lengths[0], is_alpha) || lengths[0] < 2u) return 0;
-    at = 1u;
-    if (lengths[0] <= 3u) {
-        /* extlang = 3ALPHA *2("-" 3ALPHA) */
-        for (int e = 0; e < 3 && at < count && lengths[at] == 3u &&
-                all(subtags[at], 3u, is_alpha); ++e)
-            at++;
-    }
-    /* ["-" script], script = 4ALPHA */
-    if (at < count && lengths[at] == 4u && all(subtags[at], 4u, is_alpha)) at++;
-    /* ["-" region], region = 2ALPHA / 3DIGIT */
-    if (at < count && ((lengths[at] == 2u && all(subtags[at], 2u, is_alpha)) ||
-                       (lengths[at] == 3u && all(subtags[at], 3u, is_digit))))
-        at++;
-    /* *("-" variant), variant = 5*8alphanum / (DIGIT 3alphanum) */
-    while (at < count && ((lengths[at] >= 5u) ||
-                          (lengths[at] == 4u && is_digit((unsigned char)subtags[at][0]))))
-        at++;
-    /* *("-" extension), extension = singleton 1*("-" (2*8alphanum)) */
-    while (at < count && lengths[at] == 1u && tolower((unsigned char)subtags[at][0]) != 'x') {
-        at++;
-        size_t parts = 0u;
-        while (at < count && lengths[at] >= 2u) { at++; parts++; }
-        if (parts == 0u) return 0;
-    }
-    /* ["-" privateuse] */
-    if (at < count && privateuse_from(subtags, lengths, at, count)) return 1;
-    return at == count;
+    return p[0] == '\0';
 }
 
 int maelys_cli_language_from_locale(const char *locale, char *tag, size_t size) {

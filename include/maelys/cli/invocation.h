@@ -109,6 +109,12 @@ typedef struct maelys_cli_invocation {
                               * MAELYS_CLI_FORMAT is a default and yields */
     int default_selected;    /* no word named the command: the app's
                               * default_command was selected */
+    /* --lang TAG of agent-cli/v2 section 5 ("Language"): the language of
+     * the human text this line asks for, NULL when absent. Well formed by
+     * the parser's pattern; the runtime resolves it among the catalog's
+     * languages before the command runs. Not a rendering option: a stream
+     * accepts it, a delegate receives it verbatim. */
+    const char *lang;
 } maelys_cli_invocation_t;
 
 /* auto | always | never, in the order of the trunk's choices. */

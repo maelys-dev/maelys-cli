@@ -2,7 +2,7 @@
 # The language of human text: the corpus tests/test_language.c and python/tests/test_maelys_cli.py
 # both answer, so that C and Python resolve a request alike. One case per line, fields separated by
 # a tab; `-` is an absent value, "" an empty one.
-#   tag      TAG  yes|no                      RFC 5646 well-formedness, case ignored
+#   tag      TAG  yes|no                      language[-Script][-REGION], the form of agent-cli/v2 section 5
 #   locale   LOCALE  TAG|C|-                  the tag a locale names; C the canonical language; - none
 #   lookup   TAG  AVAILABLE  RESULT|-         RFC 4647 Lookup; AVAILABLE comma-separated, - for none
 #   resolve  OPTION VARIABLE LC_ALL LC_MESSAGES LANG  AVAILABLE  RESULT|-
@@ -15,52 +15,44 @@ tag	FR-ca	yes
 tag	de-DE	yes
 tag	zh-Hant	yes
 tag	zh-Hant-TW	yes
+tag	ZH-hANT-tw	yes
 tag	sr-Latn-RS	yes
+tag	sr-Latn	yes
 tag	es-419	yes
-tag	de-CH-1901	yes
-tag	sl-rozaj-biske	yes
-tag	hy-Latn-IT-arevela	yes
-tag	en-US-u-islamcal	yes
-tag	de-DE-u-co-phonebk	yes
-tag	en-a-bbb-x-a-ccc	yes
-tag	x-whatever	yes
-tag	qaa-Qaaa-QM-x-southern	yes
-tag	zh-yue-HK	yes
-tag	i-klingon	yes
-tag	I-KLINGON	yes
-tag	en-GB-oed	yes
-tag	art-lojban	yes
-tag	zh-min-nan	yes
-tag	abcd	yes
-tag	abcdefgh	yes
-tag	de-1996	yes
-tag	english-language	yes
-tag	fr-x-a	yes
-tag	ar-aao-ajp-apc	yes
-tag	sgn-be-fr	yes
+tag	fra	yes
+tag	fra-FR	yes
+tag	fil-PH	yes
 tag	""	no
 tag	e	no
+tag	english	no
+tag	abcd	no
 tag	en-US-US	no
 tag	fr_FR	no
+tag	en_US	no
 tag	fr-	no
 tag	-fr	no
 tag	fr--CA	no
 tag	fr-CA-	no
 tag	123	no
-tag	fr-CA-x	no
-tag	en-a	no
-tag	en-a-x-b	no
 tag	fr.UTF-8	no
 tag	fr CA	no
-tag	abcdefghi	no
-tag	abcd-efg	no
-tag	en-US-x-toolongsubtag	no
-tag	de-419-DE	no
+tag	de-CH-1901	no
+tag	sl-rozaj-biske	no
+tag	en-US-u-islamcal	no
+tag	x-whatever	no
+tag	i-klingon	no
+tag	art-lojban	no
+tag	zh-yue-HK	no
+tag	fr-x-a	no
+tag	fr-Latn-CA-x-private	no
+tag	es-41	no
+tag	es-4190	no
+tag	fr-C	no
+tag	fr-CAN	no
+tag	de-Lat	no
 tag	é	no
 tag	fr-é	no
-tag	i-unknown	no
-tag	x	no
-tag	ar-aao-ajp-apc-abc	no
+tag	fr\n	no
 locale	fr_FR.UTF-8	fr-FR
 locale	fr_CA	fr-CA
 locale	fr	fr
@@ -69,6 +61,7 @@ locale	en_US.UTF-8	en-US
 locale	es_419.UTF-8	es-419
 locale	fra_FR	fra-FR
 locale	de_DE@euro	de-DE
+locale	sr_RS@latin	sr-RS
 locale	C	C
 locale	POSIX	C
 locale	C.UTF-8	C
@@ -109,6 +102,8 @@ resolve	-	-	de_DE	fr_FR	fr_FR	fr	-
 resolve	-	-	C	fr_FR	fr_FR	fr	-
 resolve	-	-	C.UTF-8	-	fr_FR	fr	-
 resolve	-	not a tag	fr_FR	-	-	fr	-
+resolve	-	fr_FR	-	-	fr_FR.UTF-8	fr	-
+resolve	zz	-	fr_FR.UTF-8	-	-	fr	-
 resolve	-	de	fr_FR	-	-	fr	-
 resolve	fr	-	-	-	-	-	-
 resolve	FR-ca	-	-	-	-	fr	fr

@@ -45,12 +45,19 @@ void maelys_cli_fprint_terminal_safe(FILE *stream, const char *text);
 int maelys_cli_text_is_terminal_safe(const char *text);
 
 /* The language of human text (src/language.c). A tag is well formed as
- * RFC 5646 section 2.1 writes it, compared without regard to case. A locale
+ * agent-cli/v2 section 5 writes it, language[-Script][-REGION], the subset
+ * of RFC 5646 MAELYS_CLI_LANGUAGE_TAG_PATTERN spells, compared without
+ * regard to case. A locale
  * converts to a tag (1), to the canonical language (0: C, POSIX, C.*, or
  * one that does not convert) or is empty (-1). Lookup is RFC 4647 section
  * 3.4 against the languages a program has, NULL meaning the canonical one.
  * Resolve takes the first source that is not empty, in the order the
  * contract writes, and never reads a later one. */
+/* The canonical language of the framework's and a product's human text,
+ * which `version` names (`lang`). */
+#define MAELYS_CLI_CANONICAL_LANGUAGE "en"
+#define MAELYS_CLI_LANGUAGE_TAG_PATTERN \
+    "^[A-Za-z]{2,3}(-[A-Za-z]{4})?(-([A-Za-z]{2}|[0-9]{3}))?$"
 int maelys_cli_language_tag_is_well_formed(const char *tag);
 int maelys_cli_language_from_locale(const char *locale, char *tag, size_t size);
 const char *maelys_cli_language_lookup(const char *tag, const char *const *available,

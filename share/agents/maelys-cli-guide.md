@@ -74,7 +74,9 @@ Global options accepted by every non-stream command: `--format`, `--json`,
 `--compact`, `--pretty=false`, `--non-interactive`, `--color`, `--help`.
 `MAELYS_CLI_FORMAT=json` in the environment gives the same default without
 options and is the only way to get a JSON failure envelope from a stream
-command. `PROGRAM completion bash|zsh|fish` prints the shell completion
+command. `--lang TAG` (then `MAELYS_CLI_LANG`, `LC_ALL`, `LC_MESSAGES`,
+`LANG`) chooses the language of the human text only: an agent that reads
+text sets `LC_ALL=C` or reads JSON, which never changes with the language. `PROGRAM completion bash|zsh|fish` prints the shell completion
 generated from the catalog; nothing to write per product.
 
 ## 2. Adding a command
@@ -241,6 +243,22 @@ line that names nothing is no consent to an action. Declare none unless one
 command is what the program is for: a line that put options before the
 command name (`PROGRAM --json list`) then selects the default command and is
 refused, and must be written `PROGRAM list --json`.
+
+### Translate the human text (optional)
+
+`.languages` on `maelys_cli_app_t` (`translations=` on a Python `Program`)
+declares the product's languages besides English: per tag
+(`language[-Script][-REGION]`), a table of `maelys_cli_translation_t`
+`{source, text}`, `source` exactly as the catalog writes it -- a purpose, a
+summary, an example's summary -- or a failure template
+(`"Nobody is called %s here."`), `text` with the same conversions in order.
+Write the catalog in English, the canonical language, and translate it;
+write failures as templates with `maelys_cli_fail` (Python: `cli.failure`),
+never assembled before, so that their translation takes the arguments
+back. The help, `data.text` of `help`, failures in text, details, progress
+and warnings follow `--lang`, `MAELYS_CLI_LANG` or the locale; `describe`
+and every envelope stay English. `maelys-cli-man --lang fr --untranslated
+PROGRAM` lists what the table still lacks.
 
 ### Color the help (optional)
 
