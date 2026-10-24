@@ -213,3 +213,11 @@ Verify the external command binary and retry.	Vérifiez l'exécutable de la comm
 Write each color as SGR parameters: digits and ';', such as "1" or "1;36".	Écrivez chaque couleur en paramètres SGR : des chiffres et ';', comme "1" ou "1;36".
 Write the command's pattern first, or the operands of the default command after --.	Écrivez d'abord le motif de la commande, ou bien les opérandes de la commande par défaut après --.
 Write the example as a real invocation of the command, or remove it.	Écrivez l'exemple comme une vraie invocation de la commande, ou retirez-le.
+Catalog languages are declared incorrectly: a list and its count, at most %u.	Les langues du catalogue sont mal déclarées : une liste et son nombre, au plus %u.
+Catalog language '%s' is not a well-formed language tag.	La langue '%s' du catalogue n'est pas une étiquette de langue bien formée.
+Catalog language '%s' is English, the canonical language, which has no table.	La langue '%s' du catalogue est l'anglais, la langue canonique, qui n'a pas de table.
+Catalog language '%s' is declared twice.	La langue '%s' du catalogue est déclarée deux fois.
+Catalog language '%s' counts translations it does not declare.	La langue '%s' du catalogue compte des traductions qu'elle ne déclare pas.
+Catalog language '%s' translation %zu is empty or holds a control character.	La langue '%s' du catalogue : la traduction %zu est vide ou contient un caractère de contrôle.
+Catalog language '%s' translates '%s' without its conversions, in order.	La langue '%s' du catalogue traduit '%s' sans ses conversions, dans l'ordre.
+Declare each language once by a well-formed tag, and translate each text with the conversions of its source.	Déclarez chaque langue une fois, par une étiquette bien formée, et traduisez chaque texte avec les conversions de sa source.

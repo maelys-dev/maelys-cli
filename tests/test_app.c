@@ -1859,6 +1859,161 @@ static int test_invalid_catalog(void) {
     return 1;
 }
 
+/* ---- the language of human text ------------------------------------------- */
+
+static int command_unknown_person(maelys_cli_context_t *context) {
+    return maelys_cli_fail(context, MAELYS_CLI_CODE_NOT_FOUND, "Choose another name.",
+        "Nobody is called %s here, among %zu people.", "xavier", (size_t)3);
+}
+
+static const maelys_cli_option_t greet_language_options[] = {
+    {MAELYS_CLI_UNSIGNED("times", "N", "How many times.", 1, 5)},
+    {MAELYS_CLI_FLAG("loud", "Shout it.")},
+};
+static const maelys_cli_command_t language_commands[] = {
+    {MAELYS_CLI_READ("greet", "greet", "Greet someone.", command_unknown_person),
+     MAELYS_CLI_OPTIONS(greet_language_options)},
+    {MAELYS_CLI_READ("wave", "wave", "Wave at someone.", command_nothing)},
+};
+static const maelys_cli_translation_t language_fr[] = {
+    {"Greets people.", "Salue les gens."},
+    {"Greet someone.", "Salue quelqu'un."},
+    {"How many times.", "Combien de fois."},
+    {"Nobody is called %s here, among %zu people.", "Personne ne s'appelle %s ici, parmi %zu personnes."},
+    {"Choose another name.", "Choisissez un autre nom."},
+};
+static const maelys_cli_language_t language_tables[] = {{"fr", language_fr, 5u}};
+static const maelys_cli_app_t language_app = {
+    .program = "prog", .product = "Test Product", .version = "9.9.9",
+    .summary = "Greets people.", .commands = language_commands, .command_count = 2u,
+    .languages = language_tables, .language_count = 1u,
+};
+
+static run_result_t run_app(const maelys_cli_app_t *with, int argc, char **argv) {
+    run_result_t result = {0, NULL, NULL};
+    size_t out_size = 0u, err_size = 0u;
+    FILE *out = open_memstream(&result.out, &out_size);
+    FILE *err = open_memstream(&result.err, &err_size);
+    result.code = maelys_cli_run(with, argc, argv, out, err);
+    (void)fclose(out);
+    (void)fclose(err);
+    return result;
+}
+#define RUN_IN(with, ...) run_app(with, COUNT(__VA_ARGS__), ARGV(__VA_ARGS__))
+
+/* LC_ALL, LC_MESSAGES and LANG as a line would have them. */
+static void locale_is(const char *lc_all, const char *lc_messages, const char *lang) {
+    if (lc_all) (void)setenv("LC_ALL", lc_all, 1); else (void)unsetenv("LC_ALL");
+    if (lc_messages) (void)setenv("LC_MESSAGES", lc_messages, 1); else (void)unsetenv("LC_MESSAGES");
+    if (lang) (void)setenv("LANG", lang, 1); else (void)unsetenv("LANG");
+}
+
+static int test_languages(void) {
+    run_result_t result;
+    /* LANG in French: the help, its headings, the framework's sentences and
+     * the product's texts are French; a text the table leaves out stays
+     * English, one by one. */
+    locale_is(NULL, NULL, "fr_FR.UTF-8");
+    result = RUN_IN(&language_app, "--help");
+    CHECK(result.code == 0 && strstr(result.out, "UTILISATION") && strstr(result.out, "COMMANDES") &&
+        strstr(result.out, "Salue les gens.") && strstr(result.out, "Salue quelqu'un.") &&
+        strstr(result.out, "Wave at someone.") && strstr(result.out, "OPTIONS GLOBALES") &&
+        strstr(result.out, "Aussi :") && !strstr(result.out, "USAGE"));
+    release(&result);
+    result = RUN_IN(&language_app, "greet", "--help");
+    CHECK(result.code == 0 && strstr(result.out, "Combien de fois.") &&
+        strstr(result.out, "Shout it.") && strstr(result.out, "Lancez 'prog --help'"));
+    release(&result);
+    /* A failure: the template translated, its arguments put back; the
+     * framework's own refusal and hint translated too. */
+    result = RUN_IN(&language_app, "greet");
+    CHECK(result.code == 1 && strstr(result.err,
+        "prog: [NOT_FOUND] Personne ne s'appelle xavier ici, parmi 3 personnes.") &&
+        strstr(result.err, "Hint: Choisissez un autre nom."));
+    release(&result);
+    result = RUN_IN(&language_app, "greet", "--times", "9");
+    CHECK(expect_failure(&result, "[VALIDATION_FAILED]",
+        "L'option --times attend un entier positif ou nul entre 1 et 5."));
+    /* fr_CA finds fr (RFC 4647 Lookup); LC_ALL comes before LANG; C is
+     * English; a language the product lacks is English; the first source
+     * that is not empty decides, even for a language the product lacks. */
+    locale_is(NULL, NULL, "fr_CA.UTF-8");
+    result = RUN_IN(&language_app, "greet");
+    CHECK(result.code == 1 && strstr(result.err, "Personne ne s'appelle"));
+    release(&result);
+    locale_is("C", NULL, "fr_FR.UTF-8");
+    result = RUN_IN(&language_app, "greet");
+    CHECK(result.code == 1 && strstr(result.err, "Nobody is called xavier here"));
+    release(&result);
+    locale_is(NULL, "de_DE.UTF-8", "fr_FR.UTF-8");
+    result = RUN_IN(&language_app, "greet");
+    CHECK(result.code == 1 && strstr(result.err, "Nobody is called xavier here"));
+    release(&result);
+    locale_is("", "", "fr_FR.UTF-8");
+    result = RUN_IN(&language_app, "greet");
+    CHECK(result.code == 1 && strstr(result.err, "Personne ne s'appelle"));
+    release(&result);
+    /* A product that declares no language is English, whatever the locale. */
+    locale_is(NULL, NULL, "fr_FR.UTF-8");
+    result = RUNV("--help");
+    CHECK(result.code == 0 && strstr(result.out, "USAGE") && !strstr(result.out, "UTILISATION"));
+    release(&result);
+    /* What a machine reads never changes: the JSON of a failure, describe,
+     * help in JSON and --field text are the same bytes in both languages. */
+    static const char *const lines[][4] = {
+        {"greet", "--format", "json", NULL}, {"describe", "--format", "json", NULL},
+        {"help", "--format", "json", NULL}, {"help", "--field", "text", NULL},
+        {"help", "greet", "--field", "text"},
+    };
+    for (size_t i = 0u; i < sizeof(lines) / sizeof(lines[0]); ++i) {
+        char *argv[4];
+        int argc = 0;
+        for (int w = 0; w < 4 && lines[i][w]; ++w) argv[argc++] = (char *)lines[i][w];
+        locale_is(NULL, NULL, "fr_FR.UTF-8");
+        run_result_t french = run_app(&language_app, argc, argv);
+        locale_is(NULL, NULL, "C");
+        run_result_t english = run_app(&language_app, argc, argv);
+        int same = french.code == english.code && !strcmp(french.out, english.out) &&
+            !strcmp(french.err, english.err) && !strstr(french.out, "Salue") &&
+            !strstr(french.err, "Personne");
+        if (!same) (void)fprintf(stderr, "differs: %s\n", lines[i][0]);
+        release(&french);
+        release(&english);
+        CHECK(same);
+    }
+    locale_is(NULL, NULL, NULL);
+    return 1;
+}
+
+/* A table the catalog validation refuses at startup, naming the cause. */
+static int test_invalid_languages(void) {
+    static const maelys_cli_translation_t keeps[] = {{"Greet someone.", "Salue quelqu'un."}};
+    static const maelys_cli_translation_t loses[] = {{"Nobody is called %s here.", "Personne ici."}};
+    static const maelys_cli_translation_t swaps[] = {{"%s and %zu.", "%zu et %s."}};
+    static const maelys_cli_translation_t controls[] = {{"Greet someone.", "Salue\tquelqu'un."}};
+    struct { maelys_cli_language_t language[2]; size_t count; const char *detail; } cases[] = {
+        {{{"fr_FR", keeps, 1u}}, 1u, "is not a well-formed language tag"},
+        {{{"en-GB", keeps, 1u}}, 1u, "is English, the canonical language"},
+        {{{"fr", keeps, 1u}, {"FR", keeps, 1u}}, 2u, "is declared twice"},
+        {{{"fr", NULL, 1u}}, 1u, "counts translations it does not declare"},
+        {{{"fr", loses, 1u}}, 1u, "without its conversions, in order"},
+        {{{"fr", swaps, 1u}}, 1u, "without its conversions, in order"},
+        {{{"fr", controls, 1u}}, 1u, "holds a control character"},
+    };
+    for (size_t i = 0u; i < sizeof(cases) / sizeof(cases[0]); ++i) {
+        maelys_cli_app_t broken = language_app;
+        broken.languages = cases[i].language;
+        broken.language_count = cases[i].count;
+        run_result_t result = RUN_IN(&broken, "greet");
+        int refused = result.code == 1 && !result.out[0] && strstr(result.err, "[UNEXPECTED]") &&
+            strstr(result.err, cases[i].detail);
+        if (!refused) (void)fprintf(stderr, "case %zu: %s\n", i, result.err);
+        release(&result);
+        CHECK(refused);
+    }
+    return 1;
+}
+
 int main(void) {
     int failures = 0;
     RUN(test_help_and_version);
@@ -1879,5 +2034,7 @@ int main(void) {
     RUN(test_environment_format);
     RUN(test_default_command);
     RUN(test_invalid_catalog);
+    RUN(test_languages);
+    RUN(test_invalid_languages);
     return failures ? 1 : 0;
 }
