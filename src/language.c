@@ -185,3 +185,96 @@ const char *maelys_cli_language_resolve(
     }
     return NULL;
 }
+
+/* ---- translations ------------------------------------------------------ */
+
+const char *maelys_cli_translate(const maelys_cli_language_t *product,
+                                 const maelys_cli_language_t *framework,
+                                 const char *source) {
+    if (!source) return source;
+    const maelys_cli_language_t *tables[2] = {product, framework};
+    for (size_t t = 0u; t < 2u; ++t) {
+        if (!tables[t] || !tables[t]->translations) continue;
+        for (size_t i = 0u; i < tables[t]->translation_count; ++i) {
+            const maelys_cli_translation_t *entry = &tables[t]->translations[i];
+            if (entry->source && entry->text && !strcmp(entry->source, source))
+                return entry->text;
+        }
+    }
+    return source;
+}
+
+/* The length of the conversion at `p` (a '%' that is not "%%"): flags,
+ * width, precision, length modifier and letter; 0 when it is not one. */
+static size_t conversion_length(const char *p) {
+    size_t n = 1u;
+    while (p[n] && strchr("-+ #0", p[n])) n++;
+    if (p[n] == '*') n++; else while (is_digit((unsigned char)p[n])) n++;
+    if (p[n] == '.') {
+        n++;
+        if (p[n] == '*') n++; else while (is_digit((unsigned char)p[n])) n++;
+    }
+    while (p[n] && strchr("hljztL", p[n])) n++;
+    if (!p[n] || !strchr("diuoxXcspfFeEgGaA", p[n])) return 0u;
+    return n + 1u;
+}
+
+int maelys_cli_template_conversions(const char *format, char *out, size_t size) {
+    if (!format || !out || size == 0u) return -1;
+    size_t used = 0u;
+    out[0] = '\0';
+    for (const char *p = format; *p; ++p) {
+        if (*p != '%') continue;
+        if (p[1] == '%') { ++p; continue; }
+        size_t n = conversion_length(p);
+        if (n == 0u || used + n + 2u > size) return -1;
+        if (used) out[used++] = ' ';
+        memcpy(out + used, p, n);
+        used += n;
+        out[used] = '\0';
+        p += n - 1u;
+    }
+    return 0;
+}
+
+int maelys_cli_translate_error(const maelys_cli_language_t *product,
+                               const maelys_cli_language_t *framework,
+                               const maelys_cli_error_t *error, char *out, size_t size) {
+    if (!error || !out || size == 0u) return 0;
+    const char *template = error->format ?
+        maelys_cli_translate(product, framework, error->format) : NULL;
+    if (!template || template == error->format) {
+        /* A message assembled before it reached the framework is translated
+         * only when it is, word for word, a text a table names. */
+        const char *whole = maelys_cli_translate(product, framework, error->message);
+        if (whole == error->message) return 0;
+        (void)snprintf(out, size, "%s", whole);
+        return 1;
+    }
+    const char *argument = error->arguments;
+    unsigned taken = 0u;
+    size_t used = 0u;
+    for (const char *p = template; *p && used + 1u < size; ++p) {
+        if (*p != '%') { out[used++] = *p; continue; }
+        if (p[1] == '%') { out[used++] = '%'; ++p; continue; }
+        size_t n = conversion_length(p);
+        if (n == 0u || taken >= error->argument_count) return 0;
+        size_t length = strlen(argument);
+        if (used + length >= size) length = size - used - 1u;
+        memcpy(out + used, argument, length);
+        used += length;
+        argument += strlen(argument) + 1u;
+        taken++;
+        p += n - 1u;
+    }
+    out[used] = '\0';
+    return taken == error->argument_count;
+}
+
+extern const maelys_cli_language_t maelys_cli_framework_fr;
+
+const maelys_cli_language_t *maelys_cli_framework_language(const char *tag) {
+    static const char *const tags[] = {"fr"};
+    const char *found = maelys_cli_language_lookup(tag, tags, 1u);
+    return found ? &maelys_cli_framework_fr : NULL;
+}

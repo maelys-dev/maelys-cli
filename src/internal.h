@@ -5,6 +5,7 @@
 #include "maelys/cli/catalog.h"
 #include "maelys/cli/invocation.h"
 
+#include <stdarg.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -58,6 +59,29 @@ const char *maelys_cli_language_resolve(
     const char *option, const char *variable, const char *lc_all,
     const char *lc_messages, const char *lang,
     const char *const *available, size_t count);
+
+/* maelys_cli_error_set with its arguments as a va_list: the template and
+ * its formatted arguments are kept for the text rendering. */
+void maelys_cli_error_setv(
+    maelys_cli_error_t *error, const char *code, const char *hint,
+    const char *format, va_list arguments);
+
+/* Translations (src/language.c). translate returns the product's text for
+ * `source`, else the framework's, else `source` itself. A template's
+ * conversions are listed by template_conversions ("%s %llu"), which a
+ * translation must keep in order. translate_error writes the text
+ * rendering of an error's message in the language: its template
+ * translated and its arguments put back, or a message a table names whole;
+ * 0 when there is none. framework_language is the framework's own table
+ * for the language a request resolved to, NULL for English. */
+const char *maelys_cli_translate(const maelys_cli_language_t *product,
+                                 const maelys_cli_language_t *framework,
+                                 const char *source);
+int maelys_cli_template_conversions(const char *format, char *out, size_t size);
+int maelys_cli_translate_error(const maelys_cli_language_t *product,
+                               const maelys_cli_language_t *framework,
+                               const maelys_cli_error_t *error, char *out, size_t size);
+const maelys_cli_language_t *maelys_cli_framework_language(const char *tag);
 
 /* argument.pattern: the common subset of ECMA-262 and POSIX ERE (spec 2.3),
  * read and matched by src/pattern.c itself, no regcomp(). check returns 0,

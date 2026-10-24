@@ -346,7 +346,9 @@ static const maelys_cli_app_t app = {
     "never brought back to the margin of the first one.",
     NULL,
     NULL,
-    NULL
+    NULL,
+    NULL,
+    0u
 };
 
 /* ---- harness ---------------------------------------------------------------- */
@@ -411,7 +413,8 @@ static const maelys_cli_command_t accented_commands[] = {
      "\xe6\x97\xa5\xe6\x9c\xac\xe8\xaa\x9e.", command_nothing)},
 };
 static const maelys_cli_app_t accented_app = {
-    "prog", "Test Product", "9.9.9", NULL, accented_commands, 1u, NULL, 0u, NULL, NULL, NULL, NULL
+    "prog", "Test Product", "9.9.9", NULL, accented_commands, 1u, NULL, 0u, NULL, NULL, NULL, NULL,
+    NULL, 0u
 };
 
 /* The synopsis of help, one rule over usage (agent-cli/v2, section 10): the

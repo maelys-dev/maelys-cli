@@ -39,6 +39,16 @@ typedef struct maelys_cli_error {
     char code[32];
     char message[MAELYS_CLI_MAX_ERROR_MESSAGE];
     char hint[MAELYS_CLI_MAX_ERROR_HINT];
+    /* What the text rendering translates, set by maelys_cli_error_set: the
+     * template `message` was formatted from (the literal the caller passed,
+     * never freed) and each of its arguments already formatted, separated
+     * by NUL bytes. `message` and `hint` stay canonical in JSON
+     * (agent-cli/v2); a person reading text sees the template translated
+     * and these arguments put back, or `message` when the language has no
+     * translation of it. Private: read through the framework. */
+    const char *format;
+    unsigned argument_count;
+    char arguments[MAELYS_CLI_MAX_ERROR_MESSAGE];
 } maelys_cli_error_t;
 
 /* Stable error codes shared by every Maelys CLI. */

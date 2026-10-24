@@ -45,7 +45,7 @@ HEADERS := $(wildcard include/maelys/*.h include/maelys/cli/*.h src/*.h \
 
 SOURCES := src/version.c src/values.c src/environment.c src/files.c \
 	src/digest.c src/json.c src/terminal.c src/process.c src/catalog.c \
-	src/invocation.c src/pattern.c src/language.c src/app.c
+	src/invocation.c src/pattern.c src/language.c src/i18n_fr.c src/app.c
 OBJECTS := $(patsubst %.c,$(BUILD)/%.o,$(SOURCES))
 LIB := $(BUILD)/lib/libmaelys_cli.a
 # Manifest discovery reads untrusted JSON through maelys-json; it lives in

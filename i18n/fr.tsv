@@ -1,0 +1,215 @@
+# The framework's texts in French: the English source, a tab, its translation. A template keeps
+# its printf conversions in the same order. Read by scripts/i18n.py, which writes src/i18n_fr.c
+# and the table of python/maelys_cli.py; in both columns \n is a newline and \\ a backslash.
+USAGE	UTILISATION
+EXAMPLES	EXEMPLES
+DEFAULT COMMAND	COMMANDE PAR DÉFAUT
+OPERANDS	OPÉRANDES
+OPTIONS	OPTIONS
+GLOBAL OPTIONS	OPTIONS GLOBALES
+COMMANDS	COMMANDES
+AGENTS	AGENTS
+UNAVAILABLE IN THIS BUILD	INDISPONIBLE DANS CETTE COMPILATION
+The rest of the line goes to another program, word for word.	Le reste de la ligne va à un autre programme, mot pour mot.
+It shows a plan; --apply commits it.	Elle montre un plan ; --apply le valide.
+It shows a plan; --apply applies it.	Elle montre un plan ; --apply l'applique.
+It acts at once, without a plan.	Elle agit tout de suite, sans plan.
+Its output is the %s protocol: --format and the other rendering options do not apply.	Sa sortie suit le protocole %s : --format et les autres options de rendu ne s'appliquent pas.
+Its output is its own: --format and the other rendering options do not apply.	Sa sortie lui est propre : --format et les autres options de rendu ne s'appliquent pas.
+A line that names no command runs this one: an empty line, or one that starts with an option other than --help and --version. Its operands come after --:	Une ligne qui ne nomme aucune commande lance celle-ci : une ligne vide, ou une ligne qui commence par une option autre que --help et --version. Ses opérandes viennent après -- :
+Optional.	Facultatif.
+Run '%s --help' for --format, --json, --compact, --non-interactive, --color and the others.	Lancez '%s --help' pour --format, --json, --compact, --non-interactive, --color et les autres.
+%s - commands	%s - commandes
+(unavailable in this build)	(indisponible dans cette compilation)
+Run '%s help COMMAND_ID' or '%s COMMAND --help' for the operands and options of one command.	Lancez '%s help COMMAND_ID' ou '%s COMMAND --help' pour les opérandes et les options d'une commande.
+one command, its options and examples	une commande, ses options et ses exemples
+the commands of one family	les commandes d'une famille
+%s [options] runs '%s', as %s %s [options] does: the options in front, other than --help and --version, are its.	%s [options] lance '%s', comme %s %s [options] : les options placées devant, autres que --help et --version, sont les siennes.
+Also:	Aussi :
+'%s help COMMAND' says why.	'%s help COMMAND' dit pourquoi.
+Not available in this build:	Indisponible dans cette compilation :
+Run '%s describe --summary --format json' first, and build every line from its input, never from this text.	Lancez d'abord '%s describe --summary --format json', et construisez chaque ligne à partir de ce qu'il décrit, jamais à partir de ce texte.
+Default: %s.	Par défaut : %s.
+Required.	Obligatoire.
+Requires --%s.	Exige --%s.
+Conflicts with --%s.	Incompatible avec --%s.
+(repeatable)	(répétable)
+Show the help of the program, of one command or of one family.	Affiche l'aide du programme, d'une commande ou d'une famille.
+Show the product, program, version and contract.	Affiche le produit, le programme, la version et le contrat.
+Show the machine-readable catalog, its summary or one descriptor.	Affiche le catalogue lisible par une machine, son résumé ou un descripteur.
+Print the shell completion script generated from the catalog.	Affiche le script de complétion du shell, généré à partir du catalogue.
+Return completion candidates for a partial command line.	Renvoie les candidats de complétion d'une ligne de commande partielle.
+Shell whose completion script is printed.	Shell dont le script de complétion est affiché.
+Command line words after the program name; the last one is the prefix being completed.	Mots de la ligne de commande après le nom du programme ; le dernier est le début à compléter.
+Stable command identifier whose help is shown, or the family of commands under an identifier.	Identifiant stable de la commande dont l'aide est affichée, ou famille des commandes sous un identifiant.
+Stable command identifier returned by the catalog.	Identifiant stable de commande, tel que le catalogue le renvoie.
+Return the compact command inventory without output schemas.	Renvoie l'inventaire compact des commandes, sans schémas de sortie.
+Restrict the summary to one command namespace: the command named PREFIX and every command whose identifier starts with PREFIX followed by a dot.	Restreint le résumé à un espace de noms : la commande nommée PREFIX et toute commande dont l'identifiant commence par PREFIX suivi d'un point.
+Select text for humans, json for one envelope or jsonl for records.	Choisit text pour les personnes, json pour une enveloppe ou jsonl pour des enregistrements.
+Exact alias of --format json.	Alias exact de --format json.
+Render JSON on a single line.	Écrit le JSON sur une seule ligne.
+--pretty=false selects compact JSON.	--pretty=false choisit le JSON compact.
+Never prompt; fail instead of asking a question.	Ne pose jamais de question ; échoue plutôt que de demander.
+Control ANSI colors on terminals.	Règle les couleurs ANSI sur un terminal.
+Show the progress of a long run on stderr in text mode: auto only when stderr is a terminal.	Affiche l'avancement d'une longue exécution sur stderr en mode texte : auto seulement quand stderr est un terminal.
+Add the details of the run on stderr in text mode; silent in JSON.	Ajoute les détails de l'exécution sur stderr en mode texte ; rien en JSON.
+Page the text rendering when stdout is a terminal; never in a pipe, in JSON or under --non-interactive.	Pagine le rendu texte quand stdout est un terminal ; jamais dans un tube, en JSON ni sous --non-interactive.
+Render one top-level member of data instead of the whole result, by the text or jsonl rendering rules.	Rend un seul membre de premier niveau de data au lieu du résultat entier, selon les règles du rendu text ou jsonl.
+Show the help of the selected command.	Affiche l'aide de la commande choisie.
+%s: %s	%s : %s
+'%s' does not produce records and cannot render jsonl.	'%s' ne produit pas d'enregistrements et ne peut pas rendre du jsonl.
+'%s' is a stream command and does not support CLI output rendering.	'%s' est une commande de flux et n'accepte pas les options de rendu.
+'%s' is neither an option nor the value of one: the line names no command and runs the default command '%s', whose operands are written after --.	'%s' n'est ni une option ni la valeur d'une option : la ligne ne nomme aucune commande et lance la commande par défaut '%s', dont les opérandes s'écrivent après --.
+'%s' needs an interactive confirmation that automation cannot provide.	'%s' demande une confirmation interactive qu'une automatisation ne peut pas donner.
+--%s belongs to group '%s' and requires --%s.	--%s fait partie du groupe '%s' et exige --%s.
+--%s conflicts with --%s.	--%s est incompatible avec --%s.
+--%s conflicts with operand %s.	--%s est incompatible avec l'opérande %s.
+--%s is not supported; planning is the default for transactional commands.	--%s n'est pas accepté : une commande transactionnelle planifie par défaut.
+--%s is required by '%s'. Use '%s'.	--%s est exigé par '%s'. Utilisez '%s'.
+--%s requires --%s.	--%s exige --%s.
+--field conflicts with --format json: a filtered envelope would not validate against the command's outputSchema.	--field est incompatible avec --format json : une enveloppe filtrée ne serait plus conforme à l'outputSchema de la commande.
+At most one of %s may be given.	Une seule au plus de ces options peut être donnée : %s.
+Cannot execute %s: %s.	Impossible d'exécuter %s : %s.
+Exactly one of %s must be given.	Exactement une de ces options doit être donnée : %s.
+External command %s is unusable: %s.	La commande externe %s est inutilisable : %s.
+External command '%s' for '%s' is not installed.	La commande externe '%s' de '%s' n'est pas installée.
+Invalid command prefix: %s.	Préfixe de commande invalide : %s.
+Invalid option spelling: %s.	Option mal écrite : %s.
+Invalid parser arguments.	Arguments de l'analyseur invalides.
+No command in namespace: %s.	Aucune commande dans l'espace de noms : %s.
+Operands do not match '%s'. Use '%s'.	Les opérandes ne correspondent pas à '%s'. Utilisez '%s'.
+Option %s is not supported: options are spelled --name.	L'option %s n'est pas acceptée : une option s'écrit --nom.
+Option --%s declares a pattern outside the common subset of ECMA-262 and POSIX ERE.	L'option --%s déclare un motif hors du sous-ensemble commun à ECMA-262 et POSIX ERE.
+Option --%s expects %zu lowercase hexadecimal digits.	L'option --%s attend %zu chiffres hexadécimaux en minuscules.
+Option --%s expects %zu or %zu lowercase hexadecimal digits.	L'option --%s attend %zu ou %zu chiffres hexadécimaux en minuscules.
+Option --%s expects ALGORITHM:HEX with lowercase hexadecimal digits (%s).	L'option --%s attend ALGORITHME:HEX, en chiffres hexadécimaux minuscules (%s).
+Option --%s expects a boolean.	L'option --%s attend un booléen.
+Option --%s expects a byte size between %llu and %llu (K, M, G or T suffix accepted).	L'option --%s attend une taille en octets entre %llu et %llu (suffixe K, M, G ou T accepté).
+Option --%s expects a duration with a unit (ms, s, m, h or d) between %llu and %llu milliseconds.	L'option --%s attend une durée avec son unité (ms, s, m, h ou d) entre %llu et %llu millisecondes.
+Option --%s expects a value matching %s.	L'option --%s attend une valeur qui corresponde à %s.
+Option --%s expects an absolute path.	L'option --%s attend un chemin absolu.
+Option --%s expects an integer between %lld and %lld.	L'option --%s attend un entier entre %lld et %lld.
+Option --%s expects an unsigned integer between %llu and %llu.	L'option --%s attend un entier positif ou nul entre %llu et %llu.
+Option --%s expects one of: %s.	L'option --%s attend l'une de ces valeurs : %s.
+Option --%s has an unknown value kind.	L'option --%s a une sorte de valeur inconnue.
+Option --%s is not supported by '%s'. Use '%s'.	L'option --%s n'est pas acceptée par '%s'. Utilisez '%s'.
+Option --%s may be supplied only once.	L'option --%s ne peut être donnée qu'une fois.
+Option --%s requires a non-empty value.	L'option --%s exige une valeur non vide.
+Option --%s requires a value.	L'option --%s exige une valeur.
+Option --field is not accepted by '%s': the command can write and its output schema requires no member.	L'option --field n'est pas acceptée par '%s' : la commande peut écrire et son schéma de sortie n'exige aucun membre.
+Option --field names '%s', which '%s' does not always return: a command that can write accepts only a member its output schema requires.	L'option --field nomme '%s', que '%s' ne renvoie pas toujours : une commande qui peut écrire n'accepte qu'un membre exigé par son schéma de sortie.
+Option --field names '%s', which '%s' does not have.	L'option --field nomme '%s', que '%s' n'a pas.
+The plan --expect names is no longer the one '%s' would apply: the action or the state it touches has changed. Nothing was written.	Le plan que nomme --expect n'est plus celui que '%s' appliquerait : l'action ou l'état qu'elle touche a changé. Rien n'a été écrit.
+Too many operands for '%s'.	Trop d'opérandes pour '%s'.
+Too many options for '%s'.	Trop d'options pour '%s'.
+Unknown %s command: %s.	Commande %s inconnue : %s.
+Unknown command identifier or family: %s.	Identifiant de commande ou famille inconnus : %s.
+Unknown command identifier: %s.	Identifiant de commande inconnu : %s.
+Command '%s' answered without checking --expect: what it did is not known to be the plan the fingerprint names.	La commande '%s' a répondu sans vérifier --expect : rien ne garantit que ce qu'elle a fait soit le plan que nomme l'empreinte.
+Command '%s' could not serialize its data.	La commande '%s' n'a pas pu sérialiser ses données.
+Command '%s' emitted a record that is not an object.	La commande '%s' a émis un enregistrement qui n'est pas un objet.
+Command '%s' emitted an invalid record.	La commande '%s' a émis un enregistrement invalide.
+Command '%s' failed with %s.	La commande '%s' a échoué avec %s.
+Command '%s' produced invalid JSON data at byte %zu.	La commande '%s' a produit des données JSON invalides à l'octet %zu.
+Could not describe the catalog.	Impossible de décrire le catalogue.
+Could not render help.	Impossible de rendre l'aide.
+Could not render the completion script.	Impossible de rendre le script de complétion.
+Could not serialize the catalog.	Impossible de sérialiser le catalogue.
+Could not serialize the completion script.	Impossible de sérialiser le script de complétion.
+Could not serialize the version.	Impossible de sérialiser la version.
+Could not write candidates.	Impossible d'écrire les candidats.
+Application declaration is incomplete.	La déclaration de l'application est incomplète.
+Catalog command '%s' collides with '%s'.	La commande '%s' du catalogue entre en collision avec '%s'.
+Catalog command '%s' constraint %zu has an unknown kind.	La commande '%s' du catalogue : la contrainte %zu est d'une sorte inconnue.
+Catalog command '%s' constraint %zu names --%s twice.	La commande '%s' du catalogue : la contrainte %zu nomme --%s deux fois.
+Catalog command '%s' constraint %zu names fewer than two options.	La commande '%s' du catalogue : la contrainte %zu nomme moins de deux options.
+Catalog command '%s' constraint %zu names unknown option --%s.	La commande '%s' du catalogue : la contrainte %zu nomme l'option inconnue --%s.
+Catalog command '%s' counts examples it does not declare.	La commande '%s' du catalogue compte des exemples qu'elle ne déclare pas.
+Catalog command '%s' declares --%s twice.	La commande '%s' du catalogue déclare --%s deux fois.
+Catalog command '%s' declares operand %zu incorrectly.	La commande '%s' du catalogue déclare mal l'opérande %zu.
+Catalog command '%s' declares option %zu incorrectly.	La commande '%s' du catalogue déclare mal l'option %zu.
+Catalog command '%s' declares the effect %s outside a transaction: use read or execute, or declare the transaction with its apply_effect and --apply.	La commande '%s' du catalogue déclare l'effet %s hors d'une transaction : utilisez read ou execute, ou déclarez la transaction avec son apply_effect et --apply.
+Catalog command '%s' has a synopsis longer than %u bytes.	La commande '%s' du catalogue a un synopsis de plus de %u octets.
+Catalog command '%s' has an example it does not accept: '%s': %s	La commande '%s' du catalogue a un exemple qu'elle n'accepte pas : '%s' : %s
+Catalog command '%s' has an example of more than %u words.	La commande '%s' du catalogue a un exemple de plus de %u mots.
+Catalog command '%s' has an example that does not start with its pattern '%s': '%s'.	La commande '%s' du catalogue a un exemple qui ne commence pas par son motif '%s' : '%s'.
+Catalog command '%s' has an example that shows the hidden option --%s: '%s'.	La commande '%s' du catalogue a un exemple qui montre l'option cachée --%s : '%s'.
+Catalog command '%s' has an example whose words are not separated by single spaces: '%s'.	La commande '%s' du catalogue a un exemple dont les mots ne sont pas séparés par une seule espace : '%s'.
+Catalog command '%s' has an example without words or without a summary, or with a control character.	La commande '%s' du catalogue a un exemple sans mots ou sans résumé, ou avec un caractère de contrôle.
+Catalog command '%s' has an invalid identifier.	La commande '%s' du catalogue a un identifiant invalide.
+Catalog command '%s' has an invalid output mode.	La commande '%s' du catalogue a un mode de sortie invalide.
+Catalog command '%s' has an invalid output schema at byte %zu.	La commande '%s' du catalogue a un schéma de sortie invalide à l'octet %zu.
+Catalog command '%s' has an invalid pattern.	La commande '%s' du catalogue a un motif invalide.
+Catalog command '%s' has no effect.	La commande '%s' du catalogue n'a pas d'effet.
+Catalog command '%s' has no purpose.	La commande '%s' du catalogue n'a pas de but.
+Catalog command '%s' marked unavailable must name a reason and have neither handler nor delegate.	La commande '%s' du catalogue, marquée indisponible, doit donner une raison et n'avoir ni handler ni délégué.
+Catalog command '%s' names '%s' as its unavailable code, which is not one of the stable codes.	La commande '%s' du catalogue nomme '%s' comme code d'indisponibilité, qui n'est pas un des codes stables.
+Catalog command '%s' names a protocol but is not a stream command.	La commande '%s' du catalogue nomme un protocole mais n'est pas une commande de flux.
+Catalog command '%s' names an unavailable code without an 'unavailable' reason.	La commande '%s' du catalogue nomme un code d'indisponibilité sans raison 'unavailable'.
+Catalog command '%s' needs exactly one of handler or delegate, or an 'unavailable' reason.	La commande '%s' du catalogue doit avoir exactement un handler ou un délégué, ou une raison 'unavailable'.
+Catalog command '%s' operand %s declares a pattern on a kind that is not string or path.	La commande '%s' du catalogue : l'opérande %s déclare un motif sur une sorte qui n'est ni string ni path.
+Catalog command '%s' operand %s declares a pattern outside the common subset of ECMA-262 and POSIX ERE: %s.	La commande '%s' du catalogue : l'opérande %s déclare un motif hors du sous-ensemble commun à ECMA-262 et POSIX ERE : %s.
+Catalog command '%s' operand %s has an invalid type declaration.	La commande '%s' du catalogue : l'opérande %s a une déclaration de type invalide.
+Catalog command '%s' operand %s names unknown digest algorithm '%s'.	La commande '%s' du catalogue : l'opérande %s nomme un algorithme d'empreinte inconnu, '%s'.
+Catalog command '%s' option --%s declares a pattern on a kind that is not string or path.	La commande '%s' du catalogue : l'option --%s déclare un motif sur une sorte qui n'est ni string ni path.
+Catalog command '%s' option --%s declares a pattern outside the common subset of ECMA-262 and POSIX ERE: %s.	La commande '%s' du catalogue : l'option --%s déclare un motif hors du sous-ensemble commun à ECMA-262 et POSIX ERE : %s.
+Catalog command '%s' option --%s has a default '%s' that its own kind refuses.	La commande '%s' du catalogue : l'option --%s a une valeur par défaut, '%s', que sa propre sorte refuse.
+Catalog command '%s' option --%s has an invalid value declaration.	La commande '%s' du catalogue : l'option --%s a une déclaration de valeur invalide.
+Catalog command '%s' option --%s is hidden and required; a required option must be shown.	La commande '%s' du catalogue : l'option --%s est cachée et obligatoire ; une option obligatoire doit être montrée.
+Catalog command '%s' option --%s names group '%s' with fewer than two members.	La commande '%s' du catalogue : l'option --%s nomme le groupe '%s', qui a moins de deux membres.
+Catalog command '%s' option --%s names unknown digest algorithm '%s'.	La commande '%s' du catalogue : l'option --%s nomme un algorithme d'empreinte inconnu, '%s'.
+Catalog command '%s' option --%s references unknown option --%s.	La commande '%s' du catalogue : l'option --%s renvoie à l'option inconnue --%s.
+Catalog command '%s' redeclares transport option --%s.	La commande '%s' du catalogue redéclare l'option globale --%s.
+Catalog command '%s' states an all-or-none constraint; declare .group on its options instead, the one form the entry is derived from.	La commande '%s' du catalogue déclare une contrainte tout-ou-rien ; déclarez plutôt .group sur ses options, la seule forme d'où l'entrée est dérivée.
+Catalog default_command '%s' %s.	Le default_command '%s' du catalogue %s.
+Delegate command '%s' cannot declare options; arguments are passed through.	La commande déléguée '%s' ne peut pas déclarer d'options : ses arguments sont transmis tels quels.
+Help palette %s '%s' is not the parameters of an SGR sequence.	La couleur %s '%s' de la palette de l'aide n'est pas faite de paramètres SGR.
+Transactional command '%s' declares --expect, which is reserved for binding a plan: declare it with MAELYS_CLI_EXPECT_OPTION, or name the option otherwise.	La commande transactionnelle '%s' déclare --expect, réservée à la liaison d'un plan : déclarez-la avec MAELYS_CLI_EXPECT_OPTION, ou nommez l'option autrement.
+Transactional command '%s' declares --expect: its output schema must list "fingerprint" in its top-level "required".	La commande transactionnelle '%s' déclare --expect : son schéma de sortie doit lister "fingerprint" dans son "required" de premier niveau.
+Transactional command '%s' must declare effect preview, apply_effect apply or commit, and an --apply option.	La commande transactionnelle '%s' doit déclarer l'effet preview, l'apply_effect apply ou commit, et une option --apply.
+Correct the stated operand and retry.	Corrigez l'opérande indiqué et réessayez.
+Correct the stated option and retry.	Corrigez l'option indiquée et réessayez.
+Correct the stated option value and retry.	Corrigez la valeur de l'option indiquée et réessayez.
+Fill program, product, version and commands.	Remplissez program, product, version et commands.
+Fix the command catalog declaration.	Corrigez la déclaration du catalogue de commandes.
+Give every command a unique identifier and pattern.	Donnez à chaque commande un identifiant et un motif uniques.
+Inspect the named path or resource, correct its state and retry.	Examinez le chemin ou la ressource nommés, corrigez leur état et réessayez.
+Install the external command with safe ownership and modes.	Installez la commande externe avec un propriétaire et des droits sûrs.
+Install the optional component that provides this command.	Installez le composant facultatif qui fournit cette commande.
+Keep one of the listed options and retry.	Gardez une seule des options listées et réessayez.
+Name a shown, available read, stream or transaction command of the product as default_command, or declare none.	Nommez comme default_command une commande du produit montrée, disponible, de lecture, de flux ou transactionnelle, ou n'en déclarez aucune.
+Plan again without --apply, review the new plan, then apply it with its fingerprint.	Planifiez de nouveau sans --apply, relisez le nouveau plan, puis appliquez-le avec son empreinte.
+Reduce the number of operands and retry.	Réduisez le nombre d'opérandes et réessayez.
+Reduce the number of options and retry.	Réduisez le nombre d'options et réessayez.
+Remove either the option or the operand and retry.	Retirez l'option ou l'opérande et réessayez.
+Remove one of the conflicting options and retry.	Retirez une des options incompatibles et réessayez.
+Remove rendering flags; stdout is reserved for the declared protocol stream.	Retirez les options de rendu : stdout est réservé au flux du protocole déclaré.
+Remove the duplicate option and retry.	Retirez l'option en double et réessayez.
+Remove the legacy flag for a plan. Add --apply only after reviewing that plan.	Retirez l'ancienne option pour obtenir un plan. N'ajoutez --apply qu'après avoir relu ce plan.
+Report this defect to the command implementation.	Signalez ce défaut à l'auteur de la commande.
+Run 'describe --summary --format json' to discover valid command identifiers and usage.	Lancez 'describe --summary --format json' pour connaître les identifiants de commande valides et leur usage.
+Run 'help' without operands to list the commands and their families.	Lancez 'help' sans opérande pour lister les commandes et leurs familles.
+Run describe --summary --format json and select a returned command identifier.	Lancez describe --summary --format json et choisissez un des identifiants de commande renvoyés.
+Run describe --summary --format json and select a returned command namespace.	Lancez describe --summary --format json et choisissez un des espaces de noms renvoyés.
+Run describe for this command and use only its declared options.	Lancez describe pour cette commande et n'utilisez que les options qu'elle déclare.
+Run the command without --field and read the member from its result.	Lancez la commande sans --field et lisez le membre dans son résultat.
+Shorten operands, options or their placeholders.	Raccourcissez les opérandes, les options ou leurs noms de valeur.
+Spell an option --name; write an operand that starts with a dash after --.	Écrivez une option --nom ; écrivez après -- un opérande qui commence par un tiret.
+Supply every dependent option and retry.	Donnez toutes les options dépendantes et réessayez.
+Supply exactly one of the listed options and retry.	Donnez exactement une des options listées et réessayez.
+Supply the dependent option and retry.	Donnez l'option dépendante et réessayez.
+Supply the documented option value and retry.	Donnez la valeur d'option documentée et réessayez.
+Supply the explicit option that authorizes this action, or run interactively.	Donnez l'option explicite qui autorise cette action, ou lancez la commande de façon interactive.
+Supply the required option and retry.	Donnez l'option obligatoire et réessayez.
+Supply the whole option group or none of it.	Donnez tout le groupe d'options ou aucune.
+Use --format json for this command, or add --field to render one member in jsonl; jsonl otherwise is reserved for record streams.	Utilisez --format json pour cette commande, ou ajoutez --field pour rendre un membre en jsonl ; sinon jsonl est réservé aux flux d'enregistrements.
+Use --format text or --format jsonl with --field.	Utilisez --format text ou --format jsonl avec --field.
+Use a command identifier prefix such as repo or repo.mirror.	Utilisez un préfixe d'identifiant de commande comme repo ou repo.mirror.
+Use a member the command's output schema requires; describe lists them.	Utilisez un membre exigé par le schéma de sortie de la commande ; describe les liste.
+Use a top-level member of the command's data.	Utilisez un membre de premier niveau des données de la commande.
+Use the synopsis returned by describe and retry.	Utilisez le synopsis que renvoie describe et réessayez.
+Use true or false for an explicit boolean.	Utilisez true ou false pour un booléen explicite.
+Verify the external command binary and retry.	Vérifiez l'exécutable de la commande externe et réessayez.
+Write each color as SGR parameters: digits and ';', such as "1" or "1;36".	Écrivez chaque couleur en paramètres SGR : des chiffres et ';', comme "1" ou "1;36".
+Write the command's pattern first, or the operands of the default command after --.	Écrivez d'abord le motif de la commande, ou bien les opérandes de la commande par défaut après --.
+Write the example as a real invocation of the command, or remove it.	Écrivez l'exemple comme une vraie invocation de la commande, ou retirez-le.
