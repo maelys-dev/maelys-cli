@@ -1,5 +1,34 @@
 # Changelog
 
+## Unreleased
+
+A regex can be searched without allocating: a product that matches its
+own patterns on a hot path -- a ref rule at every authorization -- gives
+the search its working memory and gets a search that has no failure of
+resources. Nothing a product written for 0.12 must change.
+
+- `maelys_cli_regex_scratch_size()` and
+  `maelys_cli_regex_search_scratch()` (`maelys/cli/regex.h`): the bytes a
+  search works in, O(states), and a search in the caller's scratch that
+  never allocates and fails only with `EINVAL`, with the answers of
+  `maelys_cli_regex_search` for every value. A scratch is any writable
+  storage of that size, a `char` array included: no alignment, no
+  initialization, no overlap with the value; it serves every regex its
+  size covers, one search at a time. `scratch_size()` is the only
+  authority on the size, whose formula may change. `maelys_cli_regex_search`
+  is unchanged and now searches in a scratch it allocates. The engine
+  reads and writes its working words through `memcpy`, so that storage of
+  any effective type is valid; the program, the answers and the count of
+  steps are those of 0.12. Measured with Apple clang 21 at -O2 on arm64,
+  a search of the corpus costs 6% more, a long value 8% more per byte,
+  and a ref rule searched in a scratch 4% less than 0.12 did with its
+  allocation.
+- No Python counterpart: a Python search allocates as every Python object
+  does, and fails only with `MemoryError` (`docs/python.md`).
+- The guide installed for agents says when to search in a scratch: one
+  scratch per search that may run at the same time, never one per shared
+  policy, and `1`, `0` and `-1` always told apart.
+
 ## 0.12.4 - 2026-10-26
 
 A patch release of the regex engine: a search of a value of more than

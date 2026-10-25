@@ -26,7 +26,8 @@ extern "C" {
  *
  * Cost: a search is a Thompson simulation of the pattern's program, never a
  * backtracking: O((length + 1) x states) in time and O(states) in memory,
- * states being at most MAELYS_CLI_REGEX_MAX_STATES. A compilation is
+ * allocated per search or given by the caller (a scratch), states being at
+ * most MAELYS_CLI_REGEX_MAX_STATES. A compilation is
  * O(pattern length + states). The depth of every recursion is the nesting
  * of groups, never the length of the pattern.
  */
@@ -81,9 +82,40 @@ maelys_cli_regex_status_t maelys_cli_regex_compile(
 /* 1 when some part of the `length` bytes of `value` matches, 0 when none
  * does, -1 with errno EINVAL (regex NULL, or value NULL with a length) or
  * ENOMEM (its working lists, O(states), are allocated per call). value NULL
- * with a length of 0 is the empty value. */
+ * with a length of 0 is the empty value. A search that must not allocate
+ * is maelys_cli_regex_search_scratch. */
 int maelys_cli_regex_search(
     const maelys_cli_regex_t *regex, const char *value, size_t length);
+
+/* The bytes a search of this regex works in, for
+ * maelys_cli_regex_search_scratch: O(states), bounded through
+ * MAELYS_CLI_REGEX_MAX_STATES. This function is the only authority on the
+ * size; the formula behind it may change from one release to the next.
+ * 0 for NULL. A scratch of max(maelys_cli_regex_scratch_size(regex_i))
+ * bytes over the regexes a caller searches serves all of them. */
+size_t maelys_cli_regex_scratch_size(const maelys_cli_regex_t *regex);
+
+/* As maelys_cli_regex_search, the same answer for every value, in the
+ * caller's `scratch` of `scratch_size` bytes. It never allocates: a search
+ * whose preconditions hold has no failure of resources. 1 when some part of
+ * the `length` bytes of `value` matches, 0 when none does, -1 with errno
+ * EINVAL (regex NULL, value NULL with a length, scratch NULL, or
+ * scratch_size below maelys_cli_regex_scratch_size(regex)). value NULL
+ * with a length of 0 is the empty value.
+ *
+ * The scratch is writable storage of scratch_size bytes, of no particular
+ * type, a declared array of char included: it needs no alignment and no
+ * initialization, and holds nothing a later search reads; its content after
+ * a search is unspecified. It must not overlap `value` or the regex. One
+ * scratch serves one search at a time: the regex may be shared across
+ * threads, and a scratch may pass from one thread to another between
+ * searches, with the synchronization that hands it over, but never serve
+ * two searches at once. What the library cannot detect -- a dangling
+ * scratch, a scratch_size larger than the storage, a scratch searched in by
+ * two threads at once -- is undefined behaviour, as for any buffer. */
+int maelys_cli_regex_search_scratch(
+    const maelys_cli_regex_t *regex, void *scratch, size_t scratch_size,
+    const char *value, size_t length);
 
 /* The size of the compiled program, which bounds the work of a search;
  * 0 for NULL. */
