@@ -78,7 +78,10 @@ one handler and one JSON Schema file. In the same change, update:
 4. focused tests: accepted and refused inputs, plan without write, `--apply`
    with write, error codes and exit codes, `describe COMMAND_ID` exposing the
    exact contract;
-5. the generated CLI reference when the project keeps one.
+5. the generated CLI reference when the project keeps one, and its manual
+   page or site page rendered from the catalog, never by hand:
+   `maelys-cli-man PROGRAM` (roff), `--format mdx` for a documentation
+   site.
 
 A product written in Python builds on `python/maelys_cli.py` of the same
 pinned maelys-cli (one file, standard library only): the same declarations

@@ -86,7 +86,11 @@ Add or update tests proving:
 
 Run the project's check target (unit tests, CLI tests, sanitizers when
 available) and regenerate the committed CLI reference from `describe` before
-updating examples or releasing.
+updating examples or releasing. The manual page and a documentation site's
+command page are renderings of the same catalog, never written by hand:
+`maelys-cli-man PROGRAM` for the roff page, `--format mdx` for the site,
+and `--catalog docs/cli-contract.json --version X.Y.Z` to render the
+committed contract of a tag without building it.
 
 Build variants compose one catalog with `maelys_cli_catalog_concat()`; a
 later part may only replace an `.unavailable` declaration of the same
