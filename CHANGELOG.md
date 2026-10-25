@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.12.3 - 2026-10-25
+
+The manual page generator writes the same page in MDX for a documentation
+site, from a program or from the contract a product commits at its tag; the
+agent texts name it. The library and the Python module are those of 0.12.2.
 
 - `maelys-cli-man --format mdx` writes the manual page in MDX for a
   documentation site: the same blocks as the roff page, a heading per
@@ -10,6 +14,11 @@
   commits at its tag, with `--version`, so a site renders the page of the
   version it documents without building it; `--body-only` leaves the title
   to the site. The roff page is unchanged, byte for byte.
+- The agent texts `maelys agents install` writes -- the block of
+  `AGENTS.md` (Codex) and `CLAUDE.md` (Claude Code), the guide and the
+  Claude skill -- say that the manual page and a site's command page are
+  renderings of the catalog, never written by hand, and name
+  `maelys-cli-man`, `--format mdx` and `--catalog`.
 
 ## 0.12.2 - 2026-10-25
 
