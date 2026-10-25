@@ -63,6 +63,10 @@ static void *hooked_realloc(void *old, size_t size) {
 #define malloc hooked_malloc
 #define calloc hooked_calloc
 #define realloc hooked_realloc
+/* The generation a search starts from: near UINT32_MAX, a test reaches the
+ * wrap of the counter without a value of 4 GiB. */
+extern uint32_t maelys_cli_test_generation;
+uint32_t maelys_cli_test_generation;
 #endif
 
 /* Copies of a repeated group multiply: the program a pattern expands to is
@@ -584,11 +588,21 @@ static size_t value_next(const unsigned char *s, size_t n, uint32_t *cp) {
     return 1u;
 }
 
+/* The next generation. Where the counter wraps, after 2^32 - 1 code points,
+ * it starts over at 1 with the marks cleared: 0 is the mark of no
+ * generation, and a mark left by an earlier one would hide a position. */
+static void next_generation(machine_t *m) {
+    if (++m->generation == 0u) {
+        memset(m->mark, 0, m->count * sizeof(*m->mark));
+        m->generation = 1u;
+    }
+}
+
 static int run(machine_t *m, const char *value, size_t n) {
     const unsigned char *s = (const unsigned char *)value;
     size_t at = 0u;
     int which = 0;
-    m->generation++;
+    next_generation(m);
     m->size[0] = m->size[1] = 0u;
     add_thread(m, which, 0u, 1, n == 0u);
     while (!m->matched && at < n) {
@@ -597,7 +611,7 @@ static int run(machine_t *m, const char *value, size_t n) {
         at += used;
         int next = which ^ 1;
         m->size[next] = 0u;
-        m->generation++;
+        next_generation(m);
         for (uint32_t t = 0u; t < m->size[which] && !m->matched; ++t) {
             const instruction_t *i = &m->code[m->list[which][t]];
             m->steps++;
@@ -714,6 +728,9 @@ static int search_counted(const maelys_cli_regex_t *regex, const char *value,
     m.mark = lists + 2u * (size_t)count;
     m.stack = lists + 3u * (size_t)count;
     memset(m.mark, 0, count * sizeof(*m.mark));
+#ifdef MAELYS_CLI_ALLOC_HOOK
+    m.generation = maelys_cli_test_generation;
+#endif
     int result = run(&m, value, length);
     if (steps) *steps = m.steps;
     free(lists);

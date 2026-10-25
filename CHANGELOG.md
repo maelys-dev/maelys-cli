@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- A regex search no longer loses positions past 2^32 - 1 code points of
+  its value. The generation that marks the positions of a step is a
+  `uint32_t`, one per code point read: where it wrapped, a mark left by an
+  earlier step could hide a position, and a value of more than 4 GiB could
+  be answered no where the Python module, whose integers do not wrap,
+  answered yes. The counter now starts over at 1 with the marks cleared.
+  `test_pattern` runs the corpus with the counter started next to the
+  wrap.
+
 ## 0.12.3 - 2026-10-25
 
 The manual page generator writes the same page in MDX for a documentation
