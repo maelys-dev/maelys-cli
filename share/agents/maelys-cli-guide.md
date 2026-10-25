@@ -279,7 +279,8 @@ colors itself with `maelys_cli_style(context->terminal.color_stdout, ...)`
 ### Ship a manual page (optional)
 
 `maelys-cli-man PROGRAM > PROGRAM.1` renders the program's manual page in
-roff from its own `describe` catalog: commands, options, global options,
+roff from its own `describe` catalog (`--format mdx` gives the same page
+for a documentation site, `--catalog FILE` from a committed contract): commands, options, global options,
 examples, exit status, environment, and the guidance as NOTES. Nothing is
 written by hand. Pass `--date YYYY-MM-DD` (or set `SOURCE_DATE_EPOCH`) for
 a reproducible page, install it under `share/man/man1`, and lint it with

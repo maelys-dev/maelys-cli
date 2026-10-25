@@ -297,6 +297,15 @@ It runs the program once (`describe --format json`), so it runs where the
 program runs. The page follows the rules of the help: no hidden command or
 option, an unavailable command marked. `mandoc -T lint` validates it.
 
+For a documentation site, `--format mdx` writes the same page in MDX, and
+`--catalog` reads the contract a product commits at its tag rather than
+running the program; `--body-only` leaves the title to the site:
+
+```sh
+maelys-cli-man --format mdx --body-only --catalog docs/cli-contract.json \
+  --version 1.2.3 my-program > my-program.mdx
+```
+
 ## Building and testing
 
 ```sh

@@ -472,6 +472,18 @@ source is the same on Linux and macOS for the same catalog and date.
 catalog form; the guidance is prose for humans and agents, never a source
 of command lines, which an agent builds from `input`.
 
+A documentation site takes the same page in MDX:
+`maelys-cli-man --format mdx` renders the same blocks -- a heading per section, a command line in a
+code block, an option or an operand as an item of a list -- and escapes
+every text of the catalog so that none is read as JSX, an expression or
+Markdown markup. `--catalog FILE` reads the catalog from a file, a
+`describe` envelope or the `docs/cli-contract.json` a product commits at its
+tag, with `--version` since that contract leaves the version out; the site
+then builds nothing. `--body-only` leaves the title to the site, which owns
+its frontmatter, navigation and components. `make man-check` holds the MDX
+page of C and Python to the same bytes, the page read from a file to the
+page the program gives, and a catalog text full of markup to its escaping.
+
 `PROGRAM COMMAND --help` answers exactly as `PROGRAM help COMMAND_ID` does,
 envelope included: under `--format json` its `command` is `help`, whose
 `data` this is, and `data.commands` names the command asked about. Nothing

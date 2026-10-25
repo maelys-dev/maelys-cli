@@ -72,6 +72,41 @@ missing=$(tools/maelys-cli-man --lang fr --untranslated "$build/tests/default_su
 printf '%s\n' "$missing" | grep -qx "Watch the entries on stdout." || fail "--untranslated does not name a text the table lacks"
 ! printf '%s\n' "$missing" | grep -qx "List the entries." || fail "--untranslated names a translated text"
 ! printf '%s\n' "$missing" | grep -q "^NAME\$\|^Optional\.\$" || fail "--untranslated names a text of the framework"
+# The same page for a documentation site (--format mdx): the same blocks, one
+# heading per section, a command line in a code block; the same bytes from C
+# and Python, in English and in French; read from a catalog file as from the
+# program; and no text of a catalog read as JSX, an expression or markup.
+mdx() { # mdx NAME ARGS...: the MDX page into $work/NAME.mdx
+    name=$1
+    shift
+    MAELYS_COMMANDS_PATH=/nonexistent tools/maelys-cli-man --format mdx "$@" >"$work/$name.mdx" ||
+        fail "$name: no MDX page"
+}
+mdx default "$build/tests/default_surface"
+mdx default-py python3 -B python/tests/default_surface.py
+mdx default-fr --lang fr "$build/tests/default_surface"
+mdx default-fr-py --lang fr python3 -B python/tests/default_surface.py
+cmp -s "$work/default.mdx" "$work/default-py.mdx" || fail "default-surface --format mdx: C and Python differ"
+cmp -s "$work/default-fr.mdx" "$work/default-fr-py.mdx" || fail "default-surface --format mdx --lang fr: C and Python differ"
+for heading in "# default-surface" "## Synopsis" "## Commands" "## Global options" "## Exit status" "### \`show\`"; do
+    grep -qxF "$heading" "$work/default.mdx" || fail "default-surface --format mdx: no line '$heading'"
+done
+grep -qxF "## Options globales" "$work/default-fr.mdx" || fail "default-surface --format mdx --lang fr: not in French"
+grep -q '^\.\(TH\|SH\|TP\)' "$work/default.mdx" && fail "default-surface --format mdx: a roff request in the MDX page"
+mdx default-body --body-only "$build/tests/default_surface"
+head -n 1 "$work/default-body.mdx" | grep -q '^# ' && fail "default-surface --body-only: the page still has its title"
+"$build/tests/default_surface" describe --format json >"$work/default.json"
+mdx default-file --catalog "$work/default.json" default-surface
+cmp -s "$work/default.mdx" "$work/default-file.mdx" || fail "default-surface --catalog: not the page the program gives"
+python3 - "$work/default.json" "$work/trap.json" <<'PY'
+import json, sys
+envelope = json.load(open(sys.argv[1]))
+envelope["data"]["x-maelys-summary"] = "<b>bold</b> {props} *stars* `ticks` [link](x) # & \\"
+json.dump(envelope, open(sys.argv[2], "w"))
+PY
+mdx trap --catalog "$work/trap.json" default-surface
+grep -qxF '&lt;b&gt;bold&lt;/b&gt; &#123;props&#125; \*stars\* \`ticks\` \[link\](x) \# &amp; \\' "$work/trap.mdx" ||
+    fail "--format mdx: a catalog text is not escaped for MDX: $(sed -n 3p "$work/trap.mdx")"
 if [ "$failures" -ne 0 ]; then
     printf '%s man check(s) failed\n' "$failures" >&2
     exit 1
