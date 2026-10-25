@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- `maelys-cli-man --format mdx` writes the manual page in MDX for a
+  documentation site: the same blocks as the roff page, a heading per
+  section, a command line in a code block, an option or an operand as an
+  item of a list, every catalog text escaped for MDX. `--catalog FILE`
+  reads a `describe` envelope or the `docs/cli-contract.json` a product
+  commits at its tag, with `--version`, so a site renders the page of the
+  version it documents without building it; `--body-only` leaves the title
+  to the site. The roff page is unchanged, byte for byte.
+
 ## 0.12.2 - 2026-10-25
 
 A patch release of the checks only: `make man-check` now holds the C and

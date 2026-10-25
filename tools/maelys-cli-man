@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MPL-2.0
 """maelys-cli-man: the manual page of a program built on maelys-cli, in roff
-(man(7), section 1), rendered from its own catalog.
+(man(7), section 1), rendered from its own catalog; or the same page in MDX
+for a documentation site.
 
-usage: maelys-cli-man [--date YYYY-MM-DD] [--lang TAG] [--untranslated] PROGRAM [WORD...]
+usage: maelys-cli-man [--date YYYY-MM-DD] [--lang TAG] [--untranslated]
+                      [--format roff|mdx] [--body-only]
+                      (PROGRAM [WORD...] | --catalog FILE [--version VERSION] PROGRAM)
 
 The program is run once, as `PROGRAM [WORD...] describe --format json`, and
 its catalog form is the only source: the help is a rendering of describe,
@@ -33,7 +36,19 @@ fr); a language the program does not declare gives the English page, as
 --untranslated prints, instead of the page, each text of the page that
 stays in English, one per line: what a product's table still lacks.
 
-Validate the result with `mandoc -T lint` or `groff -ww -man -z`.
+--format mdx writes the same page, block for block, in MDX: a heading per
+section in sentence case, a command line in a code block, an option or an
+operand as an item of a list, and every text of the catalog escaped so that
+none is read as JSX, an expression or Markdown markup. The site owns its
+frontmatter, navigation and components; --body-only leaves the title to it
+too. --catalog FILE reads the catalog from a file instead of running the
+program: the envelope `describe --format json` writes, or the aggregate
+contract maelys-cli-reference writes (docs/cli-contract.json), from which
+PROGRAM picks one program; a site renders the page of the tag it documents
+without building it. That contract leaves the version out, so --version
+gives it.
+
+Validate the roff with `mandoc -T lint` or `groff -ww -man -z`.
 """
 
 from __future__ import annotations
@@ -810,11 +825,10 @@ def option_text(item: dict, tr: Translator) -> str:
     return text
 
 
-def tagged(label: str, description: str) -> list[str]:
-    return [".TP", f".B {escape(label)}", *prose(description)]
-
-
-def page(data: dict, date: str, tr: Translator) -> str:
+def blocks(data: dict, date: str, tr: Translator) -> list[tuple]:
+    """The page as a list of blocks, the same for every format: what the page says, in its order. A
+    block is (kind, ...): title, section (key, heading), subsection, name (program, summary), synopsis
+    (program, words), para, usage (program, usage), entry (label, text) and example (line)."""
     program = data["program"]
     # The product's commands first, then the ones every program has (section 6 of the contract), as the
     # help lists them.
@@ -823,67 +837,148 @@ def page(data: dict, date: str, tr: Translator) -> str:
     shown = [command for command in visible if command["id"] not in built_in] + \
         [command for command in visible if command["id"] in built_in]
     by_id = {command["id"]: command for command in data["commands"]}
-    lines = [f'.TH {escape(program.upper())} 1 {date} "{escape(data["product"])} {escape(data["version"])}"'
-             f' "{escape(tr.format("%s Manual", data["product"]))}"']
-    lines += [f".SH {tr('NAME')}",
-              *wrap(f"{escape(program)} \\- {escape(tr(data.get('x-maelys-summary') or data['product']))}")]
-    lines += [f".SH {tr('SYNOPSIS')}", f".B {escape(program)}", *prose("COMMAND [OPERANDS] [options]")]
+    out: list[tuple] = [("title", program, data["product"], data["version"], tr.format("%s Manual", data["product"]),
+                         date)]
+    out += [("section", "name", tr("NAME")), ("name", program, tr(data.get("x-maelys-summary") or data["product"]))]
+    out += [("section", "synopsis", tr("SYNOPSIS")), ("synopsis", program, "COMMAND [OPERANDS] [options]")]
     default = by_id.get(data.get("defaultCommand", ""))
     if default is not None:
-        lines += [".br", f".B {escape(program)}", *prose("[options] [-- OPERANDS]")]
-    lines += [f".SH {tr('DESCRIPTION')}"]
-    lines += prose(tr.format("%s %s, a program of the agent-cli/v2 contract: '%s help' shows the help, "
-                             "'%s describe --format json' the catalog this page is rendered from.",
-                             data["product"], data["version"], program, program))
+        out += [("synopsis", program, "[options] [-- OPERANDS]")]
+    out += [("section", "description", tr("DESCRIPTION")),
+            ("para", tr.format("%s %s, a program of the agent-cli/v2 contract: '%s help' shows the help, "
+                               "'%s describe --format json' the catalog this page is rendered from.",
+                               data["product"], data["version"], program, program))]
     if default is not None:
         pattern = " ".join(default["pattern"])
-        lines += [".PP", *prose(tr.format("%s [options] runs '%s', as %s %s [options] does: the options in front, "
-                                          "other than --help and --version, are its, and its operands come after --.",
-                                          program, pattern, program, pattern))]
-    lines += [f".SH {tr('COMMANDS')}"]
+        out += [("para", tr.format("%s [options] runs '%s', as %s %s [options] does: the options in front, "
+                                   "other than --help and --version, are its, and its operands come after --.",
+                                   program, pattern, program, pattern))]
+    out += [("section", "commands", tr("COMMANDS"))]
     for command in shown:
-        lines += [f'.SS "{escape(" ".join(command["pattern"]))}"', f".B {escape(program)}",
-                  *prose(command["usage"]), ".PP"]
+        out += [("subsection", " ".join(command["pattern"])), ("usage", program, command["usage"])]
         sentence = effect_sentence(command, tr)
-        lines += prose(tr(command["purpose"]) + (f" {sentence}" if sentence else ""))
+        out += [("para", tr(command["purpose"]) + (f" {sentence}" if sentence else ""))]
         if command.get("available") is False:
-            lines += [".PP", *prose(tr.format("Not available in this build: %s",
-                                              tr(command.get("unavailableReason", ""))))]
-        operands = command["input"].get("operands", [])
-        for item in operands:
-            lines += tagged(item["name"], tr(item.get("summary", "")) + ("" if item.get("required")
-                                                                         else " " + tr("Optional.")))
+            out += [("para", tr.format("Not available in this build: %s", tr(command.get("unavailableReason", ""))))]
+        for item in command["input"].get("operands", []):
+            out += [("entry", item["name"], tr(item.get("summary", "")) + ("" if item.get("required")
+                                                                           else " " + tr("Optional.")))]
         for item in command["input"].get("options", []):
             if not item.get("hidden"):
-                lines += tagged(option_label(item, tr), option_text(item, tr))
-    lines += [f".SH {tr('GLOBAL OPTIONS')}"]
+                out += [("entry", option_label(item, tr), option_text(item, tr))]
+    out += [("section", "global-options", tr("GLOBAL OPTIONS"))]
     for item in data.get("globalOptions", []):
         if not item.get("hidden"):
-            lines += tagged(option_label(item, tr), option_text(item, tr))
-    examples = [(command, item) for command in shown for item in command.get("examples", [])]
+            out += [("entry", option_label(item, tr), option_text(item, tr))]
+    examples = [item for command in shown for item in command.get("examples", [])]
     if examples:
-        lines += [f".SH {tr('EXAMPLES')}"]
-        for index, (_, item) in enumerate(examples):
+        out += [("section", "examples", tr("EXAMPLES"))]
+        for item in examples:
             # A line to copy stays one line, as in the help, whatever its length.
-            lines += [".PP"] * bool(index) + [*prose(tr(item.get("summary", ""))), ".PP", ".RS 4", ".nf",
-                      escape(f"{program} {' '.join(shell_word(word) for word in item['words'])}"), ".fi", ".RE"]
-    lines += [f".SH {tr('EXIT STATUS')}"]
+            out += [("para", tr(item.get("summary", ""))),
+                    ("example", f"{program} {' '.join(shell_word(word) for word in item['words'])}")]
+    out += [("section", "exit-status", tr("EXIT STATUS"))]
     codes = next((command.get("exitCodes") for command in data["commands"] if command.get("exitCodes")),
                  {"0": "command completed", "1": "execution failed", "2": "valid report with violations"})
     for code in sorted(codes, key=int):
-        lines += tagged(code, tr(codes[code].capitalize() + "."))
+        out += [("entry", code, tr(codes[code].capitalize() + "."))]
     if any(command["effect"] == "stream" or command.get("external") for command in shown):
-        lines += [".PP", *prose(tr("A stream command and a delegate exit with the status of what they run."))]
-    lines += [f".SH {tr('ENVIRONMENT')}"]
+        out += [("para", tr("A stream command and a delegate exit with the status of what they run."))]
+    out += [("section", "environment", tr("ENVIRONMENT"))]
     for name, text in ENVIRONMENT:
-        lines += tagged(name, tr(text))
+        out += [("entry", name, tr(text))]
     guidance = data.get("x-maelys-guidance")
     if guidance:
-        lines += [f".SH {tr('NOTES')}"]
-        for index, paragraph in enumerate(paragraphs(tr(guidance))):
-            lines += ([".PP"] if index else []) + prose(paragraph)
-    lines += [f".SH {tr('SEE ALSO')}", *prose(f"{program} help, {program} help COMMAND, {program} describe --format json")]
+        out += [("section", "notes", tr("NOTES"))]
+        out += [("para", paragraph) for paragraph in paragraphs(tr(guidance))]
+    out += [("section", "see-also", tr("SEE ALSO")),
+            ("para", f"{program} help, {program} help COMMAND, {program} describe --format json")]
+    return out
+
+
+def roff(page: list[tuple]) -> str:
+    """The page in roff, man(7), section 1. A paragraph follows a heading directly and any other block
+    after a .PP; an example is a line to copy, indented and never filled."""
+    lines: list[str] = []
+    previous = None
+    for block in page:
+        kind = block[0]
+        if kind == "title":
+            _, program, product, version, manual, date = block
+            lines.append(f'.TH {escape(program.upper())} 1 {date} "{escape(product)} {escape(version)}"'
+                         f' "{escape(manual)}"')
+        elif kind == "section":
+            lines.append(f".SH {block[2]}")
+        elif kind == "subsection":
+            lines.append(f'.SS "{escape(block[1])}"')
+        elif kind == "name":
+            lines += wrap(f"{escape(block[1])} \\- {escape(block[2])}")
+        elif kind == "synopsis":
+            lines += ([".br"] if previous == "synopsis" else []) + [f".B {escape(block[1])}", *prose(block[2])]
+        elif kind == "usage":
+            lines += [f".B {escape(block[1])}", *prose(block[2])]
+        elif kind == "para":
+            lines += ([] if previous in ("section", "subsection") else [".PP"]) + prose(block[1])
+        elif kind == "entry":
+            lines += [".TP", f".B {escape(block[1])}", *prose(block[2])]
+        elif kind == "example":
+            lines += [".PP", ".RS 4", ".nf", escape(block[1]), ".fi", ".RE"]
+        previous = kind
     return "\n".join(lines) + "\n"
+
+
+def mdx_text(text: str) -> str:
+    """Prose safe in MDX: no character read as JSX, an expression or Markdown markup."""
+    # Markdown first, then the entities, whose `#` must stay as written.
+    text = re.sub(r"([\\*_`\[\]#|])", r"\\\1", text)
+    text = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    return text.replace("{", "&#123;").replace("}", "&#125;")
+
+
+def mdx_code(text: str) -> str:
+    """An inline code span holding `text` whatever backticks it carries."""
+    fence = "`" * (max((len(run) for run in re.findall(r"`+", text)), default=0) + 1)
+    pad = " " if text.startswith("`") or text.endswith("`") else ""
+    return f"{fence}{pad}{text}{pad}{fence}"
+
+
+def mdx(page: list[tuple], body_only: bool = False) -> str:
+    """The page in MDX for a documentation site: the same blocks as the manual page, headings in sentence
+    case, a command line in a code block, an option or an operand as an item of a list. The site owns
+    the frontmatter, the navigation and its components; with `body_only` the title is left to it too."""
+    chunks: list[str] = []
+    for block in page:
+        kind = block[0]
+        last = chunks[-1] if chunks else ""
+        if kind == "title":
+            if not body_only:
+                chunks.append(f"# {mdx_text(block[1])}")
+        elif kind == "section":
+            if block[1] != "name":       # the title names the program; its summary leads the page
+                heading = block[2][:1].upper() + block[2][1:].lower()
+                chunks.append(f"## {mdx_text(heading)}")
+        elif kind == "subsection":
+            chunks.append(f"### {mdx_code(block[1])}")
+        elif kind == "name":
+            chunks.append(mdx_text(block[2]))
+        elif kind == "synopsis":
+            line = f"{block[1]} {block[2]}"
+            if last.startswith("```sh\n") and last.endswith("\n```") and chunks[-2].startswith("## "):
+                chunks[-1] = last[:-3] + f"{line}\n```"   # keep the newline before the fence
+            else:
+                chunks.append(f"```sh\n{line}\n```")
+        elif kind == "usage" or kind == "example":
+            line = f"{block[1]} {block[2]}" if kind == "usage" else block[1]
+            chunks.append(f"```sh\n{line}\n```")
+        elif kind == "para":
+            chunks.append(mdx_text(block[1]))
+        elif kind == "entry":
+            item = f"- {mdx_code(block[1])}: {mdx_text(block[2])}"
+            if last.startswith("- "):
+                chunks[-1] = f"{last}\n{item}"
+            else:
+                chunks.append(item)
+    return "\n\n".join(chunks) + "\n"
 
 
 def translator(data: dict, tag: str | None) -> Translator:
@@ -903,57 +998,104 @@ def translator(data: dict, tag: str | None) -> Translator:
                       _FRAMEWORK_TRANSLATIONS[framework] if framework else {})
 
 
+USAGE = ("usage: maelys-cli-man [--date YYYY-MM-DD] [--lang TAG] [--untranslated] [--format roff|mdx] "
+         "[--body-only]\n                      (PROGRAM [WORD...] | --catalog FILE [--version VERSION] PROGRAM)\n")
+
+
+def catalog_file(path: str, program: str) -> dict:
+    """The catalog of `program` in a file: the envelope `describe --format json` writes, or the aggregate
+    contract of maelys-cli-reference (docs/cli-contract.json, {"contract", "programs": {NAME: catalog}})."""
+    with open(path, encoding="utf-8") as stream:
+        source = json.load(stream)
+    if "programs" in source:
+        data = source["programs"].get(program)
+    else:
+        data = source.get("data", source)
+    if not isinstance(data, dict) or data.get("program") != program or not isinstance(data.get("commands"), list):
+        raise ValueError(f"{path} holds no catalog of {program}")
+    return data
+
+
 def main(argv: list[str]) -> int:
     date = None
     tag = None
     untranslated = False
-    while argv[:1] in (["--date"], ["--lang"], ["--untranslated"]):
-        if argv[0] == "--untranslated":
-            untranslated, argv = True, argv[1:]
+    body_only = False
+    form = "roff"
+    catalog = None
+    version = None
+    while argv[:1] in (["--date"], ["--lang"], ["--untranslated"], ["--format"], ["--body-only"], ["--catalog"],
+                       ["--version"]):
+        if argv[0] in ("--untranslated", "--body-only"):
+            untranslated, body_only = untranslated or argv[0] == "--untranslated", body_only or argv[0] == "--body-only"
+            argv = argv[1:]
             continue
         if len(argv) < 2:
             break
-        if argv[0] == "--date":
-            date, argv = argv[1], argv[2:]
+        name, value, argv = argv[0], argv[1], argv[2:]
+        if name == "--date":
+            date = value
             if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", date):
                 sys.stderr.write("maelys-cli-man: --date takes YYYY-MM-DD\n")
                 return 1
-        else:
-            tag, argv = argv[1], argv[2:]
+        elif name == "--lang":
+            tag = value
             if not LANGUAGE_TAG.fullmatch(tag):
                 sys.stderr.write("maelys-cli-man: --lang takes a tag language[-Script][-REGION], such as fr or fr-CA\n")
                 return 1
-    if not argv or argv[0].startswith("-") or (untranslated and tag is None):
-        sys.stderr.write("usage: maelys-cli-man [--date YYYY-MM-DD] [--lang TAG] [--untranslated] PROGRAM [WORD...]\n"
-                         "--untranslated needs --lang.\n")
+        elif name == "--format":
+            form = value
+            if form not in ("roff", "mdx"):
+                sys.stderr.write("maelys-cli-man: --format takes roff or mdx\n")
+                return 1
+        elif name == "--catalog":
+            catalog = value
+        else:
+            version = value
+    if not argv or argv[0].startswith("-") or (untranslated and tag is None) or (body_only and form != "mdx") \
+            or (catalog is not None and len(argv) != 1) or (version is not None and catalog is None):
+        sys.stderr.write(USAGE + "--untranslated needs --lang, --body-only --format mdx, --version --catalog.\n")
         return 1
     if date is None:
         epoch = os.environ.get("SOURCE_DATE_EPOCH")
         moment = datetime.datetime.fromtimestamp(int(epoch), datetime.timezone.utc) if epoch else \
             datetime.datetime.now(datetime.timezone.utc)
         date = moment.strftime("%Y-%m-%d")
-    environment = dict(os.environ, NO_COLOR="1")
-    environment.pop("MAELYS_CLI_FORMAT", None)
-    completed = subprocess.run([*argv, "describe", "--format", "json", "--compact", "--non-interactive"],
-                               stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=environment,
-                               check=False)
-    try:
-        envelope = json.loads(completed.stdout)
-        data = envelope["data"]
-        if envelope.get("ok") is not True or data.get("kind") != "catalog":
-            raise ValueError("not a catalog")
-    except (ValueError, KeyError, TypeError):
-        sys.stderr.write(f"maelys-cli-man: {' '.join(argv)} gave no describe catalog\n{completed.stderr}")
-        return 1
+    if catalog is not None:
+        # A file, as a site reads it at the tag it documents: no program is run.
+        try:
+            data = catalog_file(catalog, argv[0])
+        except (OSError, ValueError, AttributeError) as error:
+            sys.stderr.write(f"maelys-cli-man: {error}\n")
+            return 1
+        if version is not None:
+            data = dict(data, version=version)
+        if not data.get("version"):
+            sys.stderr.write(f"maelys-cli-man: {catalog} names no version of {argv[0]}: pass --version\n")
+            return 1
+    else:
+        environment = dict(os.environ, NO_COLOR="1")
+        environment.pop("MAELYS_CLI_FORMAT", None)
+        completed = subprocess.run([*argv, "describe", "--format", "json", "--compact", "--non-interactive"],
+                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=environment,
+                                   check=False)
+        try:
+            envelope = json.loads(completed.stdout)
+            data = envelope["data"]
+            if envelope.get("ok") is not True or data.get("kind") != "catalog":
+                raise ValueError("not a catalog")
+        except (ValueError, KeyError, TypeError):
+            sys.stderr.write(f"maelys-cli-man: {' '.join(argv)} gave no describe catalog\n{completed.stderr}")
+            return 1
     tr = translator(data, tag)
-    text = page(data, date, tr)
+    page = blocks(data, date, tr)
     if untranslated:
         # Only the product's texts: the framework's own are its table's business.
         framework = set().union(*(table for table in _FRAMEWORK_TRANSLATIONS.values())) if _FRAMEWORK_TRANSLATIONS \
             else set()
         sys.stdout.write("".join(f"{source}\n" for source in tr.missed if source not in framework))
         return 0
-    sys.stdout.write(text)
+    sys.stdout.write(mdx(page, body_only) if form == "mdx" else roff(page))
     return 0
 
 
