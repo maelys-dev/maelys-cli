@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.12.2 - 2026-10-25
+
+A patch release of the checks only: `make man-check` now holds the C and
+Python manual pages to the same bytes. The library, the Python module and
+the tools are those of 0.12.1; nothing a product does changes.
 
 - `make man-check` holds the manual pages of the C and Python
   default-surface programs to the same bytes, in English and in French,
