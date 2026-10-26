@@ -604,8 +604,6 @@ _FRAMEWORK_TRANSLATIONS = {
             "Identifiant de commande inconnu : '%s'.",
         'Run describe --summary to list the command identifiers.':
             'Lancez describe --summary pour lister les identifiants de commande.',
-        'No command given.':
-            'Aucune commande donnée.',
         "Run '%s help' or 'describe --summary'.":
             "Lancez '%s help' ou 'describe --summary'.",
         "Unknown command '%s'.":
@@ -3905,15 +3903,21 @@ class Program:
             words.append("help" if argv[0] == "--help" else "version")
             index = 1
         implicit = default is not None and (not argv or (argv[0].startswith("-") and argv[0] not in ("--help", "--version")))
+        # The command is resolved from the words that start the line, before any option, as in C: a pattern
+        # is its first words (`PROGRAM --json list` names no command, `note --json write` not `note write`).
+        # Bare words after an option are operands of the command those leading words name.
+        leading = None
         while index < len(argv):
             word = argv[index]
-            command, consumed = (default, 0) if implicit else self.resolve(words)
+            command, consumed = (default, 0) if implicit else self.resolve(words if leading is None else words[:leading])
             if command is not None and command["passthrough"] and len(words) == consumed:
                 passthrough = argv[index:]
                 break
             if word == "--":
                 passthrough = argv[index + 1:]
                 break
+            if word.startswith("-") and word != "-" and leading is None:
+                leading = len(words)
             if word.startswith("--") and len(word) > 2:
                 name, separator, value = word.partition("=")
                 definition = next((item for item in GLOBAL_OPTIONS if item["long"] == name), None)
@@ -3945,28 +3949,30 @@ class Program:
                 continue
             words.append(word)
             index += 1
-        # A word that starts with one dash names no command and selects none:
-        # `-x --help` resolves nothing, as in C.
+        if leading is None:
+            leading = len(words)
         if implicit:
             words = list(default["pattern"])
-            consumed = len(words)
-        elif not words and any(name in ("--help", "--version") for name, _ in raw) \
-                and not any(value is _DASH_WORD for _, value in raw):
-            words = ["help"] if any(name == "--help" for name, _ in raw) else ["version"]
-            raw = [(name, value) for name, value in raw if name not in ("--help", "--version")]
-        if not words:
-            raise _fail("INVALID_COMMAND", "No command given.", hint="Run '%s help' or 'describe --summary'.",
-                        hint_arguments=(self.program,))
-        command, consumed = self.resolve(words)
-        if command is None and any(name == "--help" for name, _ in raw) and self._family(words=words):
+            leading = consumed = len(words)
+        elif not argv:
+            # Without a default command, an empty line is the help, as in C.
+            words, leading = ["help"], 1
+        elif leading == 0:
+            # A first word that starts with a dash, --help and --version apart, names no command: options
+            # come after the command's pattern (`PROGRAM list --json`), and a word with one dash selects
+            # nothing either (`-x --help`), as in C.
+            raise _fail("INVALID_COMMAND", "Unknown command '%s'.", argv[0],
+                        hint="Run describe --summary and use one of the listed command identifiers.")
+        command, consumed = self.resolve(words[:leading])
+        if command is None and any(name == "--help" for name, _ in raw) and self._family(words=words[:leading]):
             # `PROGRAM note --help`: the words name no command, but a family of
             # them, and help was asked for: the help of that family.
-            self._family_words = list(words)
-            words = ["help"]
+            self._family_words = list(words[:leading])
+            words = ["help"] + words[leading:]
             raw = [(name, value) for name, value in raw if name != "--help"]
-            command, consumed = self.resolve(words)
+            command, consumed = self.resolve(words[:1])
         if command is None:
-            raise _fail("INVALID_COMMAND", "Unknown command '%s'.", ' '.join(words),
+            raise _fail("INVALID_COMMAND", "Unknown command '%s'.", ' '.join(words[:leading]),
                         hint="Run describe --summary and use one of the listed command identifiers.")
         # A failure envelope names the resolved command from here on (section 7).
         self.resolved_command_id = command["id"]

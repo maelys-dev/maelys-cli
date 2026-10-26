@@ -613,9 +613,9 @@ check "the default command's help says it too" 'printf "%s" "$out" | tr "\n" " "
 # (DEFAULT_SURFACE_DEFAULT=none) and after, in C and in Python. Each handler
 # appends its command to a trace: a handler ran exactly when a command of
 # the catalog succeeded, never on a refusal, --help or --version. Without a
-# default C and Python read an empty line and a line that starts with an
-# option apart; the specification leaves that open, and these lines say
-# what each does today.
+# default, the specification leaves an empty line and a line that starts
+# with an option open; C and Python read them alike, an empty line as the
+# help and a first option as no command, and these lines say so.
 mig_trace="$work/default-trace"
 mig_answer() { # the command, the exit code and the error code; a stream's first line
     printf '%s' "${out:-$err}" | python3 -c 'import json, sys
@@ -642,32 +642,32 @@ mig_one() { # mig_one NAME DEFAULT PROGRAM WORDS...: $answer, the handler checke
     esac
     check "a handler runs only for a command that succeeds: $mig_name ($answer)" '[ "$ran" = "$expected" ]'
 }
-mig() { # mig NAME DEFAULT BEFORE_C BEFORE_PY AFTER WORDS...
-    m_name=$1 m_default=$2 m_before_c=$3 m_before_py=$4 m_after=$5
-    shift 5
+mig() { # mig NAME DEFAULT BEFORE AFTER WORDS...
+    m_name=$1 m_default=$2 m_before=$3 m_after=$4
+    shift 4
     mig_one "$m_name-before" none "$dflt_c" "$@"
-    check "before a default, C: $m_name" '[ "$answer" = "$m_before_c" ]'
+    check "before a default, C: $m_name" '[ "$answer" = "$m_before" ]'
     mig_one "$m_name-before-py" none "$dflt_py" "$@"
-    check "before a default, Python: $m_name" '[ "$answer" = "$m_before_py" ]'
+    check "before a default, Python: $m_name" '[ "$answer" = "$m_before" ]'
     mig_one "$m_name-after" "$m_default" "$dflt_c" "$@"
     check "after a default, C: $m_name" '[ "$answer" = "$m_after" ]'
     mig_one "$m_name-after-py" "$m_default" "$dflt_py" "$@"
     check "after a default, Python: $m_name" '[ "$answer" = "$m_after" ]'
 }
-mig empty show "help 0 None" "unknown 1 INVALID_COMMAND" "show 0 None"
-mig json-first show "unknown 1 INVALID_COMMAND" "list 0 None" "show 1 VALIDATION_FAILED" --json list
-mig json-after show "list 0 None" "list 0 None" "list 0 None" list --json
-mig value-list show "unknown 1 INVALID_COMMAND" "list 1 VALIDATION_FAILED" "show 0 None" --label list
-mig unknown show "unknown 1 INVALID_COMMAND" "unknown 1 INVALID_COMMAND" "unknown 1 INVALID_COMMAND" nope
-mig help show "help 0 None" "help 0 None" "help 0 None" --help
-mig version show "version 0 None" "version 0 None" "version 0 None" --version
-mig help-implicit show "unknown 1 INVALID_COMMAND" "unknown 1 INVALID_COMMAND" "help 0 None" --label x --help
-mig dash-h show "unknown 1 INVALID_COMMAND" "unknown 1 INVALID_COMMAND" "show 1 VALIDATION_FAILED" -h
-mig dash-x show "unknown 1 INVALID_COMMAND" "unknown 1 INVALID_COMMAND" "show 1 VALIDATION_FAILED" -x
-mig operands show "unknown 1 INVALID_COMMAND" "unknown 1 INVALID_COMMAND" "show 0 None" --label x -- notes.txt
-mig stream-json watch "unknown 1 INVALID_COMMAND" "unknown 1 INVALID_COMMAND" "watch 1 VALIDATION_FAILED" --json
-mig stream-empty watch "help 0 None" "unknown 1 INVALID_COMMAND" "stream 0 watching"
-mig transaction save "unknown 1 INVALID_COMMAND" "unknown 1 INVALID_COMMAND" "save 0 None" --content text
+mig empty show "help 0 None" "show 0 None"
+mig json-first show "unknown 1 INVALID_COMMAND" "show 1 VALIDATION_FAILED" --json list
+mig json-after show "list 0 None" "list 0 None" list --json
+mig value-list show "unknown 1 INVALID_COMMAND" "show 0 None" --label list
+mig unknown show "unknown 1 INVALID_COMMAND" "unknown 1 INVALID_COMMAND" nope
+mig help show "help 0 None" "help 0 None" --help
+mig version show "version 0 None" "version 0 None" --version
+mig help-implicit show "unknown 1 INVALID_COMMAND" "help 0 None" --label x --help
+mig dash-h show "unknown 1 INVALID_COMMAND" "show 1 VALIDATION_FAILED" -h
+mig dash-x show "unknown 1 INVALID_COMMAND" "show 1 VALIDATION_FAILED" -x
+mig operands show "unknown 1 INVALID_COMMAND" "show 0 None" --label x -- notes.txt
+mig stream-json watch "unknown 1 INVALID_COMMAND" "watch 1 VALIDATION_FAILED" --json
+mig stream-empty watch "help 0 None" "stream 0 watching"
+mig transaction save "unknown 1 INVALID_COMMAND" "save 0 None" --content text
 check "a default transaction without --apply plans" 'printf "%s" "$out" | grep -q "\"mode\": *\"plan\""'
 
 # The help palette (maelys_cli_help_palette_t; help_palette= in Python):

@@ -494,9 +494,20 @@ class Contract(unittest.TestCase):
             with self.assertRaises(cli.Failure) as refused:
                 program.parse(argv)
             self.assertEqual(refused.exception.code, code, argv)
-        # Without a default, nothing changes: the module still reads `--json version` as before.
+        # Without a default, the command is the line's first words, as in C: an option in front names
+        # none, a bare word after an option is no pattern word, and an empty line is the help.
         plain = cli.Program("p", "P", "1", commands)
-        self.assertEqual(plain.parse(["--json", "version"])[1]["id"], "version")
+        for argv, code in ((["--json", "version"], "INVALID_COMMAND"), (["--nope", "--help"], "INVALID_COMMAND"),
+                           (["--verbose", "--nope", "--help"], "INVALID_COMMAND"),
+                           (["look", "--json", "closer"], "VALIDATION_FAILED")):
+            with self.assertRaises(cli.Failure) as refused:
+                plain.parse(argv)
+            self.assertEqual(refused.exception.code, code, argv)
+            if argv[0] == "look":
+                self.assertEqual(plain.resolved_command_id, "look", "closer is an operand look refuses")
+        self.assertEqual(plain.parse([])[1]["id"], "help")
+        self.assertEqual(plain.parse(["version", "--json"])[1]["id"], "version")
+        self.assertEqual(plain.parse(["--json", "--help"])[1]["id"], "help")
         # The static completion table resolves a command from its pattern words, which a line of the
         # default command does not have: such a catalog gets the script that calls __complete.
         for shell in ("bash", "zsh", "fish"):

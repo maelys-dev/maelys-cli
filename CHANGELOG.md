@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- `python/maelys_cli.py` reads the command from the first words of the
+  line, as C does: an option in front names no command (`PROGRAM --json
+  version` and `PROGRAM --nope --help` are `INVALID_COMMAND`, where Python
+  ran `version` and gave the help), a word after an option is no pattern
+  word (`note --json write` does not name `note write`), and an empty line
+  is the help, where Python answered `INVALID_COMMAND`. The specification
+  leaves these lines open without a default command; C and Python now
+  read them alike, and `tests/test_cli.sh` asks both the same lines.
+
 ## 0.14.0 - 2026-10-26
 
 Pinned to agent-cli-spec 2.22.0: a global option selects no command, so
