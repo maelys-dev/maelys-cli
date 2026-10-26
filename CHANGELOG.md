@@ -1,6 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.12.4 - 2026-10-26
+
+A patch release of the regex engine: a search of a value of more than
+4 GiB no longer loses positions. Nothing a product does changes.
 
 - A regex search no longer loses positions past 2^32 - 1 code points of
   its value. The generation that marks the positions of a step is a
