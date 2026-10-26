@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- The conventions and the guide installed for agents say that a global
+  option in front of a line selects the default command like any other
+  option -- `PROGRAM --lang fr --help` is its help, `PROGRAM --lang fr
+  --version` is refused -- as agent-cli/v2 section 8 has it, and how to
+  ask for the program's help in a language. They also say what
+  `maelys-cli-man --untranslated` does not cover: a failure template is on
+  no page, and a product tests its failures under `--lang`; and that a
+  message assembled before it reaches the framework is translated only
+  when a table names it whole.
+
 ## 0.13.0 - 2026-10-26
 
 A regex can be searched without allocating: a product that matches its

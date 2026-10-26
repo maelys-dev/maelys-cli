@@ -177,7 +177,9 @@ text, and this pin implements it; `docs/command-conventions.md`,
 - To translate: write failures as templates (`maelys_cli_fail(context,
   code, hint, "No machine %s.", name)`, Python `cli.failure`), never
   assembled before, and declare one table per language; `maelys-cli-man
-  --lang TAG --untranslated PROGRAM` lists what a table lacks.
+  --lang TAG --untranslated PROGRAM` lists the texts of the manual page a
+  table lacks, and tests that bring each failure about under `--lang`
+  prove the rest.
 
 ## Every consumer, at agent-cli-spec 2.20.0
 

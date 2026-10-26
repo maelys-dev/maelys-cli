@@ -315,6 +315,12 @@ name of the default command (`PROGRAM --json list` fails, `PROGRAM list
 --json` runs `list`). The operands of the default command are written after
 `--`: `PROGRAM -- FILE`. `-h` fails as any word with one dash does.
 
+A global option in front is an option like any other: `PROGRAM --lang fr
+--help` is the help of the default command, and `PROGRAM --lang fr
+--version` is refused in its name. The help and the version of the program
+take `--help` or `--version` first (`PROGRAM --help --lang fr`), or the
+language from `MAELYS_CLI_LANG`.
+
 Once selected, the default command is the command in every respect: its
 validation, its help (`PROGRAM --label x --help`), its effect -- a
 transaction plans without `--apply`, a stream keeps its stdout -- and the
@@ -591,8 +597,10 @@ extension member `x-maelys-translations`, `{"version": 1, "languages":
 {TAG: {SOURCE: TEXT}}}` with `canonical` naming the language the catalog
 is written in, and `maelys-cli-man --lang TAG PROGRAM` writes the
 manual page in that language from it; `--untranslated` lists, instead of the
-page, the texts of the page the product's table still lacks. The summary
-form and a single descriptor do not carry it.
+page, the texts of the page the product's table still lacks. A failure
+template is on no page: only a run shows it, so a product proves the
+translation of its failures with tests that bring each one about under
+`--lang`. The summary form and a single descriptor do not carry it.
 
 ## Rendering decisions
 
