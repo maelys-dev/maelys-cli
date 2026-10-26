@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Move the C implementation into `c/` with relative compatibility links for
+  the existing source paths; preserve the root build entry points, installed
+  headers and archives. Adapt the C end-to-end harness's repository paths.
+  C and Python behavior and public declarations are unchanged.
+
 ## 0.13.0 - 2026-10-26
 
 A regex can be searched without allocating: a product that matches its

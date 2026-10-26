@@ -36,6 +36,15 @@ A mechanism enters `libmaelys_cli` only when:
 4. Linux and macOS expose the same observable behavior;
 5. it ships with focused positive and negative tests.
 
+## Implementations
+
+The C implementation lives under `c/`, Python under `python/`, and the native
+Node implementation is developed under `typescript/`. The legacy C source
+paths `include/`, `src/`, `cli/`, `tests/` and `examples/` remain relative
+links into `c/`: consumers keep the same include and build entry points,
+without duplicate source trees. `Makefile` and `CMakeLists.txt` remain at the
+repository root. Installed paths and archive names are unchanged.
+
 ## Architecture
 
 ```text
