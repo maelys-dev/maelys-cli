@@ -227,7 +227,6 @@ Option %s takes true, false, yes, no, on, off, 1 or 0, not '%s'.	L'option %s att
 Use '%s'.	Utilisez '%s'.
 Unknown command identifier '%s'.	Identifiant de commande inconnu : '%s'.
 Run describe --summary to list the command identifiers.	Lancez describe --summary pour lister les identifiants de commande.
-No command given.	Aucune commande donnée.
 Run '%s help' or 'describe --summary'.	Lancez '%s help' ou 'describe --summary'.
 Unknown command '%s'.	Commande inconnue : '%s'.
 Run describe --summary and use one of the listed command identifiers.	Lancez describe --summary et utilisez un des identifiants de commande listés.

@@ -452,8 +452,6 @@ static const maelys_cli_translation_t translations[] = {
      "Identifiant de commande inconnu : '%s'."},
     {"Run describe --summary to list the command identifiers.",
      "Lancez describe --summary pour lister les identifiants de commande."},
-    {"No command given.",
-     "Aucune commande donnée."},
     {"Run '%s help' or 'describe --summary'.",
      "Lancez '%s help' ou 'describe --summary'."},
     {"Unknown command '%s'.",
