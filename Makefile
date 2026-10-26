@@ -316,7 +316,7 @@ doc-topics-check:
 # The generated reference (docs/cli.md, docs/cli-contract.json) is no
 # longer verified here: maelys-release regenerates and compares both,
 # locally with 'maelys-release check .' and in CI through check-product.yml.
-check: test fuzz-smoke tsan-check cli-check embed-check commit-check header-check check-version api-doc-check agent-doc-check doc-topics-check python-doc-check
+check: layout-check test fuzz-smoke tsan-check cli-check embed-check commit-check header-check check-version api-doc-check agent-doc-check doc-topics-check python-doc-check
 	@if command -v python3 >/dev/null 2>&1; then $(MAKE) i18n-check python-check hello-parity-check completion-check conformance-check describe-schema-check envelope-schema-check man-check; \
 	else echo "i18n-check, python-check, hello-parity-check, completion-check, conformance-check, describe-schema-check, envelope-schema-check, man-check: skipped (python3 not found)"; fi
 	@if command -v node >/dev/null 2>&1; then $(MAKE) pattern-ecma-check; \
@@ -342,6 +342,10 @@ i18n-check:
 # reference product in conformance-check.
 python-check:
 	PYTHONDONTWRITEBYTECODE=1 python3 -B -W error -m unittest discover -s python/tests
+
+.PHONY: layout-check
+layout-check:
+	python3 -B scripts/layout-check.py
 
 # The two reference products describe the same declaration in the same
 # shape and complete it with the same words: the value members of every
