@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-agent-cli-spec 2.22.0: a global option selects no command, so global
+agent-cli-spec 2.22.0 (pinned): a global option selects no command, so global
 options in front of `--help` or `--version` no longer take the help or the
 version away. `docs/migration.md` says what a product meets.
 
