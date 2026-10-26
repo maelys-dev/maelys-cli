@@ -13,7 +13,7 @@ source-checkout include flags from `-I$MAELYS_CLI_DIR/include` to
 `include/maelys/cli.h` or `include/maelys/cli/version.h` from that checkout
 must also insert `c/`. Update the pin and these paths together.
 
-The four identified consumers need the following changes at their next pin
+The five identified consumers need the following changes at their next pin
 update; they are not changed merely by reorganizing this repository:
 
 | Consumer | Source-checkout paths to update |
@@ -22,6 +22,7 @@ update; they are not changed merely by reorganizing this repository:
 | maelys-egress | `CLI_CPPFLAGS` and dependency/header/ABI checks use `$(MAELYS_CLI_DIR)/c/include`. |
 | maelys-datalog-cli | The Makefile's include flag and ABI/contract checks use `$(CLI_DIR)/c/include`. |
 | maelys-sandbox-policy | The dependency/header check and CLI object's include flag use `$(MAELYS_CLI_DIR)/c/include`. |
+| maelys-warden | `mk/build-and-unit.mk`: the CLI's `-I$(MAELYS_CLI_DIR)/include` and the check of `$(MAELYS_CLI_DIR)/include/maelys/cli.h` use `$(MAELYS_CLI_DIR)/c/include`. |
 
 `make -C "$MAELYS_CLI_DIR"` and `cmake -S "$MAELYS_CLI_DIR"` retain their
 root entry points. Installed headers remain `PREFIX/include/maelys/` and
