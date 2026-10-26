@@ -2,20 +2,36 @@
 
 ## Unreleased
 
+agent-cli-spec 2.22.0 (pinned): a global option selects no command, so global
+options in front of `--help` or `--version` no longer take the help or the
+version away. `docs/migration.md` says what a product meets.
+
+- After global options only, each with its value, `--help` and `--version`
+  select their command as in first place (agent-cli/v2 2.22.0, section 6):
+  `PROGRAM --lang fr --help` is the help in French and `PROGRAM --json
+  --version` the version, in a program without a default command, where
+  these lines were `INVALID_COMMAND`, and in one with a default command,
+  where they were its help or a refusal in its name. The word is `--help`
+  or `--version` as written (`--field --help` gives `--field` a value);
+  the global options are the selected command's, a malformed or repeated
+  one failing in the name of `help` or `version`. `--version --help` is
+  the help of `version`; `--help --version` stays refused. C and Python
+  alike, through one reading of the leading global options.
+- `__complete` offers `--version` at the root, before any word but global
+  options, none included.
+- The help's sentence on the default command says it, in English and in
+  French: the options in front are its, unless `--help` or `--version`
+  comes first or after global options only.
+- The conventions and the guide installed for agents say what
+  `maelys-cli-man --untranslated` does not cover: a failure template is on
+  no page, and a product tests its failures under `--lang`; and that a
+  message assembled before it reaches the framework is translated only
+  when a table names it whole.
 - Move all C headers, sources, tests and examples into `c/`, with no source
   aliases at the root. Update builds, checks and source documentation together.
   Source-checkout consumers must use `c/include/` when updating their pin;
   `docs/migration.md` lists the affected consumers. Root build entry points,
   installed headers, archives and C/Python public behavior stay unchanged.
-- The conventions and the guide installed for agents say that a global
-  option in front of a line selects the default command like any other
-  option -- `PROGRAM --lang fr --help` is its help, `PROGRAM --lang fr
-  --version` is refused -- as agent-cli/v2 section 8 has it, and how to
-  ask for the program's help in a language. They also say what
-  `maelys-cli-man --untranslated` does not cover: a failure template is on
-  no page, and a product tests its failures under `--lang`; and that a
-  message assembled before it reaches the framework is translated only
-  when a table names it whole.
 
 ## 0.13.0 - 2026-10-26
 

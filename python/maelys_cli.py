@@ -186,8 +186,8 @@ _FRAMEWORK_TRANSLATIONS = {
             "Sa sortie suit le protocole %s : --format et les autres options de rendu ne s'appliquent pas.",
         'Its output is its own: --format and the other rendering options do not apply.':
             "Sa sortie lui est propre : --format et les autres options de rendu ne s'appliquent pas.",
-        'A line that names no command runs this one: an empty line, or one that starts with an option other than --help and --version. Its operands come after --:':
-            'Une ligne qui ne nomme aucune commande lance celle-ci : une ligne vide, ou une ligne qui commence par une option autre que --help et --version. Ses opérandes viennent après -- :',
+        'A line that names no command runs this one: an empty line, or one that starts with an option, unless --help or --version comes first or after global options only. Its operands come after --:':
+            'Une ligne qui ne nomme aucune commande lance celle-ci : une ligne vide, ou une ligne qui commence par une option, sauf si --help ou --version vient en tête ou après des options globales seulement. Ses opérandes viennent après -- :',
         'Optional.':
             'Facultatif.',
         "Run '%s --help' for --format, --json, --compact, --non-interactive, --color and the others.":
@@ -202,8 +202,8 @@ _FRAMEWORK_TRANSLATIONS = {
             'une commande, ses options et ses exemples',
         'the commands of one family':
             "les commandes d'une famille",
-        "%s [options] runs '%s', as %s %s [options] does: the options in front, other than --help and --version, are its.":
-            "%s [options] lance '%s', comme %s %s [options] : les options placées devant, autres que --help et --version, sont les siennes.",
+        "%s [options] runs '%s', as %s %s [options] does: the options in front are its, unless --help or --version comes first or after global options only.":
+            "%s [options] lance '%s', comme %s %s [options] : les options placées devant sont les siennes, sauf si --help ou --version vient en tête ou après des options globales seulement.",
         'Also:':
             'Aussi :',
         "'%s help COMMAND' says why.":
@@ -746,8 +746,8 @@ _FRAMEWORK_TRANSLATIONS = {
             'VOIR AUSSI',
         "%s %s, a program of the agent-cli/v2 contract: '%s help' shows the help, '%s describe --format json' the catalog this page is rendered from.":
             "%s %s, un programme du contrat agent-cli/v2 : '%s help' en montre l'aide, '%s describe --format json' le catalogue d'où cette page est rendue.",
-        "%s [options] runs '%s', as %s %s [options] does: the options in front, other than --help and --version, are its, and its operands come after --.":
-            "%s [options] lance '%s', comme %s %s [options] : les options placées devant, autres que --help et --version, sont les siennes, et ses opérandes viennent après --.",
+        "%s [options] runs '%s', as %s %s [options] does: the options in front are its, unless --help or --version comes first or after global options only, and its operands come after --.":
+            "%s [options] lance '%s', comme %s %s [options] : les options placées devant sont les siennes, sauf si --help ou --version vient en tête ou après des options globales seulement, et ses opérandes viennent après --.",
         'Not available in this build: %s':
             'Indisponible dans cette compilation : %s',
         'Command completed.':
@@ -1818,6 +1818,25 @@ GLOBAL_OPTIONS = [
     option("--lang", "Language of the human text.", argument("TAG", "string", pattern=LANGUAGE_TAG_PATTERN)),
     flag("--help", "Show the help of the selected command."),
 ]
+
+
+def _leading_globals(argv: list) -> int:
+    """The index of the first word that is neither a global option nor the value it takes, as
+    maelys_cli_leading_globals does: --help is no global option here, being the word that selects the help."""
+    index = 0
+    while index < len(argv) and argv[index].startswith("--") and len(argv[index]) > 2:
+        name, separator, _ = argv[index].partition("=")
+        definition = next((item for item in GLOBAL_OPTIONS if item["long"] == name), None)
+        if definition is None or name == "--help":
+            break
+        if "argument" in definition and not separator:
+            if index + 1 >= len(argv):
+                break
+            index += 1
+        index += 1
+    return index
+
+
 INVARIANTS = [
     "usage and agent discovery share one catalog",
     "transactional commands plan by default and require --apply",
@@ -2020,6 +2039,23 @@ _@ID@_complete() {
         best=$idx; len=$k; bid=$id; bkind=$kind
     done
     if [[ -z $best ]]; then
+        if [[ $cur == -* ]]; then
+            found=1
+            for (( i = 0; i < n; i++ )); do
+                word=${prev[i]}; name=${word%%=*}; flags=
+                [[ $word == --?* && $name != --help ]] || { found=; break; }
+                for row in "${_@ID@_rows[@]}"; do
+                    case $row in "O|g|$name|"*) flags=${row#"O|g|$name|"}; flags=${flags%%|*}; break ;; esac
+                done
+                [[ -n $flags ]] || { found=; break; }
+                if [[ $flags == *a* && $word != *=* ]]; then
+                    (( i + 1 < n )) || { found=; break; }
+                    i=$(( i + 1 ))
+                fi
+            done
+            [[ -n $found ]] && out[${#out[@]}]=--version
+            found=
+        fi
         for row in "${_@ID@_rows[@]}"; do
             case $row in 'C|'*) ;; *) continue ;; esac
             rest=${row#*|}; rest=${rest#*|}; pat=${rest%%|*}
@@ -2135,6 +2171,25 @@ _@ID@_complete() {
         best=${f[2]}; len=$k; bid=${f[4]}; bkind=${f[5]}
     done
     if [[ -z $best ]]; then
+        if [[ $cur == -* ]]; then
+            found=1
+            for (( i = 1; i <= n; i++ )); do
+                word=${prev[i]}; name=${word%%=*}; keep=()
+                [[ $word == --?* && $name != --help ]] || { found=; break; }
+                for row in "${_@ID@_rows[@]}"; do
+                    [[ $row == "O|g|$name|"* ]] || continue
+                    f=("${(@s:|:)row}"); keep=("${f[4]}"); break
+                done
+                (( ${#keep} )) || { found=; break; }
+                if [[ ${keep[1]} == *a* && $word != *=* ]]; then
+                    (( i < n )) || { found=; break; }
+                    i=$(( i + 1 ))
+                fi
+            done
+            [[ -n $found ]] && out+=(--version)
+            found=
+            keep=()
+        fi
         for row in "${_@ID@_rows[@]}"; do
             [[ $row == 'C|'* ]] || continue
             f=("${(@s:|:)row}"); pw=(${=f[3]})
@@ -2267,6 +2322,37 @@ function __@ID@_complete
         set bkind $f[5]
     end
     if test -z "$best"
+        if string match -q -- '-*' "$cur"
+            set -l ok 1
+            set -l i 1
+            while test $i -le $n
+                set -l word $prev[$i]
+                set -l name (string split -m1 -- '=' $word)[1]
+                set -l flags ''
+                if string match -q -r -- '^--.' $word; and test "x$name" != "x--help"
+                    for row in $__@ID@_rows
+                        set -l f (string split -- '|' $row)
+                        if test "x$f[1]" = xO -a "x$f[2]" = xg -a "x$f[3]" = "x$name"
+                            set flags "$f[4]"
+                            break
+                        end
+                    end
+                end
+                if test -z "$flags"
+                    set ok 0
+                    break
+                end
+                if string match -q -- '*a*' $flags; and not string match -q -- '*=*' $word
+                    if test $i -ge $n
+                        set ok 0
+                        break
+                    end
+                    set i (math $i + 1)
+                end
+                set i (math $i + 1)
+            end
+            test $ok -eq 1; and set -a out --version
+        end
         for row in $__@ID@_rows
             string match -q -- 'C|*' $row; or continue
             set -l f (string split -- '|' $row)
@@ -3405,8 +3491,9 @@ class Program:
                 for item in command["examples"])
         if self.default_command == command["id"]:
             text += f"\n{tr('DEFAULT COMMAND')}\n" + _help_paragraph(tr(
-                "A line that names no command runs this one: an empty line, or one that starts with an option "
-                "other than --help and --version. Its operands come after --:"), width) \
+                "A line that names no command runs this one: an empty line, or one that starts with an option, "
+                "unless --help or --version comes first or after global options only. Its operands come after "
+                "--:"), width) \
                 + self._default_forms(" ".join(command["pattern"]))
         if command["operands"]:
             column = max([display_width(item["name"]) for item in command["operands"]
@@ -3470,8 +3557,9 @@ class Program:
         if default is not None:
             pattern = " ".join(default["pattern"])
             text += "\n" + _help_paragraph(self._trf(
-                "%s [options] runs '%s', as %s %s [options] does: the options in front, other than --help and "
-                "--version, are its.", self.program, pattern, self.program, pattern), width)
+                "%s [options] runs '%s', as %s %s [options] does: the options in front are its, unless --help or "
+                "--version comes first or after global options only.", self.program, pattern, self.program,
+                pattern), width)
         visible = [(index, command) for index, command in enumerate(self.catalog) if not command["hidden"]]
         own = [command for index, command in visible if index >= self._builtin_count and command["unavailable"] is None]
         built_in = [command for index, command in visible if index < self._builtin_count]
@@ -3718,6 +3806,9 @@ class Program:
                 and previous[0] not in ("--help", "--version"):
             command, consumed = default, 0
         candidates: list = []
+        # At the root, before any word but global options, none included, the line is still the program's: a
+        # word that starts with a dash may be --version, as the line would read it (agent-cli/v2 2.22.0, section 6).
+        leading = ["--version"] if current.startswith("-") and _leading_globals(previous) == len(previous) else []
         if command is None:
             # The next pattern word of every command that starts with the words given so far.
             candidates = [other["pattern"][len(previous)] for other in shown
@@ -3756,7 +3847,7 @@ class Program:
                 operands = command["operands"]
                 if position < len(operands) or operands[-1]["variadic"]:
                     candidates = self._value_candidates(operands[min(position, len(operands) - 1)])
-        matching = [word for word in dict.fromkeys(candidates) if word.startswith(current)]
+        matching = [word for word in dict.fromkeys(leading + candidates) if word.startswith(current)]
         return {"count": len(matching), "records": [{"word": word} for word in matching]}, EXIT_OK
 
     @staticmethod
@@ -3803,6 +3894,16 @@ class Program:
         # command (spec, section 8): an option, `--`, a word with one dash or an empty line select the
         # default command, whose words the rest are; a bare word further on is no command and no operand.
         default = self._default()
+        # A global option selects no command: after global options only, --help and --version select their
+        # command as in first place, the options being that command's (agent-cli/v2 2.22.0, section 6).
+        at = _leading_globals(argv)
+        if 0 < at < len(argv) and argv[at] in ("--help", "--version"):
+            argv = [argv[at]] + argv[:at] + argv[at + 1:]
+        if argv and argv[0] in ("--help", "--version"):
+            # As the first word, each is its command spelled as an option, the rest of the line its own:
+            # `--version --help` is the help of version, `--help --version` an option help lacks.
+            words.append("help" if argv[0] == "--help" else "version")
+            index = 1
         implicit = default is not None and (not argv or (argv[0].startswith("-") and argv[0] not in ("--help", "--version")))
         while index < len(argv):
             word = argv[index]
