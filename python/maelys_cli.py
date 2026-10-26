@@ -2039,6 +2039,23 @@ _@ID@_complete() {
         best=$idx; len=$k; bid=$id; bkind=$kind
     done
     if [[ -z $best ]]; then
+        if [[ $cur == -* ]]; then
+            found=1
+            for (( i = 0; i < n; i++ )); do
+                word=${prev[i]}; name=${word%%=*}; flags=
+                [[ $word == --?* && $name != --help ]] || { found=; break; }
+                for row in "${_@ID@_rows[@]}"; do
+                    case $row in "O|g|$name|"*) flags=${row#"O|g|$name|"}; flags=${flags%%|*}; break ;; esac
+                done
+                [[ -n $flags ]] || { found=; break; }
+                if [[ $flags == *a* && $word != *=* ]]; then
+                    (( i + 1 < n )) || { found=; break; }
+                    i=$(( i + 1 ))
+                fi
+            done
+            [[ -n $found ]] && out[${#out[@]}]=--version
+            found=
+        fi
         for row in "${_@ID@_rows[@]}"; do
             case $row in 'C|'*) ;; *) continue ;; esac
             rest=${row#*|}; rest=${rest#*|}; pat=${rest%%|*}
@@ -2154,6 +2171,25 @@ _@ID@_complete() {
         best=${f[2]}; len=$k; bid=${f[4]}; bkind=${f[5]}
     done
     if [[ -z $best ]]; then
+        if [[ $cur == -* ]]; then
+            found=1
+            for (( i = 1; i <= n; i++ )); do
+                word=${prev[i]}; name=${word%%=*}; keep=()
+                [[ $word == --?* && $name != --help ]] || { found=; break; }
+                for row in "${_@ID@_rows[@]}"; do
+                    [[ $row == "O|g|$name|"* ]] || continue
+                    f=("${(@s:|:)row}"); keep=("${f[4]}"); break
+                done
+                (( ${#keep} )) || { found=; break; }
+                if [[ ${keep[1]} == *a* && $word != *=* ]]; then
+                    (( i < n )) || { found=; break; }
+                    i=$(( i + 1 ))
+                fi
+            done
+            [[ -n $found ]] && out+=(--version)
+            found=
+            keep=()
+        fi
         for row in "${_@ID@_rows[@]}"; do
             [[ $row == 'C|'* ]] || continue
             f=("${(@s:|:)row}"); pw=(${=f[3]})
@@ -2286,6 +2322,37 @@ function __@ID@_complete
         set bkind $f[5]
     end
     if test -z "$best"
+        if string match -q -- '-*' "$cur"
+            set -l ok 1
+            set -l i 1
+            while test $i -le $n
+                set -l word $prev[$i]
+                set -l name (string split -m1 -- '=' $word)[1]
+                set -l flags ''
+                if string match -q -- '--?*' $word; and test "$name" != --help
+                    for row in $__@ID@_rows
+                        set -l f (string split -- '|' $row)
+                        if test "$f[1]" = O -a "$f[2]" = g -a "$f[3]" = "$name"
+                            set flags "$f[4]"
+                            break
+                        end
+                    end
+                end
+                if test -z "$flags"
+                    set ok 0
+                    break
+                end
+                if string match -q -- '*a*' $flags; and not string match -q -- '*=*' $word
+                    if test $i -ge $n
+                        set ok 0
+                        break
+                    end
+                    set i (math $i + 1)
+                end
+                set i (math $i + 1)
+            end
+            test $ok -eq 1; and set -a out --version
+        end
         for row in $__@ID@_rows
             string match -q -- 'C|*' $row; or continue
             set -l f (string split -- '|' $row)
@@ -3739,10 +3806,9 @@ class Program:
                 and previous[0] not in ("--help", "--version"):
             command, consumed = default, 0
         candidates: list = []
-        # After global options only, the line is still the program's: a word that starts with a dash may be
-        # --version, as the line would read it (agent-cli/v2 2.22.0, section 6).
-        leading = ["--version"] if previous and current.startswith("-") \
-            and _leading_globals(previous) == len(previous) else []
+        # At the root, before any word but global options, none included, the line is still the program's: a
+        # word that starts with a dash may be --version, as the line would read it (agent-cli/v2 2.22.0, section 6).
+        leading = ["--version"] if current.startswith("-") and _leading_globals(previous) == len(previous) else []
         if command is None:
             # The next pattern word of every command that starts with the words given so far.
             candidates = [other["pattern"][len(previous)] for other in shown

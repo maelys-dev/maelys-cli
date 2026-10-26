@@ -578,6 +578,8 @@ dflt globals-version-operand --lang fr --version extra
 check "global options, --version and an operand fail in the name of version" '[ "$code" = 1 ] && said "^version 1 VALIDATION_FAILED"'
 dflt complete-globals __complete -- --non-interactive --v
 check "after global options only, a dash completes with --version" '[ "$code" = 0 ] && said "\"word\":\"--version\""'
+dflt complete-bare-root __complete -- --v
+check "at the bare root, a dash completes with --version" '[ "$code" = 0 ] && said "\"word\":\"--version\""'
 for line in "--lang fr --help" "--non-interactive --version" "--json --version --help"; do
     run "hello-globals-$line" "$hello" $line --compact
     check "without a default command, global options then $line" '[ "$code" = 0 ]'

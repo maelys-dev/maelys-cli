@@ -17,7 +17,8 @@ version away. `docs/migration.md` says what a product meets.
   one failing in the name of `help` or `version`. `--version --help` is
   the help of `version`; `--help --version` stays refused. C and Python
   alike, through one reading of the leading global options.
-- `__complete` offers `--version` at the root after global options only.
+- `__complete` offers `--version` at the root, before any word but global
+  options, none included.
 - The help's sentence on the default command says it, in English and in
   French: the options in front are its, unless `--help` or `--version`
   comes first or after global options only.

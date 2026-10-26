@@ -3267,10 +3267,10 @@ static int builtin_complete(maelys_cli_context_t *context) {
         given[i] = (char *)maelys_cli_operand(context, i);
     const maelys_cli_app_t *app = context->app;
 
-    /* After global options only, the line is still the program's: a word
-     * that starts with a dash may be --version, as the line would read it
-     * (agent-cli/v2 2.22.0, section 6). */
-    if (given_count > 0u && prefix[0] == '-' &&
+    /* At the root, before any word but global options, none included, the
+     * line is still the program's: a word that starts with a dash may be
+     * --version, as the line would read it (agent-cli/v2 2.22.0, section 6). */
+    if (prefix[0] == '-' &&
         maelys_cli_leading_globals((int)given_count, given) == (int)given_count &&
         !strncmp("--version", prefix, strlen(prefix)) &&
         emit_candidate(context, "--version", prefix) != 0)

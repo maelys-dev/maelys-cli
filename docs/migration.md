@@ -195,8 +195,8 @@ product meets:
   `--help`. A test that pinned the old answer moves with the pin.
 - **The help's sentence on the default command changes words**, in English
   and in French, so a test that compares the help text moves too.
-- **`__complete` offers `--version`** at the root after global options
-  only.
+- **`__complete` offers `--version`** at the root, before any word but
+  global options, none included.
 
 ## Every consumer, at agent-cli-spec 2.21.0
 
