@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.13.0 - 2026-10-26
 
 A regex can be searched without allocating: a product that matches its
 own patterns on a hot path -- a ref rule at every authorization -- gives
