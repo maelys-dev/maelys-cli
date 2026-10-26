@@ -2329,10 +2329,10 @@ function __@ID@_complete
                 set -l word $prev[$i]
                 set -l name (string split -m1 -- '=' $word)[1]
                 set -l flags ''
-                if string match -q -- '--?*' $word; and test "$name" != --help
+                if string match -q -r -- '^--.' $word; and test "x$name" != "x--help"
                     for row in $__@ID@_rows
                         set -l f (string split -- '|' $row)
-                        if test "$f[1]" = O -a "$f[2]" = g -a "$f[3]" = "$name"
+                        if test "x$f[1]" = xO -a "x$f[2]" = xg -a "x$f[3]" = "x$name"
                             set flags "$f[4]"
                             break
                         end
