@@ -301,6 +301,7 @@ header-check: $(HEADER_CPP)
 check-version:
 	@test "$(VERSION)" = "$$(sed -n 's/^#define MAELYS_CLI_VERSION "\([^"]*\)"/\1/p' include/maelys/cli/version.h)"
 	@grep -q "^## $(VERSION)" CHANGELOG.md
+	python3 -B scripts/sync-typescript-version.py --check
 
 api-doc-check:
 	./scripts/api-doc-check.sh
@@ -346,6 +347,37 @@ python-check:
 .PHONY: layout-check
 layout-check:
 	python3 -B scripts/layout-check.py
+
+# Native consumers do not need Node/npm. CI requires both native and Node legs.
+NODE ?= node
+NPM ?= npm
+.PHONY: typescript-build typescript-check typescript-builtins-check typescript-conformance-check typescript-parity-check check-all
+typescript-build:
+	$(NPM) run build --prefix typescript
+
+typescript-builtins-check: $(EXAMPLE) $(BUILD)/tests/catalog_surface $(BUILD)/tests/default_surface
+	python3 -B scripts/typescript-builtins.py --build $(BUILD)
+
+typescript-conformance-check: typescript-build
+	@mkdir -p "$(BUILD)"
+	@test "$$(git -C "$(AGENT_CLI_SPEC_DIR)" rev-parse HEAD)" = "$$(sed -n 2p dependencies/agent-cli-spec.pin)" || \
+		{ echo "typescript-conformance-check: use the pinned agent-cli-spec checkout" >&2; exit 1; }
+	@for fixture in "typescript/examples/hello.mjs" "typescript/tests/surface.mjs" "typescript/tests/surface.mjs --default-fixture"; do \
+		if LC_ALL=C.UTF-8 PYTHONDONTWRITEBYTECODE=1 python3 "$(AGENT_CLI_SPEC_DIR)/conformance/run.py" $(NODE) $$fixture > $(BUILD)/typescript-conformance.log 2>&1; then \
+			tail -1 $(BUILD)/typescript-conformance.log; \
+		else grep -E '^(FAIL|conformance:)' $(BUILD)/typescript-conformance.log; exit 1; fi; \
+	done
+
+typescript-parity-check: typescript-build $(EXAMPLE) $(BUILD)/tests/default_surface
+	python3 -B scripts/typescript-parity-check.py --build $(BUILD)
+
+typescript-check: typescript-builtins-check typescript-build
+	python3 -B scripts/sync-typescript-version.py --check
+	$(NODE) --test typescript/tests/*.test.mjs
+	$(MAKE) typescript-conformance-check typescript-parity-check
+	$(NODE) scripts/typescript-package-check.mjs
+
+check-all: check typescript-check
 
 # The two reference products describe the same declaration in the same
 # shape and complete it with the same words: the value members of every
@@ -430,7 +462,7 @@ describe-schema-check: $(BUILD)/tests/catalog_surface
 conformance-check: $(DISPATCHER) $(EXAMPLE) $(BUILD)/tests/catalog_surface $(BUILD)/tests/default_surface
 	@test -x $(AGENT_CLI_SPEC_DIR)/conformance/run.py || \
 		{ echo "conformance-check: no pinned agent-cli-spec at '$(AGENT_CLI_SPEC_DIR)': MAELYS_DEPENDENCIES_DIR must name the root 'maelys-release dependencies . --apply' materialised, or AGENT_CLI_SPEC_DIR its pinned checkout" >&2; exit 1; }
-	@test "$$(git -C $(AGENT_CLI_SPEC_DIR) rev-parse HEAD)" = "$$(sed -n 2p dependencies/agent-cli-spec.pin)" || \
+	@test "$$(git -C "$(AGENT_CLI_SPEC_DIR)" rev-parse HEAD)" = "$$(sed -n 2p dependencies/agent-cli-spec.pin)" || \
 		{ echo "conformance-check: $(AGENT_CLI_SPEC_DIR) is not at dependencies/agent-cli-spec.pin" >&2; exit 1; }
 	@# The products, and the catalog declaring every macro: a declaration no
 	@# product exercises is one the kit never judged (spec 2.5.1, section 10).

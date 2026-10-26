@@ -123,3 +123,11 @@ when it has what they name.
   public one anyone can open a pull request. `linux-x86_64` is also where the
   release's write token runs.
 <!-- maelys-release:end -->
+
+## Native TypeScript runtime
+
+The Node implementation lives in `typescript/` and follows the C reference
+and the same pinned agent-cli/v2 contract. Read `docs/typescript.md` and the
+TypeScript section of `AGENTS.md`; run `make typescript-check` in addition
+to native checks. Do not edit calculated catalogs, shell templates or
+translation tables; regenerate with `scripts/typescript-builtins.py`.

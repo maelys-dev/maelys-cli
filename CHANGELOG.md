@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- Add the native TypeScript/JavaScript runtime under `typescript/`, packaged
+  as `@maelys-dev/cli` with ESM and declarations, Node >=22.13.0 and no runtime
+  dependencies. It implements the pinned agent-cli/v2 catalog, parser,
+  built-ins, rendering, exact 64-bit values and common-subset Thompson matcher.
+- Add POSIX bounded reads, explicit atomic write policies and plan fingerprints;
+  native trusted-process/dispatcher and all file-trust flags remain outside
+  this first Node surface. No guarantees are borrowed from the C layer.
+- Check the Node implementation against the same spec, full declaration
+  surface, shared pattern corpus and default-command fixture; compare common
+  C/Python/Node cases and fingerprints. Verify an offline installed package.
+- The aggregate required CI now includes Node on all three native targets,
+  and the declared minimum Node version. Synchronize the npm package version
+  with VERSION during the normal release cut. The npm channel is not enabled.
+- `python/maelys_cli.py`: unchanged; existing C/Python public behavior remains
+  the reference. The TypeScript additions have existing C/Python counterparts
+  within their documented initial surface.
+
 - Move the C implementation into `c/` with relative compatibility links for
   the existing source paths; preserve the root build entry points, installed
   headers and archives. Adapt the C end-to-end harness's repository paths.

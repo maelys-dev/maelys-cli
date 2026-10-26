@@ -1,0 +1,206 @@
+[
+  {
+    "id": "show",
+    "pattern": [
+      "show"
+    ],
+    "usage": "show [FILE] [--label TEXT] [--count N] [--level low|high]",
+    "purpose": "Show a file, the default command.",
+    "effect": "read",
+    "outputMode": "json-envelope",
+    "external": false,
+    "hidden": false,
+    "available": true,
+    "input": {
+      "synopsis": "show [FILE] [--label TEXT] [--count N] [--level low|high]",
+      "operands": [
+        {
+          "name": "FILE",
+          "required": false,
+          "variadic": false,
+          "summary": "File to show."
+        }
+      ],
+      "options": [
+        {
+          "long": "--label",
+          "required": false,
+          "repeatable": false,
+          "summary": "Label of what is shown.",
+          "argument": {
+            "name": "TEXT",
+            "type": "string"
+          },
+          "requires": [],
+          "conflictsWith": []
+        },
+        {
+          "long": "--count",
+          "required": false,
+          "repeatable": false,
+          "summary": "How many lines.",
+          "argument": {
+            "name": "N",
+            "type": "unsigned",
+            "minimum": 1,
+            "maximum": 10
+          },
+          "requires": [],
+          "conflictsWith": []
+        },
+        {
+          "long": "--level",
+          "required": false,
+          "repeatable": false,
+          "summary": "Level of detail.",
+          "argument": {
+            "name": "VALUE",
+            "type": "choice",
+            "choices": [
+              "low",
+              "high"
+            ]
+          },
+          "requires": [],
+          "conflictsWith": []
+        }
+      ],
+      "constraints": [],
+      "passthrough": false
+    },
+    "outputSchema": {
+      "type": "object"
+    },
+    "exitCodes": {
+      "0": "command completed",
+      "1": "execution failed",
+      "2": "valid report with violations"
+    }
+  },
+  {
+    "id": "list",
+    "pattern": [
+      "list"
+    ],
+    "usage": "list [--limit N]",
+    "purpose": "List the entries.",
+    "effect": "read",
+    "outputMode": "json-envelope",
+    "external": false,
+    "hidden": false,
+    "available": true,
+    "input": {
+      "synopsis": "list [--limit N]",
+      "operands": [],
+      "options": [
+        {
+          "long": "--limit",
+          "required": false,
+          "repeatable": false,
+          "summary": "Maximum number of entries.",
+          "argument": {
+            "name": "N",
+            "type": "unsigned",
+            "maximum": 1000
+          },
+          "requires": [],
+          "conflictsWith": []
+        }
+      ],
+      "constraints": [],
+      "passthrough": false
+    },
+    "outputSchema": {
+      "type": "object"
+    },
+    "exitCodes": {
+      "0": "command completed",
+      "1": "execution failed",
+      "2": "valid report with violations"
+    }
+  },
+  {
+    "id": "save",
+    "pattern": [
+      "save"
+    ],
+    "usage": "save --content TEXT [--apply]",
+    "purpose": "Save a text; plans by default.",
+    "effect": {
+      "plan": "preview",
+      "apply": "apply"
+    },
+    "outputMode": "json-envelope",
+    "external": false,
+    "hidden": false,
+    "available": true,
+    "input": {
+      "synopsis": "save --content TEXT [--apply]",
+      "operands": [],
+      "options": [
+        {
+          "long": "--content",
+          "required": true,
+          "repeatable": false,
+          "summary": "Text to save.",
+          "argument": {
+            "name": "TEXT",
+            "type": "string"
+          },
+          "requires": [],
+          "conflictsWith": []
+        },
+        {
+          "long": "--apply",
+          "required": false,
+          "repeatable": false,
+          "summary": "Apply the reviewed plan; without it the command only plans.",
+          "requires": [],
+          "conflictsWith": []
+        }
+      ],
+      "constraints": [],
+      "passthrough": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "required": [
+        "mode",
+        "changed"
+      ]
+    },
+    "exitCodes": {
+      "0": "command completed",
+      "1": "execution failed",
+      "2": "valid report with violations"
+    }
+  },
+  {
+    "id": "watch",
+    "pattern": [
+      "watch"
+    ],
+    "usage": "watch",
+    "purpose": "Watch the entries on stdout.",
+    "effect": "stream",
+    "outputMode": "protocol-stream",
+    "external": false,
+    "hidden": false,
+    "available": true,
+    "input": {
+      "synopsis": "watch",
+      "operands": [],
+      "options": [],
+      "constraints": [],
+      "passthrough": false
+    },
+    "outputSchema": {
+      "type": "object"
+    },
+    "exitCodes": {
+      "0": "command completed",
+      "1": "execution failed",
+      "2": "valid report with violations"
+    }
+  }
+]

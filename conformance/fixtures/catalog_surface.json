@@ -1,0 +1,888 @@
+[
+  {
+    "id": "refuse",
+    "pattern": [
+      "refuse"
+    ],
+    "usage": "refuse",
+    "purpose": "Fails with a cause of the product beside a stable code.",
+    "effect": "read",
+    "outputMode": "json-envelope",
+    "external": false,
+    "hidden": false,
+    "available": true,
+    "input": {
+      "synopsis": "refuse",
+      "operands": [],
+      "options": [],
+      "constraints": [],
+      "passthrough": false
+    },
+    "outputSchema": {
+      "type": "object"
+    },
+    "exitCodes": {
+      "0": "command completed",
+      "1": "execution failed",
+      "2": "valid report with violations"
+    }
+  },
+  {
+    "id": "read",
+    "pattern": [
+      "read"
+    ],
+    "usage": "read NAME LEVEL PATH [EXTRA] [SUM] [OID] [REF] [LABEL] [REST...] --mandatory TEXT [--plain] [--text TEXT...] [--named NAME] [--file FILE] [--root DIR] [--count N] [--offset N] [--memory BYTES] [--wall-time DURATION] [--level quiet|normal|loud] [--short-digest HEX] [--digest HEX] [--checksum DIGEST] [--strict] [--lenient] [--combined] [--paired-a] [--paired-b]",
+    "purpose": "A read with the whole option surface.",
+    "effect": "read",
+    "outputMode": "json-envelope",
+    "external": false,
+    "hidden": false,
+    "available": true,
+    "input": {
+      "synopsis": "read NAME LEVEL PATH [EXTRA] [SUM] [OID] [REF] [LABEL] [REST...] --mandatory TEXT [--plain] [--text TEXT...] [--named NAME] [--file FILE] [--root DIR] [--count N] [--offset N] [--memory BYTES] [--wall-time DURATION] [--level quiet|normal|loud] [--short-digest HEX] [--digest HEX] [--checksum DIGEST] [--strict] [--lenient] [--combined] [--paired-a] [--paired-b]",
+      "operands": [
+        {
+          "name": "NAME",
+          "required": true,
+          "variadic": false,
+          "summary": "A required operand."
+        },
+        {
+          "name": "LEVEL",
+          "required": true,
+          "variadic": false,
+          "summary": "A required operand of a closed set.",
+          "type": "choice",
+          "choices": [
+            "quiet",
+            "normal",
+            "loud"
+          ]
+        },
+        {
+          "name": "PATH",
+          "required": true,
+          "variadic": false,
+          "summary": "A required operand of a value kind.",
+          "type": "absolute-path"
+        },
+        {
+          "name": "EXTRA",
+          "required": false,
+          "variadic": false,
+          "summary": "An optional operand."
+        },
+        {
+          "name": "SUM",
+          "required": false,
+          "variadic": false,
+          "summary": "A fixed-width hex sum.",
+          "type": "hex",
+          "digits": 64
+        },
+        {
+          "name": "OID",
+          "required": false,
+          "variadic": false,
+          "summary": "A hex id of either width.",
+          "type": "hex",
+          "digits": [
+            40,
+            64
+          ]
+        },
+        {
+          "name": "REF",
+          "required": false,
+          "variadic": false,
+          "summary": "An algorithm-prefixed digest.",
+          "type": "digest",
+          "algorithms": [
+            "sha256",
+            "sha512"
+          ]
+        },
+        {
+          "name": "LABEL",
+          "required": false,
+          "variadic": false,
+          "summary": "A matched label.",
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*$"
+        },
+        {
+          "name": "REST",
+          "required": false,
+          "variadic": true,
+          "summary": "Every remaining operand."
+        }
+      ],
+      "options": [
+        {
+          "long": "--plain",
+          "required": false,
+          "repeatable": false,
+          "summary": "A flag, the simplest option.",
+          "requires": [],
+          "conflictsWith": []
+        },
+        {
+          "long": "--hidden-flag",
+          "required": false,
+          "repeatable": false,
+          "summary": "Parsed and described, never shown.",
+          "requires": [],
+          "conflictsWith": [],
+          "hidden": true
+        },
+        {
+          "long": "--text",
+          "required": false,
+          "repeatable": true,
+          "summary": "A free string, repeatable.",
+          "argument": {
+            "name": "TEXT",
+            "type": "string"
+          },
+          "requires": [],
+          "conflictsWith": []
+        },
+        {
+          "long": "--named",
+          "required": false,
+          "repeatable": false,
+          "summary": "A string constrained by a pattern.",
+          "argument": {
+            "name": "NAME",
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*$"
+          },
+          "requires": [],
+          "conflictsWith": []
+        },
+        {
+          "long": "--file",
+          "required": false,
+          "repeatable": false,
+          "summary": "A path.",
+          "argument": {
+            "name": "FILE",
+            "type": "path"
+          },
+          "requires": [],
+          "conflictsWith": []
+        },
+        {
+          "long": "--root",
+          "required": false,
+          "repeatable": false,
+          "summary": "An absolute path.",
+          "argument": {
+            "name": "DIR",
+            "type": "absolute-path"
+          },
+          "requires": [],
+          "conflictsWith": []
+        },
+        {
+          "long": "--count",
+          "required": false,
+          "repeatable": false,
+          "summary": "An unsigned bounded value.",
+          "argument": {
+            "name": "N",
+            "type": "unsigned",
+            "minimum": 1,
+            "maximum": 10
+          },
+          "default": "10",
+          "requires": [],
+          "conflictsWith": []
+        },
+        {
+          "long": "--offset",
+          "required": false,
+          "repeatable": false,
+          "summary": "A signed bounded value.",
+          "argument": {
+            "name": "N",
+            "type": "integer",
+            "minimum": -100,
+            "maximum": 100
+          },
+          "requires": [],
+          "conflictsWith": []
+        },
+        {
+          "long": "--memory",
+          "required": false,
+          "repeatable": false,
+          "summary": "A size with K/M/G accepted.",
+          "argument": {
+            "name": "BYTES",
+            "type": "size",
+            "minimum": 1
+          },
+          "requires": [],
+          "conflictsWith": []
+        },
+        {
+          "long": "--wall-time",
+          "required": false,
+          "repeatable": false,
+          "summary": "A duration with its unit.",
+          "argument": {
+            "name": "DURATION",
+            "type": "duration"
+          },
+          "requires": [],
+          "conflictsWith": []
+        },
+        {
+          "long": "--level",
+          "required": false,
+          "repeatable": false,
+          "summary": "A closed set of values.",
+          "argument": {
+            "name": "VALUE",
+            "type": "choice",
+            "choices": [
+              "quiet",
+              "normal",
+              "loud"
+            ]
+          },
+          "default": "normal",
+          "requires": [],
+          "conflictsWith": []
+        },
+        {
+          "long": "--short-digest",
+          "required": false,
+          "repeatable": false,
+          "summary": "A hex value of one length.",
+          "argument": {
+            "name": "HEX",
+            "type": "hex",
+            "digits": 40
+          },
+          "requires": [],
+          "conflictsWith": []
+        },
+        {
+          "long": "--digest",
+          "required": false,
+          "repeatable": false,
+          "summary": "A hex value of either length.",
+          "argument": {
+            "name": "HEX",
+            "type": "hex",
+            "digits": [
+              40,
+              64
+            ]
+          },
+          "requires": [],
+          "conflictsWith": []
+        },
+        {
+          "long": "--checksum",
+          "required": false,
+          "repeatable": false,
+          "summary": "An algorithm-prefixed digest.",
+          "argument": {
+            "name": "DIGEST",
+            "type": "digest",
+            "algorithms": [
+              "sha256",
+              "sha512"
+            ]
+          },
+          "requires": [],
+          "conflictsWith": []
+        },
+        {
+          "long": "--strict",
+          "required": false,
+          "repeatable": false,
+          "summary": "Requires another option.",
+          "requires": [
+            "--level"
+          ],
+          "conflictsWith": []
+        },
+        {
+          "long": "--lenient",
+          "required": false,
+          "repeatable": false,
+          "summary": "Conflicts with another option.",
+          "requires": [],
+          "conflictsWith": [
+            "--strict"
+          ]
+        },
+        {
+          "long": "--combined",
+          "required": false,
+          "repeatable": false,
+          "summary": "Requires every listed option.",
+          "requires": [
+            "--paired-a",
+            "--paired-b"
+          ],
+          "conflictsWith": []
+        },
+        {
+          "long": "--paired-a",
+          "required": false,
+          "repeatable": false,
+          "summary": "Given with paired-b or not at all.",
+          "requires": [],
+          "conflictsWith": [],
+          "group": "pair"
+        },
+        {
+          "long": "--paired-b",
+          "required": false,
+          "repeatable": false,
+          "summary": "Given with paired-a or not at all.",
+          "requires": [],
+          "conflictsWith": [],
+          "group": "pair"
+        },
+        {
+          "long": "--mandatory",
+          "required": true,
+          "repeatable": false,
+          "summary": "A required option.",
+          "argument": {
+            "name": "TEXT",
+            "type": "string"
+          },
+          "requires": [],
+          "conflictsWith": []
+        }
+      ],
+      "constraints": [
+        {
+          "kind": "requires",
+          "options": [
+            "--strict",
+            "--level"
+          ]
+        },
+        {
+          "kind": "at-most-one",
+          "options": [
+            "--lenient",
+            "--strict"
+          ]
+        },
+        {
+          "kind": "requires",
+          "options": [
+            "--combined",
+            "--paired-a"
+          ]
+        },
+        {
+          "kind": "requires",
+          "options": [
+            "--combined",
+            "--paired-b"
+          ]
+        },
+        {
+          "kind": "all-or-none",
+          "options": [
+            "--paired-a",
+            "--paired-b"
+          ]
+        },
+        {
+          "kind": "exactly-one",
+          "options": [
+            "--plain",
+            "--text",
+            "--file"
+          ]
+        },
+        {
+          "kind": "at-most-one",
+          "options": [
+            "--strict",
+            "--lenient",
+            "--combined"
+          ]
+        },
+        {
+          "kind": "requires",
+          "options": [
+            "--named",
+            "--count",
+            "--offset"
+          ]
+        }
+      ],
+      "passthrough": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "additionalProperties": false
+    },
+    "exitCodes": {
+      "0": "command completed",
+      "1": "execution failed",
+      "2": "valid report with violations"
+    }
+  },
+  {
+    "id": "records",
+    "pattern": [
+      "records"
+    ],
+    "usage": "records",
+    "purpose": "A records command.",
+    "effect": "read",
+    "outputMode": "json-records",
+    "external": false,
+    "hidden": false,
+    "available": true,
+    "input": {
+      "synopsis": "records",
+      "operands": [],
+      "options": [],
+      "constraints": [],
+      "passthrough": false
+    },
+    "examples": [
+      {
+        "words": [
+          "records"
+        ],
+        "summary": "List the records."
+      },
+      {
+        "words": [
+          "records",
+          "--format",
+          "jsonl"
+        ],
+        "summary": "One JSON object per line."
+      },
+      {
+        "words": [
+          "records",
+          "--format=json",
+          "--compact"
+        ],
+        "summary": "One envelope, on one line."
+      }
+    ],
+    "outputSchema": {
+      "type": "object",
+      "additionalProperties": false
+    },
+    "exitCodes": {
+      "0": "command completed",
+      "1": "execution failed",
+      "2": "valid report with violations"
+    }
+  },
+  {
+    "id": "plan.apply",
+    "pattern": [
+      "plan",
+      "apply"
+    ],
+    "usage": "plan apply TARGET [--force] [--apply]",
+    "purpose": "A transaction that plans and applies.",
+    "effect": {
+      "plan": "preview",
+      "apply": "apply"
+    },
+    "outputMode": "json-envelope",
+    "external": false,
+    "hidden": false,
+    "available": true,
+    "input": {
+      "synopsis": "plan apply TARGET [--force] [--apply]",
+      "operands": [
+        {
+          "name": "TARGET",
+          "required": true,
+          "variadic": false,
+          "summary": "A required operand."
+        }
+      ],
+      "options": [
+        {
+          "long": "--force",
+          "required": false,
+          "repeatable": false,
+          "summary": "An ordinary flag beside --apply.",
+          "requires": [],
+          "conflictsWith": []
+        },
+        {
+          "long": "--apply",
+          "required": false,
+          "repeatable": false,
+          "summary": "Apply the reviewed plan; without it the command only plans.",
+          "requires": [],
+          "conflictsWith": []
+        }
+      ],
+      "constraints": [],
+      "passthrough": false
+    },
+    "outputSchema": {
+      "type": "object"
+    },
+    "exitCodes": {
+      "0": "command completed",
+      "1": "execution failed",
+      "2": "valid report with violations"
+    }
+  },
+  {
+    "id": "plan.commit",
+    "pattern": [
+      "plan",
+      "commit"
+    ],
+    "usage": "plan commit TARGET [--force] [--apply]",
+    "purpose": "A transaction that plans and commits.",
+    "effect": {
+      "plan": "preview",
+      "apply": "commit"
+    },
+    "outputMode": "json-envelope",
+    "external": false,
+    "hidden": false,
+    "available": true,
+    "input": {
+      "synopsis": "plan commit TARGET [--force] [--apply]",
+      "operands": [
+        {
+          "name": "TARGET",
+          "required": true,
+          "variadic": false,
+          "summary": "A required operand."
+        }
+      ],
+      "options": [
+        {
+          "long": "--force",
+          "required": false,
+          "repeatable": false,
+          "summary": "An ordinary flag beside --apply.",
+          "requires": [],
+          "conflictsWith": []
+        },
+        {
+          "long": "--apply",
+          "required": false,
+          "repeatable": false,
+          "summary": "Apply the reviewed plan; without it the command only plans.",
+          "requires": [],
+          "conflictsWith": []
+        }
+      ],
+      "constraints": [],
+      "passthrough": false
+    },
+    "outputSchema": {
+      "type": "object"
+    },
+    "exitCodes": {
+      "0": "command completed",
+      "1": "execution failed",
+      "2": "valid report with violations"
+    }
+  },
+  {
+    "id": "plan.bound",
+    "pattern": [
+      "plan",
+      "bound"
+    ],
+    "usage": "plan bound [--apply] [--expect FINGERPRINT]",
+    "purpose": "A transaction whose plan can be bound.",
+    "effect": {
+      "plan": "preview",
+      "apply": "apply"
+    },
+    "outputMode": "json-envelope",
+    "external": false,
+    "hidden": false,
+    "available": true,
+    "input": {
+      "synopsis": "plan bound [--apply] [--expect FINGERPRINT]",
+      "operands": [],
+      "options": [
+        {
+          "long": "--apply",
+          "required": false,
+          "repeatable": false,
+          "summary": "Apply the reviewed plan; without it the command only plans.",
+          "requires": [],
+          "conflictsWith": []
+        },
+        {
+          "long": "--expect",
+          "required": false,
+          "repeatable": false,
+          "summary": "Apply only the plan this fingerprint names; a plan that has changed since is refused before anything is written.",
+          "argument": {
+            "name": "FINGERPRINT",
+            "type": "digest",
+            "algorithms": [
+              "sha256"
+            ]
+          },
+          "requires": [
+            "--apply"
+          ],
+          "conflictsWith": []
+        }
+      ],
+      "constraints": [
+        {
+          "kind": "requires",
+          "options": [
+            "--expect",
+            "--apply"
+          ]
+        }
+      ],
+      "passthrough": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "required": [
+        "mode",
+        "fingerprint"
+      ]
+    },
+    "exitCodes": {
+      "0": "command completed",
+      "1": "execution failed",
+      "2": "valid report with violations"
+    }
+  },
+  {
+    "id": "execute",
+    "pattern": [
+      "execute"
+    ],
+    "usage": "execute",
+    "purpose": "An execute command.",
+    "effect": "execute",
+    "outputMode": "json-envelope",
+    "external": false,
+    "hidden": false,
+    "available": true,
+    "input": {
+      "synopsis": "execute",
+      "operands": [],
+      "options": [],
+      "constraints": [],
+      "passthrough": false
+    },
+    "outputSchema": {
+      "type": "object"
+    },
+    "exitCodes": {
+      "0": "command completed",
+      "1": "execution failed",
+      "2": "valid report with violations"
+    }
+  },
+  {
+    "id": "stream",
+    "pattern": [
+      "stream"
+    ],
+    "usage": "stream TARGET | stream -- TARGET",
+    "purpose": "A stream that owns stdio.",
+    "effect": "stream",
+    "outputMode": "protocol-stream",
+    "external": false,
+    "hidden": false,
+    "available": true,
+    "input": {
+      "synopsis": "stream TARGET | stream -- TARGET",
+      "operands": [
+        {
+          "name": "TARGET",
+          "required": true,
+          "variadic": false,
+          "summary": "A required operand."
+        }
+      ],
+      "options": [],
+      "constraints": [],
+      "passthrough": false
+    },
+    "outputSchema": {
+      "type": "object"
+    },
+    "exitCodes": {
+      "0": "command completed",
+      "1": "execution failed",
+      "2": "valid report with violations"
+    }
+  },
+  {
+    "id": "protocol",
+    "pattern": [
+      "protocol"
+    ],
+    "usage": "protocol",
+    "purpose": "A stream that names its protocol.",
+    "effect": "stream",
+    "outputMode": "protocol-stream",
+    "protocol": "surface/v1",
+    "external": false,
+    "hidden": false,
+    "available": true,
+    "input": {
+      "synopsis": "protocol",
+      "operands": [],
+      "options": [],
+      "constraints": [],
+      "passthrough": false
+    },
+    "outputSchema": {
+      "type": "object"
+    },
+    "exitCodes": {
+      "0": "command completed",
+      "1": "execution failed",
+      "2": "valid report with violations"
+    }
+  },
+  {
+    "id": "external",
+    "pattern": [
+      "external"
+    ],
+    "usage": "external TARGET",
+    "purpose": "A command delegated to a helper.",
+    "effect": "execute",
+    "outputMode": "protocol-stream",
+    "external": true,
+    "hidden": false,
+    "available": true,
+    "input": {
+      "synopsis": "external TARGET",
+      "operands": [
+        {
+          "name": "TARGET",
+          "required": true,
+          "variadic": false,
+          "summary": "A required operand."
+        }
+      ],
+      "options": [],
+      "constraints": [],
+      "passthrough": true
+    },
+    "outputSchema": {
+      "type": "object"
+    },
+    "exitCodes": {
+      "0": "command completed",
+      "1": "execution failed",
+      "2": "valid report with violations"
+    }
+  },
+  {
+    "id": "hidden",
+    "pattern": [
+      "hidden"
+    ],
+    "usage": "hidden",
+    "purpose": "Described, never shown.",
+    "effect": "read",
+    "outputMode": "json-envelope",
+    "external": false,
+    "hidden": true,
+    "available": true,
+    "input": {
+      "synopsis": "hidden",
+      "operands": [],
+      "options": [],
+      "constraints": [],
+      "passthrough": false
+    },
+    "outputSchema": {
+      "type": "object"
+    },
+    "exitCodes": {
+      "0": "command completed",
+      "1": "execution failed",
+      "2": "valid report with violations"
+    }
+  },
+  {
+    "id": "absent",
+    "pattern": [
+      "absent"
+    ],
+    "usage": "absent",
+    "purpose": "Declared, not built here.",
+    "effect": "read",
+    "outputMode": "json-envelope",
+    "external": false,
+    "hidden": false,
+    "available": false,
+    "unavailableReason": "built without the surface backend",
+    "input": {
+      "synopsis": "absent",
+      "operands": [],
+      "options": [],
+      "constraints": [],
+      "passthrough": false
+    },
+    "outputSchema": {
+      "type": "object"
+    },
+    "exitCodes": {
+      "0": "command completed",
+      "1": "execution failed",
+      "2": "valid report with violations"
+    }
+  },
+  {
+    "id": "refused",
+    "pattern": [
+      "refused"
+    ],
+    "usage": "refused",
+    "purpose": "Declared, refused here.",
+    "effect": "read",
+    "outputMode": "json-envelope",
+    "external": false,
+    "hidden": false,
+    "available": false,
+    "unavailableReason": "the backend binary does not match its declared digest",
+    "input": {
+      "synopsis": "refused",
+      "operands": [],
+      "options": [],
+      "constraints": [],
+      "passthrough": false
+    },
+    "outputSchema": {
+      "type": "object"
+    },
+    "exitCodes": {
+      "0": "command completed",
+      "1": "execution failed",
+      "2": "valid report with violations"
+    }
+  }
+]
