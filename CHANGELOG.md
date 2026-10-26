@@ -1,10 +1,13 @@
 # Changelog
 
-## Unreleased
+## 0.14.0 - 2026-10-26
 
-agent-cli-spec 2.22.0 (pinned): a global option selects no command, so global
-options in front of `--help` or `--version` no longer take the help or the
-version away. `docs/migration.md` says what a product meets.
+Pinned to agent-cli-spec 2.22.0: a global option selects no command, so
+`PROGRAM --lang fr --help` and `PROGRAM --json --version` now answer, and a
+product with a default command gives the program's help to global options
+followed by `--help`. The C sources move under `c/`: a product that reads
+maelys-cli's source tree reads `c/include/` from this pin. Nothing in a
+catalog or a handler changes; `docs/migration.md` says what a product meets.
 
 - After global options only, each with its value, `--help` and `--version`
   select their command as in first place (agent-cli/v2 2.22.0, section 6):
