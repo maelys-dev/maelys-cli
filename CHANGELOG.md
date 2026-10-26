@@ -10,6 +10,11 @@
   is the help, where Python answered `INVALID_COMMAND`. The specification
   leaves these lines open without a default command; C and Python now
   read them alike, and `tests/test_cli.sh` asks both the same lines.
+- maelys-release v0.65.1 adopted: the two workflows pin it; it asks
+  nothing of a product.
+- `docs/migration.md` lists maelys-warden among the consumers that read
+  `include/` from a source checkout and move to `c/include/` with their
+  next pin.
 
 ## 0.14.0 - 2026-10-26
 
