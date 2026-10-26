@@ -1,6 +1,6 @@
 #!/bin/sh
 # SPDX-License-Identifier: MPL-2.0
-# Regenerates the version macros of include/maelys/cli/version.h from VERSION.
+# Regenerates the version macros of c/include/maelys/cli/version.h from VERSION.
 # The version is materialised twice, in VERSION and in the public header;
 # `make check-version` fails when they drift, and this script is what closes
 # the gap. `maelys-release cut` runs it between writing VERSION and the bump
@@ -8,7 +8,7 @@
 # commit and the checks of that commit see a consistent pair.
 # Usage: sync-version.sh [--check]; --check only reports.
 set -eu
-header=include/maelys/cli/version.h
+header=c/include/maelys/cli/version.h
 version=$(sed -n '1p' VERSION)
 case "$version" in
     [0-9]*.[0-9]*.[0-9]*) ;;

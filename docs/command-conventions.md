@@ -71,7 +71,7 @@ mismatch with `VALIDATION_FAILED`, as a search (`^` and `$` anchor the
 value). It is written in a subset that ECMA-262, read with the `u` flag,
 and POSIX ERE read the same way, so that an agent,
 the kit, the C parser and the Python module read one motif, and the library
-reads and matches that subset itself (`src/pattern.c`, and the same reader
+reads and matches that subset itself (`c/src/pattern.c`, and the same reader
 and matcher in the Python module): no `regcomp()`, no libc dialect, no
 backtracking. A search is a Thompson simulation of the pattern's program,
 O((value length + 1) x states) in time and O(states) in memory, states
@@ -90,7 +90,7 @@ without a leading zero, `n` at most 255, what POSIX guarantees of an ERE
 engine (`RE_DUP_MAX`) that reads the motif out of `describe`; `^` and `$`.
 A pattern outside it, `(?:`, `\d`, `[[:alpha:]]`, a lazy `*?`, `[a-z-9]`,
 `{0,054}`, a bound above 255, is refused at startup with the reason, in C
-and in Python alike. `tests/patterns.tsv` is the corpus both answer, which
+and in Python alike. `c/tests/patterns.tsv` is the corpus both answer, which
 V8 answers too (`make check`, where Node is installed), and `make fuzz`
 holds the matcher to RE2 on every pattern it generates, `.` given to it as
 `[^\n\r U+2028 U+2029]`, the translation section 3 names. A value is read as UTF-8
@@ -346,7 +346,7 @@ form that runs `list`. A C program refuses `PROGRAM --json list` either way.
 How a program without a default reads an empty line, or a line that starts
 with an option, is left as it was: C shows the help for the first and
 refuses the second, Python refuses the first and looks for the command
-further on in the second. `tests/test_cli.sh` sets the two answers side by
+further on in the second. `c/tests/test_cli.sh` sets the two answers side by
 side on one catalog, before and after a default is declared.
 
 ## Examples

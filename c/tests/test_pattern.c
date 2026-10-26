@@ -1,14 +1,14 @@
-/* src/pattern.c: the reader and matcher of argument.pattern, and the
+/* c/src/pattern.c: the reader and matcher of argument.pattern, and the
  * public API it is (maelys/cli/regex.h).
  *
- * tests/patterns.tsv is the corpus both this test and
+ * c/tests/patterns.tsv is the corpus both this test and
  * python/tests/test_maelys_cli.py answer: every `check` line is a pattern
  * the subset admits, or refuses with the family it names, every `match`
  * line a value it matches or not. On top of it, where the dialects agree -- a pattern the subset
  * admits, a value of printable ASCII -- the libc's own regcomp()/regexec()
  * must answer as this matcher does: the subset is what the two engines
  * read alike, and this is the check that it is. The corpus path is argv[1],
- * tests/patterns.tsv from the repository root otherwise. */
+ * c/tests/patterns.tsv from the repository root otherwise. */
 #include "check.h"
 #include "internal.h"
 #include "maelys/cli/regex.h"
@@ -23,9 +23,9 @@
 
 #define LINE_MAX_BYTES 2048u
 
-static const char *corpus_path = "tests/patterns.tsv";
+static const char *corpus_path = "c/tests/patterns.tsv";
 
-/* Built with its own copy of src/pattern.c and MAELYS_CLI_ALLOC_HOOK, as
+/* Built with its own copy of c/src/pattern.c and MAELYS_CLI_ALLOC_HOOK, as
  * test_files is with files.c: the countdown fails the allocation it reaches
  * zero on, so that every NO_MEMORY and ENOMEM path runs. */
 static int alloc_countdown = -1;

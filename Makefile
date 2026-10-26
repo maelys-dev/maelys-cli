@@ -12,7 +12,7 @@ CFLAGS ?= -O2 -g
 CXXFLAGS ?= -O2 -g
 WARNINGS := -Wall -Wextra -Wpedantic -Werror -Wconversion -Wshadow \
 	-Wstrict-prototypes -Wmissing-prototypes -Wformat=2
-COMMON_CPPFLAGS := -Iinclude -Isrc -D_POSIX_C_SOURCE=200809L \
+COMMON_CPPFLAGS := -Ic/include -Ic/src -D_POSIX_C_SOURCE=200809L \
 	-D_XOPEN_SOURCE=700 -D_DEFAULT_SOURCE -D_DARWIN_C_SOURCE \
 	-DMAELYS_CLI_COMMANDS_DIR='"$(PREFIX)/share/maelys/commands"'
 COMMON_CFLAGS := -std=c11 $(WARNINGS)
@@ -40,30 +40,30 @@ MAELYS_JSON_BUILD := $(abspath $(BUILD))/maelys-json
 MAELYS_JSON_LIB ?= $(MAELYS_JSON_BUILD)/lib/libmaelys-json.a
 MAELYS_JSON_CFLAGS ?= -I$(MAELYS_JSON_DIR)/include
 MAELYS_JSON_LIBS ?= $(MAELYS_JSON_LIB)
-HEADERS := $(wildcard include/maelys/*.h include/maelys/cli/*.h src/*.h \
-	cli/*.h tests/*.h)
+HEADERS := $(wildcard c/include/maelys/*.h c/include/maelys/cli/*.h c/src/*.h \
+	c/cli/*.h c/tests/*.h)
 
-SOURCES := src/version.c src/values.c src/environment.c src/files.c \
-	src/digest.c src/json.c src/terminal.c src/process.c src/catalog.c \
-	src/invocation.c src/pattern.c src/language.c src/i18n_fr.c src/app.c
-OBJECTS := $(patsubst %.c,$(BUILD)/%.o,$(SOURCES))
+SOURCES := c/src/version.c c/src/values.c c/src/environment.c c/src/files.c \
+	c/src/digest.c c/src/json.c c/src/terminal.c c/src/process.c c/src/catalog.c \
+	c/src/invocation.c c/src/pattern.c c/src/language.c c/src/i18n_fr.c c/src/app.c
+OBJECTS := $(patsubst c/%.c,$(BUILD)/%.o,$(SOURCES))
 LIB := $(BUILD)/lib/libmaelys_cli.a
 # Manifest discovery reads untrusted JSON through maelys-json; it lives in
 # its own archive so the core stays dependency-free.
-EXTENSION_SOURCES := src/extension.c
-EXTENSION_OBJECTS := $(patsubst %.c,$(BUILD)/%.o,$(EXTENSION_SOURCES))
+EXTENSION_SOURCES := c/src/extension.c
+EXTENSION_OBJECTS := $(patsubst c/%.c,$(BUILD)/%.o,$(EXTENSION_SOURCES))
 EXTENSION_LIB := $(BUILD)/lib/libmaelys_cli_extension.a
 
 EMBED := tools/maelys-cli-embed
 AGENT_TEXTS := share/agents/instructions-block.md share/agents/maelys-cli-guide.md \
 	share/agents/claude-skill.md
 EMBEDDED := $(BUILD)/generated/agent_texts.c
-HELLO_SCHEMAS := $(wildcard examples/hello/schemas/*.json)
+HELLO_SCHEMAS := $(wildcard c/examples/hello/schemas/*.json)
 HELLO_SCHEMA_SYMBOLS := $(foreach schema,$(HELLO_SCHEMAS),\
 	hello_$(subst -,_,$(basename $(notdir $(schema))))_schema=$(schema))
 HELLO_GENERATED := $(BUILD)/generated/hello_schemas.c $(BUILD)/generated/hello_schemas.h
-DISPATCHER_SOURCES := cli/main.c cli/agents.c
-DISPATCHER_OBJECTS := $(patsubst %.c,$(BUILD)/%.o,$(DISPATCHER_SOURCES)) \
+DISPATCHER_SOURCES := c/cli/main.c c/cli/agents.c
+DISPATCHER_OBJECTS := $(patsubst c/%.c,$(BUILD)/%.o,$(DISPATCHER_SOURCES)) \
 	$(BUILD)/generated/agent_texts.o
 DISPATCHER := $(BUILD)/bin/maelys
 EXAMPLE := $(BUILD)/bin/maelys-hello
@@ -110,7 +110,7 @@ endif
 
 all: $(LIB) $(EXTENSION_LIB) $(DISPATCHER) $(EXAMPLE) $(PC) $(EXTENSION_PC)
 
-$(BUILD)/%.o: %.c $(HEADERS)
+$(BUILD)/%.o: c/%.c $(HEADERS)
 	@mkdir -p $(@D)
 	$(CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) $(CFLAGS) $(COMMON_CFLAGS) -c $< -o $@
 
@@ -123,7 +123,7 @@ $(MAELYS_JSON_BUILD)/lib/libmaelys-json.a:
 		{ echo "no pinned maelys-json at '$(MAELYS_JSON_DIR)': MAELYS_DEPENDENCIES_DIR must name the root 'maelys-release dependencies . --apply' materialised, or MAELYS_JSON_DIR its pinned checkout, or MAELYS_JSON_CFLAGS/MAELYS_JSON_LIBS an installed maelys-json" >&2; exit 1; }
 	$(MAKE) -C $(MAELYS_JSON_DIR) BUILD=$(MAELYS_JSON_BUILD)
 
-$(BUILD)/src/extension.o: src/extension.c $(HEADERS) $(MAELYS_JSON_LIB)
+$(BUILD)/src/extension.o: c/src/extension.c $(HEADERS) $(MAELYS_JSON_LIB)
 	@mkdir -p $(@D)
 	$(CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) $(MAELYS_JSON_CFLAGS) $(CFLAGS) $(COMMON_CFLAGS) -c $< -o $@
 
@@ -168,7 +168,7 @@ $(BUILD)/generated/agent_texts.o: $(EMBEDDED)
 	@mkdir -p $(@D)
 	$(CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) $(CFLAGS) $(COMMON_CFLAGS) -c $< -o $@
 
-$(BUILD)/cli/%.o: cli/%.c $(HEADERS)
+$(BUILD)/cli/%.o: c/cli/%.c $(HEADERS)
 	@mkdir -p $(@D)
 	$(CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) $(CFLAGS) $(COMMON_CFLAGS) -c $< -o $@
 
@@ -177,33 +177,33 @@ $(DISPATCHER): $(DISPATCHER_OBJECTS) $(EXTENSION_LIB) $(LIB) $(MAELYS_JSON_LIB)
 	$(CC) $(CFLAGS) $(COMMON_CFLAGS) $(DISPATCHER_OBJECTS) $(EXTENSION_LIB) $(LIB) $(MAELYS_JSON_LIBS) $(LDFLAGS) -o $@
 
 # The example is a plain product: core archive only, no maelys-json.
-$(EXAMPLE): examples/hello/main.c $(HELLO_GENERATED) $(LIB) $(HEADERS)
+$(EXAMPLE): c/examples/hello/main.c $(HELLO_GENERATED) $(LIB) $(HEADERS)
 	@mkdir -p $(@D)
 	$(CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) -I$(BUILD)/generated $(CFLAGS) $(COMMON_CFLAGS) \
 		$< $(BUILD)/generated/hello_schemas.c $(LIB) $(LDFLAGS) -o $@
 
 # A product declaring every macro of catalog.h, so describe-schema-check can
 # validate what the framework serializes and not only what a product needs.
-$(BUILD)/tests/catalog_surface: tests/catalog_surface.c $(LIB) $(HEADERS)
+$(BUILD)/tests/catalog_surface: c/tests/catalog_surface.c $(LIB) $(HEADERS)
 	@mkdir -p $(@D)
 	$(CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) $(CFLAGS) $(COMMON_CFLAGS) $< $(LIB) $(LDFLAGS) -o $@
 
 # A program that declares a default command; python/tests/default_surface.py
-# is its twin, and tests/test_cli.sh compares their answers.
-$(BUILD)/tests/default_surface: tests/default_surface.c $(LIB) $(HEADERS)
+# is its twin, and c/tests/test_cli.sh compares their answers.
+$(BUILD)/tests/default_surface: c/tests/default_surface.c $(LIB) $(HEADERS)
 	@mkdir -p $(@D)
 	$(CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) $(CFLAGS) $(COMMON_CFLAGS) $< $(LIB) $(LDFLAGS) -o $@
 
 # Fuzzing, as maelys-release's conventions name it. Each harness of
-# tests/fuzz is built twice. With -DMAELYS_CLI_FUZZ_REPLAY it is a plain
-# program replaying tests/fuzz/corpus/NAME, every truncation and single-byte
+# c/tests/fuzz is built twice. With -DMAELYS_CLI_FUZZ_REPLAY it is a plain
+# program replaying c/tests/fuzz/corpus/NAME, every truncation and single-byte
 # mutation of each file included: `make fuzz-smoke`, seconds long, any
 # compiler, part of `check` and therefore of `asan-ubsan`. With
 # -fsanitize=fuzzer it is the libFuzzer binary of `make fuzz`, bounded by
 # FUZZ_TIME seconds per harness, which writes what it finds under
 # $(FUZZ_BUILD)/corpus and never into the committed corpus. Apple clang ships
 # no libFuzzer: on macOS, FUZZ_CC names a clang that does. Under `make fuzz`,
-# fuzz_pattern is also held to RE2 (tests/fuzz/re2_oracle.cc, found through
+# fuzz_pattern is also held to RE2 (c/tests/fuzz/re2_oracle.cc, found through
 # pkg-config, libre2-dev in dependencies/packages); FUZZ_RE2=no runs it
 # without that reference, which the CI never does.
 FUZZ_NAMES := fuzz_run fuzz_values fuzz_pattern fuzz_json fuzz_manifest
@@ -215,17 +215,17 @@ FUZZ_CXX_RUNTIME := $(if $(filter Darwin,$(shell uname -s)),-lc++,-lstdc++)
 FUZZ_TIME ?= 30
 FUZZ_BUILD := build/fuzz
 
-$(BUILD)/fuzz/fuzz_manifest: tests/fuzz/fuzz_manifest.c tests/fuzz/replay.h $(EXTENSION_LIB) $(LIB) $(MAELYS_JSON_LIB) $(HEADERS)
+$(BUILD)/fuzz/fuzz_manifest: c/tests/fuzz/fuzz_manifest.c c/tests/fuzz/replay.h $(EXTENSION_LIB) $(LIB) $(MAELYS_JSON_LIB) $(HEADERS)
 	@mkdir -p $(@D)
 	$(CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) $(CFLAGS) $(COMMON_CFLAGS) -DMAELYS_CLI_FUZZ_REPLAY $< $(EXTENSION_LIB) $(LIB) $(MAELYS_JSON_LIBS) $(LDFLAGS) -o $@
 
-$(BUILD)/fuzz/%: tests/fuzz/%.c tests/fuzz/replay.h tests/catalog_surface.c $(LIB) $(HEADERS)
+$(BUILD)/fuzz/%: c/tests/fuzz/%.c c/tests/fuzz/replay.h c/tests/catalog_surface.c $(LIB) $(HEADERS)
 	@mkdir -p $(@D)
 	$(CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) $(CFLAGS) $(COMMON_CFLAGS) -DMAELYS_CLI_FUZZ_REPLAY $< $(LIB) $(LDFLAGS) -o $@
 
 fuzz-smoke: $(FUZZ_REPLAYS)
 	@for name in $(FUZZ_NAMES); do \
-		$(BUILD)/fuzz/$$name tests/fuzz/corpus/$${name#fuzz_} || exit 1; \
+		$(BUILD)/fuzz/$$name c/tests/fuzz/corpus/$${name#fuzz_} || exit 1; \
 	done
 
 fuzz: $(MAELYS_JSON_LIB)
@@ -236,7 +236,7 @@ fuzz: $(MAELYS_JSON_LIB)
 				echo "fuzz_pattern: FUZZ_RE2=no, held to no reference engine"; \
 			elif pkg-config --exists re2; then \
 				$(FUZZ_CXX) -std=c++17 -O1 -g -fsanitize=fuzzer-no-link,address,undefined \
-					$$(pkg-config --cflags re2) -c tests/fuzz/re2_oracle.cc \
+					$$(pkg-config --cflags re2) -c c/tests/fuzz/re2_oracle.cc \
 					-o $(FUZZ_BUILD)/re2_oracle.o || exit 1; \
 				extra="-DMAELYS_CLI_FUZZ_RE2 $(FUZZ_BUILD)/re2_oracle.o $$(pkg-config --libs re2) $(FUZZ_CXX_RUNTIME)"; \
 			else \
@@ -244,37 +244,37 @@ fuzz: $(MAELYS_JSON_LIB)
 			fi;; esac; \
 		$(FUZZ_CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) -std=c11 -O1 -g \
 			-fsanitize=fuzzer,address,undefined -fno-sanitize-recover=undefined \
-			tests/fuzz/$$name.c $(SOURCES) $$extra -o $(FUZZ_BUILD)/bin/$$name || exit 1; \
+			c/tests/fuzz/$$name.c $(SOURCES) $$extra -o $(FUZZ_BUILD)/bin/$$name || exit 1; \
 		rm -rf $(FUZZ_BUILD)/corpus/$$name && mkdir -p $(FUZZ_BUILD)/corpus/$$name && \
-		cp tests/fuzz/corpus/$${name#fuzz_}/* $(FUZZ_BUILD)/corpus/$$name/ && \
+		cp c/tests/fuzz/corpus/$${name#fuzz_}/* $(FUZZ_BUILD)/corpus/$$name/ && \
 		$(FUZZ_BUILD)/bin/$$name -max_total_time=$(FUZZ_TIME) -timeout=5 -max_len=4096 \
 			-artifact_prefix=$(FUZZ_BUILD)/ $(FUZZ_BUILD)/corpus/$$name || exit 1; \
 	done
 
-$(BUILD)/tests/test_extension: tests/test_extension.c $(EXTENSION_LIB) $(LIB) $(MAELYS_JSON_LIB) $(HEADERS)
+$(BUILD)/tests/test_extension: c/tests/test_extension.c $(EXTENSION_LIB) $(LIB) $(MAELYS_JSON_LIB) $(HEADERS)
 	@mkdir -p $(@D)
 	$(CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) $(CFLAGS) $(COMMON_CFLAGS) $< $(EXTENSION_LIB) $(LIB) $(MAELYS_JSON_LIBS) $(LDFLAGS) -o $@
 
 # test_files links its own files.c with the fault hook enabled, so every
 # system-call failure path is exercised; the released archive has no hook.
-$(BUILD)/tests/test_files: tests/test_files.c src/files.c $(LIB) $(HEADERS)
+$(BUILD)/tests/test_files: c/tests/test_files.c c/src/files.c $(LIB) $(HEADERS)
 	@mkdir -p $(@D)
 	$(CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) -DMAELYS_CLI_FAULT_HOOK=maelys_cli_test_fault \
-		$(CFLAGS) $(COMMON_CFLAGS) tests/test_files.c src/files.c $(LIB) $(LDFLAGS) -o $@
+		$(CFLAGS) $(COMMON_CFLAGS) c/tests/test_files.c c/src/files.c $(LIB) $(LDFLAGS) -o $@
 
 # test_pattern links its own pattern.c with the allocation hook enabled, as
 # test_files does with files.c, and runs threads: the deepest pattern on a
 # small stack, and one handle searched by eight at once.
-$(BUILD)/tests/test_pattern: tests/test_pattern.c src/pattern.c $(LIB) $(HEADERS)
+$(BUILD)/tests/test_pattern: c/tests/test_pattern.c c/src/pattern.c $(LIB) $(HEADERS)
 	@mkdir -p $(@D)
 	$(CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) -DMAELYS_CLI_ALLOC_HOOK=maelys_cli_test_alloc \
-		$(CFLAGS) $(COMMON_CFLAGS) -pthread tests/test_pattern.c src/pattern.c $(LIB) $(LDFLAGS) -o $@
+		$(CFLAGS) $(COMMON_CFLAGS) -pthread c/tests/test_pattern.c c/src/pattern.c $(LIB) $(LDFLAGS) -o $@
 
-$(BUILD)/tests/test_%: tests/test_%.c $(LIB) $(HEADERS)
+$(BUILD)/tests/test_%: c/tests/test_%.c $(LIB) $(HEADERS)
 	@mkdir -p $(@D)
 	$(CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) $(CFLAGS) $(COMMON_CFLAGS) $< $(LIB) $(LDFLAGS) -o $@
 
-$(HEADER_CPP): tests/header_cpp.cpp $(LIB)
+$(HEADER_CPP): c/tests/header_cpp.cpp $(LIB)
 	@mkdir -p $(@D)
 	$(CXX) $(CPPFLAGS) $(COMMON_CPPFLAGS) $(CXXFLAGS) $(COMMON_CXXFLAGS) $< -c -o $@.o
 	$(CXX) $@.o $(LIB) $(LDFLAGS) -o $@
@@ -287,19 +287,19 @@ test: $(TESTS)
 	@for test in $(TESTS); do echo "== $$test"; $$test || exit 1; done
 
 cli-check: $(DISPATCHER) $(EXAMPLE) $(BUILD)/tests/default_surface
-	./tests/test_cli.sh $(BUILD)/bin
+	./c/tests/test_cli.sh $(BUILD)/bin
 
 embed-check: $(EMBED)
-	CC=$(CC) ./tests/test_embed.sh ./$(EMBED)
+	CC=$(CC) ./c/tests/test_embed.sh ./$(EMBED)
 
 commit-check: tools/maelys-cli-commit
-	./tests/test_commit.sh ./tools/maelys-cli-commit
+	./c/tests/test_commit.sh ./tools/maelys-cli-commit
 
 header-check: $(HEADER_CPP)
 	$(HEADER_CPP)
 
 check-version:
-	@test "$(VERSION)" = "$$(sed -n 's/^#define MAELYS_CLI_VERSION "\([^"]*\)"/\1/p' include/maelys/cli/version.h)"
+	@test "$(VERSION)" = "$$(sed -n 's/^#define MAELYS_CLI_VERSION "\([^"]*\)"/\1/p' c/include/maelys/cli/version.h)"
 	@grep -q "^## $(VERSION)" CHANGELOG.md
 	python3 -B scripts/sync-typescript-version.py --check
 
@@ -324,16 +324,16 @@ check: layout-check test fuzz-smoke tsan-check cli-check embed-check commit-chec
 	else echo "pattern-ecma-check: skipped (node not found)"; fi
 
 # The Python framework: python/maelys_cli.py, its reference product
-# tests/patterns.tsv read by V8, the ECMA-262 side of the subset an
+# c/tests/patterns.tsv read by V8, the ECMA-262 side of the subset an
 # argument.pattern is written in: the patterns the subset admits compile,
-# the values match as src/pattern.c and Python say. The libc stands for
+# the values match as c/src/pattern.c and Python say. The libc stands for
 # POSIX ERE in test_pattern, RE2 in `make fuzz`.
 pattern-ecma-check:
-	node scripts/pattern-ecma-check.js tests/patterns.tsv
+	node scripts/pattern-ecma-check.js c/tests/patterns.tsv
 
 # The framework's translations, i18n/*.tsv: each table valid (a source once,
 # its conversions kept in order, no control character), and the files
-# generated from it current -- src/i18n_*.c, the tables of
+# generated from it current -- c/src/i18n_*.c, the tables of
 # python/maelys_cli.py and tools/maelys-cli-man.
 i18n-check:
 	python3 scripts/i18n.py
@@ -418,18 +418,18 @@ tsan-check:
 		echo "tsan-check: skipped ($(CC) has no ThreadSanitizer)"; exit 0; \
 	fi; \
 	$(CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) -std=c11 -O1 -g -fsanitize=thread \
-		tests/test_process.c $(SOURCES) -o $(TSAN_BUILD)/test_process || exit 1; \
+		c/tests/test_process.c $(SOURCES) -o $(TSAN_BUILD)/test_process || exit 1; \
 	TSAN_OPTIONS=halt_on_error=1 $(TSAN_BUILD)/test_process || exit 1; \
 	$(CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) -std=c11 -O1 -g -fsanitize=thread -pthread \
-		tests/test_pattern.c $(SOURCES) -o $(TSAN_BUILD)/test_pattern || exit 1; \
-	TSAN_OPTIONS=halt_on_error=1 $(TSAN_BUILD)/test_pattern tests/patterns.tsv || exit 1; \
+		c/tests/test_pattern.c $(SOURCES) -o $(TSAN_BUILD)/test_pattern || exit 1; \
+	TSAN_OPTIONS=halt_on_error=1 $(TSAN_BUILD)/test_pattern c/tests/patterns.tsv || exit 1; \
 	echo "tsan-check: ok"
 
 asan-ubsan:
 	$(MAKE) check BUILD=build/asan-ubsan CFLAGS='-O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer' LDFLAGS='-fsanitize=address,undefined'
 
 analyze: $(HELLO_GENERATED)
-	@for source in $(SOURCES) $(EXTENSION_SOURCES) $(DISPATCHER_SOURCES) examples/hello/main.c; do \
+	@for source in $(SOURCES) $(EXTENSION_SOURCES) $(DISPATCHER_SOURCES) c/examples/hello/main.c; do \
 		$(CC) --analyze -Xanalyzer -analyzer-output=text \
 			$(CPPFLAGS) $(COMMON_CPPFLAGS) $(MAELYS_JSON_CFLAGS) -I$(BUILD)/generated -std=c11 $$source || exit 1; \
 	done
@@ -493,8 +493,8 @@ install-sdk: $(LIB) $(EXTENSION_LIB) $(PC) $(EXTENSION_PC)
 	install -m 0755 $(EMBED) $(DESTDIR)$(PREFIX)/bin/maelys-cli-embed
 	install -m 0755 tools/generate_cli_reference.py $(DESTDIR)$(PREFIX)/bin/maelys-cli-reference
 	install -m 0755 tools/maelys-cli-man $(DESTDIR)$(PREFIX)/bin/maelys-cli-man
-	install -m 0644 include/maelys/cli.h $(DESTDIR)$(PREFIX)/include/maelys/cli.h
-	install -m 0644 include/maelys/cli/*.h $(DESTDIR)$(PREFIX)/include/maelys/cli/
+	install -m 0644 c/include/maelys/cli.h $(DESTDIR)$(PREFIX)/include/maelys/cli.h
+	install -m 0644 c/include/maelys/cli/*.h $(DESTDIR)$(PREFIX)/include/maelys/cli/
 	install -m 0644 $(PC) $(DESTDIR)$(PREFIX)/lib/pkgconfig/maelys-cli.pc
 	install -m 0644 share/agents/*.md $(DESTDIR)$(PREFIX)/share/maelys-cli/agents/
 	install -m 0644 share/agents/LICENSE $(DESTDIR)$(PREFIX)/share/maelys-cli/agents/

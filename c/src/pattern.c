@@ -14,7 +14,7 @@
  * the forms the subset leaves out its own way (`\d` is a digit for Python
  * and a `d` for TRE). Here a repetition costs its copies of a few
  * instructions, the subset has one reading on every platform, and that
- * reading is held to Python, V8 and RE2 by tests/patterns.tsv.
+ * reading is held to Python, V8 and RE2 by c/tests/patterns.tsv.
  *
  * The subset, as this file reads it:
  * - a pattern is printable ASCII, U+0020 to U+007E: a libc in the C locale

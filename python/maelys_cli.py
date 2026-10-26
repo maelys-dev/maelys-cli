@@ -781,13 +781,13 @@ _FRAMEWORK_TRANSLATIONS = {
 # END translations
 
 
-# ---- the language of human text (C: src/language.c) -------------------------------
+# ---- the language of human text (C: c/src/language.c) -------------------------------
 #
 # A request is a language tag of the form agent-cli/v2 section 5 writes, language[-Script][-REGION], compared
 # without regard to case. A locale (LC_ALL, LC_MESSAGES, LANG) is converted by its own rule, language[_territory][.codeset]
 # [@modifier] giving language-territory; C, POSIX and C.* give the canonical language. The language a
 # request resolves to is the Lookup of RFC 4647 section 3.4. Nothing reads the locales installed on the
-# machine: the syntax is the RFCs', the same everywhere. tests/languages.tsv holds C and Python to the
+# machine: the syntax is the RFCs', the same everywhere. c/tests/languages.tsv holds C and Python to the
 # same answers.
 _ASCII_ALPHA = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 _ASCII_DIGIT = frozenset("0123456789")
@@ -930,13 +930,13 @@ def _translation_text_is_safe(text: Any) -> bool:
 
 
 # argument.pattern is written in a subset that ECMA-262 (u flag) and POSIX ERE
-# read the same way (agent-cli/v2, section 3). C reads and matches it itself (src/pattern.c), and so does this
+# read the same way (agent-cli/v2, section 3). C reads and matches it itself (c/src/pattern.c), and so does this
 # module, with the same reader and the same program: a pattern is refused here
 # exactly where C refuses it, and a value is searched by a Thompson simulation
 # of the program, never by `re`, whose backtracking takes exponential time on
 # a pattern the subset admits, (a+)+b against aaa...c. The work is
 # O((len(value) + 1) x states) and the memory O(states), as in C.
-# tests/patterns.tsv holds the two readers to the same answers, refusals
+# c/tests/patterns.tsv holds the two readers to the same answers, refusals
 # included: their family and the byte where reading stopped.
 _PATTERN_METACHARACTERS = "\\^$.[]()*+?{}|"
 REGEX_MAX_BOUND = 255           # n of {m,n}: a rule of syntax (C: MAELYS_CLI_REGEX_MAX_BOUND)
@@ -966,7 +966,7 @@ class RegexError(ValueError):
         self.message = message
         self.offset = offset
 
-# The program, as src/pattern.c emits it.
+# The program, as c/src/pattern.c emits it.
 _OP_CHAR, _OP_ANY, _OP_CLASS, _OP_SPLIT, _OP_JMP, _OP_BOL, _OP_EOL, _OP_MATCH = range(8)
 
 
@@ -1162,7 +1162,7 @@ def _pattern_size(node: tuple) -> int:
 
 @functools.lru_cache(maxsize=256)
 def _pattern_program(pattern: str) -> tuple:
-    """The program of a pattern the subset admits, as src/pattern.c emits it: three
+    """The program of a pattern the subset admits, as c/src/pattern.c emits it: three
     tuples, the operation, its first and its second argument (a class keeps its mask
     and whether it is negated)."""
     tree = _pattern_tree(pattern)
@@ -1273,7 +1273,7 @@ def _str_characters(text: str) -> Iterator:
 
 
 def _pattern_run(program: tuple, characters: Iterator, empty: bool, work: Optional[list] = None) -> bool:
-    """A Thompson simulation of a pattern's program over a value's characters, as src/pattern.c
+    """A Thompson simulation of a pattern's program over a value's characters, as c/src/pattern.c
     runs it: O((len + 1) x states) in time, O(states) in memory. `work`, when a list, receives the
     positions popped and threads tried, which C counts alike."""
     ops, xs, ys = program
@@ -1647,7 +1647,7 @@ def _command(identifier: str, pattern: str, purpose: str, handler: Optional[Hand
             piece = item["name"] + ("..." if item["variadic"] else "")
             synopsis += " " + (piece if item["required"] else f"[{piece}]")
         # The required options first, then the optional ones, each spelled
-        # as put_option() does in C (src/catalog.c).
+        # as put_option() does in C (c/src/catalog.c).
         for item in sorted(options, key=lambda item: not item["required"]):
             if item.get("hidden"):
                 continue
@@ -1831,7 +1831,7 @@ INVARIANTS = [
 
 # ---- help layout ----------------------------------------------------------------------
 # The help is read by a person, in a terminal: it fits the width, puts a description beside a short
-# label and below a long one, and breaks a line between words. This is the layout of src/app.c
+# label and below a long one, and breaks a line between words. This is the layout of c/src/app.c
 # (help_wrap, help_entry), with the same widths and the same table of character widths.
 HELP_WIDTH = 80
 HELP_WIDTH_MINIMUM = 60
@@ -1967,7 +1967,7 @@ def help_width(fmt: str = "text") -> int:
 # ---- completion scripts ---------------------------------------------------------------
 # A static script carries the candidates of the catalog it was generated from and launches no process
 # at a Tab (agent-cli/v2 2.7, section 6): a Python program pays its interpreter at every launch, which a
-# completion feels. Each of the three is builtin_complete of src/app.c, and _complete below, written in
+# completion feels. Each of the three is builtin_complete of c/src/app.c, and _complete below, written in
 # its shell over one table of rows, `|`-separated:
 #   C|INDEX|PATTERN WORDS|ID|KIND    one shown, available command, in catalog order; KIND is c, s for a
 #                                    stream (no shared option) or d for a delegate (__complete is called)
@@ -2575,7 +2575,7 @@ def _judge(status: os.stat_result, requirements: int) -> Optional["tuple[int, st
 def _judge_resolved_directory(path: str, status: os.stat_result) -> Optional["tuple[int, str]"]:
     """The directory that holds the file once symbolic links are resolved must be
     owned by root or the caller, closed to group and world, and still hold that
-    very object (judge_resolved_directory of src/files.c). It answers who may
+    very object (judge_resolved_directory of c/src/files.c). It answers who may
     replace a file, which its own modes do not, and is what makes following a
     link worth as much as refusing one."""
     resolved = os.path.realpath(path)
@@ -2985,7 +2985,7 @@ class Program:
         self.static_completion = static_completion
         self.guide_line = guide or product
         self.text = dict(text or {})
-        # The built-ins are declared word for word as src/app.c declares them -- purposes, operands,
+        # The built-ins are declared word for word as c/src/app.c declares them -- purposes, operands,
         # options and schemas -- so that describe says the same of them in C and in Python.
         self.catalog = [
             read("help", "help", "Show the help of the program, of one command or of one family.", self._help,
@@ -3033,7 +3033,7 @@ class Program:
             if command["id"] in seen or any(command["id"] == built["id"] for built in self.catalog):
                 raise ValueError(f"duplicate command identifier {command['id']!r}")
             # A pattern outside the common subset is refused here, as C refuses
-            # it at startup (src/pattern.c): the two read one motif.
+            # it at startup (c/src/pattern.c): the two read one motif.
             for item in command["options"]:
                 pattern = item.get("argument", {}).get("pattern")
                 if pattern is not None:
@@ -3645,7 +3645,7 @@ class Program:
     def _dynamic_script(self, shell: str) -> str:
         """The script that calls __complete at every completion."""
         # The three scripts are renderings of __complete (agent-cli/v2, section 6): they offer its words
-        # and no others, and fall back to the shell's file completion when it returns none. src/app.c
+        # and no others, and fall back to the shell's file completion when it returns none. c/src/app.c
         # prints the same text, where each line is explained; a line that differs is a defect.
         program = self.program
         function = "_" + re.sub(r"[^A-Za-z0-9]", "_", program) + "_complete"
@@ -3701,7 +3701,7 @@ class Program:
 
     def _complete(self, invocation: Invocation) -> "tuple[dict, int]":
         # The oracle of the completion scripts (agent-cli/v2, section 6). It follows builtin_complete of
-        # src/app.c step by step and returns the same words in the same order: a difference is a defect.
+        # c/src/app.c step by step and returns the same words in the same order: a difference is a defect.
         words = list(invocation.raw_operands)
         current = words[-1] if words else ""
         previous = words[:-1]

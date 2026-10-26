@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MPL-2.0
-# The language of human text: the corpus tests/test_language.c and python/tests/test_maelys_cli.py
+# The language of human text: the corpus c/tests/test_language.c and python/tests/test_maelys_cli.py
 # both answer, so that C and Python resolve a request alike. One case per line, fields separated by
 # a tab; `-` is an absent value, "" an empty one.
 #   tag      TAG  yes|no                      language[-Script][-REGION], the form of agent-cli/v2 section 5

@@ -62,7 +62,7 @@ LANGUAGE_FR = {
 
 
 def language_program(translations: "dict | None" = None) -> cli.Program:
-    """The catalog of tests/test_app.c's language_app, word for word."""
+    """The catalog of c/tests/test_app.c's language_app, word for word."""
     return cli.Program("prog", "Test Product", "9.9.9", [
         cli.read("greet", "greet", "Greet someone.", _unknown_person,
                  options=[cli.option("--times", "How many times.", cli.argument("N", "unsigned", minimum=1, maximum=5)),
@@ -91,7 +91,7 @@ def run_in(program: cli.Program, *argv: str, **locale: "str | None") -> "tuple[i
 
 
 class Languages(unittest.TestCase):
-    """The language of human text, as tests/test_app.c's test_languages and test_invalid_languages."""
+    """The language of human text, as c/tests/test_app.c's test_languages and test_invalid_languages."""
 
     def test_help_and_failures_in_french(self) -> None:
         program = language_program()
@@ -160,7 +160,7 @@ class Languages(unittest.TestCase):
         self.assertEqual(run_in(program, "version", "--field", "lang")[1], "en\n")
 
     def test_canonical_language(self) -> None:
-        """A product written in French with an English table, as tests/test_app.c's french_app."""
+        """A product written in French with an English table, as c/tests/test_app.c's french_app."""
         def personne(invocation: cli.Invocation) -> "tuple[dict, int]":
             raise cli.failure("NOT_FOUND", "Personne ne s'appelle %s ici.", "xavier", hint="Choisissez un autre nom.")
 
@@ -333,11 +333,11 @@ class Contract(unittest.TestCase):
             self.assertFalse(line.endswith((" record", " capture", " bridge", " watch")), line)
 
     def test_synopsis_spelling(self) -> None:
-        """The usage describe gives spells an option as put_option() does in C (src/catalog.c): the
+        """The usage describe gives spells an option as put_option() does in C (c/src/catalog.c): the
         required options before the optional ones, "..." after a repeatable one, and a value that
         names nothing (`VALUE`, what describe gives for no `.value_name`) spelled by its choices, or
         ALGORITHM:HEX for a digest; a declared name as declared. Help spells a choice the same way.
-        The expected strings are C's: tests/test_catalog.c (test_synopsis), tests/test_app.c
+        The expected strings are C's: c/tests/test_catalog.c (test_synopsis), c/tests/test_app.c
         (test_help_synopsis) and MAELYS_CLI_CHOICE/MAELYS_CLI_DIGEST with and without .value_name."""
         thing = cli.transaction("thing.make", "thing make", "Make a thing.", lambda i: ({}, 0),
                                 operands=[cli.operand("ROOT", "Root directory."),
@@ -409,7 +409,7 @@ class Contract(unittest.TestCase):
                 program(palette)
 
     def test_failure_detail(self) -> None:
-        """Issues and extension members of `error` (C: maelys_cli_fail_error_extended, tests/test_app.c
+        """Issues and extension members of `error` (C: maelys_cli_fail_error_extended, c/tests/test_app.c
         test_fail_error_extended): the same envelope byte for byte, the text unchanged, a code of the
         product's own admitted, and UNEXPECTED for what the schema refuses."""
         state: dict = {"code": "VALIDATION_FAILED",
@@ -458,7 +458,7 @@ class Contract(unittest.TestCase):
 
     def test_default_command(self) -> None:
         """The default command (spec, section 8; C: default_command): what a program may name, and the
-        parts of its reading no line of tests/test_cli.sh shows. The lines are held there, on
+        parts of its reading no line of c/tests/test_cli.sh shows. The lines are held there, on
         default_surface, in C and in Python together."""
         def reply(invocation: cli.Invocation) -> "tuple[dict, int]":
             return {}, cli.EXIT_OK
@@ -848,7 +848,7 @@ class Contract(unittest.TestCase):
         self.assertEqual(json.loads(out)["data"]["version"], hello.VERSION)
 
     def test_help_layout(self) -> None:
-        """The help is laid out as src/app.c lays it out: within eighty columns where stdout is no
+        """The help is laid out as c/src/app.c lays it out: within eighty columns where stdout is no
         terminal, a description beside a short label and below a long one, a line broken between words,
         a usage between its groups. The general help names a command by its pattern and its purpose;
         the usage is in the command's own help and in its family's."""
@@ -923,7 +923,7 @@ class Contract(unittest.TestCase):
                      lambda i: ({}, 0))])
         entry = next(line for line in accented.guide().splitlines() if line.startswith("  wide"))
         # The label and its column take 8, the column being that of the product's commands; ten words
-        # of six columns and their spaces 69: the same line src/app.c writes, which tests/test_app.c
+        # of six columns and their spaces 69: the same line c/src/app.c writes, which c/tests/test_app.c
         # measures in bytes.
         self.assertEqual((cli.display_width(entry), len(entry.encode("utf-8"))), (77, 117))
         self.assertLessEqual(widest(accented.guide()), 80)
@@ -1032,7 +1032,7 @@ class Contract(unittest.TestCase):
         self.assertIn("fingerprint", described["outputSchema"]["required"])
 
         # The fingerprint is the framing of the C library, byte for byte: the same reference strings
-        # as tests/test_digest.c, computed apart from both.
+        # as c/tests/test_digest.c, computed apart from both.
         self.assertEqual(cli.Fingerprint().finish(),
                          "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
         self.assertEqual(cli.Fingerprint().add("ab", "c").finish(),
@@ -1212,7 +1212,7 @@ class Contract(unittest.TestCase):
         self.assertEqual((ran, built.resolved_command_id), ([], ""))
 
     def test_completion_scripts(self) -> None:
-        """The scripts that call __complete print what src/app.c prints (make hello-parity-check compares
+        """The scripts that call __complete print what c/src/app.c prints (make hello-parity-check compares
         them whole); each line here is one 0.5.33 got wrong."""
         bash = hello.PROGRAM.completion_script("bash", static=False)
         # bash 3.2 joins the slice into one word once IFS is a newline: the words are taken first.
@@ -1276,7 +1276,7 @@ class Contract(unittest.TestCase):
         self.assertIn("_p_rows", declined.completion_script("bash", static=True))
 
     def test_completion_candidates(self) -> None:
-        """__complete follows builtin_complete of src/app.c: the same words in the same order."""
+        """__complete follows builtin_complete of c/src/app.c: the same words in the same order."""
         def words(*given: str) -> list:
             return run("__complete", "--", *given)[1].split()
         self.assertEqual(words("greet", ""), [])                       # free text: the shell offers files
@@ -1321,7 +1321,7 @@ class Contract(unittest.TestCase):
         self.assertEqual(json.loads(err)["error"]["code"], "VALIDATION_FAILED")
 
     def test_language_corpus(self) -> None:
-        """tests/languages.tsv, the corpus tests/test_language.c answers: a tag is well formed, a locale
+        """c/tests/languages.tsv, the corpus c/tests/test_language.c answers: a tag is well formed, a locale
         names a tag, a request resolves to a language, a template has its conversions, alike in C and
         Python."""
         def value(field: str) -> "str | None":
@@ -1332,11 +1332,11 @@ class Contract(unittest.TestCase):
 
         cases = 0
         for number, line in enumerate(
-                (HERE.parent.parent / "tests" / "languages.tsv").read_text(encoding="utf-8").split("\n"), 1):
+                (HERE.parent.parent / "c" / "tests" / "languages.tsv").read_text(encoding="utf-8").split("\n"), 1):
             if not line or line.startswith("#"):
                 continue
             fields = line.split("\t")
-            where = f"tests/languages.tsv:{number}"
+            where = f"c/tests/languages.tsv:{number}"
             cases += 1
             kind = fields[0]
             if kind == "tag":
@@ -1359,16 +1359,16 @@ class Contract(unittest.TestCase):
             cli._template_conversions("50%! off")
 
     def test_pattern_corpus(self) -> None:
-        """tests/patterns.tsv, the corpus tests/test_pattern.c answers: Python admits the same
+        """c/tests/patterns.tsv, the corpus c/tests/test_pattern.c answers: Python admits the same
         patterns, refuses the others with the family and at the byte C gives, and matches the same
         values, given as str or as bytes alike."""
         checks = matches = 0
         for number, line in enumerate(
-                (HERE.parent.parent / "tests" / "patterns.tsv").read_text(encoding="utf-8").split("\n"), 1):
+                (HERE.parent.parent / "c" / "tests" / "patterns.tsv").read_text(encoding="utf-8").split("\n"), 1):
             if not line or line.startswith("#"):
                 continue
             fields = line.split("\t")
-            where = f"tests/patterns.tsv:{number}"
+            where = f"c/tests/patterns.tsv:{number}"
             if fields[0] == "check":
                 checks += 1
                 try:

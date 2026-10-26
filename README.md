@@ -39,11 +39,14 @@ A mechanism enters `libmaelys_cli` only when:
 ## Implementations
 
 The C implementation lives under `c/`, Python under `python/`, and the native
-Node implementation is developed under `typescript/`. The legacy C source
-paths `include/`, `src/`, `cli/`, `tests/` and `examples/` remain relative
-links into `c/`: consumers keep the same include and build entry points,
-without duplicate source trees. `Makefile` and `CMakeLists.txt` remain at the
-repository root. Installed paths and archive names are unchanged.
+Node implementation is developed under `typescript/`. C sources, public
+headers, tests and examples are all under `c/`; there are no compatibility
+links at the repository root. `Makefile` and `CMakeLists.txt` remain root
+entry points. Installed paths and archive names are unchanged.
+
+A consumer building from a source checkout uses `c/include/`. See
+[the source-layout migration](docs/migration.md#source-layout-by-language)
+before updating a dependency pin; installed SDK consumers do not change.
 
 ## Architecture
 
@@ -176,8 +179,8 @@ A product with several build variants composes its catalog at startup with
 `--compact`, `--pretty=false`, `--non-interactive` and `--color`, the
 `MAELYS_CLI_FORMAT` environment default, renders the envelope and runs or
 delegates the command. The complete example
-is [examples/hello/main.c](examples/hello/main.c) (`maelys-hello`) with its
-schemas in [examples/hello/schemas/](examples/hello/schemas/); it also drives
+is [c/examples/hello/main.c](c/examples/hello/main.c) (`maelys-hello`) with its
+schemas in [c/examples/hello/schemas/](c/examples/hello/schemas/); it also drives
 the end-to-end tests.
 
 ## Writing a product CLI in Python

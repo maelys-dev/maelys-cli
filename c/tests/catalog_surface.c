@@ -209,7 +209,7 @@ static const maelys_cli_app_t surface_app = {
     .command_count = MAELYS_CLI_COUNT(commands),
 };
 
-/* tests/fuzz/fuzz_run.c includes this file for the catalog alone: the
+/* c/tests/fuzz/fuzz_run.c includes this file for the catalog alone: the
  * fuzzer drives every declaration form through maelys_cli_run. */
 #ifndef CATALOG_SURFACE_NO_MAIN
 int main(int argc, char **argv) {

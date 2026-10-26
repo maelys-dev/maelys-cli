@@ -5,9 +5,9 @@ repository that reads what another program wrote:
 
 | Harness | Target | Input |
 | --- | --- | --- |
-| `fuzz_run.c` | `maelys_cli_run` on `tests/catalog_surface.c`, the catalog that declares every form: parsing, help, `describe`, completion, `__complete`, rendering | argv words separated by NUL bytes |
+| `fuzz_run.c` | `maelys_cli_run` on `c/tests/catalog_surface.c`, the catalog that declares every form: parsing, help, `describe`, completion, `__complete`, rendering | argv words separated by NUL bytes |
 | `fuzz_values.c` | every parser of `values.h`; an accepted value lies within the bounds given | selector byte, two 8-byte bounds, text |
-| `fuzz_pattern.c` | `src/pattern.c`, the reader and matcher of `argument.pattern`; a refused pattern has a reason, `match` answers -1 exactly where `check` refuses, and under `make fuzz` RE2 (`re2_oracle.cc`) answers every admitted pattern and UTF-8 value alike | the pattern, a NUL, the value |
+| `fuzz_pattern.c` | `c/src/pattern.c`, the reader and matcher of `argument.pattern`; a refused pattern has a reason, `match` answers -1 exactly where `check` refuses, and under `make fuzz` RE2 (`re2_oracle.cc`) answers every admitted pattern and UTF-8 value alike | the pattern, a NUL, the value |
 | `fuzz_json.c` | `maelys_cli_json_validate`, `maelys_cli_json_format`, and the writer, whose output must validate whatever string it was handed | selector byte, bytes |
 | `fuzz_manifest.c` | `maelys_cli_extension_load`: what the framework does with the document maelys-json parsed | the manifest bytes |
 

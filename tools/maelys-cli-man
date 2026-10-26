@@ -691,7 +691,7 @@ LANGUAGE_TAG = re.compile(r"[A-Za-z]{2,3}(-[A-Za-z]{4})?(-([A-Za-z]{2}|[0-9]{3})
 
 
 def lookup(tag: str, available: list) -> str | None:
-    """RFC 4647 Lookup, as the runtime does it (src/language.c)."""
+    """RFC 4647 Lookup, as the runtime does it (c/src/language.c)."""
     subtags = tag.split("-")
     while subtags:
         wanted = "-".join(subtags).lower()

@@ -3,7 +3,7 @@
 The 0.x series is source compatible within ABI 1 of `libmaelys_cli`. A release
 requires:
 
-1. `VERSION`, `MAELYS_CLI_VERSION` in `include/maelys/cli/version.h` and the
+1. `VERSION`, `MAELYS_CLI_VERSION` in `c/include/maelys/cli/version.h` and the
    changelog agree (`make check-version`). The TypeScript package and lock
    also follow VERSION through `tools/sync-version.sh`, run by the release cut.
 2. `make check`, `make asan-ubsan`, `make analyze`, `make install-check` and

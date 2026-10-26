@@ -15,14 +15,16 @@
 - The aggregate required CI now includes Node on all three native targets,
   and the declared minimum Node version. Synchronize the npm package version
   with VERSION during the normal release cut. The npm channel is not enabled.
-- `python/maelys_cli.py`: unchanged; existing C/Python public behavior remains
+- `python/maelys_cli.py`: public behavior unchanged; source comments follow
+  the C layout. Existing C/Python public behavior remains
   the reference. The TypeScript additions have existing C/Python counterparts
   within their documented initial surface.
 
-- Move the C implementation into `c/` with relative compatibility links for
-  the existing source paths; preserve the root build entry points, installed
-  headers and archives. Adapt the C end-to-end harness's repository paths.
-  C and Python behavior and public declarations are unchanged.
+- Move all C headers, sources, tests and examples into `c/`, with no source
+  aliases at the root. Update builds, checks and source documentation together.
+  Source-checkout consumers must use `c/include/` when updating their pin;
+  `docs/migration.md` lists the affected consumers. Root build entry points,
+  installed headers, archives and C/Python public behavior stay unchanged.
 - The conventions and the guide installed for agents say that a global
   option in front of a line selects the default command like any other
   option -- `PROGRAM --lang fr --help` is its help, `PROGRAM --lang fr

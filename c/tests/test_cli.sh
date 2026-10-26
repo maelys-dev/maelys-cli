@@ -1,6 +1,6 @@
 #!/bin/sh
 # End-to-end contract tests for maelys-hello (product CLI) and maelys
-# (dispatcher). usage: tests/test_cli.sh BUILD_BIN_DIR
+# (dispatcher). usage: c/tests/test_cli.sh BUILD_BIN_DIR
 set -eu
 root=$(CDPATH= cd -P -- "$(dirname "$0")/../.." && pwd)
 bin=$(cd "$1" && pwd)

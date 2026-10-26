@@ -11,11 +11,11 @@ schema has ever seen. MAELYS_CLI_HEX_OR was one, emitting an
 
 Two things are checked, and the second is what keeps the first honest:
 
-  1. every describe form of tests/catalog_surface.c validates against
+  1. every describe form of c/tests/catalog_surface.c validates against
      schemas/describe.json of the pinned agent-cli-spec, using that
      specification's own validator rather than a second implementation;
-  2. tests/catalog_surface.c names every declaration macro of
-     include/maelys/cli/catalog.h, so a macro added later cannot escape
+  2. c/tests/catalog_surface.c names every declaration macro of
+     c/include/maelys/cli/catalog.h, so a macro added later cannot escape
      the check by simply not being exercised.
 
 Usage: describe-schema-check.py PROGRAM SPEC_DIR
@@ -39,8 +39,8 @@ STRUCTURAL = {
     "MAELYS_CLI_CATALOG_PART",
 }
 
-FIXTURE = pathlib.Path("tests/catalog_surface.c")
-HEADER = pathlib.Path("include/maelys/cli/catalog.h")
+FIXTURE = pathlib.Path("c/tests/catalog_surface.c")
+HEADER = pathlib.Path("c/include/maelys/cli/catalog.h")
 
 
 def without_comments(source: str) -> str:

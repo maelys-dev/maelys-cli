@@ -370,7 +370,7 @@ static int validate_value(
             if (option->pattern) {
                 /* The value MUST match the declared pattern (spec 2.3): the
                  * common subset of ECMA-262 and POSIX ERE, read and searched
-                 * by src/pattern.c as a libc and re.search() would. */
+                 * by c/src/pattern.c as a libc and re.search() would. */
                 int matched = maelys_cli_pattern_match(option->pattern, value);
                 if (matched < 0) {
                     maelys_cli_error_set(error, MAELYS_CLI_CODE_UNEXPECTED,
