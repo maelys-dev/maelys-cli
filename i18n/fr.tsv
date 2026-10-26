@@ -1,5 +1,5 @@
 # The framework's texts in French: the English source, a tab, its translation. A template keeps
-# its printf conversions in the same order. Read by scripts/i18n.py, which writes src/i18n_fr.c
+# its printf conversions in the same order. Read by scripts/i18n.py, which writes c/src/i18n_fr.c
 # and the table of python/maelys_cli.py; in both columns \n is a newline and \\ a backslash.
 USAGE	UTILISATION
 EXAMPLES	EXEMPLES

@@ -1,5 +1,33 @@
 # Migrating existing Maelys CLIs
 
+## Source layout by language
+
+The C implementation now lives entirely in `c/`: `c/include/`, `c/src/`,
+`c/cli/`, `c/tests/` and `c/examples/`. The old root source directories and
+compatibility links no longer exist. Python remains in `python/`; the
+native Node implementation belongs in `typescript/`.
+
+When changing a dependency pin to a release containing this layout, change
+source-checkout include flags from `-I$MAELYS_CLI_DIR/include` to
+`-I$MAELYS_CLI_DIR/c/include` (likewise for `-isystem`). Checks that read
+`include/maelys/cli.h` or `include/maelys/cli/version.h` from that checkout
+must also insert `c/`. Update the pin and these paths together.
+
+The four identified consumers need the following changes at their next pin
+update; they are not changed merely by reorganizing this repository:
+
+| Consumer | Source-checkout paths to update |
+| --- | --- |
+| maelys-oci | The Makefile's `-isystem $(MAELYS_CLI_DIR)/include` becomes `-isystem $(MAELYS_CLI_DIR)/c/include`. |
+| maelys-egress | `CLI_CPPFLAGS` and dependency/header/ABI checks use `$(MAELYS_CLI_DIR)/c/include`. |
+| maelys-datalog-cli | The Makefile's include flag and ABI/contract checks use `$(CLI_DIR)/c/include`. |
+| maelys-sandbox-policy | The dependency/header check and CLI object's include flag use `$(MAELYS_CLI_DIR)/c/include`. |
+
+`make -C "$MAELYS_CLI_DIR"` and `cmake -S "$MAELYS_CLI_DIR"` retain their
+root entry points. Installed headers remain `PREFIX/include/maelys/` and
+source includes remain `<maelys/cli.h>` or `<maelys/cli/*.h>`. Consumers of
+pkg-config or the exported CMake targets need no include-path correction.
+
 ## Warden (`cli/common` and `cli/maelys-warden.c`)
 
 `cli/common.h` maps one-to-one onto `maelys/cli/values.h`,

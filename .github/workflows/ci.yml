@@ -25,7 +25,7 @@ jobs:
       sanitizer_command: make asan-ubsan
       # The committed corpus is replayed by `make check` on every leg and
       # under the sanitizers; this runs libFuzzer itself, bounded, on the
-      # four harnesses of tests/fuzz.
+      # four harnesses of c/tests/fuzz.
       fuzz_command: make fuzz FUZZ_TIME=15
 
   packaging:

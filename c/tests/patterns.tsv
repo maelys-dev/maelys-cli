@@ -1,6 +1,6 @@
 # The subset an argument.pattern is written in (agent-cli/v2, section 3), as
-# src/pattern.c and python/maelys_cli.py read and match it. Read by
-# tests/test_pattern.c, python/tests/test_maelys_cli.py and
+# c/src/pattern.c and python/maelys_cli.py read and match it. Read by
+# c/tests/test_pattern.c, python/tests/test_maelys_cli.py and
 # scripts/pattern-ecma-check.js (V8): the three answer every line alike,
 # which is what holds C, Python and ECMA-262 to one reading.
 #

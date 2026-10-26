@@ -67,7 +67,7 @@ static int test_validation(void) {
     CHECK(!validate(&command));
 
     /* A pattern is written in the common subset of ECMA-262 and POSIX ERE:
-     * an unclosed group is outside it (tests/test_pattern.c has the rest). */
+     * an unclosed group is outside it (c/tests/test_pattern.c has the rest). */
     maelys_cli_option_t bad_pattern[] = {
         {MAELYS_CLI_STRING("label", "TEXT", "Label."), .pattern = "^([a-z]+$"},
     };

@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: MPL-2.0 */
 /* maelys_cli_run on words an agent could type, against the catalog that
- * declares every form the framework can serialize (tests/catalog_surface.c):
+ * declares every form the framework can serialize (c/tests/catalog_surface.c):
  * command resolution, option spelling and values of every kind, groups and
  * constraints, operands, rendering options, and the built-ins help,
  * describe, completion and __complete that read the same words.

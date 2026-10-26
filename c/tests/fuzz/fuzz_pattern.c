@@ -8,7 +8,7 @@
  * search that allocates says; the internal reader of argument.pattern
  * agrees with the public API.
  *
- * Under `make fuzz` the harness is linked with tests/fuzz/re2_oracle.cc
+ * Under `make fuzz` the harness is linked with c/tests/fuzz/re2_oracle.cc
  * (MAELYS_CLI_FUZZ_RE2) and holds the matcher to RE2 as well: on every
  * pattern the subset admits and every value that is UTF-8, the two answer
  * alike, and RE2 refuses no admitted pattern as a syntax error. The libc is
@@ -32,7 +32,7 @@
 #define PATTERN_MAX_BYTES 4096u
 
 #ifdef MAELYS_CLI_FUZZ_RE2
-/* tests/fuzz/re2_oracle.cc: 1 or 0, -1 for a syntax error, -2 for a
+/* c/tests/fuzz/re2_oracle.cc: 1 or 0, -1 for a syntax error, -2 for a
  * pattern beyond RE2's limits. */
 int maelys_cli_fuzz_re2_match(const char *pattern, const char *value);
 

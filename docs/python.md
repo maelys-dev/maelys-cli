@@ -257,7 +257,7 @@ of ECMA-262 (U+000A, U+000D, U+2028, U+2029). A value is searched as in C, by a 
 simulation of the same program, never by `re`, whose backtracking takes
 exponential time on a pattern the subset admits (`(a+)+b`): the work is
 O((len(value) + 1) x states), the memory O(states), states being at most
-65536. `tests/patterns.tsv` is the corpus C and Python both answer.
+65536. `c/tests/patterns.tsv` is the corpus C and Python both answer.
 
 `hidden=True` on an option or a flag keeps it out of the synopsis, the help
 and the completion while `describe` lists it with `hidden: true` and the
@@ -418,7 +418,7 @@ Python judges a file exactly as a C product does:
 The counterpart of `maelys/cli/regex.h`: the reader of every
 `argument.pattern`, open to a product for any other pattern written in the
 subset of agent-cli/v2 section 3, with C's answers on the corpus
-`tests/patterns.tsv`, refusals included.
+`c/tests/patterns.tsv`, refusals included.
 
 | Name | Contract |
 | --- | --- |

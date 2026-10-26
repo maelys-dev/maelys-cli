@@ -1,6 +1,6 @@
 /*
  * maelys-hello: reference product CLI built on libmaelys_cli. It doubles as
- * the end-to-end fixture of tests/test_cli.sh and shows one command of each
+ * the end-to-end fixture of c/tests/test_cli.sh and shows one command of each
  * effect and output mode.
  */
 #include <maelys/cli.h>

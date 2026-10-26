@@ -1755,7 +1755,7 @@ static int test_constraints(void) {
 
 /* The default command (agent-cli/v2, section 8): what a catalog may name,
  * and what a program then does with a line that names no command. The
- * behaviour on lines is held by tests/test_cli.sh on default_surface, in C
+ * behaviour on lines is held by c/tests/test_cli.sh on default_surface, in C
  * and in Python; here, what the catalog validation refuses, and the parts
  * no line shows. */
 static const maelys_cli_option_t look_options[] = {

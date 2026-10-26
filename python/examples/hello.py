@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MPL-2.0
 """maelys-hello-py: the reference product of the Python framework.
 
-The same four commands as examples/hello/main.c, on maelys_cli.py: a read
+The same four commands as c/examples/hello/main.c, on maelys_cli.py: a read
 with typed options, a read that echoes every value kind, a transaction that
 plans and writes with --apply, and a records command. The conformance kit
 of agent-cli-spec runs against it in `make check`.
