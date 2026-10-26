@@ -242,7 +242,10 @@ stream or a transaction: the catalog validation refuses `execute`, since a
 line that names nothing is no consent to an action. Declare none unless one
 command is what the program is for: a line that put options before the
 command name (`PROGRAM --json list`) then selects the default command and is
-refused, and must be written `PROGRAM list --json`.
+refused, and must be written `PROGRAM list --json`. A global option in front
+does the same: `PROGRAM --lang fr --help` is the default command's help and
+`PROGRAM --lang fr --version` is refused; write `PROGRAM --help --lang fr`,
+or set `MAELYS_CLI_LANG`.
 
 ### Translate the human text (optional)
 
@@ -257,10 +260,12 @@ written in with `.canonical_language` (`canonical_language=`): the
 framework's own texts then follow that language without any table;
 write failures as templates with `maelys_cli_fail` (Python: `cli.failure`),
 never assembled before, so that their translation takes the arguments
-back. The help, `data.text` of `help`, failures in text, details, progress
+back: a message assembled before is translated only when a table names it
+whole. The help, `data.text` of `help`, failures in text, details, progress
 and warnings follow `--lang`, `MAELYS_CLI_LANG` or the locale; `describe`
 and every envelope stay English. `maelys-cli-man --lang fr --untranslated
-PROGRAM` lists what the table still lacks.
+PROGRAM` lists the texts of the manual page the table still lacks, never a
+failure template, which only a run shows: test each failure under `--lang`.
 
 ### Color the help (optional)
 
