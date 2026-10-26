@@ -429,6 +429,10 @@ subset of agent-cli/v2 section 3, with C's answers on the corpus
 | `REGEX_MAX_BOUND`, `REGEX_MAX_DEPTH`, `REGEX_MAX_STATES` | 255, 32 and 65536, as in C. |
 
 `MemoryError` propagates as anywhere in Python: it is C's `NO_MEMORY`.
+C's `maelys_cli_regex_scratch_size()` and
+`maelys_cli_regex_search_scratch()` have no counterpart: they exist so
+that a C search need not allocate, and a Python search allocates as every
+Python object does, with `MemoryError` as its only failure of resources.
 
 ## Proving it
 

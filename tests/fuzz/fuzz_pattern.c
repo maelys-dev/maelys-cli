@@ -4,7 +4,9 @@
  * caller relies on: a refusal comes with its family, a reason and an offset
  * inside the pattern, and no handle; an admitted pattern searches any value,
  * NUL bytes and bytes of no UTF-8 sequence included, and says 0 or 1; the
- * internal reader of argument.pattern agrees with the public API.
+ * search in a caller's scratch, at an offset the input draws, says what the
+ * search that allocates says; the internal reader of argument.pattern
+ * agrees with the public API.
  *
  * Under `make fuzz` the harness is linked with tests/fuzz/re2_oracle.cc
  * (MAELYS_CLI_FUZZ_RE2) and holds the matcher to RE2 as well: on every
@@ -22,6 +24,8 @@
 #include "maelys/cli/regex.h"
 #include "replay.h"
 
+#include <stdalign.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -79,6 +83,15 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     if (admitted) {
         int matched = maelys_cli_regex_search(regex, value, value_length);
         if (matched != 0 && matched != 1) abort();
+        size_t scratch_size = maelys_cli_regex_scratch_size(regex);
+        size_t offset = size % alignof(max_align_t);
+        unsigned char *scratch = malloc(offset + scratch_size);
+        if (!scratch) abort();
+        memset(scratch, 0xff, offset + scratch_size);
+        if (maelys_cli_regex_search_scratch(regex, scratch + offset, scratch_size,
+                value, value_length) != matched)
+            abort();
+        free(scratch);
         if (maelys_cli_regex_states(regex) == 0u ||
             maelys_cli_regex_states(regex) > MAELYS_CLI_REGEX_MAX_STATES)
             abort();

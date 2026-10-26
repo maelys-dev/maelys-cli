@@ -16,6 +16,8 @@
 #include <errno.h>
 #include <pthread.h>
 #include <regex.h>
+#include <stdalign.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -81,11 +83,57 @@ static int printable_ascii(const char *text, size_t length) {
 }
 
 /* The public API on a C string pattern: 1, 0, or -1 when it is refused. */
+/* A scratch as a declared array of char, the storage whose effective type
+ * forbids reading it as uint32_t: the search must use it as bytes. Large
+ * enough for a pattern of MAELYS_CLI_REGEX_MAX_STATES with today's formula;
+ * a pattern whose scratch outgrows it skips that placement only. */
+static char declared_scratch[(MAELYS_CLI_REGEX_MAX_STATES * 4u + 1u) * 4u + 64u];
+
+#define GUARD_BYTES 64u
+#define GUARD 0xa5u
+
+/* maelys_cli_regex_search_scratch on the value, in a scratch placed every
+ * way a caller may place it: of the exact size in an allocation of its own
+ * (a byte too many is AddressSanitizer's to see), at every offset of a
+ * larger buffer between guard bytes that must stay as they were, dirtied
+ * with 0xff first, and in a declared array of char. -2 when an answer
+ * differs from `expected` or a guard byte changed. */
+static int search_scratch_everywhere(const maelys_cli_regex_t *regex, const char *value,
+                                     size_t length, int expected) {
+    size_t size = maelys_cli_regex_scratch_size(regex);
+    if (size == 0u) return -2;
+    void *exact = malloc(size);
+    if (!exact) return -2;
+    int agreed = maelys_cli_regex_search_scratch(regex, exact, size, value, length) == expected;
+    free(exact);
+    size_t total = GUARD_BYTES + alignof(max_align_t) + size + GUARD_BYTES;
+    unsigned char *buffer = malloc(total);
+    if (!buffer) return -2;
+    for (size_t offset = 0u; agreed && offset < alignof(max_align_t); ++offset) {
+        memset(buffer, GUARD, total);
+        unsigned char *scratch = buffer + GUARD_BYTES + offset;
+        memset(scratch, 0xff, size);
+        agreed = maelys_cli_regex_search_scratch(regex, scratch, size, value, length) == expected;
+        for (size_t i = 0u; agreed && i < total; ++i)
+            if ((buffer + i < scratch || buffer + i >= scratch + size) && buffer[i] != GUARD)
+                agreed = 0;
+    }
+    free(buffer);
+    if (agreed && size <= sizeof(declared_scratch))
+        agreed = maelys_cli_regex_search_scratch(regex, declared_scratch, size,
+            value, length) == expected;
+    return agreed ? expected : -2;
+}
+
+/* The two entry points answer alike: the search that allocates, and the
+ * search in a scratch placed every way. */
 static int search(const char *pattern, const char *value, size_t length) {
     maelys_cli_regex_t *regex = NULL;
     if (maelys_cli_regex_compile(pattern, strlen(pattern), &regex, NULL) != MAELYS_CLI_REGEX_OK)
         return -1;
     int matched = maelys_cli_regex_search(regex, value, length);
+    if (matched >= 0 && search_scratch_everywhere(regex, value, length, matched) != matched)
+        matched = -2;
     maelys_cli_regex_free(regex);
     return matched;
 }
@@ -407,6 +455,66 @@ static int test_api(void) {
     return 1;
 }
 
+/* The corners of the scratch entry points, and one scratch serving several
+ * regexes in turn. */
+static int test_scratch_api(void) {
+    static const char *const patterns[] = {
+        "^refs/heads/[a-z]+$", "^(ab|c[d-f]x){2,5}[^0-9]*$", "x", "^$", "(a|b)*c{3,40}",
+    };
+    static const char *const values[] = {
+        "refs/heads/main", "abcdxzz", "", "x", "ababccc", "refs/tags/v1", "c\377ccccc",
+    };
+    enum { PATTERNS = sizeof(patterns) / sizeof(patterns[0]) };
+    maelys_cli_regex_t *regexes[PATTERNS];
+    size_t largest = 0u;
+    for (size_t i = 0u; i < PATTERNS; ++i) {
+        regexes[i] = NULL;
+        CHECK(maelys_cli_regex_compile(patterns[i], strlen(patterns[i]), &regexes[i], NULL) ==
+            MAELYS_CLI_REGEX_OK);
+        size_t size = maelys_cli_regex_scratch_size(regexes[i]);
+        CHECK(size > 0u);
+        if (size > largest) largest = size;
+    }
+    CHECK(maelys_cli_regex_scratch_size(NULL) == 0u);
+    maelys_cli_regex_t *regex = regexes[1];
+    size_t size = maelys_cli_regex_scratch_size(regex);
+    unsigned char *scratch = malloc(largest);
+    CHECK(scratch);
+    /* One byte short, a NULL scratch, regex or value with a length: EINVAL. */
+    errno = 0;
+    CHECK(maelys_cli_regex_search_scratch(regex, scratch, size - 1u, "abcdx", 5u) == -1);
+    CHECK(errno == EINVAL);
+    errno = 0;
+    CHECK(maelys_cli_regex_search_scratch(regex, NULL, size, "abcdx", 5u) == -1);
+    CHECK(errno == EINVAL);
+    errno = 0;
+    CHECK(maelys_cli_regex_search_scratch(NULL, scratch, size, "abcdx", 5u) == -1);
+    CHECK(errno == EINVAL);
+    errno = 0;
+    CHECK(maelys_cli_regex_search_scratch(regex, scratch, size, NULL, 1u) == -1);
+    CHECK(errno == EINVAL);
+    errno = 0;
+    CHECK(maelys_cli_regex_search_scratch(NULL, NULL, 0u, NULL, 0u) == -1);
+    CHECK(errno == EINVAL);
+    /* NULL with a length of 0 is the empty value. */
+    CHECK(maelys_cli_regex_search_scratch(regexes[3], scratch, largest, NULL, 0u) == 1);
+    CHECK(maelys_cli_regex_search_scratch(regexes[2], scratch, largest, NULL, 0u) == 0);
+    /* One scratch of the largest size, the regexes in turn: the answers of
+     * the search that allocates. */
+    for (int round = 0; round < 3; ++round)
+        for (size_t v = 0u; v < sizeof(values) / sizeof(values[0]); ++v)
+            for (size_t i = 0u; i < PATTERNS; ++i) {
+                size_t length = strlen(values[v]);
+                int expected = maelys_cli_regex_search(regexes[i], values[v], length);
+                CHECK(expected == 0 || expected == 1);
+                CHECK(maelys_cli_regex_search_scratch(regexes[i], scratch, largest,
+                    values[v], length) == expected);
+            }
+    free(scratch);
+    for (size_t i = 0u; i < PATTERNS; ++i) maelys_cli_regex_free(regexes[i]);
+    return 1;
+}
+
 #ifdef MAELYS_CLI_ALLOC_HOOK
 /* Every allocation of a compile and of a search fails in turn: a compile
  * answers NO_MEMORY at offset 0 with no handle, a search -1 with ENOMEM,
@@ -435,6 +543,19 @@ static int test_allocation_failures(void) {
         alloc_countdown = -1;
         CHECK(matched == -1 && errno == ENOMEM);
         CHECK(maelys_cli_regex_search(regex, "abcdx", 5u) == 1);
+        /* The search in a scratch makes no allocation: the first one would
+         * fail, and none is reached. */
+        size_t size = maelys_cli_regex_scratch_size(regex);
+        void *scratch = malloc(size);
+        CHECK(scratch);
+        alloc_countdown = 0;
+        errno = 0;
+        int answers = maelys_cli_regex_search_scratch(regex, scratch, size, "abcdx", 5u) == 1 &&
+            maelys_cli_regex_search_scratch(regex, scratch, size, "abc", 3u) == 0;
+        reached = alloc_countdown < 0;
+        alloc_countdown = -1;
+        free(scratch);
+        CHECK(answers && !reached && errno == 0);
         maelys_cli_regex_free(regex);
         break;
     }
@@ -471,6 +592,8 @@ typedef struct {
     int ok;
 } shared_search_t;
 
+/* Each thread searches the shared handle in a scratch of its own too. */
+
 static const char *const shared_values[] = {
     "note.write", "Note", "n", "note.", "a-b.c-d", "", "x\xff", "-a",
 };
@@ -478,12 +601,19 @@ static const int shared_expected[] = {1, 0, 1, 0, 1, 0, 0, 0};
 
 static void *search_shared(void *argument) {
     shared_search_t *shared = argument;
-    shared->ok = 1;
-    for (int round = 0; round < 500; ++round)
-        for (size_t i = 0u; i < sizeof(shared_values) / sizeof(shared_values[0]); ++i)
-            if (maelys_cli_regex_search(shared->regex, shared_values[i],
-                    strlen(shared_values[i])) != shared_expected[i])
+    size_t size = maelys_cli_regex_scratch_size(shared->regex);
+    void *scratch = malloc(size);
+    shared->ok = scratch != NULL;
+    for (int round = 0; scratch && round < 500; ++round)
+        for (size_t i = 0u; i < sizeof(shared_values) / sizeof(shared_values[0]); ++i) {
+            size_t length = strlen(shared_values[i]);
+            if (maelys_cli_regex_search(shared->regex, shared_values[i], length) !=
+                    shared_expected[i] ||
+                maelys_cli_regex_search_scratch(shared->regex, scratch, size,
+                    shared_values[i], length) != shared_expected[i])
                 shared->ok = 0;
+        }
+    free(scratch);
     return NULL;
 }
 
@@ -517,6 +647,7 @@ int main(int argc, char **argv) {
     RUN(test_linear_work);
     RUN(test_depth);
     RUN(test_api);
+    RUN(test_scratch_api);
 #ifdef MAELYS_CLI_ALLOC_HOOK
     RUN(test_allocation_failures);
     RUN(test_generation_wrap);

@@ -532,35 +532,53 @@ typedef struct {
     const instruction_t *code;
     const uint32_t (*classes)[4];
     uint32_t count;
-    uint32_t *list[2];        /* the positions alive before and after a step */
+    unsigned char *list[2];   /* the positions alive before and after a step */
     uint32_t size[2];
-    uint32_t *mark;           /* generation a position was last added in */
-    uint32_t *stack;
+    unsigned char *mark;      /* generation a position was last added in */
+    unsigned char *stack;
     uint32_t generation;
     int matched;
     uint64_t steps;           /* positions popped and threads tried: the work */
 } machine_t;
 
+/* The working memory is the caller's storage of any type, a declared array
+ * of char included (maelys_cli_regex_search_scratch): its words are read
+ * and written through memcpy, never through a uint32_t lvalue, which the
+ * effective type of such storage forbids. */
+static inline uint32_t word_get(const unsigned char *base, size_t index) {
+    uint32_t value;
+    memcpy(&value, base + index * sizeof(value), sizeof(value));
+    return value;
+}
+
+static inline void word_put(unsigned char *base, size_t index, uint32_t value) {
+    memcpy(base + index * sizeof(value), &value, sizeof(value));
+}
+
 /* Follows the empty moves from pc and records every position that consumes
  * a character, or the match. Iterative: a chain of splits can be as long
  * as the program, and the stack holds count + 1 entries (see
- * maelys_cli_pattern_match). */
-static void add_thread(machine_t *m, int which, uint32_t pc, int at_start, int at_last) {
+ * maelys_cli_pattern_match). Inline: called in the loop of every step, which
+ * the compilers stop inlining by themselves once its words are memcpy. */
+static inline void add_thread(machine_t *m, int which, uint32_t pc, int at_start, int at_last) {
     uint32_t top = 0u;
-    m->stack[top++] = pc;
+    word_put(m->stack, top++, pc);
     while (top) {
-        pc = m->stack[--top];
+        pc = word_get(m->stack, --top);
         m->steps++;
-        if (m->mark[pc] == m->generation) continue;
-        m->mark[pc] = m->generation;
+        if (word_get(m->mark, pc) == m->generation) continue;
+        word_put(m->mark, pc, m->generation);
         const instruction_t *i = &m->code[pc];
         switch ((op_t)i->op) {
-        case OP_JMP: m->stack[top++] = i->x; break;
-        case OP_SPLIT: m->stack[top++] = i->y; m->stack[top++] = i->x; break;
-        case OP_BOL: if (at_start) m->stack[top++] = pc + 1u; break;
-        case OP_EOL: if (at_last) m->stack[top++] = pc + 1u; break;
+        case OP_JMP: word_put(m->stack, top++, i->x); break;
+        case OP_SPLIT:
+            word_put(m->stack, top++, i->y);
+            word_put(m->stack, top++, i->x);
+            break;
+        case OP_BOL: if (at_start) word_put(m->stack, top++, pc + 1u); break;
+        case OP_EOL: if (at_last) word_put(m->stack, top++, pc + 1u); break;
         case OP_MATCH: m->matched = 1; break;
-        default: m->list[which][m->size[which]++] = pc; break;
+        default: word_put(m->list[which], m->size[which]++, pc); break;
         }
     }
 }
@@ -593,7 +611,7 @@ static size_t value_next(const unsigned char *s, size_t n, uint32_t *cp) {
  * generation, and a mark left by an earlier one would hide a position. */
 static void next_generation(machine_t *m) {
     if (++m->generation == 0u) {
-        memset(m->mark, 0, m->count * sizeof(*m->mark));
+        memset(m->mark, 0, (size_t)m->count * sizeof(uint32_t));
         m->generation = 1u;
     }
 }
@@ -613,10 +631,10 @@ static int run(machine_t *m, const char *value, size_t n) {
         m->size[next] = 0u;
         next_generation(m);
         for (uint32_t t = 0u; t < m->size[which] && !m->matched; ++t) {
-            const instruction_t *i = &m->code[m->list[which][t]];
+            uint32_t pc = word_get(m->list[which], t);
             m->steps++;
-            if (instruction_accepts(m, i, cp))
-                add_thread(m, next, m->list[which][t] + 1u, 0, at == n);
+            if (instruction_accepts(m, &m->code[pc], cp))
+                add_thread(m, next, pc + 1u, 0, at == n);
         }
         /* A search: the pattern may also start here. */
         if (!m->matched) add_thread(m, next, 0u, 0, at == n);
@@ -700,6 +718,47 @@ maelys_cli_regex_status_t maelys_cli_regex_compile(
     return MAELYS_CLI_REGEX_OK;
 }
 
+/* The working memory of a search of a program of `count` positions: two
+ * lists of positions, the marks, and the stack of add_thread, one word
+ * each. Only a split deepens the stack (one popped, two pushed), a jump
+ * keeps its depth and every other position shortens it, and within one
+ * call each position is expanded once: count + 1 entries, the first push
+ * included. Three more bytes let the words start on a multiple of 4
+ * wherever the scratch starts: alignment is for speed only, every access
+ * being a memcpy. At most about 1 MiB (MAELYS_CLI_REGEX_MAX_STATES). */
+#define SCRATCH_ALIGNMENT sizeof(uint32_t)
+
+static size_t scratch_bytes(uint32_t count) {
+    return ((size_t)count * 4u + 1u) * sizeof(uint32_t) + SCRATCH_ALIGNMENT - 1u;
+}
+
+/* A search in `scratch`, of at least scratch_bytes(regex->count) bytes,
+ * whose content is not read. The arguments are valid; never allocates. */
+static int search_in(const maelys_cli_regex_t *regex, void *scratch,
+                     const char *value, size_t length, uint64_t *steps) {
+    uint32_t count = regex->count;
+    unsigned char *base = scratch;
+    size_t skew = (size_t)((uintptr_t)base % SCRATCH_ALIGNMENT);
+    if (skew) base += SCRATCH_ALIGNMENT - skew;
+    size_t words = (size_t)count * sizeof(uint32_t);
+    machine_t m;
+    memset(&m, 0, sizeof(m));
+    m.code = regex->code;
+    m.classes = (const uint32_t (*)[4])regex->classes;
+    m.count = count;
+    m.list[0] = base;
+    m.list[1] = base + words;
+    m.mark = base + 2u * words;
+    m.stack = base + 3u * words;
+    memset(m.mark, 0, words);
+#ifdef MAELYS_CLI_ALLOC_HOOK
+    m.generation = maelys_cli_test_generation;
+#endif
+    int result = run(&m, value ? value : "", length);
+    if (steps) *steps = m.steps;
+    return result;
+}
+
 static int search_counted(const maelys_cli_regex_t *regex, const char *value,
                           size_t length, uint64_t *steps) {
     if (steps) *steps = 0u;
@@ -707,38 +766,33 @@ static int search_counted(const maelys_cli_regex_t *regex, const char *value,
         errno = EINVAL;
         return -1;
     }
-    if (!value) value = "";
-    uint32_t count = regex->count;
-    /* Two lists of positions, the marks, and the stack of add_thread: only a
-     * split deepens it (one popped, two pushed), a jump keeps its depth and
-     * every other position shortens it, and within one call each position
-     * is expanded once: count + 1 entries, the first push included. */
-    uint32_t *lists = malloc(((size_t)count * 4u + 1u) * sizeof(*lists));
-    if (!lists) {
+    void *scratch = malloc(scratch_bytes(regex->count));
+    if (!scratch) {
         errno = ENOMEM;
         return -1;
     }
-    machine_t m;
-    memset(&m, 0, sizeof(m));
-    m.code = regex->code;
-    m.classes = (const uint32_t (*)[4])regex->classes;
-    m.count = count;
-    m.list[0] = lists;
-    m.list[1] = lists + count;
-    m.mark = lists + 2u * (size_t)count;
-    m.stack = lists + 3u * (size_t)count;
-    memset(m.mark, 0, count * sizeof(*m.mark));
-#ifdef MAELYS_CLI_ALLOC_HOOK
-    m.generation = maelys_cli_test_generation;
-#endif
-    int result = run(&m, value, length);
-    if (steps) *steps = m.steps;
-    free(lists);
+    int result = search_in(regex, scratch, value, length, steps);
+    free(scratch);
     return result;
 }
 
 int maelys_cli_regex_search(const maelys_cli_regex_t *regex, const char *value, size_t length) {
     return search_counted(regex, value, length, NULL);
+}
+
+size_t maelys_cli_regex_scratch_size(const maelys_cli_regex_t *regex) {
+    return regex ? scratch_bytes(regex->count) : 0u;
+}
+
+int maelys_cli_regex_search_scratch(
+    const maelys_cli_regex_t *regex, void *scratch, size_t scratch_size,
+    const char *value, size_t length) {
+    if (!regex || !scratch || (!value && length > 0u) ||
+        scratch_size < scratch_bytes(regex->count)) {
+        errno = EINVAL;
+        return -1;
+    }
+    return search_in(regex, scratch, value, length, NULL);
 }
 
 size_t maelys_cli_regex_states(const maelys_cli_regex_t *regex) {
