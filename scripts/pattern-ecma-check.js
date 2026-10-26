@@ -1,17 +1,17 @@
 #!/usr/bin/env node
 // SPDX-License-Identifier: MPL-2.0
-// tests/patterns.tsv read by V8, the ECMA-262 side of the subset an
+// c/tests/patterns.tsv read by V8, the ECMA-262 side of the subset an
 // argument.pattern is written in (agent-cli/v2, section 3): every pattern
 // the subset admits compiles as an ECMA-262 regular expression with the u
 // flag, the reading the specification names, and every match line gets the
-// answer the corpus writes, the one src/pattern.c and Python give, `.`
+// answer the corpus writes, the one c/src/pattern.c and Python give, `.`
 // included: the four line terminators of ECMA-262 are its exceptions. The
-// libc stands for POSIX ERE in tests/test_pattern.c and RE2 in `make fuzz`;
+// libc stands for POSIX ERE in c/tests/test_pattern.c and RE2 in `make fuzz`;
 // this is the dialect an agent's JavaScript reads.
 'use strict';
 const fs = require('fs');
 
-const corpus = process.argv[2] || 'tests/patterns.tsv';
+const corpus = process.argv[2] || 'c/tests/patterns.tsv';
 let compiled = 0;
 let matches = 0;
 let skipped = 0;

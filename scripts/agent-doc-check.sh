@@ -6,14 +6,14 @@
 set -eu
 guide=share/agents/maelys-cli-guide.md
 missing=0
-for macro in $(grep -oE '^#define MAELYS_CLI_[A-Z0-9_]+\(' include/maelys/cli/catalog.h | \
+for macro in $(grep -oE '^#define MAELYS_CLI_[A-Z0-9_]+\(' c/include/maelys/cli/catalog.h | \
         sed 's/^#define //; s/($//' | grep -vE '^MAELYS_CLI_(COUNT|OPERANDS|OPTIONS|STRINGIFY_?)$' | sort -u); do
     if ! grep -q "$macro" "$guide"; then
         printf 'agent guide lacks macro %s\n' "$macro" >&2
         missing=$((missing + 1))
     fi
 done
-for function in $(cat include/maelys/cli/app.h include/maelys/cli/regex.h | tr '\n' ' ' | \
+for function in $(cat c/include/maelys/cli/app.h c/include/maelys/cli/regex.h | tr '\n' ' ' | \
         grep -oE 'maelys_cli_[a-z0-9_]+ *\(' | sed 's/ *($//' | sort -u | \
         grep -vE '^maelys_cli_(main|run|catalog_validate|builtin_commands)$'); do
     if ! grep -q "$function" "$guide"; then

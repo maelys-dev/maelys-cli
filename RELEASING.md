@@ -3,7 +3,7 @@
 The 0.x series is source compatible within ABI 1 of `libmaelys_cli`. A release
 requires:
 
-1. `VERSION`, `MAELYS_CLI_VERSION` in `include/maelys/cli/version.h` and the
+1. `VERSION`, `MAELYS_CLI_VERSION` in `c/include/maelys/cli/version.h` and the
    changelog agree (`make check-version`).
 2. `make check`, `make asan-ubsan`, `make analyze`, `make install-check` and
    `make cmake-check` pass on macOS (Apple Silicon) and Linux (amd64/arm64).

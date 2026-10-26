@@ -1,7 +1,8 @@
 #!/bin/sh
 # End-to-end contract tests for maelys-hello (product CLI) and maelys
-# (dispatcher). usage: tests/test_cli.sh BUILD_BIN_DIR
+# (dispatcher). usage: c/tests/test_cli.sh BUILD_BIN_DIR
 set -eu
+root=$(CDPATH= cd -P -- "$(dirname "$0")/../.." && pwd)
 bin=$(cd "$1" && pwd)
 hello="$bin/maelys-hello"
 maelys="$bin/maelys"
@@ -305,7 +306,7 @@ check "MAELYS_CLI_FORMAT leaves stream stdout untouched" '[ "$code" = 0 ] && [ "
 
 if command -v python3 >/dev/null 2>&1; then
     printf 'Contrat commun : `agent-cli/v2`.\n' >"$work/intro.md"
-    run reference python3 "$(dirname "$0")/../tools/generate_cli_reference.py" --build "$bin" \
+    run reference python3 "$root/tools/generate_cli_reference.py" --build "$bin" \
         --markdown "$work/ref.md" --json "$work/ref.json" --title "Référence CLI" \
         --intro-file "$work/intro.md" --columns "Identifiant|Usage|Effet|Sortie|But" \
         --global-label "Options globales :" maelys-hello
@@ -317,9 +318,9 @@ g.neutralize(data, {"a"})
 assert data["commands"][0] == {"id": "a", "available": True}, data
 assert data["commands"][1]["available"] is False, data
 g.neutralize(data, None)
-assert all(c["available"] is True and "unavailableReason" not in c for c in data["commands"]), data' "$(dirname "$0")/../tools"
+assert all(c["available"] is True and "unavailableReason" not in c for c in data["commands"]), data' "$root/tools"
     check "reference generator neutralizes availability by identifier or entirely" '[ "$code" = 0 ]'
-    run reference-neutral python3 "$(dirname "$0")/../tools/generate_cli_reference.py" --build "$bin" \
+    run reference-neutral python3 "$root/tools/generate_cli_reference.py" --build "$bin" \
         --markdown "$work/neutral.md" --json "$work/neutral.json" --neutral-availability maelys-hello
     check "reference generator accepts --neutral-availability" '[ "$code" = 0 ] && python3 -c "import json,sys; d=json.load(open(sys.argv[1]))[\"programs\"][\"maelys-hello\"]; sys.exit(0 if all(c[\"available\"] for c in d[\"commands\"]) else 1)" "$work/neutral.json"'
     check "reference generator keeps the product wording" '[ "$code" = 0 ] && grep -q "^# Référence CLI" "$work/ref.md" && grep -q "Contrat commun" "$work/ref.md" && grep -q "| Identifiant | Usage | Effet | Sortie | But |" "$work/ref.md" && grep -q "^Options globales :" "$work/ref.md" && python3 -c "import json,sys; d=json.load(open(sys.argv[1]))[\"programs\"][\"maelys-hello\"]; sys.exit(0 if \"version\" not in d and \"framework\" not in d else 1)" "$work/ref.json"'
@@ -509,7 +510,7 @@ rm -f "$commands/bad.json"
 # same catalog in Python. Each line is asked of both, and their envelopes
 # must be the same bytes; then what each line must answer.
 dflt_c="$bin/../tests/default_surface"
-dflt_py="python3 -B $(dirname "$0")/../python/tests/default_surface.py"
+dflt_py="python3 -B $root/python/tests/default_surface.py"
 # What two answers must share: the command the envelope names, the exit
 # code, the error code, and the data of a success -- of a help, the commands
 # it is about, its text being worded apart in C and in Python.

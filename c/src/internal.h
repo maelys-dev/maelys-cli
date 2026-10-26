@@ -44,7 +44,7 @@ void maelys_cli_fprint_terminal_safe(FILE *stream, const char *text);
 /* True when text contains valid UTF-8 without terminal control code points. */
 int maelys_cli_text_is_terminal_safe(const char *text);
 
-/* The language of human text (src/language.c). A tag is well formed as
+/* The language of human text (c/src/language.c). A tag is well formed as
  * agent-cli/v2 section 5 writes it, language[-Script][-REGION], the subset
  * of RFC 5646 MAELYS_CLI_LANGUAGE_TAG_PATTERN spells, compared without
  * regard to case. A locale
@@ -73,7 +73,7 @@ void maelys_cli_error_setv(
     maelys_cli_error_t *error, const char *code, const char *hint,
     const char *format, va_list arguments);
 
-/* Translations (src/language.c). translate returns the product's text for
+/* Translations (c/src/language.c). translate returns the product's text for
  * `source`, else the framework's, else `source` itself. A template's
  * conversions are listed by template_conversions ("%s %llu"), which a
  * translation must keep in order. translate_error writes the text
@@ -91,7 +91,7 @@ int maelys_cli_translate_error(const maelys_cli_language_t *product,
 const maelys_cli_language_t *maelys_cli_framework_language(const char *tag);
 
 /* argument.pattern: the common subset of ECMA-262 and POSIX ERE (spec 2.3),
- * read and matched by src/pattern.c itself, no regcomp(). check returns 0,
+ * read and matched by c/src/pattern.c itself, no regcomp(). check returns 0,
  * or -1 with the reason the pattern is outside the subset written in
  * `reason` (MAELYS_CLI_PATTERN_REASON_SIZE bytes suffice); match returns 1
  * when the value matches (a search, as regexec() and re.search() do), 0 when

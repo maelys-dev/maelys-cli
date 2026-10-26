@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Move all C headers, sources, tests and examples into `c/`, with no source
+  aliases at the root. Update builds, checks and source documentation together.
+  Source-checkout consumers must use `c/include/` when updating their pin;
+  `docs/migration.md` lists the affected consumers. Root build entry points,
+  installed headers, archives and C/Python public behavior stay unchanged.
 - The conventions and the guide installed for agents say that a global
   option in front of a line selects the default command like any other
   option -- `PROGRAM --lang fr --help` is its help, `PROGRAM --lang fr

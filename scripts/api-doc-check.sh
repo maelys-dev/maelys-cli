@@ -1,9 +1,9 @@
 #!/bin/sh
-# Verifies that every public function declared in include/maelys/cli/*.h is
+# Verifies that every public function declared in c/include/maelys/cli/*.h is
 # named in docs/api-reference.md.
 set -eu
 missing=0
-for header in include/maelys/cli/*.h; do
+for header in c/include/maelys/cli/*.h; do
     for function in $(tr '\n' ' ' < "$header" | \
             grep -oE 'maelys_cli_[a-z0-9_]+ *\(' | \
             sed 's/ *($//' | sort -u); do

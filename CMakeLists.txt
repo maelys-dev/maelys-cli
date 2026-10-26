@@ -44,30 +44,30 @@ else()
 endif()
 
 add_library(maelys_cli STATIC
-    src/version.c src/values.c src/environment.c src/files.c src/digest.c
-    src/json.c src/terminal.c src/process.c src/catalog.c src/invocation.c
-    src/pattern.c src/language.c src/i18n_fr.c
-    src/app.c)
+    c/src/version.c c/src/values.c c/src/environment.c c/src/files.c c/src/digest.c
+    c/src/json.c c/src/terminal.c c/src/process.c c/src/catalog.c c/src/invocation.c
+    c/src/pattern.c c/src/language.c c/src/i18n_fr.c
+    c/src/app.c)
 add_library(maelys::cli ALIAS maelys_cli)
 set_target_properties(maelys_cli PROPERTIES EXPORT_NAME cli OUTPUT_NAME maelys_cli)
 target_include_directories(maelys_cli
-    PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/c/include>
            $<INSTALL_INTERFACE:include>
-    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/c/src)
 target_compile_definitions(maelys_cli PRIVATE
     _POSIX_C_SOURCE=200809L _XOPEN_SOURCE=700 _DEFAULT_SOURCE _DARWIN_C_SOURCE
     MAELYS_CLI_COMMANDS_DIR="${CMAKE_INSTALL_PREFIX}/share/maelys/commands")
 target_compile_options(maelys_cli PRIVATE -Wall -Wextra -Wpedantic)
 
 if(MAELYS_CLI_HAVE_JSON)
-    add_library(maelys_cli_extension STATIC src/extension.c)
+    add_library(maelys_cli_extension STATIC c/src/extension.c)
     add_library(maelys::cli_extension ALIAS maelys_cli_extension)
     set_target_properties(maelys_cli_extension PROPERTIES
         EXPORT_NAME cli_extension OUTPUT_NAME maelys_cli_extension)
     target_include_directories(maelys_cli_extension
-        PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/c/include>
                $<INSTALL_INTERFACE:include>
-        PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+        PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/c/src)
     target_compile_definitions(maelys_cli_extension PRIVATE
         _POSIX_C_SOURCE=200809L _XOPEN_SOURCE=700 _DEFAULT_SOURCE _DARWIN_C_SOURCE)
     target_compile_options(maelys_cli_extension PRIVATE -Wall -Wextra -Wpedantic)
@@ -92,8 +92,8 @@ if(MAELYS_CLI_BUILD_DISPATCHER AND MAELYS_CLI_HAVE_JSON)
         DEPENDS share/agents/instructions-block.md share/agents/maelys-cli-guide.md
                 share/agents/claude-skill.md ${MAELYS_CLI_EMBED} ${MAELYS_CLI_COMMIT_TOOL} VERSION
         VERBATIM)
-    add_executable(maelys cli/main.c cli/agents.c ${agent_texts})
-    target_include_directories(maelys PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    add_executable(maelys c/cli/main.c c/cli/agents.c ${agent_texts})
+    target_include_directories(maelys PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/c/src)
     target_link_libraries(maelys PRIVATE maelys_cli_extension)
     target_compile_definitions(maelys PRIVATE
         _POSIX_C_SOURCE=200809L _XOPEN_SOURCE=700 _DEFAULT_SOURCE _DARWIN_C_SOURCE)
@@ -109,16 +109,16 @@ if(MAELYS_CLI_BUILD_TESTS)
     foreach(name ${test_names})
         if(name STREQUAL "files")
             # Own copy of files.c with the fault hook; see the Makefile.
-            add_executable(test_${name} tests/test_${name}.c src/files.c)
+            add_executable(test_${name} c/tests/test_${name}.c c/src/files.c)
             target_compile_definitions(test_${name} PRIVATE
                 MAELYS_CLI_FAULT_HOOK=maelys_cli_test_fault)
         elseif(name STREQUAL "pattern")
             # Own copy of pattern.c with the allocation hook; see the Makefile.
-            add_executable(test_${name} tests/test_${name}.c src/pattern.c)
+            add_executable(test_${name} c/tests/test_${name}.c c/src/pattern.c)
             target_compile_definitions(test_${name} PRIVATE
                 MAELYS_CLI_ALLOC_HOOK=maelys_cli_test_alloc)
         else()
-            add_executable(test_${name} tests/test_${name}.c)
+            add_executable(test_${name} c/tests/test_${name}.c)
         endif()
         target_link_libraries(test_${name} PRIVATE maelys_cli)
         if(name STREQUAL "pattern")
@@ -129,16 +129,16 @@ if(MAELYS_CLI_BUILD_TESTS)
         if(name STREQUAL "extension")
             target_link_libraries(test_${name} PRIVATE maelys_cli_extension)
         endif()
-        target_include_directories(test_${name} PRIVATE src)
+        target_include_directories(test_${name} PRIVATE c/src)
         target_compile_definitions(test_${name} PRIVATE
             _POSIX_C_SOURCE=200809L _XOPEN_SOURCE=700 _DEFAULT_SOURCE _DARWIN_C_SOURCE)
         if(name STREQUAL "pattern")
             # The corpus both C and Python answer, read from the source tree.
             add_test(NAME ${name} COMMAND test_${name}
-                ${CMAKE_CURRENT_SOURCE_DIR}/tests/patterns.tsv)
+                ${CMAKE_CURRENT_SOURCE_DIR}/c/tests/patterns.tsv)
         elseif(name STREQUAL "language")
             add_test(NAME ${name} COMMAND test_${name}
-                ${CMAKE_CURRENT_SOURCE_DIR}/tests/languages.tsv)
+                ${CMAKE_CURRENT_SOURCE_DIR}/c/tests/languages.tsv)
         else()
             add_test(NAME ${name} COMMAND test_${name})
         endif()
@@ -155,7 +155,7 @@ if(MAELYS_CLI_JSON_INSTALLED)
 elseif(MAELYS_CLI_HAVE_JSON)
     message(STATUS "maelys-json taken from source: maelys::cli_extension is not installed")
 endif()
-install(DIRECTORY include/maelys DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+install(DIRECTORY c/include/maelys DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 install(PROGRAMS tools/maelys-cli-embed DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(PROGRAMS tools/maelys-cli-man DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(PROGRAMS tools/generate_cli_reference.py

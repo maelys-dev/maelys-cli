@@ -12,7 +12,7 @@ Every public function of `libmaelys_cli`, grouped by header. Conventions:
 - handlers return the value of the reply function they called.
 
 `scripts/api-doc-check.sh` verifies that every public function declared in
-`include/maelys/cli/*.h` is named in this file.
+`c/include/maelys/cli/*.h` is named in this file.
 
 ## `maelys/cli/version.h`
 

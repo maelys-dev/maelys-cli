@@ -1,6 +1,6 @@
 ---
 name: maelys-cli-framework
-description: Add or change a feature of libmaelys_cli itself (descriptor field, value kind, macro, parser rule, describe member, built-in command, mechanic) while keeping the agent-cli/v2 contract, the catalog validation, the tests and every agent-facing document in step. Use for changes under include/, src/, cli/, share/agents or docs of the maelys-cli repository; not for product CLIs built on the framework.
+description: Add or change a feature of libmaelys_cli itself (descriptor field, value kind, macro, parser rule, describe member, built-in command, mechanic) while keeping the agent-cli/v2 contract, the catalog validation, the tests and every agent-facing document in step. Use for changes under c/include/, c/src/, c/cli/, share/agents or docs of the maelys-cli repository; not for product CLIs built on the framework.
 ---
 <!-- SPDX-License-Identifier: CC-BY-4.0
 Copyright 2026 David Bromberg.
@@ -53,7 +53,7 @@ Read `AGENTS.md` (constitution, contracts, procedure) before editing.
 1. Unit tests: accepted and refused inputs, `describe` fragments, catalog
    validation refusals, typed accessors; the same in
    `python/tests/test_maelys_cli.py` (`make python-check`).
-2. `tests/test_cli.sh` for behavior visible from `maelys-hello` or `maelys`.
+2. `c/tests/test_cli.sh` for behavior visible from `maelys-hello` or `maelys`.
 3. `docs/api-reference.md` for every public function
    (`scripts/api-doc-check.sh`); `docs/python.md` for every public name of
    the Python module (`scripts/python-doc-check.sh`); `share/agents/maelys-cli-guide.md` for
@@ -62,7 +62,7 @@ Read `AGENTS.md` (constitution, contracts, procedure) before editing.
    and `README.md` where user-visible. Add the feature's keyword per
    document in `docs/topics.tsv` (`scripts/doc-topics-check.sh`), which
    turns "did I document it everywhere" into a failing check.
-4. `CHANGELOG.md`, `VERSION`, `include/maelys/cli/version.h`. The generated
+4. `CHANGELOG.md`, `VERSION`, `c/include/maelys/cli/version.h`. The generated
    reference (`docs/cli.md`, `docs/cli-contract.json`) is the release
    socle's job (`maelys-release check .`), not a target here.
 5. `make check`, `maelys-release check .`, `make asan-ubsan`, `make analyze`,

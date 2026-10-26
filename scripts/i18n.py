@@ -5,7 +5,7 @@
 i18n/LANG.tsv holds, one per line, a text the framework writes in English, a tab, and the same text in
 LANG: a heading, a sentence of the help, the purpose of a built-in, or the template of an error message
 with its printf conversions, which the translation keeps in the same order. In both columns \\n is a
-newline, \\t a tab and \\\\ a backslash. From it this script writes src/i18n_LANG.c, the table the C
+newline, \\t a tab and \\\\ a backslash. From it this script writes c/src/i18n_LANG.c, the table the C
 library is built with, and the block between the two markers of python/maelys_cli.py and of
 tools/maelys-cli-man, so that C, Python and the manual page read the same data.
 
@@ -113,7 +113,7 @@ def main(argv: list) -> int:
     tables = {language: read(language) for language in LANGUAGES}
     stale = []
     for language, entries in tables.items():
-        path = ROOT / "src" / f"i18n_{language}.c"
+        path = ROOT / "c" / "src" / f"i18n_{language}.c"
         wanted = c_table(language, entries)
         if write:
             path.write_text(wanted, encoding="utf-8")

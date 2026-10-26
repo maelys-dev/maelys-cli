@@ -1,10 +1,10 @@
-/* src/language.c: which language a line asks for, and which one a program
+/* c/src/language.c: which language a line asks for, and which one a program
  * has. The tags are RFC 5646's, the matching RFC 4647's Lookup, the locale
  * conversion the contract's own rule.
  *
- * tests/languages.tsv is the corpus both this test and
+ * c/tests/languages.tsv is the corpus both this test and
  * python/tests/test_maelys_cli.py answer, so that C and Python resolve a
- * request alike. The corpus path is argv[1], tests/languages.tsv from the
+ * request alike. The corpus path is argv[1], c/tests/languages.tsv from the
  * repository root otherwise. What only C has -- a NULL, a buffer too
  * small -- is checked here. */
 #include "check.h"
@@ -16,7 +16,7 @@
 #define LINE_MAX_BYTES 1024u
 #define FIELDS 9u
 
-static const char *corpus_path = "tests/languages.tsv";
+static const char *corpus_path = "c/tests/languages.tsv";
 
 /* `-` is an absent value, "" an empty one. */
 static const char *value(const char *field) {

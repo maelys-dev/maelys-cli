@@ -3,7 +3,7 @@
  * line that names no command"): `show` runs for a line whose first word is
  * an option, `--` or a word with one dash, and for an empty line.
  * python/tests/default_surface.py declares the same catalog, word for word,
- * so that tests/test_cli.sh holds the two implementations to the same
+ * so that c/tests/test_cli.sh holds the two implementations to the same
  * answers. Nothing here writes: `save` plans and applies nothing.
  *
  * Two variables serve the migration tests. DEFAULT_SURFACE_DEFAULT names
@@ -106,7 +106,7 @@ static const maelys_cli_command_t commands[] = {
     {MAELYS_CLI_STREAM("watch", "watch", "Watch the entries on stdout.", command_watch)},
 };
 
-/* A palette for every role, so that tests/test_cli.sh holds the colored
+/* A palette for every role, so that c/tests/test_cli.sh holds the colored
  * help of C and Python to the same bytes; and French, so that it holds
  * their help in another language to the same bytes too. */
 static const maelys_cli_help_palette_t palette = {

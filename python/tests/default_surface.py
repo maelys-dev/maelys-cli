@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MPL-2.0
 """A program that declares a default command (spec, section 8, "A line that
-names no command"), the catalog of tests/default_surface.c word for word:
-tests/test_cli.sh holds the two implementations to the same answers. Nothing
+names no command"), the catalog of c/tests/default_surface.c word for word:
+c/tests/test_cli.sh holds the two implementations to the same answers. Nothing
 here writes: `save` plans and applies nothing.
 
 Two variables serve the migration tests, as in C. DEFAULT_SURFACE_DEFAULT
@@ -54,7 +54,7 @@ def watch(invocation: cli.Invocation) -> int:
     return cli.EXIT_OK
 
 
-# French for part of the catalog, the table of tests/default_surface.c: the texts left out stay in English.
+# French for part of the catalog, the table of c/tests/default_surface.c: the texts left out stay in English.
 FRENCH = {
     'a program whose lines may name no command':
         'un programme dont les lignes peuvent ne nommer aucune commande',
