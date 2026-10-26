@@ -33,6 +33,9 @@ int maelys_cli_test_alloc(void) {
     return alloc_countdown-- == 0;
 }
 
+/* The generation a search of that copy starts from (see test_generation_wrap). */
+extern uint32_t maelys_cli_test_generation;
+
 static const char *const family_names[] = {
     "ok", "invalid-argument", "no-memory", "empty", "encoding", "escape",
     "bracket", "group", "quantifier", "bound", "limit",
@@ -443,6 +446,21 @@ static int test_allocation_failures(void) {
     CHECK(strstr(reason, "out of memory"));
     return 1;
 }
+
+/* The generation that marks the positions of a step is a uint32_t, one per
+ * code point read: past 2^32 - 1 of them it wraps. Started next to the wrap,
+ * every search of the corpus crosses it within its first characters, and
+ * answers as it does from 0. */
+static int test_generation_wrap(void) {
+    static const uint32_t starts[] = {UINT32_MAX - 2u, UINT32_MAX - 1u, UINT32_MAX};
+    for (size_t i = 0u; i < sizeof(starts) / sizeof(starts[0]); ++i) {
+        maelys_cli_test_generation = starts[i];
+        int ok = test_corpus() && test_bytes();
+        maelys_cli_test_generation = 0u;
+        CHECK(ok);
+    }
+    return 1;
+}
 #endif
 
 /* One handle, searched by eight threads at once: it is never written after
@@ -501,6 +519,7 @@ int main(int argc, char **argv) {
     RUN(test_api);
 #ifdef MAELYS_CLI_ALLOC_HOOK
     RUN(test_allocation_failures);
+    RUN(test_generation_wrap);
 #endif
     RUN(test_concurrent_searches);
     return failures ? 1 : 0;
