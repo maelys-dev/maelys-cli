@@ -242,10 +242,11 @@ stream or a transaction: the catalog validation refuses `execute`, since a
 line that names nothing is no consent to an action. Declare none unless one
 command is what the program is for: a line that put options before the
 command name (`PROGRAM --json list`) then selects the default command and is
-refused, and must be written `PROGRAM list --json`. A global option in front
-does the same: `PROGRAM --lang fr --help` is the default command's help and
-`PROGRAM --lang fr --version` is refused; write `PROGRAM --help --lang fr`,
-or set `MAELYS_CLI_LANG`.
+refused, and must be written `PROGRAM list --json`. Global options alone in
+front select nothing: `PROGRAM --lang fr --help` is the program's help and
+`PROGRAM --json --version` its version, in every program; an option of the
+default command in front selects it (`PROGRAM --label x --help` is its
+help).
 
 ### Translate the human text (optional)
 

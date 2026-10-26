@@ -22,6 +22,12 @@ const maelys_cli_command_t *maelys_cli_app_find_command(
 
 size_t maelys_cli_pattern_words(const char *pattern);
 
+/* The index of the first word of the line that is neither a global option
+ * nor the value it takes: 0 when the line starts otherwise, argc when it is
+ * global options only. `--help` is no global option here, being the word
+ * that selects the help (agent-cli/v2, section 6). */
+int maelys_cli_leading_globals(int argc, char *const *argv);
+
 /* The synopsis help shows, owned by the caller: the pattern, the operands
  * with their arity, the required options and "[options]" for the others;
  * a declared synopsis as written. describe keeps the full one. NULL when it

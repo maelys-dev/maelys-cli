@@ -175,6 +175,29 @@ command when either is wrong:
   into one line per paragraph, or each hand-made line is wrapped on its own
   and the paragraph reads ragged at another width.
 
+## Every consumer, at agent-cli-spec 2.22.0
+
+2.22.0 writes, in its section 6 ("help and version"), that a global option
+selects no command: a line of global options only, each with its value,
+then `--help` or `--version`, reads as if that word came first, and this
+pin implements it. Nothing to change in a catalog or a handler. What a
+product meets:
+
+- **Lines that were refused now answer.** In a program without a default
+  command, `PROGRAM --lang fr --help`, `PROGRAM --non-interactive --help`
+  and `PROGRAM --color never --version` were `INVALID_COMMAND`; they are
+  the help and the version.
+- **With a default command, global options then `--help` are the
+  program's help**, no longer the default command's, and global options
+  then `--version` the version, no longer `VALIDATION_FAILED` in the
+  default command's name. The default command's help is `PROGRAM help
+  COMMAND`, `PROGRAM COMMAND --help`, or one of its own options then
+  `--help`. A test that pinned the old answer moves with the pin.
+- **The help's sentence on the default command changes words**, in English
+  and in French, so a test that compares the help text moves too.
+- **`__complete` offers `--version`** at the root after global options
+  only.
+
 ## Every consumer, at agent-cli-spec 2.21.0
 
 2.21.0 writes, in its section 5 ("Language"), the language of the human

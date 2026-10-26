@@ -520,6 +520,8 @@ envelope = json.load(sys.stdin)
 data = envelope.get("data", {})
 if envelope.get("command") == "help":
     data = data.get("commands")
+elif envelope.get("command") == "version" and envelope.get("ok"):
+    data = {key: value for key, value in data.items() if key != "framework"}
 print(envelope.get("command"), envelope.get("exitCode"), envelope.get("error", {}).get("code"),
       json.dumps(data, sort_keys=True, separators=(",", ":")))'
 }
@@ -555,6 +557,31 @@ dflt help-default --label x --help
 check "--help after an option is the help of the default command" '[ "$code" = 0 ] && said "^help 0 None \[\"show\"\]"'
 dflt help-first --help
 check "--help first is the general help" '[ "$code" = 0 ] && said "^help 0 None \[\"help\""'
+# Global options select no command (agent-cli/v2 2.22.0, section 6): after
+# global options only, --help and --version are the program's, as in first
+# place, the default command notwithstanding.
+dflt help-after-globals --lang fr --non-interactive --help
+check "global options then --help are the general help" '[ "$code" = 0 ] && said "^help 0 None \[\"help\""'
+dflt version-after-globals --color never --version
+check "global options then --version are the version" '[ "$code" = 0 ] && said "^version 0 None"'
+dflt version-help --non-interactive --version --help
+check "global options, --version and --help are the help of version" '[ "$code" = 0 ] && said "^help 0 None \[\"version\"\]"'
+dflt help-version --help --version
+check "--help --version stays refused, as help --version is" '[ "$code" = 1 ] && said "^help 1 VALIDATION_FAILED"'
+dflt globals-malformed --lang en_US --help
+check "a malformed global option before --help fails in the name of help" '[ "$code" = 1 ] && said "^help 1 VALIDATION_FAILED"'
+dflt globals-repeated --non-interactive --non-interactive --help
+check "a repeated global option before --help fails in the name of help" '[ "$code" = 1 ] && said "^help 1 VALIDATION_FAILED"'
+dflt globals-value --field --help
+check "a word a global option takes as its value is no --help" '[ "$code" = 1 ] && said "^show 1 VALIDATION_FAILED"'
+dflt globals-version-operand --lang fr --version extra
+check "global options, --version and an operand fail in the name of version" '[ "$code" = 1 ] && said "^version 1 VALIDATION_FAILED"'
+dflt complete-globals __complete -- --non-interactive --v
+check "after global options only, a dash completes with --version" '[ "$code" = 0 ] && said "\"word\":\"--version\""'
+for line in "--lang fr --help" "--non-interactive --version" "--json --version --help"; do
+    run "hello-globals-$line" "$hello" $line --compact
+    check "without a default command, global options then $line" '[ "$code" = 0 ]'
+done
 dflt plan save --content text
 check "a transaction plans without --apply" '[ "$code" = 0 ] && said "\"mode\":\"plan\""'
 dflt complete-root __complete -- --
@@ -575,9 +602,9 @@ check "the default command's help shows both forms, operands after --" '[ "$code
 run help-no-default "$hello" help
 check "a program without a default command says nothing of one" '[ "$code" = 0 ] && ! printf "%s" "$out" | grep -q "DEFAULT COMMAND"'
 run help-says-options "$dflt_c" help
-check "help says a line that starts with an option is the default command's" 'printf "%s" "$out" | tr "\n" " " | grep -q "the options in front, other than --help and --version, are its"'
+check "help says a line that starts with an option is the default command's" 'printf "%s" "$out" | tr "\n" " " | tr -s " " | grep -q "the options in front are its, unless --help or --version comes first or after global options only"'
 run help-says-options-py $dflt_py show --help
-check "the default command's help says it too" 'printf "%s" "$out" | tr "\n" " " | grep -q "starts *with an option other than --help *and --version"'
+check "the default command's help says it too" 'printf "%s" "$out" | tr "\n" " " | tr -s " " | grep -q "starts with an option, unless --help or --version comes first or after global options only"'
 
 # Migration (section 8: declaring a default command can stop a line that
 # ran): the same catalog before a default is declared

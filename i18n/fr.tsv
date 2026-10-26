@@ -16,7 +16,7 @@ It shows a plan; --apply applies it.	Elle montre un plan ; --apply l'applique.
 It acts at once, without a plan.	Elle agit tout de suite, sans plan.
 Its output is the %s protocol: --format and the other rendering options do not apply.	Sa sortie suit le protocole %s : --format et les autres options de rendu ne s'appliquent pas.
 Its output is its own: --format and the other rendering options do not apply.	Sa sortie lui est propre : --format et les autres options de rendu ne s'appliquent pas.
-A line that names no command runs this one: an empty line, or one that starts with an option other than --help and --version. Its operands come after --:	Une ligne qui ne nomme aucune commande lance celle-ci : une ligne vide, ou une ligne qui commence par une option autre que --help et --version. Ses opérandes viennent après -- :
+A line that names no command runs this one: an empty line, or one that starts with an option, unless --help or --version comes first or after global options only. Its operands come after --:	Une ligne qui ne nomme aucune commande lance celle-ci : une ligne vide, ou une ligne qui commence par une option, sauf si --help ou --version vient en tête ou après des options globales seulement. Ses opérandes viennent après -- :
 Optional.	Facultatif.
 Run '%s --help' for --format, --json, --compact, --non-interactive, --color and the others.	Lancez '%s --help' pour --format, --json, --compact, --non-interactive, --color et les autres.
 %s - commands	%s - commandes
@@ -24,7 +24,7 @@ Run '%s --help' for --format, --json, --compact, --non-interactive, --color and 
 Run '%s help COMMAND_ID' or '%s COMMAND --help' for the operands and options of one command.	Lancez '%s help COMMAND_ID' ou '%s COMMAND --help' pour les opérandes et les options d'une commande.
 one command, its options and examples	une commande, ses options et ses exemples
 the commands of one family	les commandes d'une famille
-%s [options] runs '%s', as %s %s [options] does: the options in front, other than --help and --version, are its.	%s [options] lance '%s', comme %s %s [options] : les options placées devant, autres que --help et --version, sont les siennes.
+%s [options] runs '%s', as %s %s [options] does: the options in front are its, unless --help or --version comes first or after global options only.	%s [options] lance '%s', comme %s %s [options] : les options placées devant sont les siennes, sauf si --help ou --version vient en tête ou après des options globales seulement.
 Also:	Aussi :
 '%s help COMMAND' says why.	'%s help COMMAND' dit pourquoi.
 Not available in this build:	Indisponible dans cette compilation :
@@ -300,7 +300,7 @@ ENVIRONMENT	ENVIRONNEMENT
 NOTES	NOTES
 SEE ALSO	VOIR AUSSI
 %s %s, a program of the agent-cli/v2 contract: '%s help' shows the help, '%s describe --format json' the catalog this page is rendered from.	%s %s, un programme du contrat agent-cli/v2 : '%s help' en montre l'aide, '%s describe --format json' le catalogue d'où cette page est rendue.
-%s [options] runs '%s', as %s %s [options] does: the options in front, other than --help and --version, are its, and its operands come after --.	%s [options] lance '%s', comme %s %s [options] : les options placées devant, autres que --help et --version, sont les siennes, et ses opérandes viennent après --.
+%s [options] runs '%s', as %s %s [options] does: the options in front are its, unless --help or --version comes first or after global options only, and its operands come after --.	%s [options] lance '%s', comme %s %s [options] : les options placées devant sont les siennes, sauf si --help ou --version vient en tête ou après des options globales seulement, et ses opérandes viennent après --.
 Not available in this build: %s	Indisponible dans cette compilation : %s
 Command completed.	Commande terminée.
 Execution failed.	Exécution échouée.
