@@ -1,6 +1,13 @@
 # Changelog
 
-## Unreleased
+## 0.15.0 - 2026-10-27
+
+A third implementation: the native TypeScript and JavaScript runtime
+`@maelys-dev/cli`, with no C binding and no Python, reads a line as C and
+Python do and passes the agent-cli-spec 2.22.0 kit. Python now reads the
+command from the first words of the line, as C does. The npm channel is
+not enabled: the package is built and checked, not published. Nothing a
+C product does changes.
 
 - Add the native TypeScript/JavaScript runtime under `typescript/`, packaged
   as `@maelys-dev/cli` with ESM and declarations, Node >=22.13.0 and no runtime
