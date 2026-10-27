@@ -315,11 +315,17 @@ name of the default command (`PROGRAM --json list` fails, `PROGRAM list
 --json` runs `list`). The operands of the default command are written after
 `--`: `PROGRAM -- FILE`. `-h` fails as any word with one dash does.
 
-A global option in front is an option like any other: `PROGRAM --lang fr
---help` is the help of the default command, and `PROGRAM --lang fr
---version` is refused in its name. The help and the version of the program
-take `--help` or `--version` first (`PROGRAM --help --lang fr`), or the
-language from `MAELYS_CLI_LANG`.
+A global option selects no command (agent-cli/v2 2.22.0, section 6):
+after global options only, each with its value, `--help` and `--version`
+select their command as in first place, the default command
+notwithstanding. `PROGRAM --lang fr --help` is the help of the program in
+French and `PROGRAM --json --version` the version; an option of the default
+command in front still selects it, so `PROGRAM --label x --help` is its
+help. The word is `--help` or `--version` as written: `--help=false` asks
+nothing, and `PROGRAM --field --help` gives `--field` the value `--help`.
+The global options are judged as the selected command's: a malformed or
+repeated one fails in the name of `help` or `version`. A program without a
+default command reads these lines alike.
 
 Once selected, the default command is the command in every respect: its
 validation, its help (`PROGRAM --label x --help`), its effect -- a
@@ -327,8 +333,9 @@ transaction plans without `--apply`, a stream keeps its stdout -- and the
 envelope, which names it. A refusal or a failure is its own: no other
 command is tried, before the handler or after it. `describe` carries
 `defaultCommand` in every form. `help` names it, says that a line starting
-with an option other than `--help` and `--version` is its, and shows the
-two ways to invoke it; its own help says so. `__complete` completes the words after a first option as the
+with an option is its unless `--help` or `--version` comes first or after
+global options only, and shows the two ways to invoke it; its own help says
+so. `__complete` completes the words after a first option as the
 default command's, and offers its options at the root after a dash. A
 Python program with a default command gets the completion script that
 calls `__complete`: the static table resolves a command by its pattern

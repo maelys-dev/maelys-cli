@@ -15,25 +15,55 @@
 - The aggregate required CI now includes Node on all three native targets,
   and the declared minimum Node version. Synchronize the npm package version
   with VERSION during the normal release cut. The npm channel is not enabled.
-- `python/maelys_cli.py`: public behavior unchanged; source comments follow
-  the C layout. Existing C/Python public behavior remains
-  the reference. The TypeScript additions have existing C/Python counterparts
-  within their documented initial surface.
+- `python/maelys_cli.py` reads the command from the first words of the
+  line, as C does: an option in front names no command (`PROGRAM --json
+  version` and `PROGRAM --nope --help` are `INVALID_COMMAND`, where Python
+  ran `version` and gave the help), a word after an option is no pattern
+  word (`note --json write` does not name `note write`), and an empty line
+  is the help, where Python answered `INVALID_COMMAND`. The specification
+  leaves these lines open without a default command; C and Python now
+  read them alike, and `tests/test_cli.sh` asks both the same lines.
+- maelys-release v0.65.1 adopted: the two workflows pin it; it asks
+  nothing of a product.
+- `docs/migration.md` lists maelys-warden among the consumers that read
+  `include/` from a source checkout and move to `c/include/` with their
+  next pin.
 
+## 0.14.0 - 2026-10-26
+
+Pinned to agent-cli-spec 2.22.0: a global option selects no command, so
+`PROGRAM --lang fr --help` and `PROGRAM --json --version` now answer, and a
+product with a default command gives the program's help to global options
+followed by `--help`. The C sources move under `c/`: a product that reads
+maelys-cli's source tree reads `c/include/` from this pin. Nothing in a
+catalog or a handler changes; `docs/migration.md` says what a product meets.
+
+- After global options only, each with its value, `--help` and `--version`
+  select their command as in first place (agent-cli/v2 2.22.0, section 6):
+  `PROGRAM --lang fr --help` is the help in French and `PROGRAM --json
+  --version` the version, in a program without a default command, where
+  these lines were `INVALID_COMMAND`, and in one with a default command,
+  where they were its help or a refusal in its name. The word is `--help`
+  or `--version` as written (`--field --help` gives `--field` a value);
+  the global options are the selected command's, a malformed or repeated
+  one failing in the name of `help` or `version`. `--version --help` is
+  the help of `version`; `--help --version` stays refused. C and Python
+  alike, through one reading of the leading global options.
+- `__complete` offers `--version` at the root, before any word but global
+  options, none included.
+- The help's sentence on the default command says it, in English and in
+  French: the options in front are its, unless `--help` or `--version`
+  comes first or after global options only.
+- The conventions and the guide installed for agents say what
+  `maelys-cli-man --untranslated` does not cover: a failure template is on
+  no page, and a product tests its failures under `--lang`; and that a
+  message assembled before it reaches the framework is translated only
+  when a table names it whole.
 - Move all C headers, sources, tests and examples into `c/`, with no source
   aliases at the root. Update builds, checks and source documentation together.
   Source-checkout consumers must use `c/include/` when updating their pin;
   `docs/migration.md` lists the affected consumers. Root build entry points,
   installed headers, archives and C/Python public behavior stay unchanged.
-- The conventions and the guide installed for agents say that a global
-  option in front of a line selects the default command like any other
-  option -- `PROGRAM --lang fr --help` is its help, `PROGRAM --lang fr
-  --version` is refused -- as agent-cli/v2 section 8 has it, and how to
-  ask for the program's help in a language. They also say what
-  `maelys-cli-man --untranslated` does not cover: a failure template is on
-  no page, and a product tests its failures under `--lang`; and that a
-  message assembled before it reaches the framework is translated only
-  when a table names it whole.
 
 ## 0.13.0 - 2026-10-26
 

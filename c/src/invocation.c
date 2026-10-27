@@ -193,6 +193,35 @@ size_t maelys_cli_pattern_words(const char *pattern) {
     return count;
 }
 
+int maelys_cli_leading_globals(int argc, char *const *argv) {
+    int i = 0;
+    while (i < argc && !strncmp(argv[i], "--", 2u) && argv[i][2]) {
+        const char *name = argv[i] + 2;
+        const char *equals = strchr(name, '=');
+        size_t length = equals ? (size_t)(equals - name) : strlen(name);
+        const maelys_cli_option_t *option = NULL;
+        for (size_t t = 0u; t < MAELYS_CLI_COUNT(transport) && !option; ++t)
+            if (strlen(transport[t].name) == length &&
+                !memcmp(transport[t].name, name, length))
+                option = &transport[t];
+        if (!option || !strcmp(option->name, "help")) break;
+        if (option->kind != MAELYS_CLI_VALUE_NONE && !equals) {
+            if (i + 1 >= argc) break;
+            ++i;
+        }
+        ++i;
+    }
+    return i;
+}
+
+/* Word i of the line as the parser reads it: when global options came
+ * before the --help or --version at `at`, that word first, then the
+ * options before it, then the rest in place. */
+static char *line_word(char **argv, int at, int i) {
+    if (at == 0) return argv[i];
+    return i == 0 ? argv[at] : i <= at ? argv[i - 1] : argv[i];
+}
+
 static int pattern_matches(const char *pattern, int argc, char **argv) {
     const char *cursor = pattern;
     int index = 0;
@@ -211,9 +240,10 @@ static int pattern_matches(const char *pattern, int argc, char **argv) {
 
 static const maelys_cli_command_t *resolve_command(
     const maelys_cli_app_t *app, int argc, char **argv, int *out_words,
-    int *out_default) {
+    int *out_default, int *out_at) {
     *out_words = 0;
     *out_default = 0;
+    *out_at = 0;
     /* A program that declares a default command reads the first word of the
      * line, and it only (agent-cli/v2, section 8): an option, `--` or a word
      * with one dash selects the default command, and so does an empty line.
@@ -231,6 +261,17 @@ static const maelys_cli_command_t *resolve_command(
     if (!strcmp(argv[0], "--version")) {
         *out_words = 1;
         return maelys_cli_app_find_command(app, "version");
+    }
+    /* A global option selects no command: after global options only,
+     * --help and --version select their command as in first place, the
+     * options being that command's (agent-cli/v2 2.22.0, section 6). The
+     * word is the one written; a value an option takes is that value. */
+    int at = maelys_cli_leading_globals(argc, argv);
+    if (at > 0 && at < argc &&
+        (!strcmp(argv[at], "--help") || !strcmp(argv[at], "--version"))) {
+        *out_words = 1;
+        *out_at = at;
+        return maelys_cli_app_find_command(app, argv[at][2] == 'h' ? "help" : "version");
     }
     if (fallback && argv[0][0] == '-') {
         *out_default = 1;
@@ -538,7 +579,8 @@ int maelys_cli_parse(
     memset(out, 0, sizeof(*out));
     if (error) memset(error, 0, sizeof(*error));
     int words = 0;
-    out->command = resolve_command(app, argc, argv, &words, &out->default_selected);
+    int at = 0;
+    out->command = resolve_command(app, argc, argv, &words, &out->default_selected, &at);
     if (!out->command) {
         maelys_cli_error_set(error, MAELYS_CLI_CODE_INVALID_COMMAND,
             "Run 'describe --summary --format json' to discover valid "
@@ -561,7 +603,7 @@ int maelys_cli_parse(
 
     int passthrough = 0;
     for (int i = words; i < argc; ++i) {
-        const char *argument = argv[i];
+        const char *argument = line_word(argv, at, i);
         if (passthrough || strncmp(argument, "--", 2u) != 0 || !argument[2]) {
             if (!passthrough && !strcmp(argument, "--")) {
                 passthrough = 1;
@@ -672,7 +714,7 @@ int maelys_cli_parse(
                         "Option --%s requires a value.", descriptor->name);
                     PARSE_FAIL();
                 }
-                value = argv[++i];
+                value = line_word(argv, at, ++i);
             }
             parsed.value = value;
             if (validate_value(descriptor, value, &parsed, error) != 0) PARSE_FAIL();

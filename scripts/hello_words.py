@@ -17,4 +17,7 @@ WORD_LISTS = [
     ["limits", "--tag", "a", "--"], ["limits", "--tag", "a", "--tag", "b", "--t"],
     ["note", ""], ["note", "w"], ["note", "write", ""], ["note", "write", "--"],
     ["list", ""], ["list", "--"], ["check", ""], ["check", "--"], ["__complete", ""],
+    # Global options select no command: after them only, --version (agent-cli/v2 2.22.0, section 6).
+    ["--v"], ["--non-interactive", "--v"], ["--lang", "fr", "--"], ["--format=json", "--color", "never", "-"],
+    ["--lang", "--v"], ["--help", "--v"], ["--nope", "--v"], ["--non-interactive", "x", "--"],
 ]

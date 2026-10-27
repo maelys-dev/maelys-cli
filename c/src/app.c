@@ -3267,6 +3267,16 @@ static int builtin_complete(maelys_cli_context_t *context) {
         given[i] = (char *)maelys_cli_operand(context, i);
     const maelys_cli_app_t *app = context->app;
 
+    /* At the root, before any word but global options, none included, the
+     * line is still the program's: a word that starts with a dash may be
+     * --version, as the line would read it (agent-cli/v2 2.22.0, section 6). */
+    if (prefix[0] == '-' &&
+        maelys_cli_leading_globals((int)given_count, given) == (int)given_count &&
+        !strncmp("--version", prefix, strlen(prefix)) &&
+        emit_candidate(context, "--version", prefix) != 0)
+        return maelys_cli_fail(context, MAELYS_CLI_CODE_IO_FAILED, NULL,
+            "Could not write candidates.");
+
     /* Resolve the command from the complete words only. */
     const maelys_cli_command_t *command = NULL;
     size_t command_words = 0u;
@@ -3877,8 +3887,9 @@ static void command_help_text(
     if (app->default_command && !strcmp(app->default_command, command->id)) {
         help_heading(stream, style, "DEFAULT COMMAND");
         help_paragraph(stream, tr(style, "A line that names no command runs this one: an "
-            "empty line, or one that starts with an option other than --help "
-            "and --version. Its operands come after --:"), width, 0);
+            "empty line, or one that starts with an option, unless --help or "
+            "--version comes first or after global options only. Its operands "
+            "come after --:"), width, 0);
         default_forms(stream, app->program, command->pattern, style);
     }
     if (command->operand_count) {
@@ -4047,9 +4058,9 @@ static void catalog_help_text(FILE *stream, const maelys_cli_app_t *app, size_t 
         maelys_cli_app_find_command(app, app->default_command) : NULL;
     if (fallback) {
         trf(line, sizeof(line), style, "%s [options] runs '%s', as %s %s "
-            "[options] does: the options in front, other than --help and "
-            "--version, are its.", app->program, fallback->pattern, app->program,
-            fallback->pattern);
+            "[options] does: the options in front are its, unless --help or "
+            "--version comes first or after global options only.", app->program,
+            fallback->pattern, app->program, fallback->pattern);
         (void)fputc('\n', stream);
         help_paragraph(stream, line, width, 0);
     }

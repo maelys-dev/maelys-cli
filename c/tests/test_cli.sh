@@ -520,6 +520,8 @@ envelope = json.load(sys.stdin)
 data = envelope.get("data", {})
 if envelope.get("command") == "help":
     data = data.get("commands")
+elif envelope.get("command") == "version" and envelope.get("ok"):
+    data = {key: value for key, value in data.items() if key != "framework"}
 print(envelope.get("command"), envelope.get("exitCode"), envelope.get("error", {}).get("code"),
       json.dumps(data, sort_keys=True, separators=(",", ":")))'
 }
@@ -555,6 +557,33 @@ dflt help-default --label x --help
 check "--help after an option is the help of the default command" '[ "$code" = 0 ] && said "^help 0 None \[\"show\"\]"'
 dflt help-first --help
 check "--help first is the general help" '[ "$code" = 0 ] && said "^help 0 None \[\"help\""'
+# Global options select no command (agent-cli/v2 2.22.0, section 6): after
+# global options only, --help and --version are the program's, as in first
+# place, the default command notwithstanding.
+dflt help-after-globals --lang fr --non-interactive --help
+check "global options then --help are the general help" '[ "$code" = 0 ] && said "^help 0 None \[\"help\""'
+dflt version-after-globals --color never --version
+check "global options then --version are the version" '[ "$code" = 0 ] && said "^version 0 None"'
+dflt version-help --non-interactive --version --help
+check "global options, --version and --help are the help of version" '[ "$code" = 0 ] && said "^help 0 None \[\"version\"\]"'
+dflt help-version --help --version
+check "--help --version stays refused, as help --version is" '[ "$code" = 1 ] && said "^help 1 VALIDATION_FAILED"'
+dflt globals-malformed --lang en_US --help
+check "a malformed global option before --help fails in the name of help" '[ "$code" = 1 ] && said "^help 1 VALIDATION_FAILED"'
+dflt globals-repeated --non-interactive --non-interactive --help
+check "a repeated global option before --help fails in the name of help" '[ "$code" = 1 ] && said "^help 1 VALIDATION_FAILED"'
+dflt globals-value --field --help
+check "a word a global option takes as its value is no --help" '[ "$code" = 1 ] && said "^show 1 VALIDATION_FAILED"'
+dflt globals-version-operand --lang fr --version extra
+check "global options, --version and an operand fail in the name of version" '[ "$code" = 1 ] && said "^version 1 VALIDATION_FAILED"'
+dflt complete-globals __complete -- --non-interactive --v
+check "after global options only, a dash completes with --version" '[ "$code" = 0 ] && said "\"word\":\"--version\""'
+dflt complete-bare-root __complete -- --v
+check "at the bare root, a dash completes with --version" '[ "$code" = 0 ] && said "\"word\":\"--version\""'
+for line in "--lang fr --help" "--non-interactive --version" "--json --version --help"; do
+    run "hello-globals-$line" "$hello" $line --compact
+    check "without a default command, global options then $line" '[ "$code" = 0 ]'
+done
 dflt plan save --content text
 check "a transaction plans without --apply" '[ "$code" = 0 ] && said "\"mode\":\"plan\""'
 dflt complete-root __complete -- --
@@ -575,18 +604,18 @@ check "the default command's help shows both forms, operands after --" '[ "$code
 run help-no-default "$hello" help
 check "a program without a default command says nothing of one" '[ "$code" = 0 ] && ! printf "%s" "$out" | grep -q "DEFAULT COMMAND"'
 run help-says-options "$dflt_c" help
-check "help says a line that starts with an option is the default command's" 'printf "%s" "$out" | tr "\n" " " | grep -q "the options in front, other than --help and --version, are its"'
+check "help says a line that starts with an option is the default command's" 'printf "%s" "$out" | tr "\n" " " | tr -s " " | grep -q "the options in front are its, unless --help or --version comes first or after global options only"'
 run help-says-options-py $dflt_py show --help
-check "the default command's help says it too" 'printf "%s" "$out" | tr "\n" " " | grep -q "starts *with an option other than --help *and --version"'
+check "the default command's help says it too" 'printf "%s" "$out" | tr "\n" " " | tr -s " " | grep -q "starts with an option, unless --help or --version comes first or after global options only"'
 
 # Migration (section 8: declaring a default command can stop a line that
 # ran): the same catalog before a default is declared
 # (DEFAULT_SURFACE_DEFAULT=none) and after, in C and in Python. Each handler
 # appends its command to a trace: a handler ran exactly when a command of
 # the catalog succeeded, never on a refusal, --help or --version. Without a
-# default C and Python read an empty line and a line that starts with an
-# option apart; the specification leaves that open, and these lines say
-# what each does today.
+# default, the specification leaves an empty line and a line that starts
+# with an option open; C and Python read them alike, an empty line as the
+# help and a first option as no command, and these lines say so.
 mig_trace="$work/default-trace"
 mig_answer() { # the command, the exit code and the error code; a stream's first line
     printf '%s' "${out:-$err}" | python3 -c 'import json, sys
@@ -613,32 +642,32 @@ mig_one() { # mig_one NAME DEFAULT PROGRAM WORDS...: $answer, the handler checke
     esac
     check "a handler runs only for a command that succeeds: $mig_name ($answer)" '[ "$ran" = "$expected" ]'
 }
-mig() { # mig NAME DEFAULT BEFORE_C BEFORE_PY AFTER WORDS...
-    m_name=$1 m_default=$2 m_before_c=$3 m_before_py=$4 m_after=$5
-    shift 5
+mig() { # mig NAME DEFAULT BEFORE AFTER WORDS...
+    m_name=$1 m_default=$2 m_before=$3 m_after=$4
+    shift 4
     mig_one "$m_name-before" none "$dflt_c" "$@"
-    check "before a default, C: $m_name" '[ "$answer" = "$m_before_c" ]'
+    check "before a default, C: $m_name" '[ "$answer" = "$m_before" ]'
     mig_one "$m_name-before-py" none "$dflt_py" "$@"
-    check "before a default, Python: $m_name" '[ "$answer" = "$m_before_py" ]'
+    check "before a default, Python: $m_name" '[ "$answer" = "$m_before" ]'
     mig_one "$m_name-after" "$m_default" "$dflt_c" "$@"
     check "after a default, C: $m_name" '[ "$answer" = "$m_after" ]'
     mig_one "$m_name-after-py" "$m_default" "$dflt_py" "$@"
     check "after a default, Python: $m_name" '[ "$answer" = "$m_after" ]'
 }
-mig empty show "help 0 None" "unknown 1 INVALID_COMMAND" "show 0 None"
-mig json-first show "unknown 1 INVALID_COMMAND" "list 0 None" "show 1 VALIDATION_FAILED" --json list
-mig json-after show "list 0 None" "list 0 None" "list 0 None" list --json
-mig value-list show "unknown 1 INVALID_COMMAND" "list 1 VALIDATION_FAILED" "show 0 None" --label list
-mig unknown show "unknown 1 INVALID_COMMAND" "unknown 1 INVALID_COMMAND" "unknown 1 INVALID_COMMAND" nope
-mig help show "help 0 None" "help 0 None" "help 0 None" --help
-mig version show "version 0 None" "version 0 None" "version 0 None" --version
-mig help-implicit show "unknown 1 INVALID_COMMAND" "unknown 1 INVALID_COMMAND" "help 0 None" --label x --help
-mig dash-h show "unknown 1 INVALID_COMMAND" "unknown 1 INVALID_COMMAND" "show 1 VALIDATION_FAILED" -h
-mig dash-x show "unknown 1 INVALID_COMMAND" "unknown 1 INVALID_COMMAND" "show 1 VALIDATION_FAILED" -x
-mig operands show "unknown 1 INVALID_COMMAND" "unknown 1 INVALID_COMMAND" "show 0 None" --label x -- notes.txt
-mig stream-json watch "unknown 1 INVALID_COMMAND" "unknown 1 INVALID_COMMAND" "watch 1 VALIDATION_FAILED" --json
-mig stream-empty watch "help 0 None" "unknown 1 INVALID_COMMAND" "stream 0 watching"
-mig transaction save "unknown 1 INVALID_COMMAND" "unknown 1 INVALID_COMMAND" "save 0 None" --content text
+mig empty show "help 0 None" "show 0 None"
+mig json-first show "unknown 1 INVALID_COMMAND" "show 1 VALIDATION_FAILED" --json list
+mig json-after show "list 0 None" "list 0 None" list --json
+mig value-list show "unknown 1 INVALID_COMMAND" "show 0 None" --label list
+mig unknown show "unknown 1 INVALID_COMMAND" "unknown 1 INVALID_COMMAND" nope
+mig help show "help 0 None" "help 0 None" --help
+mig version show "version 0 None" "version 0 None" --version
+mig help-implicit show "unknown 1 INVALID_COMMAND" "help 0 None" --label x --help
+mig dash-h show "unknown 1 INVALID_COMMAND" "show 1 VALIDATION_FAILED" -h
+mig dash-x show "unknown 1 INVALID_COMMAND" "show 1 VALIDATION_FAILED" -x
+mig operands show "unknown 1 INVALID_COMMAND" "show 0 None" --label x -- notes.txt
+mig stream-json watch "unknown 1 INVALID_COMMAND" "watch 1 VALIDATION_FAILED" --json
+mig stream-empty watch "help 0 None" "stream 0 watching"
+mig transaction save "unknown 1 INVALID_COMMAND" "save 0 None" --content text
 check "a default transaction without --apply plans" 'printf "%s" "$out" | grep -q "\"mode\": *\"plan\""'
 
 # The help palette (maelys_cli_help_palette_t; help_palette= in Python):

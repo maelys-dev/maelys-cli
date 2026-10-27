@@ -13,7 +13,7 @@ source-checkout include flags from `-I$MAELYS_CLI_DIR/include` to
 `include/maelys/cli.h` or `include/maelys/cli/version.h` from that checkout
 must also insert `c/`. Update the pin and these paths together.
 
-The four identified consumers need the following changes at their next pin
+The five identified consumers need the following changes at their next pin
 update; they are not changed merely by reorganizing this repository:
 
 | Consumer | Source-checkout paths to update |
@@ -22,6 +22,7 @@ update; they are not changed merely by reorganizing this repository:
 | maelys-egress | `CLI_CPPFLAGS` and dependency/header/ABI checks use `$(MAELYS_CLI_DIR)/c/include`. |
 | maelys-datalog-cli | The Makefile's include flag and ABI/contract checks use `$(CLI_DIR)/c/include`. |
 | maelys-sandbox-policy | The dependency/header check and CLI object's include flag use `$(MAELYS_CLI_DIR)/c/include`. |
+| maelys-warden | `mk/build-and-unit.mk`: the CLI's `-I$(MAELYS_CLI_DIR)/include` and the check of `$(MAELYS_CLI_DIR)/include/maelys/cli.h` use `$(MAELYS_CLI_DIR)/c/include`. |
 
 `make -C "$MAELYS_CLI_DIR"` and `cmake -S "$MAELYS_CLI_DIR"` retain their
 root entry points. Installed headers remain `PREFIX/include/maelys/` and
@@ -174,6 +175,29 @@ command when either is wrong:
   needs nothing. One broken by hand into lines of 80 columns is joined back
   into one line per paragraph, or each hand-made line is wrapped on its own
   and the paragraph reads ragged at another width.
+
+## Every consumer, at agent-cli-spec 2.22.0
+
+2.22.0 writes, in its section 6 ("help and version"), that a global option
+selects no command: a line of global options only, each with its value,
+then `--help` or `--version`, reads as if that word came first, and this
+pin implements it. Nothing to change in a catalog or a handler. What a
+product meets:
+
+- **Lines that were refused now answer.** In a program without a default
+  command, `PROGRAM --lang fr --help`, `PROGRAM --non-interactive --help`
+  and `PROGRAM --color never --version` were `INVALID_COMMAND`; they are
+  the help and the version.
+- **With a default command, global options then `--help` are the
+  program's help**, no longer the default command's, and global options
+  then `--version` the version, no longer `VALIDATION_FAILED` in the
+  default command's name. The default command's help is `PROGRAM help
+  COMMAND`, `PROGRAM COMMAND --help`, or one of its own options then
+  `--help`. A test that pinned the old answer moves with the pin.
+- **The help's sentence on the default command changes words**, in English
+  and in French, so a test that compares the help text moves too.
+- **`__complete` offers `--version`** at the root, before any word but
+  global options, none included.
 
 ## Every consumer, at agent-cli-spec 2.21.0
 
