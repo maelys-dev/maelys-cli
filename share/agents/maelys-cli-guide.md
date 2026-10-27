@@ -586,3 +586,16 @@ conformance kit, and a product runs that kit on its own program. Its
 `completion SHELL` prints a script that carries the candidates of the catalog
 and launches nothing at a Tab; `static_completion=False` declines it for a
 catalog that depends on the machine.
+
+## TypeScript and JavaScript products
+
+The unreleased `@maelys-dev/cli` runtime lives in `typescript/`; it runs on
+Node 22.13.0 or later without loading C or starting Python. Use one `Program`
+catalog and `read`, `records`, `transaction`, `execute`, `stream` or `external`
+handlers, with `option`, `flag`, `operand`, `argument`, `constraint` and
+`example` declarations. Run the pinned conformance kit on the product.
+`docs/typescript.md` states the initial supported surface and its limits:
+not every native file-trust or process primitive is ported. Do not substitute
+an unverified host API and claim those guarantees. The example and shared
+surface run through `make typescript-check`; `make check-all` checks all three
+implementations. The npm publication channel is not enabled by this change.

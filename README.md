@@ -196,6 +196,18 @@ reference product is `python/examples/hello.py`; `make check` runs the
 module's tests and the conformance kit against it. See
 [docs/python.md](docs/python.md).
 
+## Writing a product CLI in TypeScript or JavaScript
+
+The native Node runtime is in `typescript/`, packaged as `@maelys-dev/cli`
+with compiled ESM and TypeScript declarations. It shares agent-cli/v2 and
+its pinned conformance kit with the C and Python implementations; it starts
+neither implementation. See [docs/typescript.md](docs/typescript.md) for
+its public vocabulary, supported surface and candidate status.
+
+`npm ci --prefix typescript && make typescript-check` checks this runtime;
+`make check-all` checks all three. Native consumers still build and test
+without Node/npm. CI requires the Node checks on all three native targets.
+
 ## The `maelys` dispatcher
 
 `maelys` runs external commands declared by installed manifests. There is no

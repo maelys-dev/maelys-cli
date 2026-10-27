@@ -100,3 +100,16 @@ For a product written in Python, the same rules apply on `python/maelys_cli.py`
 (`cli.read`, `cli.transaction`, `cli.stream`, `cli.operand`, `cli.option`,
 `cli.argument`; see `docs/python.md`): one catalog, handlers that return
 `(data, exit_code)` or raise `cli.Failure`, the conformance kit in CI.
+
+## TypeScript and JavaScript products
+
+The unreleased `@maelys-dev/cli` runtime lives in `typescript/`; it runs on
+Node 22.13.0 or later without loading C or starting Python. Use one `Program`
+catalog and `read`, `records`, `transaction`, `execute`, `stream` or `external`
+handlers, with `option`, `flag`, `operand`, `argument`, `constraint` and
+`example` declarations. Run the pinned conformance kit on the product.
+`docs/typescript.md` states the initial supported surface and its limits:
+not every native file-trust or process primitive is ported. Do not substitute
+an unverified host API and claim those guarantees. The example and shared
+surface run through `make typescript-check`; `make check-all` checks all three
+implementations. The npm publication channel is not enabled by this change.

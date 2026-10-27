@@ -36,7 +36,7 @@ for macro in "MAELYS_CLI_VERSION " "MAELYS_CLI_VERSION_MAJOR " \
 done
 if test "$rendered" = "$(cat "$header")"; then
     echo "sync-version: $header already at $version"
-    exit 0
+    exec python3 scripts/sync-typescript-version.py "$@"
 fi
 if test "${1:-}" = "--check"; then
     echo "sync-version: $header does not match VERSION $version" >&2
@@ -44,3 +44,4 @@ if test "${1:-}" = "--check"; then
 fi
 printf '%s\n' "$rendered" > "$header"
 echo "sync-version: $header now at $version"
+python3 scripts/sync-typescript-version.py

@@ -68,13 +68,35 @@ jobs:
       - name: Build with GCC
         run: make check CC=gcc CXX=g++
 
+  typescript:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-26.04, ubuntu-26.04-arm, macos-15]
+        node: ['22']
+        include:
+          - runner: ubuntu-26.04
+            node: '22.13.0'
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Pinned dependency checkouts
+        run: sh scripts/checkout-dependencies.sh "$RUNNER_TEMP/dependencies" >> "$GITHUB_ENV"
+      - name: Install pinned development dependencies
+        run: npm ci --prefix typescript
+      - name: Native Node runtime, shared spec, parity and standalone package
+        run: make typescript-check
+
   # The single context main's ruleset requires. Every other job here is named
   # after a runner or the socle's matrix, so a socle bump or a runner rename
   # turns a required context into one that never reports and blocks the branch
   # with nothing to lift it. This name depends on neither, and the rule reads
   # one status instead of nine.
   ci:
-    needs: [check, packaging, python, gcc]
+    needs: [check, packaging, python, gcc, typescript]
     if: always()
     runs-on: ubuntu-26.04
     steps:

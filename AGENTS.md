@@ -83,6 +83,30 @@ under incompatible terms into the agent texts. See `LICENSING.md`.
   release that touches the module names the change in `CHANGELOG.md` under
   a line starting with `python/maelys_cli.py`.
 
+## TypeScript / JavaScript implementation
+
+- `typescript/src/` is the native Node runtime; the npm package is
+  `@maelys-dev/cli`, ESM with declarations. No C binding or Python subprocess.
+- Keep its parsing, errors, built-in catalog and value grammars aligned with
+  the C reference and `dependencies/agent-cli-spec.pin`. Never widen a value
+  grammar to make an example pass. Big integers must remain exact.
+- `scripts/typescript-builtins.py` calculates built-in metadata, shell templates
+  and shared fixtures from the C declarations, and translations from `i18n/`.
+  Regenerate rather than editing these files. It checks them before tests.
+- Every export of `typescript/src/index.ts` is documented in
+  `docs/typescript.md`; the Node tests enforce it. Test new behavior positively
+  and adversarially, then run `make typescript-check` and the existing native
+  gates. `make check-all` aggregates both. Never remove the `typescript` job
+  from the required aggregate `ci` context.
+- The declared Node minimum is exercised in CI, beside current Node 22 on
+  Linux x86_64, Linux arm64 and macOS arm64. The package has no runtime
+  dependency; the offline consumer test must pass outside this checkout.
+- The initial runtime does not expose all C file-trust/process/dispatcher
+  primitives. Do not promise those guarantees in a Node product.
+- npm version and lock follow `VERSION` through `tools/sync-version.sh`;
+  never publish bytes absent from the signed tag or reuse an old native tag
+  for a newly added runtime. Its npm channel is a separate release change.
+
 ## Doctrine enforced by the framework
 
 - stdout carries success data only; stderr carries diagnostics and failure

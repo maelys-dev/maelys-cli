@@ -4,7 +4,8 @@ The 0.x series is source compatible within ABI 1 of `libmaelys_cli`. A release
 requires:
 
 1. `VERSION`, `MAELYS_CLI_VERSION` in `c/include/maelys/cli/version.h` and the
-   changelog agree (`make check-version`).
+   changelog agree (`make check-version`). The TypeScript package and lock
+   also follow VERSION through `tools/sync-version.sh`, run by the release cut.
 2. `make check`, `make asan-ubsan`, `make analyze`, `make install-check` and
    `make cmake-check` pass on macOS (Apple Silicon) and Linux (amd64/arm64).
 3. `maelys-release check .` passes: `docs/cli.md` and `docs/cli-contract.json`
@@ -19,3 +20,9 @@ requires:
    arm64 with clang and GCC, macOS) is green on the release commit.
 7. The annotated `vX.Y.Z` tag names the exact validated commit; consumers
    pin that tag, never a branch.
+8. `make typescript-check` passes beside the native checks; `make check-all`
+   runs both. CI tests the minimum Node version and Node on all three targets.
+
+The npm publication channel is not enabled yet. Adding a runtime package
+is not permission to attach new bytes to an existing native tag: a future
+channel must publish only bytes built from its new validated signed tag.
