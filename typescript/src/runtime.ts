@@ -4,7 +4,7 @@ import { builtins } from "./builtins.js";
 import { completionTemplates } from "./completion-templates.js";
 import { descriptor, type Command, type Option, type Result } from "./catalog.js";
 import { Failure, formatTemplate, parseValue, stringify, validateValue, type Json, type Schema } from "./values.js";
-import { parse, environmentFormat } from "./parser.js";
+import { parse, environmentFormat, leadingGlobals } from "./parser.js";
 import { fileFailure } from "./files.js";
 import { pagerArguments } from "./terminal.js";
 import { frameworkTranslations } from "./translations.js";
@@ -237,7 +237,10 @@ export class Program {
         candidates = valueCandidates(spec);
       }
     }
-    return [...new Set(candidates)].filter(c => c.startsWith(current));
+    // At the root, before any word but global options, none included, the line is still the program's: a word
+    // that starts with a dash may be --version, as the line would read it (agent-cli/v2 2.22.0, section 6).
+    const leading = current.startsWith("-") && leadingGlobals(this, previous) === previous.length ? ["--version"] : [];
+    return [...new Set([...leading, ...candidates])].filter(c => c.startsWith(current));
   }
   private envelope(command: string, ok: boolean, exitCode: number, value: Json, compact: boolean): string { return stringify({ schemaVersion: 2, contract: "agent-cli/v2", command, ok, exitCode, [ok ? "data" : "error"]: value }, compact) + "\n"; }
   private page(text: string, invocation: Invocation): void {

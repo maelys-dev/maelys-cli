@@ -3,15 +3,46 @@ import { Failure, parseFlag, parseValue, type Json } from "./values.js";
 import { Invocation, type Program } from "./runtime.js";
 import type { Command, Option } from "./catalog.js";
 export const environmentFormat = () => process.env.MAELYS_CLI_FORMAT === "json" ? "json" : "text";
+// The index of the first word that is neither a global option nor the value it takes, as
+// maelys_cli_leading_globals does in C: --help is no global option here, being the word that selects the help.
+export function leadingGlobals(program: Program, argv: string[]): number {
+  let index = 0;
+  while (index < argv.length && argv[index].startsWith("--") && argv[index].length > 2) {
+    const equals = argv[index].indexOf("=");
+    const name = equals < 0 ? argv[index] : argv[index].slice(0, equals);
+    const definition = program.globalOptions.find(o => o.long === name);
+    if (!definition || name === "--help") break;
+    if (definition.argument && equals < 0) {
+      if (index + 1 >= argv.length) break;
+      index++;
+    }
+    index++;
+  }
+  return index;
+}
 export function parse(program: Program, argv: string[]): Invocation {
   let words: string[] = [], raw: [string, string | null | symbol][] = [], tail: string[] = [];
   const dash = Symbol(), bare = Symbol();
   const fallback = program.defaultCommand ? program.commandById(program.defaultCommand) : undefined;
-  const implicit = fallback && (!argv.length || argv[0].startsWith("-") && !["--help", "--version"].includes(argv[0]));
   let index = 0;
+  // A global option selects no command: after global options only, --help and --version select their command
+  // as in first place, the options being that command's (agent-cli/v2 2.22.0, section 6).
+  const at = leadingGlobals(program, argv);
+  if (at > 0 && at < argv.length && ["--help", "--version"].includes(argv[at])) argv = [argv[at], ...argv.slice(0, at), ...argv.slice(at + 1)];
+  if (argv.length && ["--help", "--version"].includes(argv[0])) {
+    // As the first word, each is its command spelled as an option, the rest of the line its own:
+    // `--version --help` is the help of version, `--help --version` an option help lacks.
+    words.push(argv[0] === "--help" ? "help" : "version");
+    index = 1;
+  }
+  const implicit = fallback && (!argv.length || argv[0].startsWith("-") && !["--help", "--version"].includes(argv[0]));
+  // The command is resolved from the words that start the line, before any option, as in C: bare words after
+  // an option are operands of the command those leading words name.
+  let leading: number | undefined;
   while (index < argv.length) {
     const word = argv[index];
-    const [current, consumed] = implicit ? [fallback, 0] : program.resolve(words);
+    const [current, consumed] = implicit ? [fallback, 0] : program.resolve(leading === undefined ? words : words.slice(0, leading));
+    if (word.startsWith("-") && word !== "-" && word !== "--" && leading === undefined) leading = words.length;
     if (current?.input.passthrough && words.length === consumed) { tail = argv.slice(index); break; }
     if (word === "--") { tail = argv.slice(index + 1); break; }
     if (word.startsWith("--") && word.length > 2) {
@@ -28,24 +59,26 @@ export function parse(program: Program, argv: string[]): Invocation {
     else words.push(word);
     index++;
   }
-  if (implicit) words = [...fallback.pattern];
-  else if (!words.length && raw.some(([name]) => ["--help", "--version"].includes(name)) && !raw.some(([, value]) => value === dash)) {
-    words = [raw.some(([name]) => name === "--help") ? "help" : "version"];
-    raw = raw.filter(([name]) => !["--help", "--version"].includes(name));
-  }
-  if (!words.length) throw new Failure("INVALID_COMMAND", "No command given.", "Run '" + program.program + " help' or 'describe --summary'.");
-  let [command, consumed] = program.resolve(words);
+  leading ??= words.length;
+  if (implicit) words = [...fallback.pattern], leading = words.length;
+  // Without a default command, an empty line is the help, as in C.
+  else if (!argv.length) words = ["help"], leading = 1;
+  // A first word that starts with a dash, --help and --version apart, names no command: options come after
+  // the command's pattern, and a word with one dash selects nothing either (`-x --help`), as in C.
+  else if (leading === 0) throw new Failure("INVALID_COMMAND", "Unknown command '" + argv[0] + "'.", "Run describe --summary and use one of the listed command identifiers.");
+  let [command, consumed] = program.resolve(words.slice(0, leading));
   if (!command && raw.some(([name]) => name === "--help")) {
-    const family = program.family(undefined, words);
+    const family = program.family(undefined, words.slice(0, leading));
     if (family.length) {
-      program.pendingFamily = [...words];
+      program.pendingFamily = words.slice(0, leading);
       tail = [];
-      words = ["help"];
+      words = ["help", ...words.slice(leading)];
+      leading = 1;
       raw = raw.filter(([name]) => name !== "--help");
-      [command, consumed] = program.resolve(words);
+      [command, consumed] = program.resolve(words.slice(0, 1));
     }
   }
-  if (!command) throw new Failure("INVALID_COMMAND", "Unknown command '" + words.join(" ") + "'.", "Run describe --summary and use one of the listed command identifiers.");
+  if (!command) throw new Failure("INVALID_COMMAND", "Unknown command '" + words.slice(0, leading).join(" ") + "'.", "Run describe --summary and use one of the listed command identifiers.");
   program.resolvedCommand = command.id;
   const operands = [...words.slice(consumed), ...tail], usage = command.usage;
   const invocation = new Invocation(program, command);
@@ -90,7 +123,7 @@ export function parse(program: Program, argv: string[]): Invocation {
     command = program.commandById("help");
     program.resolvedCommand = "help";
     invocation.command = command;
-    invocation.operands = [words.length ? program.resolve(words)[0]!.id : "help"];
+    invocation.operands = [words.length ? program.resolve(words.slice(0, leading))[0]!.id : "help"];
     invocation.rawOperands = invocation.operands.map(String);
     if (invocation.format === "jsonl" && invocation.field === undefined) throw new Failure("VALIDATION_FAILED", "--format jsonl is accepted only by json-records commands, not 'help'; add --field to render one member in jsonl.", "Use --format json.");
     return invocation;

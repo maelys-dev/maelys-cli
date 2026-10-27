@@ -131,3 +131,27 @@ test('malformed failure metadata yields one valid UNEXPECTED envelope', () => {
     assert.equal(JSON.parse(result.stderr).error.code, 'UNEXPECTED', expression);
   }
 });
+test('global options before --help and --version, and the command read from the first words, as in C', () => {
+  const answer = (args) => {
+    const result = invoke(args, { MAELYS_CLI_FORMAT: 'json' });
+    const envelope = JSON.parse(result.status === 0 ? result.stdout : result.stderr);
+    return [envelope.command, result.status, envelope.error?.code ?? null, envelope.command === 'help' ? envelope.data?.commands : null];
+  };
+  // agent-cli/v2 2.22.0, section 6: after global options only, --help and --version are the program's.
+  assert.deepEqual(answer(['--lang', 'fr', '--help']).slice(0, 3), ['help', 0, null]);
+  assert.deepEqual(answer(['--non-interactive', '--version']).slice(0, 3), ['version', 0, null]);
+  assert.deepEqual(answer(['--non-interactive', '--version', '--help']), ['help', 0, null, ['version']]);
+  assert.deepEqual(answer(['--help', '--version']).slice(0, 3), ['help', 1, 'VALIDATION_FAILED']);
+  assert.deepEqual(answer(['--non-interactive', '--non-interactive', '--help']).slice(0, 3), ['help', 1, 'VALIDATION_FAILED']);
+  assert.deepEqual(answer(['--lang', 'en_US', '--help']).slice(0, 3), ['help', 1, 'VALIDATION_FAILED']);
+  assert.deepEqual(answer(['--lang', 'fr', '--version', 'extra']).slice(0, 3), ['version', 1, 'VALIDATION_FAILED']);
+  assert.notEqual(answer(['--field', '--help'])[0], 'help');
+  // Without a default command, the command is the line's first words, and an empty line is the help.
+  for (const args of [['--json', 'version'], ['--nope', '--help'], ['--verbose', '--nope', '--help'], ['-x', '--help']])
+    assert.deepEqual(answer(args).slice(0, 3), ['unknown', 1, 'INVALID_COMMAND'], args.join(' '));
+  assert.deepEqual(answer([]).slice(0, 3), ['help', 0, null]);
+  // __complete offers --version at the root, after global options or none.
+  const words = (args) => invoke(['__complete', '--format', 'text', '--', ...args]).stdout.split('\n').filter(Boolean);
+  for (const args of [['--v'], ['--non-interactive', '--v'], ['--lang', 'fr', '--']]) assert.ok(words(args).includes('--version'), args.join(' '));
+  assert.ok(!words(['--lang', '--v']).includes('--version'));
+});

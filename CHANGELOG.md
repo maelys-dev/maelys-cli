@@ -6,6 +6,9 @@
   as `@maelys-dev/cli` with ESM and declarations, Node >=22.13.0 and no runtime
   dependencies. It implements the pinned agent-cli/v2 catalog, parser,
   built-ins, rendering, exact 64-bit values and common-subset Thompson matcher.
+  It reads a line as C and Python do, agent-cli-spec 2.22.0 included: global
+  options before `--help` and `--version`, `--version` completed at the root,
+  the command from the line's first words and an empty line as the help.
 - Add POSIX bounded reads, explicit atomic write policies and plan fingerprints;
   native trusted-process/dispatcher and all file-trust flags remain outside
   this first Node surface. No guarantees are borrowed from the C layer.

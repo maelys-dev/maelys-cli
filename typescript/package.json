@@ -1,17 +1,38 @@
 {
   "name": "@maelys-dev/cli",
-  "version": "0.13.0",
+  "version": "0.14.0",
   "description": "Native TypeScript and JavaScript implementation of the Maelys agent-cli/v2 framework.",
   "type": "module",
-  "engines": { "node": ">=22.13.0" },
-  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
-  "files": ["dist", "LICENSE", "README.md"],
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "npm run build && node --test tests/*.test.mjs"
   },
-  "devDependencies": { "@types/node": "22.19.19", "typescript": "5.9.3" },
-  "repository": { "type": "git", "url": "git+https://github.com/maelys-dev/maelys-cli.git", "directory": "typescript" },
-  "publishConfig": { "registry": "https://npm.pkg.github.com", "access": "restricted" },
+  "devDependencies": {
+    "@types/node": "22.19.19",
+    "typescript": "5.9.3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/maelys-dev/maelys-cli.git",
+    "directory": "typescript"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "restricted"
+  },
   "license": "MPL-2.0"
 }
