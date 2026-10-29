@@ -658,6 +658,12 @@ return nothing, which is what sends the shell to the files. Stream commands
 never offer rendering options; a hidden or unavailable command is
 never offered, as a word or as an identifier.
 
+A command can also be the prefix of a family: declaring `catalog` does not
+hide `catalog summaries`. Completion offers the parent's operand choices,
+then the next words of its visible longer patterns, with each word once.
+Python uses its oracle-based scripts for this overlapping catalog instead
+of a static table that would hide the longer patterns.
+
 After the pattern of an external command the words are that command's own:
 the program forwards the words to its `__complete` and returns what it
 answers as records, the same in every format, and none when it is not

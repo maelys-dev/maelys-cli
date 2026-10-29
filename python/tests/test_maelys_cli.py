@@ -1777,5 +1777,31 @@ class Contract(unittest.TestCase):
             cli.Program("p", "P", "1", [cli.read("help", "h", "x", lambda i: ({}, 0))])
 
 
+class CallableParentCompletion(unittest.TestCase):
+    def test_parent_keeps_visible_child_words_and_unique_operand_choices(self):
+        reply = lambda invocation: ({}, 0)
+        program = cli.Program("fixture", "Fixture", "1", [
+            cli.read("catalog", "catalog", "Catalog.", reply, operands=[
+                cli.operand("MODE", "Mode.", required=False, kind="choice", choices=["summaries", "all"])]),
+            cli.read("catalog.summaries", "catalog summaries", "Summaries.", reply),
+            cli.read("catalog.details", "catalog details", "Details.", reply),
+            cli.read("catalog.hidden", "catalog hidden", "Hidden.", reply, hidden=True),
+            cli.read("catalog.gone", "catalog gone", "Gone.", reply, unavailable="Not installed."),
+        ])
+        def words(*arguments):
+            output, error = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(output), contextlib.redirect_stderr(error):
+                code = program.main(["__complete", "--format", "text", "--", *arguments])
+            self.assertEqual(code, 0, error.getvalue())
+            return output.getvalue().splitlines()
+        self.assertEqual(words("catalog", ""), ["summaries", "all", "details"])
+        self.assertEqual(words("catalog", "d"), ["details"])
+        self.assertEqual(words("catalog", "summaries", ""), [])
+        self.assertEqual(words("catalog", "all", ""), [])
+        self.assertNotIn("details", words("catalog", "--"))
+        for shell in ("bash", "zsh", "fish"):
+            self.assertEqual(program.completion_script(shell), program.completion_script(shell, static=False))
+
+
 if __name__ == "__main__":
     unittest.main()

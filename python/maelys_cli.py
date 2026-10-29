@@ -3701,6 +3701,13 @@ class Program:
         """The table a static script carries (see _STATIC_WORD), or None when a word of this catalog
         would not be inert in a shell: the script that calls __complete is exact for any catalog."""
         shown = [item for item in self.catalog if not item["hidden"] and item["unavailable"] is None]
+        # The static table selects an exact command before a longer pattern.
+        # Use the existing oracle-based scripts when a callable parent also
+        # owns a family, so shell completion retains its descendant words.
+        if any(not parent["external"] and len(child["pattern"]) > len(parent["pattern"])
+               and child["pattern"][:len(parent["pattern"])] == parent["pattern"]
+               for parent in shown for child in shown):
+            return None
         rows, details, words = [], [], [self.program, self.version]
 
         def option_rows(index: str, options: list) -> None:
@@ -3845,6 +3852,11 @@ class Program:
                 operands = command["operands"]
                 if position < len(operands) or operands[-1]["variadic"]:
                     candidates = self._value_candidates(operands[min(position, len(operands) - 1)])
+        # A callable parent does not hide the next words of longer patterns.
+        # Operand choices stay first; the final pass also removes shared words.
+        if command is not None and not command["external"]:
+            candidates.extend(other["pattern"][len(previous)] for other in shown
+                              if len(other["pattern"]) > len(previous) and other["pattern"][:len(previous)] == previous)
         matching = [word for word in dict.fromkeys(leading + candidates) if word.startswith(current)]
         return {"count": len(matching), "records": [{"word": word} for word in matching]}, EXIT_OK
 

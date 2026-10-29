@@ -3467,13 +3467,43 @@ static int builtin_complete(maelys_cli_context_t *context) {
 
     /* Positional: the next operand's choices when it is typed. */
     size_t position = partial.command == command ? partial.operand_count : 0u;
+    const maelys_cli_operand_t *next_operand = NULL;
     if (command->operand_count) {
         size_t slot = position < command->operand_count ? position :
             command->operand_count - 1u;
         const maelys_cli_operand_t *operand = &command->operands[slot];
         if (position < command->operand_count || operand->variadic) {
+            next_operand = operand;
             if (emit_value_candidates(context, operand->kind, operand->choices,
                     prefix) != 0)
+                return maelys_cli_fail(context, MAELYS_CLI_CODE_IO_FAILED, NULL,
+                    "Could not write candidates.");
+        }
+    }
+    /* A callable parent can also be a prefix of longer patterns. Its operand
+     * choices were emitted first; append visible child words exactly once. */
+    {
+        for (size_t i = 0u; i < total; ++i) {
+            char word[MAELYS_CLI_MAX_OPTION_NAME];
+            if (!next_pattern_word(maelys_cli_app_command_at(app, i), given,
+                    given_count, word, sizeof(word))) continue;
+            int offered = 0;
+            if (next_operand && next_operand->choices) {
+                const maelys_cli_operand_t *operand = next_operand;
+                for (size_t j = 0u; operand->choices[j] && !offered; ++j) {
+                    const char *choice = operand->choices[j];
+                    size_t length = strlen(choice);
+                    offered = operand->kind == MAELYS_CLI_VALUE_CHOICE ? !strcmp(choice, word) :
+                        operand->kind == MAELYS_CLI_VALUE_DIGEST && strlen(word) == length + 1u &&
+                        !memcmp(choice, word, length) && word[length] == ':';
+                }
+            }
+            for (size_t j = 0u; j < i && !offered; ++j) {
+                char earlier[MAELYS_CLI_MAX_OPTION_NAME];
+                offered = next_pattern_word(maelys_cli_app_command_at(app, j),
+                    given, given_count, earlier, sizeof(earlier)) && !strcmp(earlier, word);
+            }
+            if (!offered && emit_candidate(context, word, prefix) != 0)
                 return maelys_cli_fail(context, MAELYS_CLI_CODE_IO_FAILED, NULL,
                     "Could not write candidates.");
         }

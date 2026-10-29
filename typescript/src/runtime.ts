@@ -237,6 +237,11 @@ export class Program {
         candidates = valueCandidates(spec);
       }
     }
+    // A callable parent does not hide longer patterns in the same family.
+    // Keep operand choices first and deduplicate them with the child words.
+    if (command && !command.external) candidates = [...candidates, ...shown.filter(c =>
+      c.pattern.length > previous.length && previous.every((word, i) => c.pattern[i] === word))
+      .map(c => c.pattern[previous.length])];
     // At the root, before any word but global options, none included, the line is still the program's: a word
     // that starts with a dash may be --version, as the line would read it (agent-cli/v2 2.22.0, section 6).
     const leading = current.startsWith("-") && leadingGlobals(this, previous) === previous.length ? ["--version"] : [];
