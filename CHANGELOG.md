@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.16.0 - 2026-10-29
 
 agent-cli-spec 2.23.0: a refusal of the line names its
 cause. `docs/migration.md` says what a product meets.
