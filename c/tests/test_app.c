@@ -1864,6 +1864,38 @@ static int test_default_command(void) {
     return 1;
 }
 
+/* A limit of the implementation, not of the descriptor (agent-cli/v2
+ * 2.23.0, section 8): its one issue carries a code of the library's own. */
+static const maelys_cli_option_t tag_options[] = {
+    {MAELYS_CLI_STRING("tag", "TEXT", "Tag."), .repeatable = 1},
+};
+static const maelys_cli_command_t tagged[] = {
+    {MAELYS_CLI_READ("tag", "tag", "Tag.", command_report),
+     MAELYS_CLI_OPTIONS(tag_options)},
+};
+
+static int test_option_limit(void) {
+    maelys_cli_app_t limited = app;
+    limited.commands = tagged;
+    limited.command_count = 1u;
+    char tag[] = "tag";
+    char option[] = "--tag=x";
+    char *line[MAELYS_CLI_MAX_OPTIONS + 2u];
+    line[0] = tag;
+    for (size_t i = 1u; i < MAELYS_CLI_MAX_OPTIONS + 2u; i++)
+        line[i] = option;
+    maelys_cli_invocation_t invocation;
+    maelys_cli_error_t error;
+    CHECK(maelys_cli_parse(&limited, (int)MAELYS_CLI_MAX_OPTIONS + 1, line,
+        &invocation, &error) == 0);
+    CHECK(maelys_cli_parse(&limited, (int)MAELYS_CLI_MAX_OPTIONS + 2, line,
+        &invocation, &error) != 0 &&
+        !strcmp(error.code, MAELYS_CLI_CODE_VALIDATION_FAILED) &&
+        !strcmp(error.issue_code, "MAELYS_TOO_MANY_OPTIONS") &&
+        !strcmp(error.issue_path, "options"));
+    return 1;
+}
+
 static int test_invalid_catalog(void) {
     maelys_cli_command_t broken = commands[0];
     broken.id = "Broken Id";
@@ -2239,6 +2271,7 @@ int main(void) {
     RUN(test_operand_pattern);
     RUN(test_environment_format);
     RUN(test_default_command);
+    RUN(test_option_limit);
     RUN(test_invalid_catalog);
     RUN(test_languages);
     RUN(test_invalid_languages);

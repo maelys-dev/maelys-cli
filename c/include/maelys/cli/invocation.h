@@ -34,6 +34,7 @@ typedef struct maelys_cli_parsed_option {
 
 #define MAELYS_CLI_MAX_ERROR_MESSAGE 4096u
 #define MAELYS_CLI_MAX_ERROR_HINT 1024u
+#define MAELYS_CLI_MAX_ISSUE_PATH 512u
 
 typedef struct maelys_cli_error {
     char code[32];
@@ -49,6 +50,15 @@ typedef struct maelys_cli_error {
     const char *format;
     unsigned argument_count;
     char arguments[MAELYS_CLI_MAX_ERROR_MESSAGE];
+    /* What a refusal of the line names (agent-cli/v2 2.23.0, section 8,
+     * "What a refusal names"), set by maelys_cli_parse() and the runtime on
+     * every refusal of steps 1, 2, 4 and 6: one of the reserved codes
+     * (UNKNOWN_OPTION, VALUE_RANGE, ...) and the path of the part of the
+     * line at fault (`--timeout-ms`, an operand's name, `operands`, a word as
+     * written, `--a,--b` for a rule). The envelope carries them as the one
+     * entry of error.issues, with `message`. Empty for any other failure. */
+    char issue_code[32];
+    char issue_path[MAELYS_CLI_MAX_ISSUE_PATH];
 } maelys_cli_error_t;
 
 /* Stable error codes shared by every Maelys CLI. */

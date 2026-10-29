@@ -399,16 +399,57 @@ keep the stable one when the boundary is among them, since an agent
 branches on it, as agent-cli/v2 2.19.0 section 8 asks (SHOULD). Under the code, two places hold detail, both admitted by
 `schemas/envelope.json`:
 
-- `issues`, the causes, each `{"code", "message"}` with an optional `path`
-  (a string, or segments: strings and integers). A product's finer cause
-  goes there. cx refuses a configuration with `VALIDATION_FAILED` and the
-  issue `{"code": "PANES_CONFIG", "path": "panes.conf:12", "message":
-  "Unknown key 'colour'."}`, and an unknown machine with `NOT_FOUND`.
+- `issues`, the causes, each `{"code", "message"}` with an optional `path`.
+  A product's finer cause goes there. cx refuses a configuration with
+  `VALIDATION_FAILED` and the issue `{"code": "PANES_CONFIG", "path":
+  ["--config", "panes", 0, "key"], "message": "Unknown key 'colour'."}`,
+  and an unknown machine with `NOT_FOUND`. `path` follows the grammar of
+  agent-cli/v2 2.23.0, section 8: a part of the line is a string (an
+  option's long, `--config`; an operand's name; `operands`), a member of a
+  document the command read is an array whose first element names its
+  source (`["stdin", "start", "prompt"]`, or the option or operand that
+  named the file), and any other object of the product a bare name it
+  documents (`provider`). The codes of the framework's refusals, below,
+  are reserved.
 - members named `x-` and then lowercase letters, digits and dashes:
   machine detail an agent may act on -- the revisions of a conflict
   (`x-revision-seen`, `x-revision-current`), an expected value, the
   identifier of an object, a delay before retrying. A member that repeats
   the code says the code was ill chosen.
+
+Every refusal the framework makes of the line itself carries one entry in
+`issues`, its first cause (agent-cli/v2 2.23.0, section 8, "What a refusal
+names"), and `error.code`, `message` and `hint` are unchanged: an agent
+corrects the line from `code` and `path` without reading the sentence.
+
+| Code | The cause | `path` |
+| --- | --- | --- |
+| `UNKNOWN_COMMAND` | no command is named | the first word, as written |
+| `UNKNOWN_OPTION` | an option the command does not declare, `--dry-run` on a transaction included | the option as written, before `=` |
+| `NOT_AN_OPTION` | a word with one dash | the word |
+| `DUPLICATE_OPTION` | an option written twice | the option |
+| `MISSING_VALUE` | an option that takes a value ends the line | the option |
+| `VALUE_KIND` | not of its kind, empty, beyond 64 bits, of the wrong width, a flag set to `maybe` | the option or the operand |
+| `VALUE_RANGE` | outside `minimum` and `maximum` | the option or the operand |
+| `VALUE_CHOICE` | outside `choices` | the option or the operand |
+| `VALUE_PATTERN` | does not match `pattern` | the option or the operand |
+| `UNEXPECTED_OPERAND` | a bare word in a line of the default command | `operands` |
+| `MISSING_OPERAND` | a required operand is absent | the first absent operand |
+| `EXTRA_OPERAND` | more operands than the command takes | `operands` |
+| `REQUIRED_OPTION` | a required option is absent | the option |
+| `REQUIRES` | an option without one it requires | the option that requires |
+| `CONFLICTS` | an option with one it conflicts with | the option |
+| `ALL_OR_NONE`, `AT_MOST_ONE`, `EXACTLY_ONE` | a group or a constraint | its options, `--a,--b` |
+| `RENDERING` | a rendering the command refuses | the option refused |
+| `MAELYS_TOO_MANY_OPTIONS` | more than 64 options on one line (`MAELYS_CLI_MAX_OPTIONS`), a limit of the C library the descriptor does not set; Python and Node have none | `options` |
+
+A `path` never carries a value the line gave: a word too many is
+`operands`. C keeps the entry in `issue_code` and `issue_path` of
+`maelys_cli_error_t` (what `maelys_cli_parse()` returns), Python and Node
+in the failure's `issues`. A product names its own causes with codes of
+its own, never with one of these; `MAELYS_TOO_MANY_OPTIONS` is the
+library's own, a limit of the implementation being no cause of the
+specification's list.
 
 `maelys_cli_fail_error_extended()` in C, `cli.Failure(..., issues=,
 extensions=)` in Python. JSON and JSONL carry the detail; the text

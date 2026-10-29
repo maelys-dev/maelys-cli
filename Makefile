@@ -104,7 +104,7 @@ $(shell rm -rf $(BUILD)/src $(BUILD)/cli $(BUILD)/lib $(BUILD)/bin $(BUILD)/test
 endif
 endif
 
-.PHONY: all check test fuzz fuzz-smoke tsan-check header-check check-version cli-check embed-check commit-check api-doc-check agent-doc-check doc-topics-check i18n-check python-check hello-parity-check completion-check python-doc-check man-check envelope-schema-check pattern-ecma-check install \
+.PHONY: all check test fuzz fuzz-smoke tsan-check refusal-issues-check header-check check-version cli-check embed-check commit-check api-doc-check agent-doc-check doc-topics-check i18n-check python-check hello-parity-check completion-check python-doc-check man-check envelope-schema-check pattern-ecma-check install \
 	install-check uninstall dist clean asan-ubsan analyze cmake-check describe-schema-check \
 	conformance-check agents-install
 
@@ -286,6 +286,12 @@ $(BUILD)/pkgconfig/%.pc: pkgconfig/%.pc.in VERSION
 test: $(TESTS)
 	@for test in $(TESTS); do echo "== $$test"; $$test || exit 1; done
 
+# Every refusal of the line names its cause in error.issues (agent-cli/v2
+# 2.23.0, section 8): the codes the kit cannot reach through the built-ins,
+# on the catalog surface; typescript-check runs it on the Node surface.
+refusal-issues-check: $(BUILD)/tests/catalog_surface
+	python3 -B scripts/refusal-issues-check.py $(BUILD)/tests/catalog_surface
+
 cli-check: $(DISPATCHER) $(EXAMPLE) $(BUILD)/tests/default_surface
 	./c/tests/test_cli.sh $(BUILD)/bin
 
@@ -317,7 +323,7 @@ doc-topics-check:
 # The generated reference (docs/cli.md, docs/cli-contract.json) is no
 # longer verified here: maelys-release regenerates and compares both,
 # locally with 'maelys-release check .' and in CI through check-product.yml.
-check: layout-check test fuzz-smoke tsan-check cli-check embed-check commit-check header-check check-version api-doc-check agent-doc-check doc-topics-check python-doc-check
+check: layout-check test fuzz-smoke tsan-check cli-check refusal-issues-check embed-check commit-check header-check check-version api-doc-check agent-doc-check doc-topics-check python-doc-check
 	@if command -v python3 >/dev/null 2>&1; then $(MAKE) i18n-check python-check hello-parity-check completion-check conformance-check describe-schema-check envelope-schema-check man-check; \
 	else echo "i18n-check, python-check, hello-parity-check, completion-check, conformance-check, describe-schema-check, envelope-schema-check, man-check: skipped (python3 not found)"; fi
 	@if command -v node >/dev/null 2>&1; then $(MAKE) pattern-ecma-check; \
@@ -374,6 +380,7 @@ typescript-parity-check: typescript-build $(EXAMPLE) $(BUILD)/tests/default_surf
 typescript-check: typescript-builtins-check typescript-build
 	python3 -B scripts/sync-typescript-version.py --check
 	$(NODE) --test typescript/tests/*.test.mjs
+	python3 -B scripts/refusal-issues-check.py $(NODE) typescript/tests/surface.mjs
 	$(MAKE) typescript-conformance-check typescript-parity-check
 	$(NODE) scripts/typescript-package-check.mjs
 

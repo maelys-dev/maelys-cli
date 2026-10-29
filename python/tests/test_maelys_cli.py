@@ -682,6 +682,64 @@ class Contract(unittest.TestCase):
         self.assertIn("conflicts with --format json", body["message"])
         self.assertEqual(failure("describe", "--field", "program", "--field", "program")[1]["code"], "VALIDATION_FAILED")
 
+    def test_refusal_issues(self) -> None:
+        """What a refusal names (agent-cli/v2 2.23.0, section 8): every refusal of the line carries in
+        error.issues one entry, a reserved code and the path at fault, its message error.message; C and
+        Node prove the same lines on the catalog surface (scripts/refusal-issues-check.py)."""
+        def reply(invocation: cli.Invocation):
+            return {}, cli.EXIT_OK
+        program = cli.Program("issues-py", "Issues", "0.0.1", [
+            cli.read("read", "read", "Read.", reply,
+                     operands=[cli.operand("LEVEL", "A level.", kind="choice", choices=["quiet", "loud"]),
+                               cli.operand("PATH", "An absolute path.", kind="absolute-path")],
+                     options=[cli.option("--count", "Count.", cli.argument("N", "unsigned", minimum=1, maximum=10)),
+                              cli.option("--offset", "Offset.", cli.argument("N", "integer", minimum=-100, maximum=100)),
+                              cli.option("--named", "Named.", cli.argument("NAME", pattern="^[a-z]+$")),
+                              cli.option("--level", "Level.", cli.argument("L", "choice", choices=["quiet", "loud"])),
+                              cli.option("--mandatory", "Required.", cli.argument("TEXT"), required=True),
+                              cli.flag("--ro", "Read-only."), cli.flag("--rw", "Read-write."),
+                              cli.flag("--strict", "Strict.", requires=("--level",)),
+                              cli.flag("--lenient", "Lenient.", conflicts_with=("--strict",)),
+                              cli.flag("--trace", "Trace."), cli.flag("--quiet", "Quiet."),
+                              cli.flag("--paired-a", "Pair.", group="pair"),
+                              cli.flag("--paired-b", "Pair.", group="pair")],
+                     constraints=[cli.constraint("exactly-one", "--ro", "--rw"),
+                                  cli.constraint("at-most-one", "--trace", "--quiet")]),
+        ])
+        base = ["read", "loud", "/tmp", "--mandatory", "x"]
+        cases = [
+            (base + ["--ro", "--count", "0"], "VALUE_RANGE", "--count"),
+            (base + ["--ro", "--offset", "101"], "VALUE_RANGE", "--offset"),
+            (base + ["--ro", "--offset", "x"], "VALUE_KIND", "--offset"),
+            (base + ["--ro", "--count", "99999999999999999999"], "VALUE_KIND", "--count"),
+            (base + ["--ro", "--named", "Upper"], "VALUE_PATTERN", "--named"),
+            (base + ["--ro", "--level", "huge"], "VALUE_CHOICE", "--level"),
+            (base + ["--ro", "--ro"], "DUPLICATE_OPTION", "--ro"),
+            (base + ["--ro", "--Nope=1"], "UNKNOWN_OPTION", "--Nope"),
+            (base + ["--ro", "--named"], "MISSING_VALUE", "--named"),
+            (base + ["--ro", "-n"], "NOT_AN_OPTION", "-n"),
+            (base + ["--ro", "--ro=maybe"], "DUPLICATE_OPTION", "--ro"),
+            (base + ["--ro=maybe"], "VALUE_KIND", "--ro"),
+            (base, "EXACTLY_ONE", "--ro,--rw"),
+            (base + ["--ro", "--trace", "--quiet"], "AT_MOST_ONE", "--trace,--quiet"),
+            (base + ["--ro", "--paired-a"], "ALL_OR_NONE", "--paired-a,--paired-b"),
+            (base + ["--ro", "--strict"], "REQUIRES", "--strict"),
+            (base + ["--ro", "--lenient", "--strict", "--level", "loud"], "CONFLICTS", "--lenient"),
+            (["read", "loud", "/tmp", "--ro"], "REQUIRED_OPTION", "--mandatory"),
+            (["read", "huge", "/tmp", "--mandatory", "x", "--ro"], "VALUE_CHOICE", "LEVEL"),
+            (["read", "loud", "relative", "--mandatory", "x", "--ro"], "VALUE_KIND", "PATH"),
+            (["read", "loud", "--mandatory", "x", "--ro"], "MISSING_OPERAND", "PATH"),
+            (["read", "loud", "/tmp", "extra", "--mandatory", "x", "--ro"], "EXTRA_OPERAND", "operands"),
+            (["read", "loud", "/tmp", "--mandatory", "x", "--ro", "--format", "jsonl"], "RENDERING", "--format"),
+            (["nope"], "UNKNOWN_COMMAND", "nope"),
+            (["--json", "read"], "UNKNOWN_COMMAND", "--json"),
+        ]
+        for argv, code, path in cases:
+            with self.assertRaises(cli.Failure, msg=argv) as refused:
+                program.parse(argv)
+            self.assertEqual(refused.exception.issues,
+                             [{"code": code, "message": refused.exception.message, "path": path}], argv)
+
     def test_constraints(self) -> None:
         """The rules a command states itself (spec 2.5): describe carries them
         after the derived entries, the parser enforces them in the slot of the

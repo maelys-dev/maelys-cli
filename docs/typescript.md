@@ -73,7 +73,9 @@ choices, then the next words of those patterns, each once.
 A handler returns `{ data, exitCode?: 0 | 2 }`. A stream/delegate handler may
 return its process exit code. Failures throw `Failure(code, message, hint,
 issues?, extensions?)`; issues carry code/message/path, extension keys
-start with x-. Invalid failure metadata is answered as UNEXPECTED.
+start with x-. Invalid failure metadata is answered as UNEXPECTED. Every
+refusal of the line carries one issue, a reserved code and the path at
+fault, as in C and Python (agent-cli/v2 2.23.0, section 8).
 
 `failure(code, template, args, options)` keeps a canonical message template
 for human translation; JSON always carries the canonical formatted message.

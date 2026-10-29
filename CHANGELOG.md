@@ -1,5 +1,33 @@
 # Changelog
 
+## Unreleased
+
+agent-cli-spec 2.23.0: a refusal of the line names its
+cause. `docs/migration.md` says what a product meets.
+
+- Every refusal the framework makes of the line -- an unknown command, one
+  option or operand alone, the line as a whole, a rendering -- carries in
+  `error.issues` exactly one entry, its first cause: a reserved code
+  (`UNKNOWN_COMMAND`, `UNKNOWN_OPTION`, `NOT_AN_OPTION`, `DUPLICATE_OPTION`,
+  `MISSING_VALUE`, `VALUE_KIND`, `VALUE_RANGE`, `VALUE_CHOICE`,
+  `VALUE_PATTERN`, `UNEXPECTED_OPERAND`, `MISSING_OPERAND`,
+  `EXTRA_OPERAND`, `REQUIRED_OPTION`, `REQUIRES`, `CONFLICTS`,
+  `ALL_OR_NONE`, `AT_MOST_ONE`, `EXACTLY_ONE`, `RENDERING`), the path of
+  the line at fault (`--timeout-ms`, an operand's name, `operands`, the word
+  as written, `--a,--b`), never a value it gave, and `error.message` as its
+  message. `error.code`, `message` and `hint` are unchanged. C, Python and
+  Node alike; a number of the right form outside its bounds is
+  `VALUE_RANGE`, one that is not a number or beyond 64 bits `VALUE_KIND`.
+- A line of more than 64 options, a limit of the C library
+  (`MAELYS_CLI_MAX_OPTIONS`) that no descriptor sets, is refused with the
+  library's own code `MAELYS_TOO_MANY_OPTIONS` on the path `options`, as
+  the specification asks of a limit of the implementation.
+- `maelys_cli_error_t` gains `issue_code` and `issue_path`, at its end,
+  set by `maelys_cli_parse()` and the runtime on a refusal.
+- `scripts/refusal-issues-check.py` proves the codes the kit cannot reach
+  through the built-ins on the catalog surface, in C (`make check`) and in
+  Node (`make typescript-check`); the Python tests prove them too.
+
 ## 0.15.1 - 2026-10-29
 
 A correction of completion, the same in C, Python and Node; the

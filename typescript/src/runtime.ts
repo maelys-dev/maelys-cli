@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 import { builtins } from "./builtins.js";
 import { completionTemplates } from "./completion-templates.js";
 import { descriptor, type Command, type Option, type Result } from "./catalog.js";
-import { Failure, formatTemplate, parseValue, stringify, validateValue, type Json, type Schema } from "./values.js";
+import { Failure, formatTemplate, parseValue, refusal, stringify, validateValue, type Json, type Schema } from "./values.js";
 import { parse, environmentFormat, leadingGlobals } from "./parser.js";
 import { fileFailure } from "./files.js";
 import { pagerArguments } from "./terminal.js";
@@ -270,9 +270,9 @@ export class Program {
       invocation = this.parse(argv); format = invocation.format; compact = invocation.compact; this.language(invocation.lang);
       const command = invocation.command;
       if (invocation.field !== undefined) {
-        if (format === "json") throw new Failure("VALIDATION_FAILED", "--field conflicts with --format json: a filtered envelope would not validate against the command's outputSchema.", "Use --format text or --format jsonl with --field.");
+        if (format === "json") throw refusal("VALIDATION_FAILED", "--field conflicts with --format json: a filtered envelope would not validate against the command's outputSchema.", "Use --format text or --format jsonl with --field.", "RENDERING", "--field");
         const required = command.outputSchema.required;
-        if (command.effect !== "read" && (!Array.isArray(required) || !required.includes(invocation.field))) throw new Failure("VALIDATION_FAILED", "Option --field names a member the command's output schema does not require.", "Use a member the command's output schema requires; describe lists them.");
+        if (command.effect !== "read" && (!Array.isArray(required) || !required.includes(invocation.field))) throw refusal("VALIDATION_FAILED", "Option --field names a member the command's output schema does not require.", "Use a member the command's output schema requires; describe lists them.", "RENDERING", "--field");
       }
       const reply = await command.handler(invocation);
       invocation.progressDone();
@@ -286,7 +286,7 @@ export class Program {
       if (![0, 2].includes(exitCode)) throw new Failure("UNEXPECTED", "A success result has an invalid exit code.");
       if (typeof command.effect === "object" && invocation.options.has("--expect") && !invocation.expectChecked) throw new Failure("UNEXPECTED", "Command '" + command.id + "' answered without checking --expect.", "Report this defect to the command implementation.");
       if (invocation.field !== undefined) {
-        if (!data || typeof data !== "object" || Array.isArray(data) || !Object.hasOwn(data, invocation.field)) throw new Failure("VALIDATION_FAILED", "Option --field names '" + invocation.field + "', which '" + command.id + "' does not have.", "Use a top-level member of the command's data.");
+        if (!data || typeof data !== "object" || Array.isArray(data) || !Object.hasOwn(data, invocation.field)) throw refusal("VALIDATION_FAILED", "Option --field names '" + invocation.field + "', which '" + command.id + "' does not have.", "Use a top-level member of the command's data.", "RENDERING", "--field");
         const value = data[invocation.field];
         if (format === "jsonl") process.stdout.write((Array.isArray(value) ? value : [value]).map(v => stringify(v) + "\n").join("")); else this.page(fieldText(value), invocation);
       } else if (format === "json") process.stdout.write(this.envelope(command.id, true, exitCode, data, compact));

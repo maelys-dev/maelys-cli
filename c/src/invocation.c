@@ -135,6 +135,16 @@ void maelys_cli_error_set(
     va_end(arguments);
 }
 
+void maelys_cli_error_issue(maelys_cli_error_t *error, const char *code,
+                            const char *path_format, ...) {
+    if (!error || !code) return;
+    (void)snprintf(error->issue_code, sizeof(error->issue_code), "%s", code);
+    va_list arguments;
+    va_start(arguments, path_format);
+    (void)vsnprintf(error->issue_path, sizeof(error->issue_path), path_format, arguments);
+    va_end(arguments);
+}
+
 void maelys_cli_error_from_errno(
     maelys_cli_error_t *error, const char *code, int saved_errno,
     const char *what) {
@@ -363,6 +373,7 @@ static int validate_value(
             if (value[0] != '/') {
                 maelys_cli_error_set(error, MAELYS_CLI_CODE_VALIDATION_FAILED,
                     hint, "Option --%s expects an absolute path.", option->name);
+                maelys_cli_error_issue(error, "VALUE_KIND", "--%s", option->name);
                 return -1;
             }
             return 0;
@@ -395,6 +406,7 @@ static int validate_value(
                 maelys_cli_error_set(error, MAELYS_CLI_CODE_VALIDATION_FAILED,
                     hint, "Option --%s expects ALGORITHM:HEX with lowercase "
                     "hexadecimal digits (%s).", option->name, allowed);
+                maelys_cli_error_issue(error, "VALUE_KIND", "--%s", option->name);
                 return -1;
             }
             parsed->choice_index = index;
@@ -406,6 +418,7 @@ static int validate_value(
                 maelys_cli_error_set(error, MAELYS_CLI_CODE_VALIDATION_FAILED,
                     hint, "Option --%s requires a non-empty value.",
                     option->name);
+                maelys_cli_error_issue(error, "VALUE_KIND", "--%s", option->name);
                 return -1;
             }
             if (option->pattern) {
@@ -424,6 +437,7 @@ static int validate_value(
                     maelys_cli_error_set(error, MAELYS_CLI_CODE_VALIDATION_FAILED,
                         hint, "Option --%s expects a value matching %s.",
                         option->name, option->pattern);
+                    maelys_cli_error_issue(error, "VALUE_PATTERN", "--%s", option->name);
                     return -1;
                 }
             }
@@ -440,6 +454,9 @@ static int validate_value(
                 maelys_cli_error_set(error, MAELYS_CLI_CODE_VALIDATION_FAILED,
                     hint, "Option --%s expects an integer between %lld and %lld.",
                     option->name, (long long)minimum, (long long)maximum);
+                int64_t any;
+                maelys_cli_error_issue(error, maelys_cli_parse_i64_decimal(value, INT64_MIN,
+                    INT64_MAX, &any) == 0 ? "VALUE_RANGE" : "VALUE_KIND", "--%s", option->name);
                 return -1;
             }
             return 0;
@@ -451,6 +468,9 @@ static int validate_value(
                     hint, "Option --%s expects an unsigned integer between %llu and %llu.",
                     option->name, (unsigned long long)option->minimum,
                     (unsigned long long)unsigned_maximum(option));
+                uint64_t any;
+                maelys_cli_error_issue(error, maelys_cli_parse_u64_decimal(value, 0u,
+                    UINT64_MAX, &any) == 0 ? "VALUE_RANGE" : "VALUE_KIND", "--%s", option->name);
                 return -1;
             }
             return 0;
@@ -462,6 +482,9 @@ static int validate_value(
                     "(K, M, G or T suffix accepted).", option->name,
                     (unsigned long long)option->minimum,
                     (unsigned long long)unsigned_maximum(option));
+                uint64_t any;
+                maelys_cli_error_issue(error, maelys_cli_parse_byte_size(value, 0u,
+                    UINT64_MAX, &any) == 0 ? "VALUE_RANGE" : "VALUE_KIND", "--%s", option->name);
                 return -1;
             }
             return 0;
@@ -473,6 +496,9 @@ static int validate_value(
                     "(ms, s, m, h or d) between %llu and %llu milliseconds.",
                     option->name, (unsigned long long)option->minimum,
                     (unsigned long long)unsigned_maximum(option));
+                uint64_t any;
+                maelys_cli_error_issue(error, maelys_cli_parse_duration_ms(value, 0u,
+                    UINT64_MAX, &any) == 0 ? "VALUE_RANGE" : "VALUE_KIND", "--%s", option->name);
                 return -1;
             }
             return 0;
@@ -493,6 +519,7 @@ static int validate_value(
                 maelys_cli_error_set(error, MAELYS_CLI_CODE_VALIDATION_FAILED,
                     hint, "Option --%s expects one of: %s.", option->name,
                     allowed);
+                maelys_cli_error_issue(error, "VALUE_CHOICE", "--%s", option->name);
                 return -1;
             }
             return 0;
@@ -509,6 +536,7 @@ static int validate_value(
                     maelys_cli_error_set(error, MAELYS_CLI_CODE_VALIDATION_FAILED,
                         hint, "Option --%s expects %zu lowercase hexadecimal "
                         "digits.", option->name, option->hex_digits);
+                maelys_cli_error_issue(error, "VALUE_KIND", "--%s", option->name);
                 return -1;
             }
             return 0;
@@ -562,10 +590,38 @@ static int add_operand(
         maelys_cli_error_set(error, MAELYS_CLI_CODE_VALIDATION_FAILED,
             "Reduce the number of operands and retry.",
             "Too many operands for '%s'.", out->command->id);
+        maelys_cli_error_issue(error, "EXTRA_OPERAND", "operands");
         return -1;
     }
     out->operands[out->operand_count++] = value;
     return 0;
+}
+
+/* The options of a group in their declared order, joined by commas: the
+ * path of an all-or-none refusal (`--a,--b`). */
+static void group_members(const maelys_cli_command_t *command, const char *group,
+                          char *out, size_t size) {
+    size_t used = 0u;
+    out[0] = '\0';
+    for (size_t i = 0u; i < command->option_count; ++i) {
+        const maelys_cli_option_t *option = &command->options[i];
+        if (!option->group || strcmp(option->group, group) != 0) continue;
+        int wrote = snprintf(out + used, size - used, "%s--%s", used ? "," : "", option->name);
+        if (wrote < 0 || (size_t)wrote >= size - used) break;
+        used += (size_t)wrote;
+    }
+}
+
+/* The first rendering option the line wrote, the path of a rendering
+ * refusal: what the caller has to take away. */
+static const char *first_rendering_option(const maelys_cli_invocation_t *out,
+                                          const char *const names[]) {
+    for (size_t i = 0u; i < out->option_count; ++i) {
+        if (!out->options[i].transport) continue;
+        for (size_t n = 0u; names[n]; ++n)
+            if (!strcmp(out->options[i].name, names[n])) return names[n];
+    }
+    return names[0];
 }
 
 int maelys_cli_parse(
@@ -586,6 +642,7 @@ int maelys_cli_parse(
             "Run 'describe --summary --format json' to discover valid "
             "command identifiers and usage.",
             "Unknown %s command: %s.", app->program, argc ? argv[0] : "");
+        maelys_cli_error_issue(error, "UNKNOWN_COMMAND", "%s", argc ? argv[0] : "");
         return -1;
     }
     out->pattern_words = words;
@@ -628,6 +685,8 @@ int maelys_cli_parse(
                     "names no command and runs the default command '%s', "
                     "whose operands are written after --.", argument,
                     out->command->id);
+                /* Never the word: it may be a value the caller meant to keep. */
+                maelys_cli_error_issue(error, "UNEXPECTED_OPERAND", "operands");
                 PARSE_FAIL();
             }
             if (!passthrough && argument[0] == '-' && argument[1] != '\0') {
@@ -636,6 +695,7 @@ int maelys_cli_parse(
                     "with a dash after --.",
                     "Option %s is not supported: options are spelled --name.",
                     argument);
+                maelys_cli_error_issue(error, "NOT_AN_OPTION", "%s", argument);
                 PARSE_FAIL();
             }
             if (add_operand(out, argument, error) != 0) PARSE_FAIL();
@@ -649,6 +709,8 @@ int maelys_cli_parse(
             maelys_cli_error_set(error, MAELYS_CLI_CODE_VALIDATION_FAILED,
                 "Correct the stated option and retry.",
                 "Invalid option spelling: %s.", argument);
+            maelys_cli_error_issue(error, "UNKNOWN_OPTION", "%.*s",
+                (int)(equals ? (size_t)(equals - argument) : strlen(argument)), argument);
             PARSE_FAIL();
         }
         memcpy(option_name, name, name_length);
@@ -671,6 +733,7 @@ int maelys_cli_parse(
                     "after reviewing that plan.",
                     "--%s is not supported; planning is the default for "
                     "transactional commands.", option_name);
+                maelys_cli_error_issue(error, "UNKNOWN_OPTION", "--%s", option_name);
                 PARSE_FAIL();
             }
             maelys_cli_error_set(error, MAELYS_CLI_CODE_VALIDATION_FAILED,
@@ -678,18 +741,21 @@ int maelys_cli_parse(
                 "options.",
                 "Option --%s is not supported by '%s'. Use '%s'.",
                 option_name, out->command->id, synopsis);
+            maelys_cli_error_issue(error, "UNKNOWN_OPTION", "--%s", option_name);
             PARSE_FAIL();
         }
         if (out->option_count >= MAELYS_CLI_MAX_OPTIONS) {
             maelys_cli_error_set(error, MAELYS_CLI_CODE_VALIDATION_FAILED,
                 "Reduce the number of options and retry.",
                 "Too many options for '%s'.", out->command->id);
+            maelys_cli_error_issue(error, "MAELYS_TOO_MANY_OPTIONS", "options");
             PARSE_FAIL();
         }
         if (find_parsed(out, descriptor->name) && !descriptor->repeatable) {
             maelys_cli_error_set(error, MAELYS_CLI_CODE_VALIDATION_FAILED,
                 "Remove the duplicate option and retry.",
                 "Option --%s may be supplied only once.", descriptor->name);
+            maelys_cli_error_issue(error, "DUPLICATE_OPTION", "--%s", descriptor->name);
             PARSE_FAIL();
         }
         maelys_cli_parsed_option_t parsed;
@@ -704,6 +770,7 @@ int maelys_cli_parse(
                 maelys_cli_error_set(error, MAELYS_CLI_CODE_VALIDATION_FAILED,
                     "Use true or false for an explicit boolean.",
                     "Option --%s expects a boolean.", descriptor->name);
+                maelys_cli_error_issue(error, "VALUE_KIND", "--%s", descriptor->name);
                 PARSE_FAIL();
             }
         } else {
@@ -712,6 +779,7 @@ int maelys_cli_parse(
                     maelys_cli_error_set(error, MAELYS_CLI_CODE_VALIDATION_FAILED,
                         "Supply the documented option value and retry.",
                         "Option --%s requires a value.", descriptor->name);
+                    maelys_cli_error_issue(error, "MISSING_VALUE", "--%s", descriptor->name);
                     PARSE_FAIL();
                 }
                 value = line_word(argv, at, ++i);
@@ -731,12 +799,14 @@ int maelys_cli_parse(
             maelys_cli_error_set(error, MAELYS_CLI_CODE_VALIDATION_FAILED,
                 "Supply the dependent option and retry.",
                 "--%s requires --%s.", option->name, option->depends_on);
+            maelys_cli_error_issue(error, "REQUIRES", "--%s", option->name);
             PARSE_FAIL();
         }
         if (option->conflicts_with && option_enabled(out, option->conflicts_with)) {
             maelys_cli_error_set(error, MAELYS_CLI_CODE_VALIDATION_FAILED,
                 "Remove one of the conflicting options and retry.",
                 "--%s conflicts with --%s.", option->name, option->conflicts_with);
+            maelys_cli_error_issue(error, "CONFLICTS", "--%s", option->name);
             PARSE_FAIL();
         }
         for (size_t j = 0u; option->conflicts_with && j < out->command->operand_count; ++j) {
@@ -747,6 +817,7 @@ int maelys_cli_parse(
                     "Remove either the option or the operand and retry.",
                     "--%s conflicts with operand %s.", option->name,
                     option->conflicts_with);
+                maelys_cli_error_issue(error, "CONFLICTS", "--%s", option->name);
                 PARSE_FAIL();
             }
         }
@@ -755,6 +826,7 @@ int maelys_cli_parse(
                 maelys_cli_error_set(error, MAELYS_CLI_CODE_VALIDATION_FAILED,
                     "Supply every dependent option and retry.",
                     "--%s requires --%s.", option->name, option->depends_on_all[d]);
+                maelys_cli_error_issue(error, "REQUIRES", "--%s", option->name);
                 PARSE_FAIL();
             }
         }
@@ -770,6 +842,9 @@ int maelys_cli_parse(
                     "Supply the whole option group or none of it.",
                     "--%s belongs to group '%s' and requires --%s.",
                     option->name, option->group, peer->name);
+                char members[MAELYS_CLI_MAX_ISSUE_PATH];
+                group_members(out->command, option->group, members, sizeof(members));
+                maelys_cli_error_issue(error, "ALL_OR_NONE", "%s", members);
                 PARSE_FAIL();
             }
         }
@@ -781,14 +856,20 @@ int maelys_cli_parse(
         const maelys_cli_constraint_t *rule = &out->command->constraints[c];
         size_t present = 0u;
         char listed[512];
-        size_t used = 0u;
+        char path[MAELYS_CLI_MAX_ISSUE_PATH];
+        size_t used = 0u, path_used = 0u;
         listed[0] = '\0';
+        path[0] = '\0';
         for (size_t o = 0u; rule->options && rule->options[o]; ++o) {
             if (option_enabled(out, rule->options[o])) ++present;
             int wrote = snprintf(listed + used, sizeof(listed) - used, "%s--%s",
                 o ? ", " : "", rule->options[o]);
             if (wrote > 0 && (size_t)wrote < sizeof(listed) - used)
                 used += (size_t)wrote;
+            wrote = snprintf(path + path_used, sizeof(path) - path_used, "%s--%s",
+                o ? "," : "", rule->options[o]);
+            if (wrote > 0 && (size_t)wrote < sizeof(path) - path_used)
+                path_used += (size_t)wrote;
         }
         switch (rule->kind) {
         case MAELYS_CLI_CONSTRAINT_REQUIRES:
@@ -802,6 +883,7 @@ int maelys_cli_parse(
                 maelys_cli_error_set(error, MAELYS_CLI_CODE_VALIDATION_FAILED,
                     "Supply every dependent option and retry.",
                     "--%s requires --%s.", rule->options[0], rule->options[o]);
+                maelys_cli_error_issue(error, "REQUIRES", "--%s", rule->options[0]);
                 PARSE_FAIL();
             }
             break;
@@ -810,6 +892,7 @@ int maelys_cli_parse(
                 maelys_cli_error_set(error, MAELYS_CLI_CODE_VALIDATION_FAILED,
                     "Keep one of the listed options and retry.",
                     "At most one of %s may be given.", listed);
+                maelys_cli_error_issue(error, "AT_MOST_ONE", "%s", path);
                 PARSE_FAIL();
             }
             break;
@@ -818,6 +901,7 @@ int maelys_cli_parse(
                 maelys_cli_error_set(error, MAELYS_CLI_CODE_VALIDATION_FAILED,
                     "Supply exactly one of the listed options and retry.",
                     "Exactly one of %s must be given.", listed);
+                maelys_cli_error_issue(error, "EXACTLY_ONE", "%s", path);
                 PARSE_FAIL();
             }
             break;
@@ -833,6 +917,7 @@ int maelys_cli_parse(
                 "Supply the required option and retry.",
                 "--%s is required by '%s'. Use '%s'.", option->name,
                 out->command->id, synopsis);
+            maelys_cli_error_issue(error, "REQUIRED_OPTION", "--%s", option->name);
             PARSE_FAIL();
         }
     }
@@ -847,6 +932,19 @@ int maelys_cli_parse(
         maelys_cli_error_set(error, MAELYS_CLI_CODE_VALIDATION_FAILED,
             "Use the synopsis returned by describe and retry.",
             "Operands do not match '%s'. Use '%s'.", out->command->id, synopsis);
+        if (out->operand_count < required) {
+            /* The first operand the line lacks: the required ones come
+             * first in a catalog the validation accepted. */
+            const char *absent = out->command->operands[out->operand_count].name;
+            for (size_t i = out->operand_count; i < out->command->operand_count; ++i)
+                if (out->command->operands[i].required) {
+                    absent = out->command->operands[i].name;
+                    break;
+                }
+            maelys_cli_error_issue(error, "MISSING_OPERAND", "%s", absent);
+        } else {
+            maelys_cli_error_issue(error, "EXTRA_OPERAND", "operands");
+        }
         PARSE_FAIL();
     }
     for (size_t i = 0u; i < out->operand_count; ++i) {
@@ -860,6 +958,7 @@ int maelys_cli_parse(
         if (operand->kind == MAELYS_CLI_VALUE_NONE) continue;
         maelys_cli_option_t spec = operand_as_option(operand);
         maelys_cli_error_t detail;
+        memset(&detail, 0, sizeof(detail));
         if (!*out->operands[i] ||
             validate_value(&spec, out->operands[i], parsed, &detail) != 0) {
             const char *reason = strstr(detail.message, " expects ");
@@ -868,6 +967,10 @@ int maelys_cli_parse(
                 "Operand %s%s", operand->name,
                 *out->operands[i] && reason ? reason :
                 " must not be empty.");
+            /* The cause the value's check named, on the operand: an empty
+             * one is not of its kind. */
+            maelys_cli_error_issue(error, *out->operands[i] && detail.issue_code[0] ?
+                detail.issue_code : "VALUE_KIND", "%s", operand->name);
             PARSE_FAIL();
         }
         parsed->descriptor = NULL;
@@ -894,6 +997,9 @@ int maelys_cli_rendering_refused(
             "protocol stream.",
             "'%s' is a stream command and does not support CLI output "
             "rendering.", command->id);
+        static const char *const rendering[] = {
+            "format", "json", "compact", "pretty", "pager", "field", NULL};
+        maelys_cli_error_issue(error, "RENDERING", "--%s", first_rendering_option(out, rendering));
         return 1;
     }
     if (out->format == MAELYS_CLI_FORMAT_JSONL && !out->field &&
@@ -904,6 +1010,7 @@ int maelys_cli_rendering_refused(
             "streams.",
             "'%s' does not produce records and cannot render jsonl.",
             command->id);
+        maelys_cli_error_issue(error, "RENDERING", "--format");
         return 1;
     }
     /* Explicit --field with an explicit --format json (or --json): data is
@@ -917,6 +1024,7 @@ int maelys_cli_rendering_refused(
             "Use --format text or --format jsonl with --field.",
             "--field conflicts with --format json: a filtered envelope "
             "would not validate against the command's outputSchema.");
+        maelys_cli_error_issue(error, "RENDERING", "--field");
         return 1;
     }
     return 0;
