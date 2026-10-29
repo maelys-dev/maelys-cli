@@ -1799,8 +1799,8 @@ class CallableParentCompletion(unittest.TestCase):
         self.assertEqual(words("catalog", "summaries", ""), [])
         self.assertEqual(words("catalog", "all", ""), [])
         self.assertNotIn("details", words("catalog", "--"))
-        for shell in ("bash", "zsh", "fish"):
-            self.assertNotEqual(program.completion_script(shell), program.completion_script(shell, static=False))
+        # The static Bash, Zsh and Fish tables are held to these words by
+        # completion-check, on the same catalog of completion_surface.py.
 
 
 if __name__ == "__main__":

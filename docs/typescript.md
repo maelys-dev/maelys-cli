@@ -37,15 +37,14 @@ failure envelopes to stderr, with exit codes 0, 1 and 2. Transactions
 plan by default; --apply is the explicit write request. Legacy --dry-run
 and --plan spellings are refused on transactions.
 
-Completion keeps longer command patterns visible when their parent is also
-a callable command, preserving operand choices and removing duplicate words.
-
 A line is read as in C and Python. The command is the line's first words,
 before any option: `PROGRAM --json version` names none, and an empty line
 is the help unless a default command is declared. Global options only, then
 `--help` or `--version`, give the program's help or version
 (agent-cli/v2 2.22.0, section 6), and `__complete` offers `--version` at
-the root after global options or none.
+the root after global options or none. After a command that also begins
+longer patterns (`catalog` and `catalog summaries`), it offers the operand's
+choices, then the next words of those patterns, each once.
 
 ## Public declaration vocabulary
 
