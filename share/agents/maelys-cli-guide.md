@@ -384,8 +384,16 @@ Handler rules:
   `maelys_cli_fail_error_extended(context, &error, issues_json,
   extensions_json)` (`cli.Failure(..., issues=[...], extensions={...})` in
   Python). cx answers `VALIDATION_FAILED` with the issue
-  `{"code":"PANES_CONFIG","path":"panes.conf:12","message":...}`; a
-  `REVISION_CONFLICT` carries `x-revision-seen` and `x-revision-current`.
+  `{"code":"PANES_CONFIG","path":["--config","panes",0,"key"],"message":...}`;
+  a `REVISION_CONFLICT` carries `x-revision-seen` and `x-revision-current`.
+  A `path` is a string for a part of the line (`--timeout-ms`, an operand's
+  name), an array for a member of a document, its source first
+  (`["stdin","start","prompt"]`), a bare name for another object of the
+  product. The framework already names every refusal of the line itself,
+  one entry with a reserved code (`VALUE_RANGE` on `--timeout-ms`,
+  `UNKNOWN_OPTION`, `MISSING_OPERAND`...; agent-cli/v2 2.23.0, section 8):
+  never reuse those codes, and read `code` and `path` of a refusal, never
+  its message.
   Keep the stable code when the boundary is among them; never put an
   absolute path, the environment or file content there without a reason.
   A helper that may reply returns the exit code and the caller checks

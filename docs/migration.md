@@ -176,6 +176,26 @@ command when either is wrong:
   into one line per paragraph, or each hand-made line is wrapped on its own
   and the paragraph reads ragged at another width.
 
+## Every consumer, at agent-cli-spec 2.23.0
+
+2.23.0 writes, in its section 8 ("What a refusal names"), that a refusal of
+the line carries in `error.issues` one entry, a reserved code and the path
+at fault, and this pin implements it. Nothing to change in a catalog or a
+handler. What a product meets:
+
+- **Refusals gain `issues`.** `--timeout-ms 0` answers `VALIDATION_FAILED`
+  as before, with `"issues": [{"code": "VALUE_RANGE", "message": ...,
+  "path": "--timeout-ms"}]`. A test that compares a whole failure envelope
+  moves.
+- **A product's own issues follow the same grammar**: a part of the line is
+  a string, an option by its long with its dashes (`--timeout-ms`, not
+  `timeout-ms`); a member of a document is an array, its source first
+  (`["stdin", "start", "prompt"]`, not `stdin.start.prompt`); another object
+  of the product is a bare name it documents. The codes of the framework's
+  refusals are reserved: a product names its own causes otherwise.
+- **`maelys_cli_error_t` ends with `issue_code` and `issue_path`**, set by
+  `maelys_cli_parse()` on a refusal. Designated initializers need nothing.
+
 ## Every consumer, at agent-cli-spec 2.22.0
 
 2.22.0 writes, in its section 6 ("help and version"), that a global option

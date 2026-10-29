@@ -10,6 +10,11 @@ export class Failure extends Error {
     public readonly issues?: { code: string; message: string; path?: string | (string | number)[] }[],
     public readonly extensions?: Record<string, Json>) { super(message); }
 }
+/** A refusal of the line (agent-cli/v2 2.23.0, section 8, "What a refusal names"): the one entry of
+ * error.issues, its reserved code and the path at fault, with the canonical message. */
+export function refusal(code: string, message: string, hint: string | undefined, issue: string, path: string): Failure {
+  return new Failure(code, message, hint ?? "", [{ code: issue, message, path }]);
+}
 /** Format a canonical failure before translating its human rendering. */
 export function failure(code: string, template: string, args: (string | number | bigint)[] = [],
   options: { hint?: string; issues?: Failure["issues"]; extensions?: Failure["extensions"] } = {}): Failure {
@@ -65,17 +70,19 @@ export function validateValue(value: Value): void {
   if (value.algorithms && (value.type !== "digest" || !value.algorithms.length || value.algorithms.some(a => !["sha256", "sha384", "sha512", "sha1"].includes(a)))) throw new TypeError("Invalid digest algorithms.");
 }
 export function parseValue(spec: Value, text: string, where: string, usage: string): Json {
-  const refuse = (expected: string): never => { throw new Failure("VALIDATION_FAILED", where + " takes " + expected + ", not '" + text + "'.", "Use '" + usage + "'."); };
+  // The path is the option's long (`Option --x`) or the operand's name.
+  const path = where.startsWith("Option ") ? where.slice("Option ".length) : where;
+  const refuse = (expected: string, cause = "VALUE_KIND"): never => { throw refusal("VALIDATION_FAILED", where + " takes " + expected + ", not '" + text + "'.", "Use '" + usage + "'.", cause, path); };
   if (typeof text !== "string") return refuse("a value");
   const kind = spec.type ?? "string";
   if (kind === "boolean") { if (!["true", "false"].includes(text)) return refuse("true or false"); return text === "true"; }
   if (kind === "string" || kind === "path") {
     if (kind === "path" && !text) return refuse("a non-empty path");
-    if (spec.pattern && !new Regex(spec.pattern).search(text)) return refuse("a value matching " + spec.pattern);
+    if (spec.pattern && !new Regex(spec.pattern).search(text)) return refuse("a value matching " + spec.pattern, "VALUE_PATTERN");
     return text;
   }
   if (kind === "absolute-path") { if (!text.startsWith("/")) return refuse("an absolute path"); return text; }
-  if (kind === "choice") { if (!spec.choices?.includes(text)) return refuse(spec.choices?.join(", ") ?? "a declared choice"); return text; }
+  if (kind === "choice") { if (!spec.choices?.includes(text)) return refuse(spec.choices?.join(", ") ?? "a declared choice", "VALUE_CHOICE"); return text; }
   if (kind === "hex" || kind === "sha256") {
     const widths = kind === "sha256" ? [64] : Array.isArray(spec.digits) ? spec.digits : [spec.digits];
     if (!/^[0-9a-f]+$(?![\s\S])/.test(text) || !widths.includes(text.length)) return refuse(widths.join(" or ") + " lowercase hexadecimal digits");
@@ -98,11 +105,11 @@ export function parseValue(spec: Value, text: string, where: string, usage: stri
     parsed = BigInt(match[1]) * units[match[2]];
   }
   if (parsed < (kind === "integer" ? -(1n << 63n) : 0n) || parsed > (kind === "integer" ? (1n << 63n) - 1n : (1n << 64n) - 1n)) return refuse(kind === "integer" ? "an integer" : "an unsigned integer");
-  if (spec.minimum !== undefined && parsed < BigInt(spec.minimum) || spec.maximum !== undefined && parsed > BigInt(spec.maximum)) throw new Failure("VALIDATION_FAILED", where + " must be between " + (spec.minimum ?? "-inf") + " and " + (spec.maximum ?? "+inf") + ", not " + text + ".", "Use '" + usage + "'.");
+  if (spec.minimum !== undefined && parsed < BigInt(spec.minimum) || spec.maximum !== undefined && parsed > BigInt(spec.maximum)) throw refusal("VALIDATION_FAILED", where + " must be between " + (spec.minimum ?? "-inf") + " and " + (spec.maximum ?? "+inf") + ", not " + text + ".", "Use '" + usage + "'.", "VALUE_RANGE", path);
   return parsed >= BigInt(Number.MIN_SAFE_INTEGER) && parsed <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(parsed) : parsed;
 }
 export function parseFlag(value: string | null, name: string): boolean {
   if (value === null || ["true", "yes", "on", "1"].includes(value)) return true;
   if (["false", "no", "off", "0"].includes(value)) return false;
-  throw new Failure("VALIDATION_FAILED", "Option " + name + " takes true, false, yes, no, on, off, 1 or 0, not '" + value + "'.");
+  throw refusal("VALIDATION_FAILED", "Option " + name + " takes true, false, yes, no, on, off, 1 or 0, not '" + value + "'.", undefined, "VALUE_KIND", name);
 }

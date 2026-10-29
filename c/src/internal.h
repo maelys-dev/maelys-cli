@@ -73,6 +73,16 @@ const char *maelys_cli_language_resolve(
     const char *lc_messages, const char *lang,
     const char *const *available, size_t count);
 
+/* The entry a refusal of the line names (agent-cli/v2 2.23.0, section 8):
+ * after maelys_cli_error_set, which clears it, the reserved code and the
+ * path, formatted (`"--%s", option->name`). */
+void maelys_cli_error_issue(maelys_cli_error_t *error, const char *code,
+                            const char *path_format, ...)
+#if defined(__GNUC__) || defined(__clang__)
+    __attribute__((format(printf, 3, 4)))
+#endif
+    ;
+
 /* maelys_cli_error_set with its arguments as a va_list: the template and
  * its formatted arguments are kept for the text rendering. */
 void maelys_cli_error_setv(

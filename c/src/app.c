@@ -1907,6 +1907,7 @@ static int field_refused(
             "Use --format text or --format jsonl with --field.",
             "--field conflicts with --format json: a filtered envelope "
             "would not validate against the command's outputSchema.");
+        maelys_cli_error_issue(error, "RENDERING", "--field");
         return 1;
     }
     int may_write = command->apply_effect != MAELYS_CLI_EFFECT_NONE ||
@@ -1921,6 +1922,7 @@ static int field_refused(
             "Run the command without --field and read the member from its result.",
             "Option --field is not accepted by '%s': the command can write and "
             "its output schema requires no member.", command->id);
+        maelys_cli_error_issue(error, "RENDERING", "--field");
         return 1;
     }
     if (schema_requires(command, invocation->field)) return 0;
@@ -1929,6 +1931,7 @@ static int field_refused(
         "Option --field names '%s', which '%s' does not always return: a "
         "command that can write accepts only a member its output schema "
         "requires.", invocation->field, command->id);
+    maelys_cli_error_issue(error, "RENDERING", "--field");
     return 1;
 }
 
@@ -1953,6 +1956,7 @@ static int reply_field(
             "Use --format text or --format jsonl with --field.",
             "--field conflicts with --format json: a filtered envelope "
             "would not validate against the command's outputSchema.");
+        maelys_cli_error_issue(&error, "RENDERING", "--field");
         return maelys_cli_fail_error(context, &error);
     }
     find_member_state_t state = {name, NULL, 0u, 0};
@@ -1964,6 +1968,7 @@ static int reply_field(
             "Use a top-level member of the command's data.",
             "Option --field names '%s', which '%s' does not have.",
             name, command_id(context));
+        maelys_cli_error_issue(&error, "RENDERING", "--field");
         return maelys_cli_fail_error(context, &error);
     }
     int written = context->invocation->format == MAELYS_CLI_FORMAT_JSONL ?
@@ -2236,6 +2241,23 @@ static int check_error_issues(const char *issues, const char **problem) {
     return 0;
 }
 
+/* The one entry of error.issues a refusal of the line carries (agent-cli/v2
+ * 2.23.0, section 8, "What a refusal names"), from the code and path the
+ * parser or the runtime set; nothing when the failure named none. Its
+ * message is the canonical one, as error.message is. */
+static int write_refusal_issue(maelys_cli_json_writer_t *writer,
+                               const maelys_cli_error_t *error) {
+    if (!error->issue_code[0]) return 0;
+    return maelys_cli_json_key(writer, "issues") == 0 &&
+        maelys_cli_json_begin_array(writer) == 0 &&
+        maelys_cli_json_begin_object(writer) == 0 &&
+        maelys_cli_json_key_string(writer, "code", error->issue_code) == 0 &&
+        maelys_cli_json_key_string(writer, "message", error->message) == 0 &&
+        maelys_cli_json_key_string(writer, "path", error->issue_path) == 0 &&
+        maelys_cli_json_end_object(writer) == 0 &&
+        maelys_cli_json_end_array(writer) == 0 ? 0 : -1;
+}
+
 static void emit_error_with(
     maelys_cli_context_t *context, const maelys_cli_error_t *error,
     int exit_code, const char *issues, const char *extensions) {
@@ -2254,7 +2276,8 @@ static void emit_error_with(
             maelys_cli_json_key_string(&writer, "message", error->message) == 0 &&
             (!error->hint[0] ||
              maelys_cli_json_key_string(&writer, "hint", error->hint) == 0) &&
-            (!issues || maelys_cli_json_key_raw(&writer, "issues", issues) == 0) &&
+            (issues ? maelys_cli_json_key_raw(&writer, "issues", issues) == 0 :
+             write_refusal_issue(&writer, error) == 0) &&
             (!extensions || write_error_extensions(&writer, extensions, &(const char *){NULL}) == 0) &&
             maelys_cli_json_end_object(&writer) == 0 &&
             maelys_cli_json_end_object(&writer) == 0) {

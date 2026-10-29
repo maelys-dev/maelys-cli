@@ -1418,11 +1418,16 @@ def failure(code: str, template: str, *arguments: Any, hint: str = "", issues: O
     return made
 
 
-def _fail(code: str, template: str, *arguments: Any, hint: str = "", hint_arguments: tuple = ()) -> Failure:
+def _fail(code: str, template: str, *arguments: Any, hint: str = "", hint_arguments: tuple = (),
+          issue: Optional[tuple] = None) -> Failure:
     """The framework's own failure(): its hint may be a template too, "Use '%s'." with the usage, which a
-    table translates before the usage is put back."""
+    table translates before the usage is put back. `issue`, (code, path), is what a refusal of the line
+    names (agent-cli/v2 2.23.0, section 8, "What a refusal names"): the one entry of error.issues, with
+    the canonical message (C: maelys_cli_error_issue)."""
     made = failure(code, template, *arguments, hint=_format_template(hint, hint_arguments)[0] if hint_arguments
                    else hint)
+    if issue is not None:
+        made.issues = [{"code": issue[0], "message": made.message, "path": issue[1]}]
     if hint_arguments:
         made._hint_template, made._hint_arguments = hint, _format_template(hint, hint_arguments)[1]
     return made
@@ -2536,9 +2541,9 @@ def parse_value(kind: str, text: str, spec: dict, where: str, usage: str) -> Any
     # an operand, and what the value takes is written in the template, its own arguments put in.
     subject, name = ("Option %s", where[len("Option "):]) if where.startswith("Option ") else ("%s", where)
 
-    def refuse(what: str, *arguments: Any) -> Failure:
+    def refuse(what: str, *arguments: Any, cause: str = "VALUE_KIND") -> Failure:
         return _fail("VALIDATION_FAILED", f"{subject} takes {what}, not '%s'.", name, *arguments, text,
-                     hint="Use '%s'.", hint_arguments=(usage,))
+                     hint="Use '%s'.", hint_arguments=(usage,), issue=(cause, name))
     if kind == "boolean":
         if text not in ("true", "false"):
             raise refuse("true or false")
@@ -2548,7 +2553,7 @@ def parse_value(kind: str, text: str, spec: dict, where: str, usage: str) -> Any
         # common subset of ECMA-262 and POSIX ERE and read by _pattern_check;
         # search semantics, as ERE.
         if "pattern" in spec and not _pattern_search(spec["pattern"], text):
-            raise refuse("a value matching %s", spec["pattern"])
+            raise refuse("a value matching %s", spec["pattern"], cause="VALUE_PATTERN")
         return text
     # Digits are the ten ASCII ones: `\d` also reads the digits of other
     # scripts, which C refuses. And a number is one C holds in 64 bits.
@@ -2572,7 +2577,7 @@ def parse_value(kind: str, text: str, spec: dict, where: str, usage: str) -> Any
         if not text:
             raise refuse("a non-empty path")
         if "pattern" in spec and not _pattern_search(spec["pattern"], text):
-            raise refuse("a value matching %s", spec["pattern"])
+            raise refuse("a value matching %s", spec["pattern"], cause="VALUE_PATTERN")
         return text
     elif kind == "absolute-path":
         if not text.startswith("/"):
@@ -2580,7 +2585,7 @@ def parse_value(kind: str, text: str, spec: dict, where: str, usage: str) -> Any
         return text
     elif kind == "choice":
         if text not in spec.get("choices", []):
-            raise refuse("%s", ", ".join(spec.get("choices", [])))
+            raise refuse("%s", ", ".join(spec.get("choices", [])), cause="VALUE_CHOICE")
         return text
     elif kind == "hex":
         # The width is `digits`, one or two, as the C parser reads it.
@@ -2606,7 +2611,7 @@ def parse_value(kind: str, text: str, spec: dict, where: str, usage: str) -> Any
     if ("minimum" in spec and value < spec["minimum"]) or ("maximum" in spec and value > spec["maximum"]):
         raise _fail("VALIDATION_FAILED", f"{subject} must be between %s and %s, not %s.", name,
                     spec.get("minimum", "-inf"), spec.get("maximum", "+inf"), text, hint="Use '%s'.",
-                    hint_arguments=(usage,))
+                    hint_arguments=(usage,), issue=("VALUE_RANGE", name))
     return value
 
 
@@ -2619,7 +2624,7 @@ def _parse_flag(value: Optional[str], name: str, usage: str) -> bool:
     if value in ("false", "no", "off", "0"):
         return False
     raise _fail("VALIDATION_FAILED", "Option %s takes true, false, yes, no, on, off, 1 or 0, not '%s'.", name, value,
-                hint="Use '%s'.", hint_arguments=(usage,))
+                hint="Use '%s'.", hint_arguments=(usage,), issue=("VALUE_KIND", name))
 
 
 # ---- files -----------------------------------------------------------------------
@@ -4001,7 +4006,8 @@ class Program:
             # come after the command's pattern (`PROGRAM list --json`), and a word with one dash selects
             # nothing either (`-x --help`), as in C.
             raise _fail("INVALID_COMMAND", "Unknown command '%s'.", argv[0],
-                        hint="Run describe --summary and use one of the listed command identifiers.")
+                        hint="Run describe --summary and use one of the listed command identifiers.",
+                        issue=("UNKNOWN_COMMAND", argv[0]))
         command, consumed = self.resolve(words[:leading])
         if command is None and any(name == "--help" for name, _ in raw) and self._family(words=words[:leading]):
             # `PROGRAM note --help`: the words name no command, but a family of
@@ -4012,7 +4018,8 @@ class Program:
             command, consumed = self.resolve(words[:1])
         if command is None:
             raise _fail("INVALID_COMMAND", "Unknown command '%s'.", ' '.join(words[:leading]),
-                        hint="Run describe --summary and use one of the listed command identifiers.")
+                        hint="Run describe --summary and use one of the listed command identifiers.",
+                        issue=("UNKNOWN_COMMAND", argv[0] if argv else ""))
         # A failure envelope names the resolved command from here on (section 7).
         self.resolved_command_id = command["id"]
         raw_operands = words[consumed:] + passthrough
@@ -4034,21 +4041,25 @@ class Program:
         known = {item["long"]: item for item in command["options"]}
         for name, value in raw:
             if name in seen and not (name in known and known[name]["repeatable"]):
-                raise _fail("VALIDATION_FAILED", "Option %s is given twice.", name, hint="Give each option once.")
+                raise _fail("VALIDATION_FAILED", "Option %s is given twice.", name, hint="Give each option once.",
+                            issue=("DUPLICATE_OPTION", name))
             if value is _DASH_WORD:
                 raise _fail("VALIDATION_FAILED", "Option %s is not supported: options are spelled --name.", name,
-                            hint="Spell an option --name; write an operand that starts with a dash after --.")
+                            hint="Spell an option --name; write an operand that starts with a dash after --.",
+                            issue=("NOT_AN_OPTION", name))
             if value is _BARE_WORD:
                 raise _fail("VALIDATION_FAILED",
                             "'%s' is neither an option nor the value of one: the line names no command and runs the "
                             "default command '%s', whose operands are written after --.",
                             name, command['id'],
-                            hint="Write the command's pattern first, or the operands of the default command after --.")
+                            hint="Write the command's pattern first, or the operands of the default command after --.",
+                            issue=("UNEXPECTED_OPERAND", "operands"))
             seen.add(name)
             declared = known.get(name) or next((item for item in GLOBAL_OPTIONS if item["long"] == name), None)
             if declared is not None and "argument" in declared and value is None:
                 raise _fail("VALIDATION_FAILED", "Option %s needs a value %s.", name, declared['argument']['name'],
-                            hint="Run describe for this command and pass the option's argument.")
+                            hint="Run describe for this command and pass the option's argument.",
+                            issue=("MISSING_VALUE", name))
             if name in RENDERING:
                 rendering.append(name)
             if name == "--format":
@@ -4080,11 +4091,13 @@ class Program:
             elif name in ("--dry-run", "--plan") and isinstance(command["effect"], dict):
                 raise _fail("VALIDATION_FAILED", "Option %s is not supported by '%s': it plans by default.", name,
                             command['id'],
-                            hint="Run without --apply to plan, then add --apply to write.")
+                            hint="Run without --apply to plan, then add --apply to write.",
+                            issue=("UNKNOWN_OPTION", name))
             elif name not in known:
                 raise _fail("VALIDATION_FAILED", "Option %s is not supported by '%s'. Use '%s'.", name, command['id'],
                             usage,
-                            hint="Run describe for this command and use only its declared options.")
+                            hint="Run describe for this command and use only its declared options.",
+                            issue=("UNKNOWN_OPTION", name))
             else:
                 definition = known[name]
                 if "argument" in definition:
@@ -4107,8 +4120,9 @@ class Program:
             help_command = self.command_by_id("help")
             self.resolved_command_id = help_command["id"]
             if fmt == "jsonl" and field is None:
-                raise Failure("VALIDATION_FAILED", "--format jsonl is accepted only by json-records commands, not "
-                              "'help'; add --field to render one member in jsonl.", "Use --format json.")
+                raise _fail("VALIDATION_FAILED", "--format jsonl is accepted only by json-records commands, not "
+                            "'help'; add --field to render one member in jsonl.", hint="Use --format json.",
+                            issue=("RENDERING", "--format"))
             return Invocation(self, help_command, [command["id"]], {}, fmt, compact, non_interactive,
                               [command["id"]], verbose, progress, pager, color, field), help_command
         # dependencies, conflicts, groups; then required; then operands
@@ -4122,17 +4136,17 @@ class Program:
             for other in definition["requires"]:
                 if not enabled(other):
                     raise _fail("VALIDATION_FAILED", "Option %s requires %s.", name, other, hint="Use '%s'.",
-                                hint_arguments=(usage,))
+                                hint_arguments=(usage,), issue=("REQUIRES", name))
             for other in definition["conflictsWith"]:
                 if other.startswith("--"):
                     if enabled(other):
                         raise _fail("VALIDATION_FAILED", "Option %s conflicts with %s.", name, other,
-                                    hint="Use '%s'.", hint_arguments=(usage,))
+                                    hint="Use '%s'.", hint_arguments=(usage,), issue=("CONFLICTS", name))
                 else:
                     position = next((i for i, item in enumerate(command["operands"]) if item["name"] == other), None)
                     if position is not None and len(raw_operands) > position:
                         raise _fail("VALIDATION_FAILED", "Option %s conflicts with the %s operand.", name, other,
-                                    hint="Use '%s'.", hint_arguments=(usage,))
+                                    hint="Use '%s'.", hint_arguments=(usage,), issue=("CONFLICTS", name))
         groups: dict = {}
         for definition in command["options"]:
             if "group" in definition:
@@ -4141,7 +4155,7 @@ class Program:
             present = [name for name in members if enabled(name)]
             if present and len(present) != len(members):
                 raise _fail("VALIDATION_FAILED", "Options %s are given together or not at all.", ', '.join(members),
-                            hint="Use '%s'.", hint_arguments=(usage,))
+                            hint="Use '%s'.", hint_arguments=(usage,), issue=("ALL_OR_NONE", ",".join(members)))
         # The rules the command states itself (spec 2.5), in the same causal
         # slot as the dependencies they extend; exactly-one refuses zero as
         # it refuses two.
@@ -4152,24 +4166,29 @@ class Program:
                 for other in rule["options"][1:]:
                     if not enabled(other):
                         raise _fail("VALIDATION_FAILED", "Option %s requires %s.", rule['options'][0], other,
-                                    hint="Use '%s'.", hint_arguments=(usage,))
+                                    hint="Use '%s'.", hint_arguments=(usage,), issue=("REQUIRES", rule['options'][0]))
             elif rule["kind"] == "at-most-one" and len(present) > 1:
                 raise _fail("VALIDATION_FAILED", "At most one of %s may be given.", listed, hint="Use '%s'.",
-                            hint_arguments=(usage,))
+                            hint_arguments=(usage,), issue=("AT_MOST_ONE", ",".join(rule["options"])))
             elif rule["kind"] == "exactly-one" and len(present) != 1:
                 raise _fail("VALIDATION_FAILED", "Exactly one of %s must be given.", listed, hint="Use '%s'.",
-                            hint_arguments=(usage,))
+                            hint_arguments=(usage,), issue=("EXACTLY_ONE", ",".join(rule["options"])))
         for definition in command["options"]:
             if definition["required"] and definition["long"] not in options:
                 raise _fail("VALIDATION_FAILED", "Option %s is required by '%s'.", definition['long'], command['id'],
-                            hint="Use '%s'.", hint_arguments=(usage,))
+                            hint="Use '%s'.", hint_arguments=(usage,), issue=("REQUIRED_OPTION", definition['long']))
         operands: list = []
         if not command["passthrough"]:
             required = sum(1 for item in command["operands"] if item["required"])
             variadic = any(item["variadic"] for item in command["operands"])
             if len(raw_operands) < required or (not variadic and len(raw_operands) > len(command["operands"])):
+                # The first required operand the line lacks, or the operands as a whole: never the word.
+                absent = next((item["name"] for item in command["operands"][len(raw_operands):] if item["required"]),
+                              None)
                 raise _fail("VALIDATION_FAILED", "Operands do not match '%s'. Use '%s'.", command['id'], usage,
-                            hint="Use the synopsis returned by describe and retry.")
+                            hint="Use the synopsis returned by describe and retry.",
+                            issue=("MISSING_OPERAND", absent) if len(raw_operands) < required and absent
+                            else ("EXTRA_OPERAND", "operands"))
             for position, value in enumerate(raw_operands):
                 item = command["operands"][min(position, len(command["operands"]) - 1)]
                 kind = item.get("type")
@@ -4187,20 +4206,21 @@ class Program:
         if command["outputMode"] == "protocol-stream" and rendering:
             raise _fail("VALIDATION_FAILED", "Command '%s' owns its stdout and refuses %s.", command['id'],
                         rendering[0],
-                        hint="Set MAELYS_CLI_FORMAT=json in the environment to receive its failure envelope as JSON.")
+                        hint="Set MAELYS_CLI_FORMAT=json in the environment to receive its failure envelope as JSON.",
+                        issue=("RENDERING", rendering[0]))
         if fmt == "jsonl" and field is None and command["outputMode"] != "json-records":
             raise _fail("VALIDATION_FAILED",
                         "--format jsonl is accepted only by json-records commands, not '%s'; add --field to render "
                         "one member in jsonl.",
-                        command['id'], hint="Use --format json.")
+                        command['id'], hint="Use --format json.", issue=("RENDERING", "--format"))
         # data is governed by outputSchema; a filtered envelope would not validate
         # against it (spec 2.4). An environment MAELYS_CLI_FORMAT=json applies after
         # parsing and cannot be caught here; main() refuses it too, defensively.
         if field is not None and fmt == "json" and format_requested:
-            raise Failure("VALIDATION_FAILED",
-                          "--field conflicts with --format json: a filtered envelope would not "
-                          "validate against the command's outputSchema.",
-                          "Use --format text or --format jsonl with --field.")
+            raise _fail("VALIDATION_FAILED",
+                        "--field conflicts with --format json: a filtered envelope would not "
+                        "validate against the command's outputSchema.",
+                        hint="Use --format text or --format jsonl with --field.", issue=("RENDERING", "--field"))
         return Invocation(self, command, operands, options, fmt, compact, non_interactive, raw_operands,
                           verbose, progress, pager, color, field, lang), command
 
@@ -4272,10 +4292,11 @@ class Program:
                 if fmt == "json":
                     # Reached only via an environment MAELYS_CLI_FORMAT=json;
                     # an explicit --format json was refused by the parser.
-                    raise Failure("VALIDATION_FAILED",
-                                  "--field conflicts with --format json: a filtered envelope "
-                                  "would not validate against the command's outputSchema.",
-                                  "Use --format text or --format jsonl with --field.")
+                    raise _fail("VALIDATION_FAILED",
+                                "--field conflicts with --format json: a filtered envelope "
+                                "would not validate against the command's outputSchema.",
+                                hint="Use --format text or --format jsonl with --field.",
+                                issue=("RENDERING", "--field"))
                 if command["effect"] != "read":
                     # A command that can write -- a transaction, with or
                     # without --apply, or an execute -- accepts only a member
@@ -4287,13 +4308,15 @@ class Program:
                                     "Option --field is not accepted by '%s': the command can write and its output "
                                     "schema requires no member.",
                                     command_id,
-                                    hint="Run the command without --field and read the member from its result.")
+                                    hint="Run the command without --field and read the member from its result.",
+                                    issue=("RENDERING", "--field"))
                     if invocation.field not in required:
                         raise _fail("VALIDATION_FAILED",
                                     "Option --field names '%s', which '%s' does not always return: a command that "
                                     "can write accepts only a member its output schema requires.",
                                     invocation.field, command_id,
-                                    hint="Use a member the command's output schema requires; describe lists them.")
+                                    hint="Use a member the command's output schema requires; describe lists them.",
+                                    issue=("RENDERING", "--field"))
             data, exit_code = command["handler"](invocation)
             invocation.progress_done()
             if invocation.options.get("--expect") is not None and not invocation._expect_checked \
@@ -4312,7 +4335,7 @@ class Program:
                 if invocation.field not in data:
                     raise _fail("VALIDATION_FAILED", "Option --field names '%s', which '%s' does not have.",
                                 invocation.field, command_id,
-                                hint="Use a top-level member of the command's data.")
+                                hint="Use a top-level member of the command's data.", issue=("RENDERING", "--field"))
                 value = data[invocation.field]
                 if fmt == "jsonl":
                     sys.stdout.write(field_jsonl(value))

@@ -290,14 +290,17 @@ option spelling, support and duplication; value kind, range and choice;
 `constraints`; required options; operand arity and kinds; availability;
 rendering constraints. `--help` is answered after the value checks and
 before the rest (`docs/command-conventions.md`, "What the parser enforces").
+Each refusal of the line carries in `Failure.issues` one entry, a reserved
+code and the path at fault (`{"code": "VALUE_RANGE", "message": ...,
+"path": "--count"}`), as C's does (agent-cli/v2 2.23.0, section 8).
 Inside the handler, raise
 `cli.Failure(code, message, hint)` with one of the eleven stable codes.
 `cli.Failure(code, message, hint, issues=[...], extensions={...})` adds the
 detail the envelope schema admits (C: `maelys_cli_fail_error_extended`):
 `issues`, each `{"code", "message"}` with an optional `"path"`, string or
 list of strings and integers, is the cause under the code -- cx's
-`VALIDATION_FAILED` with `{"code": "PANES_CONFIG", "path": "panes.conf:12",
-"message": ...}`; `extensions`, each named per `EXTENSION_NAME`, is machine
+`VALIDATION_FAILED` with `{"code": "PANES_CONFIG", "path": ["--config",
+"panes", 0, "key"], "message": ...}`; `extensions`, each named per `EXTENSION_NAME`, is machine
 detail, such as the revisions of a `REVISION_CONFLICT`. The code matches
 `CODE_GRAMMAR`: a stable one, or one of the product's own domain, which it
 documents. The text rendering is unchanged. A code, an issue or a member
