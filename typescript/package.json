@@ -1,6 +1,6 @@
 {
   "name": "@maelys-dev/cli",
-  "version": "0.15.0",
+  "version": "0.15.1",
   "description": "Native TypeScript and JavaScript implementation of the Maelys agent-cli/v2 framework.",
   "type": "module",
   "engines": {
