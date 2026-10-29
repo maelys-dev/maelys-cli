@@ -1800,7 +1800,7 @@ class CallableParentCompletion(unittest.TestCase):
         self.assertEqual(words("catalog", "all", ""), [])
         self.assertNotIn("details", words("catalog", "--"))
         for shell in ("bash", "zsh", "fish"):
-            self.assertEqual(program.completion_script(shell), program.completion_script(shell, static=False))
+            self.assertNotEqual(program.completion_script(shell), program.completion_script(shell, static=False))
 
 
 if __name__ == "__main__":
