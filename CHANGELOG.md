@@ -1,12 +1,15 @@
 # Changelog
 
-## Unreleased
+## 0.15.1 - 2026-10-29
+
+A correction of completion, the same in C, Python and Node; the
+specification stays at agent-cli-spec 2.22.0.
 
 - Complete longer command patterns even when their prefix is itself a callable
   command: `catalog` no longer hides `catalog summaries`. Preserve the parent
   operand choices, omit hidden/unavailable children and return each word once.
-  The C, Python and TypeScript implementations share the regression cases.
-- `python/maelys_cli.py` receives the same parent/family completion fix as C.
+  The C, Python and TypeScript implementations share the regression cases,
+  and Python's static Bash, Zsh and Fish tables offer the same words.
 
 ## 0.15.0 - 2026-10-27
 
