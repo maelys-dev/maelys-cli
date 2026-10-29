@@ -7,6 +7,23 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as cli from '../dist/index.js';
+test('completion retains child command words when their parent is also a command', () => {
+  const reply = () => ({ data: {} });
+  const program = new cli.Program('fixture', 'Fixture', '1', [
+    cli.read('catalog', 'catalog', 'Read the catalog.', reply, {
+      operands: [cli.operand('MODE', 'Mode.', { required: false, type: 'choice', choices: ['summaries', 'all'] })],
+    }),
+    cli.read('catalog.summaries', 'catalog summaries', 'Read summaries.', reply),
+    cli.read('catalog.details', 'catalog details', 'Read details.', reply),
+    cli.read('catalog.hidden', 'catalog hidden', 'Hidden.', reply, { hidden: true }),
+    cli.read('catalog.gone', 'catalog gone', 'Unavailable.', reply, { unavailable: 'Not installed.' }),
+  ]);
+  assert.deepEqual(program.complete(['catalog', '']), ['summaries', 'all', 'details']);
+  assert.deepEqual(program.complete(['catalog', 'd']), ['details']);
+  assert.deepEqual(program.complete(['catalog', 'summaries', '']), []);
+  assert.deepEqual(program.complete(['catalog', 'all', '']), []);
+  assert(!program.complete(['catalog', '--']).includes('details'));
+});
 const hello = fileURLToPath(new URL('../examples/hello.mjs', import.meta.url));
 const invoke = (args, env = {}) => {
   const result = spawnSync(process.execPath, [hello, ...args], { encoding: 'utf8', env: { ...process.env, MAELYS_CLI_FORMAT: '', MAELYS_CLI_LANG: '', LC_ALL: 'C.UTF-8', ...env } });

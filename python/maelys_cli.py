@@ -2134,6 +2134,16 @@ _@ID@_complete() {
             fi
         fi
     fi
+    if [[ -n $best && $bkind != d ]]; then
+        for row in "${_@ID@_rows[@]}"; do
+            case $row in 'C|'*) ;; *) continue ;; esac
+            rest=${row#*|}; rest=${rest#*|}; pat=${rest%%|*}
+            pw=($pat)
+            (( ${#pw[@]} > n )) || continue
+            for (( i = 0; i < n; i++ )); do [[ ${prev[i]} == "${pw[i]}" ]] || continue 2; done
+            out[${#out[@]}]=${pw[n]}
+        done
+    fi
     for (( i = 0; i < ${#out[@]}; i++ )); do
         word=${out[i]}
         [[ $word == "$cur"* ]] || continue
@@ -2267,6 +2277,15 @@ _@ID@_complete() {
                 out=(${=pvals[pos+1]})
             fi
         fi
+    fi
+    if [[ -n $best && $bkind != d ]]; then
+        for row in "${_@ID@_rows[@]}"; do
+            [[ $row == 'C|'* ]] || continue
+            f=("${(@s:|:)row}"); pw=(${=f[3]})
+            (( ${#pw} > n )) || continue
+            for (( i = 1; i <= n; i++ )); do [[ ${prev[i]} == "${pw[i]}" ]] || continue 2; done
+            out+=("${pw[n+1]}")
+        done
     fi
     for word in "${out[@]}"; do
         [[ -n $word && $word == "$cur"* ]] || continue
@@ -2474,6 +2493,21 @@ function __@ID@_complete
                 test $pos -lt $np; and set slot (math $pos + 1)
                 set out (string split -n -- ' ' "$pvals[$slot]")
             end
+        end
+    end
+    if test -n "$best"; and test "$bkind" != d
+        for row in $__@ID@_rows
+            string match -q -- 'C|*' $row; or continue
+            set -l f (string split -- '|' $row)
+            set -l pw (string split -- ' ' $f[3])
+            test (count $pw) -gt $n; or continue
+            set -l same 1
+            set -l i 1
+            while test $i -le $n
+                test "x$prev[$i]" = "x$pw[$i]"; or set same 0
+                set i (math $i + 1)
+            end
+            test $same -eq 1; and set -a out $pw[(math $n + 1)]
         end
     end
     set -l keep
@@ -3845,6 +3879,11 @@ class Program:
                 operands = command["operands"]
                 if position < len(operands) or operands[-1]["variadic"]:
                     candidates = self._value_candidates(operands[min(position, len(operands) - 1)])
+        # A callable parent does not hide the next words of longer patterns.
+        # Operand choices stay first; the final pass also removes shared words.
+        if command is not None and not command["external"]:
+            candidates.extend(other["pattern"][len(previous)] for other in shown
+                              if len(other["pattern"]) > len(previous) and other["pattern"][:len(previous)] == previous)
         matching = [word for word in dict.fromkeys(leading + candidates) if word.startswith(current)]
         return {"count": len(matching), "records": [{"word": word} for word in matching]}, EXIT_OK
 

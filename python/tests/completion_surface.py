@@ -21,6 +21,10 @@ def handover(invocation: cli.Invocation) -> int:
 
 
 PROGRAM = cli.Program("maelys-surface-py", "Maelys completion surface", "1.2.3", [
+    cli.read("catalog", "catalog", "A callable parent with descendant patterns.", reply,
+             operands=[cli.operand("MODE", "Mode.", required=False, choices=["summaries", "all"])]),
+    cli.read("catalog.summaries", "catalog summaries", "Summaries.", reply),
+    cli.read("catalog.details", "catalog details", "Details.", reply),
     cli.read("pair.one", "pair one", "The first of two commands sharing a word.", reply),
     cli.read("pair.two", "pair two", "The second.", reply,
              operands=[cli.operand("NAME", "A free-text operand.", required=False)]),
@@ -46,6 +50,8 @@ PROGRAM = cli.Program("maelys-surface-py", "Maelys completion surface", "1.2.3",
 # Word lists over those forms. Where `__complete` returns nothing the current
 # word is empty or the prefix of the files completion-check creates.
 WORD_LISTS = [
+    ["catalog", ""], ["catalog", "d"], ["catalog", "s"], ["catalog", "--"],
+    ["catalog", "summaries", ""], ["catalog", "all", ""],
     [""], ["p"], ["pa"], ["s"], ["a"], ["pair", ""], ["pair", "o"], ["pair", "t"],
     ["pair", "two", ""], ["pair", "two", "zz-completion-"], ["pair", "two", "--"],
     ["help", ""], ["help", "pa"], ["describe", "p"], ["describe", "a"], ["describe", "s"],

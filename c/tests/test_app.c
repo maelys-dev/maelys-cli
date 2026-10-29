@@ -2185,6 +2185,40 @@ static int test_invalid_languages(void) {
     return 1;
 }
 
+static int test_callable_parent_completion(void) {
+    static const char *const modes[] = {"summaries", "all", NULL};
+    static const maelys_cli_operand_t operands[] = {
+        {MAELYS_CLI_OPERAND_OPTIONAL("MODE", "Mode."), .kind = MAELYS_CLI_VALUE_CHOICE, .choices = modes},
+    };
+    static const maelys_cli_command_t family_commands[] = {
+        {MAELYS_CLI_READ("catalog", "catalog", "Catalog.", command_nothing), MAELYS_CLI_OPERANDS(operands)},
+        {MAELYS_CLI_READ("catalog.summaries", "catalog summaries", "Summaries.", command_nothing)},
+        {MAELYS_CLI_READ("catalog.details", "catalog details", "Details.", command_nothing)},
+        {MAELYS_CLI_READ("catalog.hidden", "catalog hidden", "Hidden.", command_nothing), .hidden = 1},
+        {MAELYS_CLI_READ("catalog.gone", "catalog gone", "Gone.", NULL), .unavailable = "Not installed."},
+    };
+    static const maelys_cli_app_t family_app = {
+        .program = "fixture", .product = "Fixture", .version = "1",
+        .commands = family_commands, .command_count = MAELYS_CLI_COUNT(family_commands),
+    };
+    run_result_t result = RUN_IN(&family_app, "__complete", "--", "catalog", "");
+    CHECK(result.code == 0 && !strcmp(result.out, "summaries\nall\ndetails\n"));
+    release(&result);
+    result = RUN_IN(&family_app, "__complete", "--", "catalog", "d");
+    CHECK(result.code == 0 && !strcmp(result.out, "details\n"));
+    release(&result);
+    result = RUN_IN(&family_app, "__complete", "--", "catalog", "summaries", "");
+    CHECK(result.code == 0 && !*result.out);
+    release(&result);
+    result = RUN_IN(&family_app, "__complete", "--", "catalog", "all", "");
+    CHECK(result.code == 0 && !*result.out);
+    release(&result);
+    result = RUN_IN(&family_app, "__complete", "--", "catalog", "--");
+    CHECK(result.code == 0 && !strstr(result.out, "details"));
+    release(&result);
+    return 1;
+}
+
 int main(void) {
     int failures = 0;
     RUN(test_help_and_version);
@@ -2198,6 +2232,7 @@ int main(void) {
     RUN(test_stream_records_and_codes);
     RUN(test_field);
     RUN(test_typed_operands_and_completion);
+    RUN(test_callable_parent_completion);
     RUN(test_expect);
     RUN(test_groups_defaults_unavailable);
     RUN(test_constraints);
